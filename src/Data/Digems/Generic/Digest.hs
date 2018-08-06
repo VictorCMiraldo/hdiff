@@ -6,7 +6,9 @@ module Data.Digems.Generic.Digest where
 
 import Data.Proxy
 import Data.Functor.Const
-import Data.Word (Word64)
+import Data.Word (Word8,Word64)
+import Data.Bits
+import Data.List (splitAt,foldl')
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Char8  as BS8
 import qualified Data.ByteArray         as BA
@@ -23,6 +25,22 @@ import Generics.MRSOP.AG (synthesize)
 newtype Digest
   = Digest { getDigest :: Hash.Digest Hash.Blake2s_256 }
   deriving (Eq , Show)
+
+-- |Unpacks a digest into a list of Word64.
+toW64s :: Digest -> [Word64]
+toW64s = map combine . chunksOf 8 . BA.unpack . getDigest
+  where
+    chunksOf n l
+      | length l <= n = [l]
+      | otherwise     = let (h , t) = splitAt n l
+                         in h : chunksOf n t
+
+    -- precondition: length must be 8!!!
+    combine :: [Word8] -> Word64
+    combine = foldl' (\acu (n , next)
+                       -> shiftL (fromIntegral next) (8*n) .|. acu) 0
+            . zip [0,8,16,24,32,40,48,56]
+    
 
 -- |Auxiliar hash function with the correct types instantiated.
 hash :: BS.ByteString -> Digest
