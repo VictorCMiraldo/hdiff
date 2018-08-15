@@ -7,12 +7,14 @@ module Data.Digems.Example where
 import Data.ByteArray
 import qualified Data.ByteArray.Mapping as BA
 
-import Data.Digems.Generic.Digest
-
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Opaque
 import Generics.MRSOP.Examples.SimpTH
+
+import Data.Digems.Generic.Digest
+import Data.Digems.Diff
+
 
 instance Digestible1 Singl where
   digest1 (SString s) = hashStr s
@@ -27,3 +29,6 @@ tr = dfrom . into @FamStmtString
 
 genFib :: MyFix (S (S Z))
 genFib = tr $ test1 "fib" "n" "aux"
+
+genFib2 :: MyFix (S (S Z))
+genFib2 = tr $ test1 "fab" "m" "b"

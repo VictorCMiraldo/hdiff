@@ -67,12 +67,15 @@ instance Digestible Word64 where
 class Digestible1 (f :: k -> *) where
   digest1 :: forall ki . f ki -> Digest
 
+-- |Type synonym for fixpoints annotated with their digest.
+type DigFix ki codes = AnnFix ki codes (Const Digest)
+
 -- |Given a generic fixpoint, annotate every recursive position
 --  with its cryptographic digests.
 auth :: forall ki codes ix
       . (IsNat ix , Digestible1 ki)
      => Fix ki codes ix
-     -> AnnFix ki codes (Const Digest) ix
+     -> DigFix ki codes ix
 auth = synthesize authAlgebra
   where
     -- We are mapping Constr and SNat's to

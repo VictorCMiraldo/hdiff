@@ -1,6 +1,7 @@
 module Data.WordTrie where
 
 import Prelude hiding (lookup,zipWith)
+import Control.Arrow ((***))
 
 import qualified Data.Map  as M
 import qualified Data.List as L
@@ -44,3 +45,10 @@ lookup = L.foldl' navigate trieVal
 zipWith :: (a -> b -> c) -> Trie a -> Trie b -> Trie c
 zipWith f (Fork va ma) (Fork vb mb)
   = Fork (f <$> va <*> vb) (M.intersectionWith (zipWith f) ma mb)
+
+-- |Maps over the trie carrying an accumulating parameter
+--  around
+mapAccum :: (a -> b -> (a, c)) -> a -> Trie b -> (a, Trie c)  
+mapAccum f acc (Fork vb mb)
+  = let (acc' , vc) = maybe (acc , Nothing) ((id *** Just) . f acc) vb
+     in (id *** Fork vc) $ M.mapAccum (mapAccum f) acc mb
