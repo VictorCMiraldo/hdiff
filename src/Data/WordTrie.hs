@@ -51,4 +51,4 @@ zipWith f (Fork va ma) (Fork vb mb)
 mapAccum :: (a -> b -> (a, c)) -> a -> Trie b -> (a, Trie c)  
 mapAccum f acc (Fork vb mb)
   = let (acc' , vc) = maybe (acc , Nothing) ((id *** Just) . f acc) vb
-     in (id *** Fork vc) $ M.mapAccum (mapAccum f) acc mb
+     in (id *** Fork vc) $ M.mapAccum (mapAccum f) acc' mb

@@ -85,4 +85,13 @@ digems x y
         sharing = buildSharingTrie dx dy
         del     = extractUTx sharing dx
         ins     = extractUTx sharing dy
-     in Patch ins del
+        -- TODO: remove un-matched holes in either ins and del
+     in Patch del ins
+
+-- |Applying a patch is trivial, we simply project the
+--  deletion treefix and inject the valuation into the insertion.
+apply :: (Eq1 ki , IsNat ix)
+      => Patch ki codes ix
+      -> Fix ki codes ix
+      -> Maybe (Fix ki codes ix)
+apply (Patch del ins) x = utxProj del x >>= utxInj ins
