@@ -31,9 +31,6 @@ import Data.Digems.Diff.Preprocess
 getFixSNat :: (IsNat ix) => Fix ki codes ix -> SNat ix
 getFixSNat _ = getSNat (Proxy :: Proxy ix)
 
-getUTxSNat :: (IsNat ix) => UTx ki codes ix f -> SNat ix
-getUTxSNat _ = getSNat (Proxy :: Proxy ix)
-
 -- |A patch consists in two treefixes, for deletion
 --  and insertion respectively and a set of swaps
 --  and contractions of their holes. In Haskell, this

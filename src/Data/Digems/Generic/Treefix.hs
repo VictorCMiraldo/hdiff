@@ -5,6 +5,8 @@
 {-# LANGUAGE GADTs         #-}
 module Data.Digems.Generic.Treefix where
 
+import Data.Proxy
+
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 
@@ -17,6 +19,11 @@ data UTx :: (kon -> *) -> [[[Atom kon]]] -> Nat -> (Nat -> *) -> *  where
   UTxPeel :: (IsNat n) => Constr (Lkup i codes) n
           -> UTxNP ki codes (Lkup n (Lkup i codes)) x
           -> UTx ki codes i x
+
+-- |Returns the index of the UTx as a singleton.
+getUTxSNat :: (IsNat ix) => UTx ki codes ix f -> SNat ix
+getUTxSNat _ = getSNat (Proxy :: Proxy ix)
+
 
 -- |A version of 'UTx' for products.
 data UTxNP :: (kon -> *) -> [[[Atom kon]]] -> [Atom kon] -> (Nat -> *) -> *
@@ -85,3 +92,33 @@ instance (Show1 ki , Show1 x) => Show (UTxNP ki codes prod x) where
   show UTxNPNil = "Nil"
   show (UTxNPPath p ps) = show p ++ " :* " ++ show ps
   show (UTxNPSolid ki ps) = show1 ki ++ " :* " ++ show ps
+
+-- * Pretty Printing
+
+parens :: String -> String
+parens s | ' ' `elem` s = "(" ++ s ++ ")"
+         | otherwise    = s
+
+sep :: String -> String
+sep [] = []
+sep s  = " " ++ s
+
+utxPretty :: (Show1 ki , Show1 x , HasDatatypeInfo ki fam codes , IsNat i)
+          => Proxy fam
+          -> UTx ki codes i x
+          -> String
+utxPretty pfam (UTxHere x)      = "[" ++ show1 x ++ "]"
+utxPretty pfam utx@(UTxPeel c rest)
+  = let ci = constrInfoFor pfam (getUTxSNat utx) c
+     in parens $ constructorName ci ++ sep (utxnpPretty pfam rest) 
+
+utxnpPretty :: (Show1 ki , Show1 x , HasDatatypeInfo ki fam codes)
+            => Proxy fam
+            -> UTxNP ki codes prod x
+            -> String
+utxnpPretty pfam UTxNPNil
+  = ""
+utxnpPretty pfam (UTxNPSolid ki ps)
+  = parens (show1 ki) ++ sep (utxnpPretty pfam ps)
+utxnpPretty pfam (UTxNPPath p ps)
+  = utxPretty pfam p ++ sep (utxnpPretty pfam ps)
