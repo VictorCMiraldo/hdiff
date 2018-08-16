@@ -36,7 +36,7 @@ heightAlgebra :: forall ki sum ann iy
               => (forall ix . ann ix -> Int)
               -> Rep ki ann sum
               -> Const Int iy 
-heightAlgebra proj = Const . elimRep (const 0) proj safeMax
+heightAlgebra proj = Const . (1+) . elimRep (const 0) proj safeMax
   where
     safeMax [] = 0
     safeMax l  = maximum l

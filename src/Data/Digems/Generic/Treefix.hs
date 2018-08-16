@@ -66,7 +66,6 @@ utxnpRefine f (UTxNPPath utx rest) = UTxNPPath <$> utxRefine f utx
                                                <*> utxnpRefine f rest
 utxnpRefine f (UTxNPSolid ki rest) = UTxNPSolid ki <$> utxnpRefine f rest
 
-
 -- |A stiff treefix is one with no holes
 utxStiff :: Fix ki codes v -> UTx ki codes v f
 utxStiff (Fix x) = case sop x of
