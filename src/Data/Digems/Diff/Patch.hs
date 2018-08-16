@@ -9,8 +9,11 @@ import Data.Proxy
 import Data.Type.Equality
 import Data.Functor.Const
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Control.Monad
+import Control.Monad.State
+import Control.Monad.Identity
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -48,15 +51,20 @@ data Patch ki codes v
           }
 
 -- * Diffing
+
+
 -- |Given a merkelized fixpoint, builds a trie of hashes of
---  every subtree.
-buildTrie :: PrepFix ki codes ix -> T.Trie ()
-buildTrie df = go df T.empty
+--  every subtree, as long as they are taller than
+--  minHeight.
+buildTrie :: MinHeight -> PrepFix ki codes ix -> T.Trie ()
+buildTrie minHeight df = go df T.empty
   where
     go :: PrepFix ki codes ix -> T.Trie () -> T.Trie ()
     go (AnnFix (Const prep) rep) t
       = case sop rep of
-          Tag _ p -> T.insert () (toW64s $ treeDigest prep)
+          Tag _ p -> (if (treeHeight prep <= minHeight)
+                      then id
+                      else T.insert () (toW64s $ treeDigest prep))
                    . getConst
                    $ cataNP (elimNA (const (Const . getConst))
                                     (\af -> Const . go af . getConst))
@@ -69,6 +77,9 @@ buildTrie df = go df T.empty
 --  build our n-holed treefix.
 type IsSharedMap = T.Trie Int
 
+-- |A tree smaller than the minimum height will never be shared.
+type MinHeight = Int
+
 -- |Given two merkelized trees, returns the trie that indexes
 --  the subtrees that belong in both, ie,
 --
@@ -78,39 +89,53 @@ type IsSharedMap = T.Trie Int
 --  Moreover, the Int that the Trie maps to indicates
 --  the metavariable we should choose for that tree.
 --
-buildSharingTrie :: PrepFix ki codes ix
+buildSharingTrie :: MinHeight
+                 -> PrepFix ki codes ix
                  -> PrepFix ki codes ix
                  -> IsSharedMap
-buildSharingTrie x y
+buildSharingTrie minHeight x y
   = snd . T.mapAccum (\i _ -> (i+1 , i)) 0
-  $ T.zipWith (\_ _ -> ()) (buildTrie x) (buildTrie y)
+  $ T.zipWith (\_ _ -> ()) (buildTrie minHeight x)
+                           (buildTrie minHeight y)
 
 -- |Given the sharing mapping between source and destination,
 --  we extract a tree prefix from a tree substituting every
 --  shared subtree by a hole with its respective identifier.
 extractUTx :: (IsNat ix)
-           => IsSharedMap
+           => MinHeight
+           -> IsSharedMap
            -> PrepFix ki codes ix
-           -> UTx ki codes ix (Const Int)
-extractUTx tr (AnnFix (Const prep) rep)
+           -> UTx ki codes ix (Const Int :*: Fix ki codes)
+extractUTx minHeight tr (AnnFix (Const prep) rep)
+  -- TODO: if the tree's height is smaller than minHeight we don't
+  --       even have to look it up on the map
   = case T.lookup (toW64s $ treeDigest prep) tr of
       Nothing | Tag c p <- sop rep
               -> UTxPeel c (extractUTxNP tr p)
-      Just i  -> UTxHere (Const i)
+      Just i  -> UTxHere (Const i :*: Fix (mapRep forgetAnn rep))
   where
     extractUTxNP :: T.Trie Int
                  -> PoA ki (PrepFix ki codes) prod
-                 -> UTxNP ki codes prod (Const Int)
+                 -> UTxNP ki codes prod (Const Int :*: Fix ki codes)
     extractUTxNP tr NP0 = UTxNPNil
     extractUTxNP tr (NA_K ki :* ps)
       = UTxNPSolid ki (extractUTxNP tr ps)
     extractUTxNP tr (NA_I vi :* ps)
-      = UTxNPPath (extractUTx tr vi) (extractUTxNP tr ps)
+      = UTxNPPath (extractUTx minHeight tr vi) (extractUTxNP tr ps)
 
 -- |Given a sharing map and a merkelized tree,
 --  will return a treefix with 
 
 -- |Diffs two generic merkelized structures.
+--  The outline of the process is:
+--
+--    i)   Annotate each tree with the info we need (digest and height)
+--    ii)  Build the sharing trie
+--    iii) traverse both trees substituting each subtree
+--         that is an element of the sharing trie by a hole
+--    iv)  keep the holes that appear both in the insertion and
+--         deletion treefixes
+--
 digems :: (Digestible1 ki , IsNat ix)
        => Fix ki codes ix
        -> Fix ki codes ix
@@ -118,11 +143,27 @@ digems :: (Digestible1 ki , IsNat ix)
 digems x y
   = let dx      = preprocess x
         dy      = preprocess y
-        sharing = buildSharingTrie dx dy
-        del     = extractUTx sharing dx
-        ins     = extractUTx sharing dy
-        -- TODO: remove un-matched holes in either ins and del
+        sharing = buildSharingTrie 1 dx dy
+        del'    = extractUTx 1 sharing dx
+        ins'    = extractUTx 1 sharing dy
+        holes   = execState (utxMap getHole del') S.empty
+                    `S.intersection`
+                  execState (utxMap getHole ins') S.empty
+        ins     = runIdentity $ utxRefine (refineHole holes) ins'
+        del     = runIdentity $ utxRefine (refineHole holes) del'
      in Patch del ins
+  where
+    getHole :: (Const Int :*: f) ix
+            -> State (S.Set Int) ((Const Int :*: f) ix)
+    getHole x@(Const i :*: f) = modify (S.insert i) >> return x
+
+    refineHole :: (IsNat ix)
+               => S.Set Int
+               -> (Const Int :*: Fix ki codes) ix
+               -> Identity (UTx ki codes ix (Const Int))
+    refineHole s (Const i :*: f)
+      | i `S.member` s = return $ UTxHere (Const i)
+      | otherwise      = return $ utxStiff f
 
 -- ** Applying a Patch
 --

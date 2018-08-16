@@ -47,6 +47,26 @@ utxnpMap f UTxNPNil = return UTxNPNil
 utxnpMap f (UTxNPPath utx rest) = UTxNPPath <$> utxMap f utx <*> utxnpMap f rest
 utxnpMap f (UTxNPSolid ki rest) = UTxNPSolid ki <$> utxnpMap f rest
 
+-- |Similar to 'utxMap', but allows to refine the structure of
+--  a treefix if need be
+utxRefine :: (Monad m)
+       => (forall i . IsNat i => f i -> m (UTx ki codes i g))
+       -> UTx ki codes i f 
+       -> m (UTx ki codes i g)
+utxRefine f (UTxHere x)       = f x
+utxRefine f (UTxPeel c utxnp) = UTxPeel c <$> utxnpRefine f utxnp
+
+-- |Analogous to 'utxRefine'
+utxnpRefine :: (Monad m)
+         => (forall i . IsNat i => f i -> m (UTx ki codes i g))
+         -> UTxNP ki codes prod f 
+         -> m (UTxNP ki codes prod g)
+utxnpRefine f UTxNPNil = return UTxNPNil
+utxnpRefine f (UTxNPPath utx rest) = UTxNPPath <$> utxRefine f utx
+                                               <*> utxnpRefine f rest
+utxnpRefine f (UTxNPSolid ki rest) = UTxNPSolid ki <$> utxnpRefine f rest
+
+
 -- |A stiff treefix is one with no holes
 utxStiff :: Fix ki codes v -> UTx ki codes v f
 utxStiff (Fix x) = case sop x of
