@@ -8,6 +8,15 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
+-- |Illustrates the usage of MRSOP with a custom
+--  opaque type universe and the use of Digems to
+--  compute diffs over a simple imperative WHILE-language.
+--
+--  The parser has been slightly modified from:
+--
+--   https://wiki.haskell.org/Parsing_a_simple_imperative_language
+--
+--
 module Main (main) where
 
 import System.IO
@@ -97,8 +106,12 @@ data Stmt = Seq [Stmt]
           | Skip
             deriving (Show , Eq)
 
+-- |Custom Opaque type
 data WKon = WInt | WString | WBool
 
+-- |And their singletons.
+--
+--  Note we need instances of Eq1, Show1 and Digestible1
 data W :: WKon -> * where
   W_Integer :: Integer -> W WInt
   W_String  :: String  -> W WString
@@ -119,7 +132,11 @@ instance Show1 W where
   show1 (W_String s)  = s
   show1 (W_Bool b)    = show b
 
+-- Now we derive the 'Family' instance
+-- using 'W' for the constants.
 deriveFamilyWithTy [t| W |] [t| Stmt |]
+
+-- ** Parser definition
 
 languageDef =
   emptyDef { Token.commentStart    = "/*"
