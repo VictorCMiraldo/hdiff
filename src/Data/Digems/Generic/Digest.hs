@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE PolyKinds           #-}
@@ -76,26 +77,31 @@ auth :: forall ki codes ix
       . (IsNat ix , Digestible1 ki)
      => Fix ki codes ix
      -> DigFix ki codes ix
-auth = synthesize authAlgebra
+auth = synthesize (authAlgebra getConst)
+
+-- |And a more general form of the algebra used
+--  to compute a merkelized fixpoint.
+--
+authAlgebra :: forall ki sum ann iy
+             . (Digestible1 ki , IsNat iy)
+            => (forall ix . ann ix -> Digest)
+            -> Rep ki ann sum
+            -> Const Digest iy
+authAlgebra proj rep
+  = let siy = snat2W64 $ getSNat (Proxy :: Proxy iy)
+     in case sop rep of
+       Tag c p -> Const . digestConcat
+                $ ([digest (constr2W64 c) , digest siy] ++)
+                $ elimNP (elimNA digest1 proj) p
   where
     -- We are mapping Constr and SNat's to
     -- Word64 because these are better handled by the 'memory'
     -- library.
-    constr2W64 :: Constr sum n -> Word64
+    constr2W64 :: Constr sum' n -> Word64
     constr2W64 CZ     = 0
     constr2W64 (CS c) = 1 + constr2W64 c
 
     snat2W64 :: SNat n -> Word64
     snat2W64 SZ     = 0
     snat2W64 (SS c) = 1 + snat2W64 c
-    
-    authAlgebra :: forall sum iy
-                 . (IsNat iy)
-                => Rep ki (Const Digest) (Lkup iy codes)
-                -> Const Digest iy
-    authAlgebra rep
-      = let siy = snat2W64 $ getSNat (Proxy :: Proxy iy)
-         in case sop rep of
-           Tag c p -> Const . digestConcat
-                    $ ([digest (constr2W64 c) , digest siy] ++)
-                    $ elimNP (elimNA digest1 getConst) p
+

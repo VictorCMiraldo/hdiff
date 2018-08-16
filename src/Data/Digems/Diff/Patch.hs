@@ -15,8 +15,21 @@ import Control.Monad
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 
+import qualified Data.WordTrie as T
 import Data.Digems.Generic.Treefix
 import Data.Digems.Generic.Digest
+import Data.Digems.Diff.Preprocess
+
+-- * Utils
+--
+-- $utils
+--
+
+getFixSNat :: (IsNat ix) => Fix ki codes ix -> SNat ix
+getFixSNat _ = getSNat (Proxy :: Proxy ix)
+
+getUTxSNat :: (IsNat ix) => UTx ki codes ix f -> SNat ix
+getUTxSNat _ = getSNat (Proxy :: Proxy ix)
 
 -- |A patch consists in two treefixes, for deletion
 --  and insertion respectively and a set of swaps
@@ -35,17 +48,103 @@ data Patch ki codes v
           }
 
 -- * Diffing
+-- |Given a merkelized fixpoint, builds a trie of hashes of
+--  every subtree.
+buildTrie :: PrepFix ki codes ix -> T.Trie ()
+buildTrie df = go df T.empty
+  where
+    go :: PrepFix ki codes ix -> T.Trie () -> T.Trie ()
+    go (AnnFix (Const prep) rep) t
+      = case sop rep of
+          Tag _ p -> T.insert () (toW64s $ treeDigest prep)
+                   . getConst
+                   $ cataNP (elimNA (const (Const . getConst))
+                                    (\af -> Const . go af . getConst))
+                            (Const t) p
 
--- * Auxiliary Treefix Functionality
+-- |The data structure that captures which subtrees are shared
+--  between source and destination. Besides providing an efficient
+--  answer to the query: "is this tree shared?", it also gives a
+--  unique identifier to that tree, allowing us to easily
+--  build our n-holed treefix.
+type IsSharedMap = T.Trie Int
+
+-- |Given two merkelized trees, returns the trie that indexes
+--  the subtrees that belong in both, ie,
 --
--- Injecting and projecting our Treefixes will
--- return maps from numbers to trees.
+--  @forall t . t `elem` buildSharingTrie x y
+--        ==> t `subtree` x && t `subtree` y@
+--
+--  Moreover, the Int that the Trie maps to indicates
+--  the metavariable we should choose for that tree.
+--
+buildSharingTrie :: PrepFix ki codes ix
+                 -> PrepFix ki codes ix
+                 -> IsSharedMap
+buildSharingTrie x y
+  = snd . T.mapAccum (\i _ -> (i+1 , i)) 0
+  $ T.zipWith (\_ _ -> ()) (buildTrie x) (buildTrie y)
+
+-- |Given the sharing mapping between source and destination,
+--  we extract a tree prefix from a tree substituting every
+--  shared subtree by a hole with its respective identifier.
+extractUTx :: (IsNat ix)
+           => IsSharedMap
+           -> PrepFix ki codes ix
+           -> UTx ki codes ix (Const Int)
+extractUTx tr (AnnFix (Const prep) rep)
+  = case T.lookup (toW64s $ treeDigest prep) tr of
+      Nothing | Tag c p <- sop rep
+              -> UTxPeel c (extractUTxNP tr p)
+      Just i  -> UTxHere (Const i)
+  where
+    extractUTxNP :: T.Trie Int
+                 -> PoA ki (PrepFix ki codes) prod
+                 -> UTxNP ki codes prod (Const Int)
+    extractUTxNP tr NP0 = UTxNPNil
+    extractUTxNP tr (NA_K ki :* ps)
+      = UTxNPSolid ki (extractUTxNP tr ps)
+    extractUTxNP tr (NA_I vi :* ps)
+      = UTxNPPath (extractUTx tr vi) (extractUTxNP tr ps)
+
+-- |Given a sharing map and a merkelized tree,
+--  will return a treefix with 
+
+-- |Diffs two generic merkelized structures.
+digems :: (Digestible1 ki , IsNat ix)
+       => Fix ki codes ix
+       -> Fix ki codes ix
+       -> Patch ki codes ix
+digems x y
+  = let dx      = preprocess x
+        dy      = preprocess y
+        sharing = buildSharingTrie dx dy
+        del     = extractUTx sharing dx
+        ins     = extractUTx sharing dy
+        -- TODO: remove un-matched holes in either ins and del
+     in Patch del ins
+
+-- ** Applying a Patch
+--
+-- $applyingapatch
+--
+-- Patch application really is trivial. Say we
+-- are applying a patch @p@ against an element @x@,
+-- first we match @x@ with the @ctxDel p@; upon
+-- a succesfull match we record, in a 'Valuation',
+-- which tree fell in which hole.
+-- Then, we use the same valuation to inject
+-- those trees into @ctxIns p@.
+--
+-- The only slight trick is that we need to
+-- wrap our trees in existentials inside our valuation.
 
 -- |We start by wrapping the index of the fixpoint into
 --  an existential.
 data FixE :: (kon -> *) -> [[[Atom kon]]] -> * where
   SomeFix :: (IsNat ix) => Fix ki codes ix -> FixE ki codes
 
+-- |A call to @fixeMatch fe f@ returns true when @fe == Somefix f@
 fixeMatch :: (IsNat v , Eq1 ki)
           => FixE ki codes
           -> Fix ki codes v
@@ -59,12 +158,6 @@ fixeMatch (SomeFix x) y
 --  hole-id's to trees.
 type Valuation ki codes
   = M.Map Int (FixE ki codes)
-
-getFixSNat :: (IsNat ix) => Fix ki codes ix -> SNat ix
-getFixSNat _ = getSNat (Proxy :: Proxy ix)
-
-getUTxSNat :: (IsNat ix) => UTx ki codes ix f -> SNat ix
-getUTxSNat _ = getSNat (Proxy :: Proxy ix)
 
 -- |Projects an assignment out of a treefix. This
 --  function is inherently partial because the constructors
@@ -132,3 +225,11 @@ utxInj (UTxPeel c utxnp) m
       = (NA_K k :*) <$> utxnpInj utxnp m
     utxnpInj (UTxNPPath utx utxnp) m
       = (:*) <$> (NA_I <$> utxInj utx m) <*> utxnpInj utxnp m
+
+-- |Applying a patch is trivial, we simply project the
+--  deletion treefix and inject the valuation into the insertion.
+apply :: (Eq1 ki , IsNat ix)
+      => Patch ki codes ix
+      -> Fix ki codes ix
+      -> Maybe (Fix ki codes ix)
+apply (Patch del ins) x = utxProj del x >>= utxInj ins
