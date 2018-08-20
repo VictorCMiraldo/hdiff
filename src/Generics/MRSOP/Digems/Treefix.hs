@@ -1,9 +1,10 @@
-{-# LANGUAGE RankNTypes    #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE PolyKinds     #-}
-{-# LANGUAGE GADTs         #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 module Generics.MRSOP.Digems.Treefix where
 
 import Data.Proxy
@@ -13,6 +14,7 @@ import Data.Text.Prettyprint.Doc
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+import Generics.MRSOP.Digems.Renderer
 
 -- |An untyped tree prefix, 'UTx' is basically an n-hole context. The untyped
 --  refers to the lack of an index that maintains the type of
@@ -99,46 +101,21 @@ instance (Show1 ki , Show1 x) => Show (UTxNP ki codes prod x) where
 
 -- * Pretty Printing
 
-class (HasDatatypeInfo ki fam codes)
-    => Renderer ki fam codes where
-  renderK :: Proxy fam -> ki k -> Doc ann
-  renderI :: Proxy fam 
-          -> Constr sum c
-          -> NP (Const (Doc ann)) (Lkup c sum)
-          -> Doc ann
-
-utxPretty :: (Show1 ki , Show1 x , HasDatatypeInfo ki fam codes , IsNat i)
+utxPretty :: forall ki fam codes x i ann
+           . (Show1 ki , Show1 x , Renderer ki fam codes , IsNat i)
           => Proxy fam
           -> UTx ki codes i x
           -> Doc ann
-utxPretty pr utx = undefined
-
-{-
-parens :: String -> String
-parens s | ' ' `elem` s = "(" ++ s ++ ")"
-         | otherwise    = s
-
-sep :: String -> String
-sep [] = []
-sep s  = " " ++ s
-
-utxPretty :: (Show1 ki , Show1 x , HasDatatypeInfo ki fam codes , IsNat i)
-          => Proxy fam
-          -> UTx ki codes i x
-          -> String
-utxPretty pfam (UTxHere x)      = "[" ++ show1 x ++ "]"
+utxPretty pfam (UTxHere x)
+  = braces (brackets $ pretty $ show1 x)
 utxPretty pfam utx@(UTxPeel c rest)
-  = let ci = constrInfoFor pfam (getUTxSNat utx) c
-     in parens $ constructorName ci ++ sep (utxnpPretty pfam rest) 
-
-utxnpPretty :: (Show1 ki , Show1 x , HasDatatypeInfo ki fam codes)
-            => Proxy fam
-            -> UTxNP ki codes prod x
-            -> String
-utxnpPretty pfam UTxNPNil
-  = ""
-utxnpPretty pfam (UTxNPSolid ki ps)
-  = parens (show1 ki) ++ sep (utxnpPretty pfam ps)
-utxnpPretty pfam (UTxNPPath p ps)
-  = utxPretty pfam p ++ sep (utxnpPretty pfam ps)
--}
+  = renderI pfam (getUTxSNat utx) (Tag c $ utxnpPretty rest)
+  where
+    utxnpPretty :: UTxNP ki codes prod x
+                -> PoA ki (Const (Doc ann)) prod
+    utxnpPretty UTxNPNil = NP0
+    utxnpPretty (UTxNPSolid k rest)
+      = NA_K k :* utxnpPretty rest
+    utxnpPretty (UTxNPPath i rest)
+      = NA_I (Const $ utxPretty pfam i) :* utxnpPretty rest
+     

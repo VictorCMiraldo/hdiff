@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Generics.MRSOP.Digems.Digest
                  ,     Generics.MRSOP.Digems.Treefix
+                 ,     Generics.MRSOP.Digems.Renderer
                  ,     Data.Digems.Diff.Patch
                  ,     Data.Digems.Diff.Preprocess
                  ,     Data.Digems.Example

@@ -13,8 +13,8 @@
 {-# LANGUAGE GADTs #-}
 module Data.Digems.Example where
 
-import Data.ByteArray
-import qualified Data.ByteArray.Mapping as BA
+import Data.Functor.Const
+import Data.Text.Prettyprint.Doc
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -22,6 +22,7 @@ import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
 import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.Digems.Renderer
 import Data.Digems.Diff.Patch
 
 instance Digestible1 Singl where
@@ -37,6 +38,16 @@ data Tree23
   deriving (Eq , Show)
 
 deriveFamily [t| Tree23 |]
+
+instance Renderer Singl FamTree23 CodesTree23 where
+  renderK _ (SString s) = pretty s
+  renderK _ (SInt i)    = pretty i
+
+  renderI _ IdxTree23 Leaf_ = pretty "leaf"
+  renderI _ IdxTree23 (Node2_ i dl dr)
+    = tupled [pretty "Node2" <+> getConst dr <+> getConst dr]
+  renderI _ IdxTree23 (Node3_ i dl dm dr)
+    = tupled [pretty "Node3" <+> getConst dl <+> getConst dm <+> getConst dr]
 
 mt1 , mt2 , mt3 , mt4 :: Tree23
 mt1 = Node2 10 Leaf Leaf

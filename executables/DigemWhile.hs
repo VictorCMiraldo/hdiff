@@ -30,10 +30,14 @@ import Development.GitRev
 import System.Console.CmdArgs.Implicit
 
 import Data.Proxy
+import Data.Functor.Const
+import           Data.Text.Prettyprint.Doc hiding (parens,semi)
+import qualified Data.Text.Prettyprint.Doc as PP  (parens,semi) 
 
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.Util
 import Generics.MRSOP.TH
+import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
@@ -135,6 +139,82 @@ instance Show1 W where
 -- Now we derive the 'Family' instance
 -- using 'W' for the constants.
 deriveFamilyWithTy [t| W |] [t| Stmt |]
+
+-- ** Pretty printer
+
+myIndent :: Doc ann -> Doc ann
+myIndent = indent 2
+
+instance Renderer W FamStmt CodesStmt where
+  renderK _ (W_Integer i) = pretty i
+  renderK _ (W_String s)  = pretty s
+  renderK _ (W_Bool b)    = pretty b
+
+  renderI pf IdxBExpr (BoolConst_ b)
+    = renderK pf b
+  renderI pf IdxBExpr (Not_ b)
+    = pretty "not" <+> PP.parens (getConst b)
+  renderI pf IdxBExpr (BBinary_ bop l r)
+    = PP.parens (getConst l)
+    <+> getConst bop
+    <+> PP.parens (getConst r)
+  renderI pf IdxBExpr (RBinary_ bop l r)
+    = PP.parens (getConst l)
+    <+> getConst bop
+    <+> PP.parens (getConst r)
+
+  renderI pf IdxBBinOp And_ = pretty "and"
+  renderI pf IdxBBinOp Or_ = pretty "or"
+
+  renderI pf IdxRBinOp Greater_ = pretty ">"
+  renderI pf IdxRBinOp Less_ = pretty "<"
+  renderI pf IdxRBinOp Equal_ = pretty "="
+
+  renderI pf IdxAExpr (Var_ s) = renderK pf s
+  renderI pf IdxAExpr (IntConst_ i) = renderK pf i
+  renderI pf IdxAExpr (Neg_ i) = pretty "-" <+> PP.parens (getConst i)
+  renderI pf IdxAExpr (ABinary_ bop l r)
+    = PP.parens (getConst l)
+    <+> getConst bop
+    <+> PP.parens (getConst r)
+  renderI pf IdxAExpr (ARange_ l r)
+    = pretty "range"
+    <+> PP.parens (getConst l)
+    <+> PP.parens (getConst r)
+
+  renderI pf IdxABinOp Add_ = pretty "+"
+  renderI pf IdxABinOp Subtract_ = pretty "-"
+  renderI pf IdxABinOp Multiply_ = pretty "*"
+  renderI pf IdxABinOp Reminder_ = pretty "%"
+  renderI pf IdxABinOp Divide_ = pretty "/"
+  renderI pf IdxABinOp Power_ = pretty "^"
+
+  renderI pf IdxListStmt ListStmt_Ifx0 = emptyDoc
+  renderI pf IdxListStmt (ListStmt_Ifx1 s ss)
+    = vcat [getConst s , getConst ss]
+
+  renderI pf IdxStmt (Seq_ ls)
+    = getConst ls
+  renderI pf IdxStmt (Assign_ name expr)
+    = renderK pf name <+> pretty ":=" <+> getConst expr <> PP.semi
+  renderI pf IdxStmt Skip_
+    = pretty "skip;"
+  renderI pf IdxStmt (If_ c t e)
+    = vsep [ pretty "if" <+> getConst c <+> pretty "then"
+           , myIndent (getConst t)
+           , pretty "else"
+           , myIndent (getConst e)
+
+           ]
+  renderI pf IdxStmt (While_ c bdy)
+    = vsep [ pretty "while" <+> getConst c <+> pretty "do"
+           , myIndent (getConst bdy)
+           ]
+
+  renderI _ _ _
+    = undefined
+           
+
 
 -- ** Parser definition
 
