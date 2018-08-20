@@ -21,7 +21,7 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
-import Data.Digems.Generic.Digest
+import Generics.MRSOP.Digems.Digest
 import Data.Digems.Diff.Patch
 
 instance Digestible1 Singl where

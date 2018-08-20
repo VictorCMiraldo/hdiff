@@ -3,9 +3,13 @@
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE PolyKinds     #-}
 {-# LANGUAGE GADTs         #-}
-module Data.Digems.Generic.Treefix where
+{-# LANGUAGE MultiParamTypeClasses #-}
+module Generics.MRSOP.Digems.Treefix where
 
 import Data.Proxy
+import Data.Functor.Const
+
+import Data.Text.Prettyprint.Doc
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -95,6 +99,21 @@ instance (Show1 ki , Show1 x) => Show (UTxNP ki codes prod x) where
 
 -- * Pretty Printing
 
+class (HasDatatypeInfo ki fam codes)
+    => Renderer ki fam codes where
+  renderK :: Proxy fam -> ki k -> Doc ann
+  renderI :: Proxy fam 
+          -> Constr sum c
+          -> NP (Const (Doc ann)) (Lkup c sum)
+          -> Doc ann
+
+utxPretty :: (Show1 ki , Show1 x , HasDatatypeInfo ki fam codes , IsNat i)
+          => Proxy fam
+          -> UTx ki codes i x
+          -> Doc ann
+utxPretty pr utx = undefined
+
+{-
 parens :: String -> String
 parens s | ' ' `elem` s = "(" ++ s ++ ")"
          | otherwise    = s
@@ -122,3 +141,4 @@ utxnpPretty pfam (UTxNPSolid ki ps)
   = parens (show1 ki) ++ sep (utxnpPretty pfam ps)
 utxnpPretty pfam (UTxNPPath p ps)
   = utxPretty pfam p ++ sep (utxnpPretty pfam ps)
+-}

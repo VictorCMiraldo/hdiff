@@ -3,7 +3,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Data.Digems.Generic.Digest where
+module Generics.MRSOP.Digems.Digest where
 
 import Data.Proxy
 import Data.Functor.Const

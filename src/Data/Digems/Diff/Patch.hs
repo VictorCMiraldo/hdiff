@@ -17,10 +17,10 @@ import Control.Monad.Identity
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Digems.Digest
 
 import qualified Data.WordTrie as T
-import Data.Digems.Generic.Treefix
-import Data.Digems.Generic.Digest
 import Data.Digems.Diff.Preprocess
 
 -- * Utils

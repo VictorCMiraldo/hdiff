@@ -34,9 +34,9 @@ import Data.Proxy
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.Util
 import Generics.MRSOP.TH
+import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.Digems.Treefix hiding (parens)
 
-import Data.Digems.Generic.Digest
-import Data.Digems.Generic.Treefix hiding (parens)
 import Data.Digems.Diff.Patch
 
 ---------------------------
@@ -287,11 +287,11 @@ go opts = do
       patch = digems fa fb
   putStrLn (replicate 15 '#')
   putStrLn "# Deletion Context: "
-  putStrLn $ utxPretty (Proxy :: Proxy FamStmt) (ctxDel patch)
+  putStrLn $ show $ utxPretty (Proxy :: Proxy FamStmt) (ctxDel patch)
   putStrLn ""
   putStrLn (replicate 15 '#')
   putStrLn "# Insertion Context: "
-  putStrLn $ utxPretty (Proxy :: Proxy FamStmt) (ctxIns patch)
+  putStrLn $ show $ utxPretty (Proxy :: Proxy FamStmt) (ctxIns patch)
   putStrLn ""
   let fb' = case apply patch fa of
               Nothing -> Left "apply failed"

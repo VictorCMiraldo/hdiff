@@ -14,8 +14,8 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.Digems.Generic.Digest
-                 ,     Data.Digems.Generic.Treefix
+  exposed-modules:     Generics.MRSOP.Digems.Digest
+                 ,     Generics.MRSOP.Digems.Treefix
                  ,     Data.Digems.Diff.Patch
                  ,     Data.Digems.Diff.Preprocess
                  ,     Data.Digems.Example
@@ -23,7 +23,7 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.10 && <5
-               ,       generics-mrsop >= 1.1.1
+               ,       generics-mrsop >= 1.2.1
                ,       bytestring
                ,       cryptonite
                ,       memory

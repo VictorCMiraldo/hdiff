@@ -17,7 +17,7 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.AG (synthesize)
 
-import Data.Digems.Generic.Digest
+import Generics.MRSOP.Digems.Digest
 
 -- |We precompute the digest of a tree and its height
 --  and annotate our fixpoints with this data before
