@@ -10,6 +10,8 @@ module Generics.MRSOP.Digems.Treefix where
 import Data.Proxy
 import Data.Functor.Const
 
+import Control.Monad.Identity
+
 import Data.Text.Prettyprint.Doc
 
 import Generics.MRSOP.Util
@@ -50,6 +52,11 @@ utxMap :: (Monad m)
        -> m (UTx ki codes i g)
 utxMap f (UTxHere x)       = UTxHere   <$> f x
 utxMap f (UTxPeel c utxnp) = UTxPeel c <$> utxnpMap f utxnp
+
+utxMapI :: (forall i . IsNat i => f i -> g i)
+        -> UTx ki codes i f
+        -> UTx ki codes i g
+utxMapI f = runIdentity . utxMap (return . f)
 
 -- |Analogous to 'utxMap'
 utxnpMap :: (Monad m)

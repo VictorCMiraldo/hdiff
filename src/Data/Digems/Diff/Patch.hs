@@ -42,13 +42,21 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 --
 --  Where @forget@ returns the values in the holes.
 --
-data Patch ki codes v
-  = Patch { ctxDel :: UTx ki codes v (Const Int)
-          , ctxIns :: UTx ki codes v (Const Int)
+type Patch = RawPatch (Const Int)
+
+data RawPatch phi ki codes v
+  = Patch { ctxDel :: UTx ki codes v phi
+          , ctxIns :: UTx ki codes v phi
           }
 
--- * Diffing
 
+patchMap :: (Monad m)
+         => (forall ix . IsNat ix => phi ix -> m (chi ix))
+         -> RawPatch phi ki codes v
+         -> m (RawPatch chi ki codes v)
+patchMap f (Patch d i) = Patch <$> utxMap f d <*> utxMap f i
+
+-- * Diffing
 
 -- |Given a merkelized fixpoint, builds a trie of hashes of
 --  every subtree, as long as they are taller than
