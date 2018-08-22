@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE PatternSynonyms       #-}
@@ -29,10 +30,13 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import Development.GitRev
 import System.Console.CmdArgs.Implicit
 
-import Data.Proxy
-import Data.Functor.Const
+import           Data.Proxy
+import           Data.Functor.Const
+import           Data.Functor.Sum
 import           Data.Text.Prettyprint.Doc hiding (parens,semi)
 import qualified Data.Text.Prettyprint.Doc as PP  (parens,semi) 
+import           Data.Text.Prettyprint.Doc.Render.Text
+import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.Util
@@ -42,6 +46,7 @@ import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
 import Data.Digems.Diff.Patch
+import Data.Digems.Diff.Merge
 
 ---------------------------
 -- * Cmd Line Options
@@ -50,6 +55,7 @@ data Options = Options
   { optMinHeight :: Int
   , optFileA     :: FilePath
   , optFileB     :: FilePath
+  , optMerge     :: Maybe FilePath
   , optDebug     :: Bool
   } deriving (Eq , Show, Data, Typeable)
 
@@ -61,6 +67,10 @@ options = Options
       &= help "Specify the minimum height a tree must have to be shared"
   , optFileA = def &= argPos 0 &= typ "FILE"
   , optFileB = def &= argPos 1 &= typ "FILE"
+  , optMerge = Nothing
+      &= name "merge" &= name "m"
+      &= typ "FILE"
+      &= help "Instead of diffing two files, use the specified merge file as the origin"
   , optDebug = False
       &= explicit
       &= name "debug" &= name "d"
@@ -356,25 +366,74 @@ parseFile file =
 -- * Main function
 
 main :: IO ()
-main = cmdArgs options >>= go 
+main = cmdArgs options >>= go
+
+getDiff :: FilePath -> FilePath -> IO (Patch W CodesStmt 'Z)
+getDiff fA fB
+  = do fa <- (dfrom . into @FamStmt) <$> parseFile fA
+       fb <- (dfrom . into @FamStmt) <$> parseFile fB
+       return $ digems fa fb
+
+showConf :: (IsNat i) => Sum (Const Int) (Conflict W CodesStmt) i -> Doc ann
+showConf (InL (Const i)) = pretty i
+showConf (InR (Conflict l r))
+  = let dl = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) l
+        dr = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) r
+     in vcat [ pretty ">>>"
+             , dl
+             , pretty "==="
+             , dr
+             , pretty "<<<"
+             ]
 
 go :: Options -> IO ()
-go opts = do
-  fA <- parseFile (optFileA opts)
-  fB <- parseFile (optFileB opts)
-  let fa = dfrom (into @FamStmt fA)
-      fb = dfrom (into @FamStmt fB)
-      patch = digems fa fb
-  putStrLn (replicate 15 '#')
-  putStrLn "# Deletion Context: "
-  putStrLn $ show $ utxPretty (Proxy :: Proxy FamStmt) (ctxDel patch)
-  putStrLn ""
-  putStrLn (replicate 15 '#')
-  putStrLn "# Insertion Context: "
-  putStrLn $ show $ utxPretty (Proxy :: Proxy FamStmt) (ctxIns patch)
-  putStrLn ""
-  let fb' = case apply patch fa of
-              Nothing -> Left "apply failed"
-              Just x  -> Right x
-  let res = either id (show . eqFix eq1 fb) $ fb'
-  putStrLn $ "# Application: " ++ res
+go opts = case optMerge opts of
+    Nothing -> getDiff (optFileA opts) (optFileB opts)
+           >>= displayRawPatch (pretty . show1)
+      -- let fb' = case apply patch fa of
+      --             Nothing -> Left "apply failed"
+      --             Just x  -> Right x
+      -- let res = either id (show . eqFix eq1 fb) $ fb'
+      -- putStrLn $ "# Application: " ++ res
+    Just fO -> do
+      patchOA <- getDiff fO (optFileA opts)
+      patchOB <- getDiff fO (optFileB opts)
+      let resAB = merge patchOA patchOB
+      let resBA = merge patchOB patchOA
+      displayRawPatch showConf resAB
+      putStrLn $ replicate 60 '#'
+      displayRawPatch showConf resBA
+
+-- |Pretty prints a patch on the terminal
+displayRawPatch :: (IsNat v)
+                => (forall i . IsNat i => x i -> Doc ann)
+                -> RawPatch x W CodesStmt v
+                -> IO ()
+displayRawPatch showX patch
+  = doubleColumn 45 (utxPretty (Proxy :: Proxy FamStmt) showX (ctxDel patch))
+                    (utxPretty (Proxy :: Proxy FamStmt) showX (ctxIns patch))
+
+-- |displays two docs in a double column fashion
+doubleColumn :: Int -> Doc ann -> Doc ann -> IO ()
+doubleColumn width da db
+  = let pgdim = LayoutOptions (AvailablePerLine width 1)
+        lyout = layoutSmart pgdim
+        ta    = T.lines . renderStrict $ lyout da
+        tb    = T.lines . renderStrict $ lyout db
+        compA = if length ta >= length tb
+                then 0
+                else length tb - length ta
+        compB = if length tb >= length ta
+                then 0
+                else length ta - length tb
+        fta   = ta ++ replicate compA (T.replicate width $ T.singleton ' ')
+        ftb   = tb ++ replicate compB T.empty
+     in mapM_ (\(la , lb) -> putStrLn . T.unpack . T.concat
+                           $ [ complete width la
+                             , T.pack " -|+ "
+                             , lb
+                             ])
+              (zip fta ftb)
+  where
+    complete n t = T.concat [t , T.replicate (n - T.length t) $ T.singleton ' ']
+

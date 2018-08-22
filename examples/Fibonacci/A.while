@@ -1,0 +1,8 @@
+a := 1;
+snd:= 1;
+while n > 0 do
+  aux := a + b;
+  a   := b;
+  snd := aux;
+  n   := n - 1
+res := b;

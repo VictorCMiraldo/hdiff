@@ -109,13 +109,14 @@ instance (Show1 ki , Show1 x) => Show (UTxNP ki codes prod x) where
 -- * Pretty Printing
 
 utxPretty :: forall ki fam codes x i ann
-           . (Show1 ki , Show1 x , Renderer ki fam codes , IsNat i)
+           . (Show1 ki , Renderer ki fam codes , IsNat i)
           => Proxy fam
+          -> (forall i . IsNat i => x i -> Doc ann)
           -> UTx ki codes i x
           -> Doc ann
-utxPretty pfam (UTxHere x)
-  = braces (brackets $ pretty $ show1 x)
-utxPretty pfam utx@(UTxPeel c rest)
+utxPretty pfam sx (UTxHere x)
+  = braces (brackets $ sx x)
+utxPretty pfam sx utx@(UTxPeel c rest)
   = renderI pfam (getUTxSNat utx) (Tag c $ utxnpPretty rest)
   where
     utxnpPretty :: UTxNP ki codes prod x
@@ -124,5 +125,5 @@ utxPretty pfam utx@(UTxPeel c rest)
     utxnpPretty (UTxNPSolid k rest)
       = NA_K k :* utxnpPretty rest
     utxnpPretty (UTxNPPath i rest)
-      = NA_I (Const $ utxPretty pfam i) :* utxnpPretty rest
+      = NA_I (Const $ utxPretty pfam sx i) :* utxnpPretty rest
      

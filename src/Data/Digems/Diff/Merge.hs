@@ -28,7 +28,8 @@ import Data.Digems.Diff.Patch
 -- * Merging
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Nat -> * where
-  Conflict :: UTx ki codes v (Const Int)
+  Conflict :: (IsNat v , IsNat c)
+           => UTx ki codes v (Const Int)
            -> UTx ki codes c (Const Int)
            -> Conflict ki codes v
 

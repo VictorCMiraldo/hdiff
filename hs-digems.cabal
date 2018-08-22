@@ -18,6 +18,7 @@ library
                  ,     Generics.MRSOP.Digems.Treefix
                  ,     Generics.MRSOP.Digems.Renderer
                  ,     Data.Digems.Diff.Patch
+                 ,     Data.Digems.Diff.Merge
                  ,     Data.Digems.Diff.Preprocess
                  ,     Data.Digems.Example
                  ,     Data.WordTrie
@@ -31,6 +32,7 @@ library
                ,       containers
                ,       mtl
                ,       prettyprinter
+               ,       text
 
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -46,3 +48,4 @@ executable digem-while
                ,       cmdargs
                ,       gitrev
                ,       prettyprinter
+               ,       text
