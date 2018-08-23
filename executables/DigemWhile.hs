@@ -33,8 +33,8 @@ import System.Console.CmdArgs.Implicit
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
-import           Data.Text.Prettyprint.Doc hiding (parens,semi)
-import qualified Data.Text.Prettyprint.Doc as PP  (parens,semi) 
+import           Data.Text.Prettyprint.Doc hiding (braces,parens,semi)
+import qualified Data.Text.Prettyprint.Doc as PP  (braces,parens,semi) 
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
@@ -45,46 +45,64 @@ import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.Merge
+import qualified Data.Digems.Diff.Patch as D
+import qualified Data.Digems.Diff.Merge as D
 
 ---------------------------
 -- * Cmd Line Options
 
-data Options = Options
-  { optMinHeight :: Int
-  , optFileA     :: FilePath
-  , optFileB     :: FilePath
-  , optMerge     :: Maybe FilePath
-  , optDebug     :: Bool
-  } deriving (Eq , Show, Data, Typeable)
+data Options
+  = AST   { optFileA :: FilePath
+          }
+  | Diff  { optFileA     :: FilePath
+          , optFileB     :: FilePath
+          , minHeight    :: Int
+          }
+  | Merge { optFileA     :: FilePath
+          , optFileO     :: FilePath
+          , optFileB     :: FilePath
+          , minHeight    :: Int
+          }
+  deriving (Data, Typeable, Eq , Show)
 
-options :: Options
-options = Options
-  { optMinHeight = 1 &= explicit
-      &= name "h" &= name "height"
+minHeightFlags :: Int
+minHeightFlags = 1
+  &= typ "INT"
+  &= help "Specify the minimum height a tree must have to be shared"
+  &= explicit &= name "h" &= name "height"
+
+merge = Merge
+  { optFileA = def &= argPos 0 &= typ "MYFILE"
+  , optFileB = def &= argPos 1 &= typ "ORIGFILE"
+  , optFileO = def &= argPos 2 &= typ "YOURFILE"
+  , minHeight = 1
       &= typ "INT"
       &= help "Specify the minimum height a tree must have to be shared"
-  , optFileA = def &= argPos 0 &= typ "FILE"
-  , optFileB = def &= argPos 1 &= typ "FILE"
-  , optMerge = Nothing
-      &= name "merge" &= name "m"
-      &= typ "FILE"
-      &= help "Instead of diffing two files, use the specified merge file as the origin"
-  , optDebug = False
-      &= explicit
-      &= name "debug" &= name "d"
-      &= typ "BOOL"
-      &= help "Turns on debugging information"
-  } &= summary ("v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
-    &= program "digem-while"
-    &= verbosity
-    &= details
-       [ "Performs the hashdiff between two WHILE-lang files"
-       , "The WHILE parser has been extended from:"
-       , "  https://wiki.haskell.org/Parsing_a_simple_imperative_language"
-       ]
-      
+      &= explicit &= name "h" &= name "height"
+  } 
+  &= help "Merges three WHILE programs"
+
+ast = AST
+  { optFileA = def &= argPos 5 &= typ "FILE" }
+  &= help ("Parses a WHILE program. The WHILE parser has been extended from:"
+           ++ "'https://wiki.haskell.org/Parsing_a_simple_imperative_language'")
+
+diff = Diff
+  { optFileA = def &= argPos 3 &= typ "OLDFILE"
+  , optFileB = def &= argPos 4 &= typ "NEWFILE"
+  , minHeight = 1
+      &= typ "INT"
+      &= help "Specify the minimum height tree must have to be shared"
+      &= explicit &= name "h" &= name "height"
+  } 
+  &= help "Computes the diff between two WHILE programs"
+
+options :: Mode (CmdArgs Options)
+options = cmdArgsMode $ modes [merge , ast , diff &= auto]
+  &= summary ("v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
+  &= verbosity
+  &= program "digem-while"
+
 -----------------------
 -- * Parser
 
@@ -210,15 +228,16 @@ instance Renderer W FamStmt CodesStmt where
   renderI pf IdxStmt Skip_
     = pretty "skip;"
   renderI pf IdxStmt (If_ c t e)
-    = vsep [ pretty "if" <+> getConst c <+> pretty "then"
+    = vsep [ pretty "if" <+> getConst c <+> pretty "then {"
            , myIndent (getConst t)
-           , pretty "else"
+           , pretty "} else {"
            , myIndent (getConst e)
-
+           , pretty "}"
            ]
   renderI pf IdxStmt (While_ c bdy)
-    = vsep [ pretty "while" <+> getConst c <+> pretty "do"
+    = vsep [ pretty "while" <+> getConst c <+> pretty "do {"
            , myIndent (getConst bdy)
+           , pretty "}"
            ]
 
   renderI _ _ _
@@ -255,6 +274,7 @@ lexer = Token.makeTokenParser languageDef
 identifier = Token.identifier lexer -- parses an identifier
 reserved   = Token.reserved   lexer -- parses a reserved name
 reservedOp = Token.reservedOp lexer -- parses an operator
+braces     = Token.braces     lexer
 parens     = Token.parens     lexer -- parses surrounding parenthesis:
                                     --   parens p
                                     -- takes care of the parenthesis and
@@ -264,22 +284,22 @@ semi       = Token.semi       lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace lexer -- parses whitespace
 
 whileParser :: Parser Stmt
-whileParser = whiteSpace >> statement
+whileParser = whiteSpace >> sequenceOfStmt
 
 statement :: Parser Stmt
-statement =   parens statement
-          <|> sequenceOfStmt
+statement = statement'
+        <|> braces sequenceOfStmt
 
-sequenceOfStmt =
-  do list <- (sepBy1 statement' semi)
+sequenceOfStmt = 
+  do list <- (many statement')
      -- If there's only one statement return it without using Seq.
      return $ if length list == 1 then head list else Seq list
 
 statement' :: Parser Stmt
 statement' =   ifStmt
            <|> whileStmt
-           <|> skipStmt
-           <|> assignStmt
+           <|> (skipStmt   <* semi)
+           <|> (assignStmt <* semi)
 
 ifStmt :: Parser Stmt
 ifStmt =
@@ -362,21 +382,64 @@ parseFile file =
        Left e  -> print e >> fail "parse error"
        Right r -> return r
 
-----------------------
--- * Main function
+----------------------------
+-- * Actual Main functions
+
+
+data OptionMode
+  = OptAST | OptDiff | OptMerge
+  deriving (Data, Typeable, Eq , Show)
+
+optionMode :: Options -> OptionMode
+optionMode (AST _) = OptAST
+optionMode (Diff _ _ _) = OptDiff
+optionMode (Merge _ _ _ _) = OptMerge
 
 main :: IO ()
-main = cmdArgs options >>= go
+main = cmdArgsRun options >>= \opts
+    -> case optionMode opts of
+         OptAST   -> mainAST   opts
+         OptDiff  -> mainDiff  opts
+         OptMerge -> mainMerge opts
 
-getDiff :: FilePath -> FilePath -> IO (Patch W CodesStmt 'Z)
-getDiff fA fB
+
+mainAST :: Options -> IO ()
+mainAST opts
+  = do fa <- parseFile (optFileA opts)
+       whenLoud $ do
+         putStrLn (show fa)
+         putStrLn ""
+       putStrLn (show (renderEl . into @FamStmt $ fa))
+
+mainDiff :: Options -> IO ()
+mainDiff opts
+  = getDiff (minHeight opts) (optFileA opts) (optFileB opts)
+  >>= displayRawPatch (pretty . show1)
+      -- let fb' = case apply patch fa of
+      --             Nothing -> Left "apply failed"
+      --             Just x  -> Right x
+      -- let res = either id (show . eqFix eq1 fb) $ fb'
+      -- putStrLn $ "# Application: " ++ res
+
+mainMerge :: Options -> IO ()
+mainMerge opts
+  = do patchOA <- getDiff (minHeight opts) (optFileO opts) (optFileA opts)
+       patchOB <- getDiff (minHeight opts) (optFileO opts) (optFileB opts)
+       let resAB = D.merge patchOA patchOB
+       let resBA = D.merge patchOB patchOA
+       displayRawPatch showConf resAB
+       putStrLn $ replicate 60 '#'
+       displayRawPatch showConf resBA
+
+getDiff :: Int -> FilePath -> FilePath -> IO (D.Patch W CodesStmt 'Z)
+getDiff mh fA fB
   = do fa <- (dfrom . into @FamStmt) <$> parseFile fA
        fb <- (dfrom . into @FamStmt) <$> parseFile fB
-       return $ digems fa fb
+       return $ D.digems mh fa fb
 
-showConf :: (IsNat i) => Sum (Const Int) (Conflict W CodesStmt) i -> Doc ann
+showConf :: (IsNat i) => Sum (Const Int) (D.Conflict W CodesStmt) i -> Doc ann
 showConf (InL (Const i)) = pretty i
-showConf (InR (Conflict l r))
+showConf (InR (D.Conflict l r))
   = let dl = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) l
         dr = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) r
      in vcat [ pretty ">>>"
@@ -386,32 +449,14 @@ showConf (InR (Conflict l r))
              , pretty "<<<"
              ]
 
-go :: Options -> IO ()
-go opts = case optMerge opts of
-    Nothing -> getDiff (optFileA opts) (optFileB opts)
-           >>= displayRawPatch (pretty . show1)
-      -- let fb' = case apply patch fa of
-      --             Nothing -> Left "apply failed"
-      --             Just x  -> Right x
-      -- let res = either id (show . eqFix eq1 fb) $ fb'
-      -- putStrLn $ "# Application: " ++ res
-    Just fO -> do
-      patchOA <- getDiff fO (optFileA opts)
-      patchOB <- getDiff fO (optFileB opts)
-      let resAB = merge patchOA patchOB
-      let resBA = merge patchOB patchOA
-      displayRawPatch showConf resAB
-      putStrLn $ replicate 60 '#'
-      displayRawPatch showConf resBA
-
 -- |Pretty prints a patch on the terminal
 displayRawPatch :: (IsNat v)
                 => (forall i . IsNat i => x i -> Doc ann)
-                -> RawPatch x W CodesStmt v
+                -> D.RawPatch x W CodesStmt v
                 -> IO ()
 displayRawPatch showX patch
-  = doubleColumn 45 (utxPretty (Proxy :: Proxy FamStmt) showX (ctxDel patch))
-                    (utxPretty (Proxy :: Proxy FamStmt) showX (ctxIns patch))
+  = doubleColumn 55 (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxDel patch))
+                    (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxIns patch))
 
 -- |displays two docs in a double column fashion
 doubleColumn :: Int -> Doc ann -> Doc ann -> IO ()
@@ -436,4 +481,3 @@ doubleColumn width da db
               (zip fta ftb)
   where
     complete n t = T.concat [t , T.replicate (n - T.length t) $ T.singleton ' ']
-

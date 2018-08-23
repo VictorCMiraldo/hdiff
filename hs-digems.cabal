@@ -48,4 +48,5 @@ executable digem-while
                ,       cmdargs
                ,       gitrev
                ,       prettyprinter
-               ,       text
+               ,       text 
+              ,       cmdargs

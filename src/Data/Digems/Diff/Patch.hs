@@ -133,15 +133,16 @@ extractUTx minHeight tr (AnnFix (Const prep) rep)
 --         deletion treefixes
 --
 digems :: (Digestible1 ki , IsNat ix)
-       => Fix ki codes ix
+       => MinHeight
+       -> Fix ki codes ix
        -> Fix ki codes ix
        -> Patch ki codes ix
-digems x y
+digems mh x y
   = let dx      = preprocess x
         dy      = preprocess y
-        sharing = buildSharingTrie 1 dx dy
-        del'    = extractUTx 1 sharing dx
-        ins'    = extractUTx 1 sharing dy
+        sharing = buildSharingTrie mh dx dy
+        del'    = extractUTx mh sharing dx
+        ins'    = extractUTx mh sharing dy
         holes   = execState (utxMapM getHole del') S.empty
                     `S.intersection`
                   execState (utxMapM getHole ins') S.empty

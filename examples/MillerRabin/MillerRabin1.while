@@ -5,13 +5,15 @@
 // Output:
 //   the value of variable maybePrime
 maybePrime := 1;
-while (k > 0 or maybePrime == 0) do
+while (k > 0 or maybePrime == 0) do {
   a := range 2 (n - 2);
   x := (a ^ d) % n;
   if (x == 1 or x == n - 1)
-  then skip
-  else while r > 0 do
+  then skip;
+  else while r > 0 do {
     x := (x ^ 2) % n;
     if not (x == n - 1)
-    then maybePrime := 0
-    else skip 
+    then maybePrime := 0;
+    else skip;
+  }
+}

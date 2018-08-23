@@ -72,9 +72,11 @@ big2 = Node2 100
 tr :: Tree23 -> Fix Singl CodesTree23 'Z
 tr = dfrom . into
 
+{-
 dgms :: Tree23 -> Tree23 -> Patch Singl CodesTree23 'Z
 dgms x y = digems (dfrom $ into x) (dfrom $ into y)
 
+-}
 
 {-
 import Generics.MRSOP.Examples.SimpTH
