@@ -11,6 +11,7 @@
 module Languages.Lua where
 
 import Language.Lua.Syntax
+import qualified Language.Lua.Parser as Lua
 
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
@@ -41,3 +42,11 @@ instance TestEquality LuaSingl where
   testEquality (SLuaText _) (SLuaText _) = Just Refl
 
 deriveFamilyWith ''LuaSingl [t| Block |]
+
+parseFile :: String -> IO Block
+parseFile file =
+  do program  <- Lua.parseFile file
+     case program of
+       Left e  -> print e >> fail "parse error"
+       Right r -> return r
+
