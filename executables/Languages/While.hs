@@ -311,3 +311,4 @@ parseFile file =
        Left e  -> print e >> fail "parse error"
        Right r -> return r
 
+type Block = Stmt
