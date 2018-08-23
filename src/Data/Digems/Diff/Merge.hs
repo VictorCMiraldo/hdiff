@@ -29,8 +29,8 @@ import Data.Digems.Diff.Patch
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Nat -> * where
   Conflict :: (IsNat v , IsNat c)
-           => UTx ki codes v (Const Int)
-           -> UTx ki codes c (Const Int)
+           => UTx ki codes (Const Int) v
+           -> UTx ki codes (Const Int) c
            -> Conflict ki codes v
 
 type PatchC ki codes = RawPatch (Sum (Const Int) (Conflict ki codes)) ki codes
@@ -67,38 +67,24 @@ merge' (Patch dx ix) (Patch dy iy)
   = Patch (mergeUTx dx dy) (mergeUTx ix iy)
 
 mergeUTx :: (Eq1 ki , IsNat v)
-         => UTx ki codes v (Const Int)
-         -> UTx ki codes v (Const Int)
-         -> UTx ki codes v (Sum (Const Int) (Conflict ki codes))
-mergeUTx (UTxHere hx) y = utxMapI InL y
-mergeUTx x (UTxHere hy) = utxMapI InL x
+         => UTx ki codes (Const Int) v
+         -> UTx ki codes (Const Int) v
+         -> UTx ki codes (Sum (Const Int) (Conflict ki codes)) v
+mergeUTx (UTxHere hx) y = utxMap InL y
+mergeUTx x (UTxHere hy) = utxMap InL x
 mergeUTx x@(UTxPeel c utx) y@(UTxPeel d uty)
   = case testEquality c d of
       Nothing   -> UTxHere (InR $ Conflict x y)
-      Just Refl -> if utxnpAgree utx uty
-                   then UTxPeel c (mergeUTxNP utx uty)
-                   else UTxHere (InR (Conflict x y))
-
--- |Precondition: both treefixes agree on their
---  opaque values
-mergeUTxNP :: (Eq1 ki)
-           => UTxNP ki codes prod (Const Int)
-           -> UTxNP ki codes prod (Const Int)
-           -> UTxNP ki codes prod (Sum (Const Int) (Conflict ki codes))
-mergeUTxNP UTxNPNil UTxNPNil = UTxNPNil
-mergeUTxNP (UTxNPSolid kx utx) (UTxNPSolid _ uty)
-  = UTxNPSolid kx (mergeUTxNP utx uty)
-mergeUTxNP (UTxNPPath x utx) (UTxNPPath y uty)
-  = UTxNPPath (mergeUTx x y) (mergeUTxNP utx uty)
-
--- |Does two product of treefixes agree on their opaque values?
-utxnpAgree :: (Eq1 ki)
-           => UTxNP ki codes prod f
-           -> UTxNP ki codes prod g
-           -> Bool
-utxnpAgree UTxNPNil UTxNPNil
-  = True
-utxnpAgree (UTxNPPath _ utx)   (UTxNPPath _ uty)
-  = utxnpAgree utx uty
-utxnpAgree (UTxNPSolid kx utx) (UTxNPSolid ky uty)
-  = eq1 kx ky && utxnpAgree utx uty
+      Just Refl -> case mapNPM (uncurry' mergeNA) $ zipNP utx uty of
+        -- Some opaque value was different in utx and uty
+        Nothing -> UTxHere (InR (Conflict x y))
+        Just r  -> UTxPeel c r
+  where
+    mergeNA :: (Eq1 ki)
+            => NA ki (UTx ki codes (Const Int)) ix
+            -> NA ki (UTx ki codes (Const Int)) ix
+            -> Maybe (NA ki (UTx ki codes (Sum (Const Int) (Conflict ki codes))) ix)
+    mergeNA (NA_K k1) (NA_K k2)
+      | eq1 k1 k2 = Just (NA_K k1)
+      | otherwise = Nothing
+    mergeNA (NA_I i1) (NA_I i2) = Just (NA_I $ mergeUTx i1 i2)

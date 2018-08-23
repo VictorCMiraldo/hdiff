@@ -45,8 +45,8 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 type Patch = RawPatch (Const Int)
 
 data RawPatch phi ki codes v
-  = Patch { ctxDel :: UTx ki codes v phi
-          , ctxIns :: UTx ki codes v phi
+  = Patch { ctxDel :: UTx ki codes phi v
+          , ctxIns :: UTx ki codes phi v
           }
 
 
@@ -54,7 +54,7 @@ patchMap :: (Monad m)
          => (forall ix . IsNat ix => phi ix -> m (chi ix))
          -> RawPatch phi ki codes v
          -> m (RawPatch chi ki codes v)
-patchMap f (Patch d i) = Patch <$> utxMap f d <*> utxMap f i
+patchMap f (Patch d i) = Patch <$> utxMapM f d <*> utxMapM f i
 
 -- * Diffing
 
@@ -110,23 +110,14 @@ extractUTx :: (IsNat ix)
            => MinHeight
            -> IsSharedMap
            -> PrepFix ki codes ix
-           -> UTx ki codes ix (Const Int :*: Fix ki codes)
+           -> UTx ki codes (Const Int :*: Fix ki codes) ix
 extractUTx minHeight tr (AnnFix (Const prep) rep)
   -- TODO: if the tree's height is smaller than minHeight we don't
   --       even have to look it up on the map
   = case T.lookup (toW64s $ treeDigest prep) tr of
       Nothing | Tag c p <- sop rep
-              -> UTxPeel c (extractUTxNP tr p)
+              -> UTxPeel c (mapNP (mapNA id (extractUTx minHeight tr)) p) 
       Just i  -> UTxHere (Const i :*: Fix (mapRep forgetAnn rep))
-  where
-    extractUTxNP :: T.Trie Int
-                 -> PoA ki (PrepFix ki codes) prod
-                 -> UTxNP ki codes prod (Const Int :*: Fix ki codes)
-    extractUTxNP tr NP0 = UTxNPNil
-    extractUTxNP tr (NA_K ki :* ps)
-      = UTxNPSolid ki (extractUTxNP tr ps)
-    extractUTxNP tr (NA_I vi :* ps)
-      = UTxNPPath (extractUTx minHeight tr vi) (extractUTxNP tr ps)
 
 -- |Given a sharing map and a merkelized tree,
 --  will return a treefix with 
@@ -151,9 +142,9 @@ digems x y
         sharing = buildSharingTrie 1 dx dy
         del'    = extractUTx 1 sharing dx
         ins'    = extractUTx 1 sharing dy
-        holes   = execState (utxMap getHole del') S.empty
+        holes   = execState (utxMapM getHole del') S.empty
                     `S.intersection`
-                  execState (utxMap getHole ins') S.empty
+                  execState (utxMapM getHole ins') S.empty
         ins     = runIdentity $ utxRefine (refineHole holes) ins'
         del     = runIdentity $ utxRefine (refineHole holes) del'
      in Patch del ins
@@ -165,7 +156,7 @@ digems x y
     refineHole :: (IsNat ix)
                => S.Set Int
                -> (Const Int :*: Fix ki codes) ix
-               -> Identity (UTx ki codes ix (Const Int))
+               -> Identity (UTx ki codes (Const Int) ix)
     refineHole s (Const i :*: f)
       | i `S.member` s = return $ UTxHere (Const i)
       | otherwise      = return $ utxStiff f
@@ -210,15 +201,15 @@ type Valuation ki codes
 --  specified on a treefix might be different than
 --  those present in the value we are using.
 utxProj :: (Eq1 ki)
-        => UTx ki codes ix (Const Int)
-        -> Fix ki codes ix
+        => UTx ki codes (Const Int) ix
+        -> Fix ki codes ix 
         -> Maybe (Valuation ki codes)
 utxProj = go M.empty
   where    
     go :: (Eq1 ki)
        => Valuation ki codes
-       -> UTx ki codes i (Const Int)
-       -> Fix ki codes i
+       -> UTx ki codes (Const Int) ix
+       -> Fix ki codes ix
        -> Maybe (Valuation ki codes)
     go m (UTxHere (Const n)) t
       -- We have already seen this hole; we need to make
@@ -231,28 +222,26 @@ utxProj = go M.empty
       | otherwise
       = Just (M.insert n (SomeFix t) m)
     go m (UTxPeel c utxnp) (Fix t)
-      = case sop t of
-          Tag ct pt -> testEquality c ct
-                   >>= \Refl -> goNP m utxnp pt
+      | Tag ct pt <- sop t
+      = do Refl <- testEquality c ct
+           getConst <$> cataNPM aux (return $ Const m) (zipNP utxnp pt)
 
-    goNP :: (Eq1 ki)
-         => Valuation ki codes
-         -> UTxNP ki codes prod (Const Int)
-         -> PoA ki (Fix ki codes) prod
-         -> Maybe (Valuation ki codes)
-    goNP m UTxNPNil _           = return m
-    goNP m (UTxNPSolid k utxnp) (NA_K ak :* p)
-      | eq1 k ak  = goNP m utxnp p
+    aux :: (Eq1 ki)
+        => (NA ki (UTx ki codes (Const Int)) :*: NA ki (Fix ki codes)) ix
+        -> Const (Valuation ki codes) xs
+        -> Maybe (Const (Valuation ki codes) (ix : xs))
+    aux (NA_K k1 :*: NA_K k2) (Const val)
+      | eq1 k1 k2 = Just (Const val)
       | otherwise = Nothing
-    goNP m (UTxNPPath utx utxnp) (NA_I i :* p)
-      = case testEquality (getFixSNat i) (getUTxSNat utx) of
+    aux (NA_I i1 :*: NA_I i2) (Const val) 
+      = case testEquality (getUTxSNat i1) (getFixSNat i2) of
           Nothing   -> Nothing
-          Just Refl -> go m utx i >>= \m' -> goNP m' utxnp p
-                     
+          Just Refl -> Const <$> go val i1 i2
+
 -- |Injects a valuation into a treefix producing a value,
 --  when possible.
 utxInj :: (IsNat ix)
-       => UTx ki codes ix (Const Int)
+       => UTx ki codes (Const Int) ix
        -> Valuation ki codes
        -> Maybe (Fix ki codes ix)
 utxInj utx@(UTxHere (Const n)) m
@@ -260,17 +249,7 @@ utxInj utx@(UTxHere (Const n)) m
        Refl      <- testEquality (getFixSNat y) (getUTxSNat utx)
        return y
 utxInj (UTxPeel c utxnp) m
-  = (Fix . inj c) <$> utxnpInj utxnp m
-  where
-    utxnpInj :: UTxNP ki codes prod (Const Int)
-             -> Valuation ki codes
-             -> Maybe (PoA ki (Fix ki codes) prod)
-    utxnpInj UTxNPNil _
-      = return NP0
-    utxnpInj (UTxNPSolid k utxnp) m
-      = (NA_K k :*) <$> utxnpInj utxnp m
-    utxnpInj (UTxNPPath utx utxnp) m
-      = (:*) <$> (NA_I <$> utxInj utx m) <*> utxnpInj utxnp m
+  = (Fix . inj c) <$> mapNPM (mapNAM return (flip utxInj m)) utxnp
 
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
