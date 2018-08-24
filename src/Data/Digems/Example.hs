@@ -38,7 +38,7 @@ data Tree23
   deriving (Eq , Show)
 
 deriveFamily [t| Tree23 |]
-
+{-
 instance Renderer Singl FamTree23 CodesTree23 where
   renderK _ (SString s) = pretty s
   renderK _ (SInt i)    = pretty i
@@ -48,6 +48,7 @@ instance Renderer Singl FamTree23 CodesTree23 where
     = tupled [pretty "Node2" <+> getConst dr <+> getConst dr]
   renderI _ IdxTree23 (Node3_ i dl dm dr)
     = tupled [pretty "Node3" <+> getConst dl <+> getConst dm <+> getConst dr]
+-}
 
 mt1 , mt2 , mt3 , mt4 :: Tree23
 mt1 = Node2 10 Leaf Leaf

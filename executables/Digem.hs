@@ -47,7 +47,8 @@ import Generics.MRSOP.Digems.Treefix hiding (parens)
 import qualified Data.Digems.Diff.Patch as D
 import qualified Data.Digems.Diff.Merge as D
 
-import Languages.Lua
+-- import Languages.Lua
+import Languages.While
 
 ---------------------------
 -- * Cmd Line Options

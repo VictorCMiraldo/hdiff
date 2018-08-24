@@ -32,6 +32,8 @@ import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 
+import Debug.Trace
+
 -----------------------
 -- * Parser
 
@@ -107,69 +109,97 @@ instance Renderer W FamStmt CodesStmt where
   renderK _ (W_String s)  = pretty s
   renderK _ (W_Bool b)    = pretty b
 
-  renderI pf IdxBExpr (BoolConst_ b)
+  precOfConstr pf IdxBExpr (Not_ _) = 9
+  precOfConstr pf IdxBExpr (BBinary_ bop _ _) = getConst bop
+  precOfConstr pf IdxBExpr (RBinary_ rop _ _) = getConst rop
+
+  precOfConstr pf IdxRBinOp Greater_ = 10
+  precOfConstr pf IdxRBinOp Less_    = 10
+  precOfConstr pf IdxRBinOp Equal_   = 10
+
+  precOfConstr pf IdxBBinOp And_ = 8
+  precOfConstr pf IdxBBinOp Or_  = 8
+
+  precOfConstr pf IdxAExpr (Neg_ i) = 80
+  precOfConstr pf IdxAExpr (ABinary_ bop _ _) = getConst bop
+  precOfConstr pf IdxAExpr (ARange_ _ _) = 100
+
+  precOfConstr pf IdxABinOp Add_      = 40
+  precOfConstr pf IdxABinOp Subtract_ = 40
+  precOfConstr pf IdxABinOp Multiply_ = 50
+  precOfConstr pf IdxABinOp Reminder_ = 50
+  precOfConstr pf IdxABinOp Divide_   = 50
+  precOfConstr pf IdxABinOp Power_    = 60
+
+  precOfConstr _ _ _ = 1000
+  
+  render pf IdxBExpr (BoolConst_ b)
     = renderK pf b
-  renderI pf IdxBExpr (Not_ b)
-    = pretty "not" <+> PP.parens (getConst b)
-  renderI pf IdxBExpr (BBinary_ bop l r)
-    = PP.parens (getConst l)
-    <+> getConst bop
-    <+> PP.parens (getConst r)
-  renderI pf IdxBExpr (RBinary_ bop l r)
-    = PP.parens (getConst l)
-    <+> getConst bop
-    <+> PP.parens (getConst r)
+  render pf IdxBExpr (Not_ b)
+    = pretty "not" <+> layoutPrec 9 PP.parens pf b 
+  render pf IdxBExpr (BBinary_ bop l r)
+    = let pbop = precOf bop
+       in layoutPrec pbop PP.parens pf l
+          <+> renderDoc bop
+          <+> layoutPrec pbop PP.parens pf r
+  render pf IdxBExpr (RBinary_ bop l r)
+    = let pbop = precOf bop
+       in layoutPrec pbop PP.parens pf l
+          <+> renderDoc bop
+          <+> layoutPrec pbop PP.parens pf r
 
-  renderI pf IdxBBinOp And_ = pretty "and"
-  renderI pf IdxBBinOp Or_ = pretty "or"
+  render pf IdxBBinOp And_ = pretty "and"
+  render pf IdxBBinOp Or_  = pretty "or"
 
-  renderI pf IdxRBinOp Greater_ = pretty ">"
-  renderI pf IdxRBinOp Less_ = pretty "<"
-  renderI pf IdxRBinOp Equal_ = pretty "="
-
-  renderI pf IdxAExpr (Var_ s) = renderK pf s
-  renderI pf IdxAExpr (IntConst_ i) = renderK pf i
-  renderI pf IdxAExpr (Neg_ i) = pretty "-" <+> PP.parens (getConst i)
-  renderI pf IdxAExpr (ABinary_ bop l r)
-    = PP.parens (getConst l)
-    <+> getConst bop
-    <+> PP.parens (getConst r)
-  renderI pf IdxAExpr (ARange_ l r)
+  render pf IdxRBinOp Greater_ = pretty ">"
+  render pf IdxRBinOp Less_    = pretty "<"
+  render pf IdxRBinOp Equal_   = pretty "=="
+  
+  render pf IdxAExpr (Var_ s) = renderK pf s
+  render pf IdxAExpr (IntConst_ i) = renderK pf i
+  render pf IdxAExpr (Neg_ i)
+    = pretty "-" <+> layoutPrec 80 PP.parens pf i
+  render pf IdxAExpr (ABinary_ bop l r)
+    = let pbop = precOf bop
+       in layoutPrec pbop PP.parens pf l
+          <+> renderDoc bop
+          <+> layoutPrec pbop PP.parens pf r
+  render pf IdxAExpr (ARange_ l r)
     = pretty "range"
-    <+> PP.parens (getConst l)
-    <+> PP.parens (getConst r)
+    <+> layoutPrec 0 PP.parens pf l
+    <+> layoutPrec 0 PP.parens pf r
 
-  renderI pf IdxABinOp Add_ = pretty "+"
-  renderI pf IdxABinOp Subtract_ = pretty "-"
-  renderI pf IdxABinOp Multiply_ = pretty "*"
-  renderI pf IdxABinOp Reminder_ = pretty "%"
-  renderI pf IdxABinOp Divide_ = pretty "/"
-  renderI pf IdxABinOp Power_ = pretty "^"
+  render pf IdxABinOp Add_      = pretty "+"
+  render pf IdxABinOp Subtract_ = pretty "-"
+  render pf IdxABinOp Multiply_ = pretty "*"
+  render pf IdxABinOp Reminder_ = pretty "%"
+  render pf IdxABinOp Divide_   = _ -- pretty "/"
+  render pf IdxABinOp Power_    = pretty "^"
 
-  renderI pf IdxListStmt ListStmt_Ifx0 = emptyDoc
-  renderI pf IdxListStmt (ListStmt_Ifx1 s ss)
-    = vcat [getConst s , getConst ss]
+  render pf IdxListStmt ListStmt_Ifx0 = emptyDoc
+  render pf IdxListStmt (ListStmt_Ifx1 s ss)
+    = vcat [renderDoc s , renderDoc ss]
 
-  renderI pf IdxStmt (Seq_ ls)
-    = getConst ls
-  renderI pf IdxStmt (Assign_ name expr)
-    = renderK pf name <+> pretty ":=" <+> getConst expr <> PP.semi
-  renderI pf IdxStmt Skip_
+  render pf IdxStmt (Seq_ ls)
+    = renderDoc ls
+  render pf IdxStmt (Assign_ name expr)
+    = renderK pf name <+> pretty ":=" <+> renderDoc expr <> PP.semi
+  render pf IdxStmt Skip_
     = pretty "skip;"
-  renderI pf IdxStmt (If_ c t e)
-    = vsep [ pretty "if" <+> getConst c <+> pretty "then {"
-           , myIndent (getConst t)
+  render pf IdxStmt (If_ c t e)
+    = vsep [ pretty "if" <+> renderDoc c <+> pretty "then {"
+           , myIndent (renderDoc t)
            , pretty "} else {"
-           , myIndent (getConst e)
+           , myIndent (renderDoc e)
            , pretty "}"
            ]
-  renderI pf IdxStmt (While_ c bdy)
-    = vsep [ pretty "while" <+> getConst c <+> pretty "do {"
-           , myIndent (getConst bdy)
+  render pf IdxStmt (While_ c bdy)
+    = vsep [ pretty "while" <+> renderDoc c <+> pretty "do {"
+           , myIndent (renderDoc bdy)
            , pretty "}"
            ]
 
-  renderI _ _ _
+  render _ _ _
     = undefined
            
 
@@ -304,6 +334,11 @@ parseString str =
     Left e  -> error $ show e
     Right r -> r
 
+testString :: String -> IO ()
+testString str
+  = do let stmt = parseString str
+       putStrLn $ show $ renderEl (into @FamStmt stmt)
+
 parseFile :: String -> IO Stmt
 parseFile file =
   do program  <- readFile file
@@ -312,3 +347,4 @@ parseFile file =
        Right r -> return r
 
 type Block = Stmt
+

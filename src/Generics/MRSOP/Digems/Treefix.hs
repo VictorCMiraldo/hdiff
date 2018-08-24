@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE DataKinds             #-}
@@ -74,8 +75,8 @@ utxPretty :: forall ki fam codes f ix ann
 utxPretty pfam sx (UTxHere x)
   = braces (brackets $ sx x)
 utxPretty pfam sx utx@(UTxPeel c rest)
-  = renderI pfam (getUTxSNat utx)
-                 (Tag c $ mapNP (mapNA id (Const . utxPretty pfam sx)) rest)
+  = render pfam (getUTxSNat utx)
+                (Tag c $ mapNP (mapNA id (Const . (1000,) . utxPretty pfam sx)) rest)
 
 -- * Show instances
 
