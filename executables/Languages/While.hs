@@ -21,8 +21,6 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
-import           Data.Text.Prettyprint.Doc hiding (braces,parens,semi)
-import qualified Data.Text.Prettyprint.Doc as PP  (braces,parens,semi) 
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
@@ -101,7 +99,7 @@ deriveFamilyWithTy [t| W |] [t| Stmt |]
 
 -- ** Pretty printer
 
-myIndent :: Doc ann -> Doc ann
+myIndent :: Chunk -> Chunk
 myIndent = indent 2
 
 instance Renderer W FamStmt CodesStmt where
@@ -136,17 +134,17 @@ instance Renderer W FamStmt CodesStmt where
   render pf IdxBExpr (BoolConst_ b)
     = renderK pf b
   render pf IdxBExpr (Not_ b)
-    = pretty "not" <+> layoutPrec 9 PP.parens pf b 
+    = pretty "not" <+> layoutPrec 9 parens pf b 
   render pf IdxBExpr (BBinary_ bop l r)
     = let pbop = precOf bop
-       in layoutPrec pbop PP.parens pf l
-          <+> renderDoc bop
-          <+> layoutPrec pbop PP.parens pf r
+       in layoutPrec pbop parens pf l
+          <+> renderChunk bop
+          <+> layoutPrec pbop parens pf r
   render pf IdxBExpr (RBinary_ bop l r)
     = let pbop = precOf bop
-       in layoutPrec pbop PP.parens pf l
-          <+> renderDoc bop
-          <+> layoutPrec pbop PP.parens pf r
+       in layoutPrec pbop parens pf l
+          <+> renderChunk bop
+          <+> layoutPrec pbop parens pf r
 
   render pf IdxBBinOp And_ = pretty "and"
   render pf IdxBBinOp Or_  = pretty "or"
@@ -158,46 +156,46 @@ instance Renderer W FamStmt CodesStmt where
   render pf IdxAExpr (Var_ s) = renderK pf s
   render pf IdxAExpr (IntConst_ i) = renderK pf i
   render pf IdxAExpr (Neg_ i)
-    = pretty "-" <+> layoutPrec 80 PP.parens pf i
+    = pretty "-" <+> layoutPrec 80 parens pf i
   render pf IdxAExpr (ABinary_ bop l r)
     = let pbop = precOf bop
-       in layoutPrec pbop PP.parens pf l
-          <+> renderDoc bop
-          <+> layoutPrec pbop PP.parens pf r
+       in layoutPrec pbop parens pf l
+          <+> renderChunk bop
+          <+> layoutPrec pbop parens pf r
   render pf IdxAExpr (ARange_ l r)
     = pretty "range"
-    <+> layoutPrec 0 PP.parens pf l
-    <+> layoutPrec 0 PP.parens pf r
+    <+> layoutPrec 0 parens pf l
+    <+> layoutPrec 0 parens pf r
 
   render pf IdxABinOp Add_      = pretty "+"
   render pf IdxABinOp Subtract_ = pretty "-"
   render pf IdxABinOp Multiply_ = pretty "*"
   render pf IdxABinOp Reminder_ = pretty "%"
-  render pf IdxABinOp Divide_   = _ -- pretty "/"
+  render pf IdxABinOp Divide_   = pretty "/"
   render pf IdxABinOp Power_    = pretty "^"
 
-  render pf IdxListStmt ListStmt_Ifx0 = emptyDoc
+  render pf IdxListStmt ListStmt_Ifx0 = emptyChunk
   render pf IdxListStmt (ListStmt_Ifx1 s ss)
-    = vcat [renderDoc s , renderDoc ss]
+    = renderChunk s <+> renderChunk ss
 
   render pf IdxStmt (Seq_ ls)
-    = renderDoc ls
+    = vcat $ renderChunk ls
   render pf IdxStmt (Assign_ name expr)
-    = renderK pf name <+> pretty ":=" <+> renderDoc expr <> PP.semi
+    = hcat (renderK pf name <+> pretty ":=" <+> renderChunk expr) <> semi
   render pf IdxStmt Skip_
     = pretty "skip;"
   render pf IdxStmt (If_ c t e)
-    = vsep [ pretty "if" <+> renderDoc c <+> pretty "then {"
-           , myIndent (renderDoc t)
-           , pretty "} else {"
-           , myIndent (renderDoc e)
-           , pretty "}"
-           ]
+    = vsep' [ hsep (pretty "if" <+> renderChunk c <+> pretty "then {")
+            , myIndent (renderChunk t)
+            , pretty "} else {"
+            , myIndent (renderChunk e)
+            , pretty "}"
+            ]
   render pf IdxStmt (While_ c bdy)
-    = vsep [ pretty "while" <+> renderDoc c <+> pretty "do {"
-           , myIndent (renderDoc bdy)
-           , pretty "}"
-           ]
+    = vsep' [ hsep (pretty "while" <+> renderChunk c <+> pretty "do {")
+            , myIndent (renderChunk bdy)
+            , pretty "}"
+            ]
 
   render _ _ _
     = undefined
@@ -233,13 +231,13 @@ lexer = Token.makeTokenParser languageDef
 identifier = Token.identifier lexer -- parses an identifier
 reserved   = Token.reserved   lexer -- parses a reserved name
 reservedOp = Token.reservedOp lexer -- parses an operator
-braces     = Token.braces     lexer
-parens     = Token.parens     lexer -- parses surrounding parenthesis:
-                                    --   parens p
+parseBraces = Token.braces     lexer
+parseParens = Token.parens     lexer -- parses surrounding parenthesis:
+                                    --   parseParens p
                                     -- takes care of the parenthesis and
                                     -- uses p to parse what's inside them
 integer    = Token.integer    lexer -- parses an integer
-semi       = Token.semi       lexer -- parses a semicolon
+parseSemi  = Token.semi       lexer -- parses a parseSemicolon
 whiteSpace = Token.whiteSpace lexer -- parses whitespace
 
 whileParser :: Parser Stmt
@@ -247,7 +245,7 @@ whileParser = whiteSpace >> sequenceOfStmt
 
 statement :: Parser Stmt
 statement = statement'
-        <|> braces sequenceOfStmt
+        <|> parseBraces sequenceOfStmt
 
 sequenceOfStmt = 
   do list <- (many statement')
@@ -257,8 +255,8 @@ sequenceOfStmt =
 statement' :: Parser Stmt
 statement' =   ifStmt
            <|> whileStmt
-           <|> (skipStmt   <* semi)
-           <|> (assignStmt <* semi)
+           <|> (skipStmt   <* parseSemi)
+           <|> (assignStmt <* parseSemi)
 
 ifStmt :: Parser Stmt
 ifStmt =
@@ -308,12 +306,12 @@ bOperators = [ [Prefix (reservedOp "not" >> return (Not             ))          
                 Infix  (reservedOp "or"  >> return (BBinary Or      )) AssocLeft]
              ]
 
-aTerm =  parens aExpression
+aTerm =  parseParens aExpression
      <|> liftM Var identifier
      <|> liftM IntConst integer
      <|> (reserved "range" >> liftM2 ARange aExpression aExpression)
 
-bTerm =  parens bExpression
+bTerm =  parseParens bExpression
      <|> (reserved "true"  >> return (BoolConst True ))
      <|> (reserved "false" >> return (BoolConst False))
      <|> rExpression

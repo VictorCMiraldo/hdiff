@@ -13,8 +13,6 @@ import Data.Functor.Const
 
 import Control.Monad.Identity
 
-import Data.Text.Prettyprint.Doc
-
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Renderer
@@ -69,9 +67,9 @@ utxStiff (Fix x) = case sop x of
 utxPretty :: forall ki fam codes f ix ann
            . (Show1 ki , Renderer ki fam codes , IsNat ix)
           => Proxy fam
-          -> (forall iy . IsNat iy => f iy -> Doc ann)
+          -> (forall iy . IsNat iy => f iy -> Chunk)
           -> UTx ki codes f ix
-          -> Doc ann
+          -> Chunk
 utxPretty pfam sx (UTxHere x)
   = braces (brackets $ sx x)
 utxPretty pfam sx utx@(UTxPeel c rest)

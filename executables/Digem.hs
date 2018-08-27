@@ -33,7 +33,7 @@ import System.Console.CmdArgs.Implicit
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
-import           Data.Text.Prettyprint.Doc hiding (braces,parens,semi)
+import qualified Data.Text.Prettyprint.Doc as PP
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
@@ -156,32 +156,32 @@ getDiff mh fA fB
        fb <- (dfrom . into @FamStmt) <$> parseFile fB
        return $ D.digems mh fa fb
 
-showConf :: (IsNat i) => Sum (Const Int) (D.Conflict W CodesStmt) i -> Doc ann
+showConf :: (IsNat i) => Sum (Const Int) (D.Conflict W CodesStmt) i -> Chunk
 showConf (InL (Const i)) = pretty i
 showConf (InR (D.Conflict l r))
   = let dl = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) l
         dr = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) r
-     in vcat [ pretty ">>>"
-             , dl
-             , pretty "==="
-             , dr
-             , pretty "<<<"
-             ]
+     in vsep' [ pretty ">>>"
+              , dl
+              , pretty "==="
+              , dr
+              , pretty "<<<"
+              ]
 
 -- |Pretty prints a patch on the terminal
 displayRawPatch :: (IsNat v)
-                => (forall i . IsNat i => x i -> Doc ann)
+                => (forall i . IsNat i => x i -> Chunk)
                 -> D.RawPatch x W CodesStmt v
                 -> IO ()
 displayRawPatch showX patch
-  = doubleColumn 55 (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxDel patch))
-                    (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxIns patch))
+  = doubleColumn 55 (compile (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxDel patch)))
+                    (compile (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxIns patch)))
 
 -- |displays two docs in a double column fashion
-doubleColumn :: Int -> Doc ann -> Doc ann -> IO ()
+doubleColumn :: Int -> PP.Doc ann -> PP.Doc ann -> IO ()
 doubleColumn width da db
-  = let pgdim = LayoutOptions (AvailablePerLine width 1)
-        lyout = layoutSmart pgdim
+  = let pgdim = PP.LayoutOptions (PP.AvailablePerLine width 1)
+        lyout = PP.layoutSmart pgdim
         ta    = T.lines . renderStrict $ lyout da
         tb    = T.lines . renderStrict $ lyout db
         compA = if length ta >= length tb
