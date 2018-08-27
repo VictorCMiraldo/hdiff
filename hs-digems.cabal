@@ -25,7 +25,7 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.10 && <5
-               ,       generics-mrsop >= 1.2.1
+               ,       generics-mrsop >= 1.2.2
                ,       bytestring
                ,       cryptonite
                ,       memory
