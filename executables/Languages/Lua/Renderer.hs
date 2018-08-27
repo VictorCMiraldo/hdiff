@@ -128,7 +128,11 @@ instance Renderer W FamBlock CodesBlock where
        in doComma (renderDoc f) <+> renderDoc fs
 
   render pf IdxFunName (FunName_ name s methods)
-    = undefined
+    -- TODO: hacky AF^2
+    = let doS = replace ',' '.' $ show s
+       in renderDoc name <> dot <> pretty doS <> renderDoc methods
+    where
+      replace x y = map (\c -> if x == c then y else c)
 
   render pf IdxMaybeName MaybeNameNothing_ = emptyDoc
   render pf IdxMaybeName (MaybeNameJust_ n)
@@ -141,3 +145,60 @@ instance Renderer W FamBlock CodesBlock where
                     then id
                     else (<> comma)
        in doComma (renderDoc f) <+> renderDoc fs
+
+  render pf IdxFunBody (FunBody_ names vararg block)
+    = group (vcat [nest 2 $ vcat [header , renderDoc block] , pretty "end"])
+    where
+      dv = case vararg of
+              SLuaBool b -> if b then comma <+> pretty "..." else emptyDoc
+
+      header = pretty "function" <+> PP.parens (renderDoc names <> dv)
+
+  render pf IdxFunCall (NormalFunCall_ pe arg)
+    = renderDoc pe <> renderDoc arg
+  render pf IdxFunCall (MethodCall_ pe method arg)
+    = renderDoc pe <> colon <> renderDoc method <> renderDoc arg 
+
+  render pf IdxFunArg (Args_ args)   = PP.parens (renderDoc args)
+  render pf IdxFunArg (TableArg_ t)  = renderDoc t
+  render pf IdxFunArg (StringArg_ s) = renderK pf s
+  
+
+  render pf IdxListVar (ListVar_Ifx0) = emptyDoc
+  render pf IdxListVar (ListVar_Ifx1 f fs)
+    -- TODO: hacky AF!! Maybe we could play with the precedence table?
+    = let doComma = if length (show $ renderDoc fs) == 0
+                    then id
+                    else (<> comma)
+       in doComma (renderDoc f) <+> renderDoc fs
+
+  render pf IdxListStat (ListStat_Ifx0) = emptyDoc
+  render pf IdxListStat (ListStat_Ifx1 f fs)
+    -- TODO: hacky AF!! Maybe we could play with the precedence table?
+    = vcat [renderDoc f , renderDoc fs]
+
+  render pf IdxListTup1ExpBlock (ListTup1IdxBlock_Ifx0) = emptyDoc
+  render pf IdxListTup1ExpBlock (ListTup1IdxBlock_Ifx1) = _
+
+  render pf IdxStat (Assign_ names vals)
+    = renderDoc names <+> pretty "=" <+> renderDoc vals
+  render pf IdxStat (FunCall_ f)
+    = renderDoc f
+  render pf IdxStat (Label_ name)
+    = pretty "::" <> renderDoc name <> pretty "::"
+  render pf IdxStat Break_ = pretty "break"
+  render pf IdxStat (Goto_ name) = pretty "goto" <+> renderDoc name
+  render pf IdxStat (Do_ block)
+    = group $ vcat [nest 2 $ vcat [pretty "do", renderDoc block] , pretty "end"]
+  render pf IdxStat (While_ guard e)
+    = vcat [nest 2 $ vcat [pretty "while" <+> renderDoc guard <+> pretty "do" , renderDoc e]
+           ,pretty "end"]
+  render pf IdxStat (Repeat_ block guard)
+    = vcat [ nest 2 $ vcat [pretty "repeat" , renderDoc block]
+           , nest 2 $ vcat [pretty "until" , renderDoc guard]]
+  render pf IdxStat (If_ cases elsePart)
+    = _
+  
+
+
+    
