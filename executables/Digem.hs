@@ -76,8 +76,8 @@ minHeightFlags = 1
 
 merge = Merge
   { optFileA = def &= argPos 0 &= typ "MYFILE"
-  , optFileB = def &= argPos 1 &= typ "ORIGFILE"
-  , optFileO = def &= argPos 2 &= typ "YOURFILE"
+  , optFileO = def &= argPos 1 &= typ "ORIGFILE"
+  , optFileB = def &= argPos 2 &= typ "YOURFILE"
   , minHeight = 1
       &= typ "INT"
       &= help "Specify the minimum height a tree must have to be shared"
@@ -143,12 +143,20 @@ mainDiff opts
 
 mainMerge :: Options -> IO ()
 mainMerge opts
-  = do patchOA <- getDiff (minHeight opts) (optFileO opts) (optFileA opts)
+  = do putStrLn $ "O: " ++ optFileO opts
+       putStrLn $ "A: " ++ optFileA opts
+       putStrLn $ "B: " ++ optFileB opts
+       patchOA <- getDiff (minHeight opts) (optFileO opts) (optFileA opts)
        patchOB <- getDiff (minHeight opts) (optFileO opts) (optFileB opts)
-       let resAB = D.merge patchOA patchOB
-       let resBA = D.merge patchOB patchOA
+       putStrLn $ "O->A " ++ replicate 60 '#'
+       displayRawPatch (pretty . show1) patchOA
+       putStrLn $ "O->B " ++ replicate 60 '#'
+       displayRawPatch (pretty . show1) patchOB
+       let resAB = patchOA D.// patchOB
+       let resBA = patchOB D.// patchOA
+       putStrLn $ "O->A/O->B " ++ replicate 55 '#'
        displayRawPatch showConf resAB
-       putStrLn $ replicate 60 '#'
+       putStrLn $ "O->B/O->A " ++ replicate 55 '#'
        displayRawPatch showConf resBA
 
 getDiff :: Int -> FilePath -> FilePath -> IO (D.Patch W CodesStmt 'Z)

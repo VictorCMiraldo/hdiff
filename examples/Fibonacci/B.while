@@ -1,8 +1,9 @@
 fst := 1;
-b := 1;
-while n > 0 do
+b   := 1;
+while n > 0 do {
   aux := fst + b;
   fst := b;
   b   := aux;
-  n   := n - 1
+  n   := n - 1;
+}
 res := b;

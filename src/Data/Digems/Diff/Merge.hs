@@ -36,55 +36,33 @@ data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Nat -> * where
 type PatchC ki codes = RawPatch (Sum (Const Int) (Conflict ki codes)) ki codes
 
 -- |Merge two patches into a patch that may have conflicts.
---
---  There is a preprocessing step to ensure that the holes in both
---  patches are disjoint. We basically add the maximum hole number
---  of p o every hole of q.
-merge :: (Eq1 ki , IsNat v)
+(//) :: (Eq1 ki , IsNat v)
       => Patch ki codes v
       -> Patch ki codes v
       -> PatchC ki codes v
-merge p q
-  = let maxP = 1 + execState (patchMap getMax p) 0
-        q'   = runIdentity (patchMap (return . (addC maxP)) q)
-     in merge' p q'
-  where
-    addC :: Int -> Const Int ix -> Const Int iz
-    addC y (Const x) = Const (x + y)
-    
-    getMax :: Const Int ix -> State Int (Const Int ix)
-    getMax i = modify (max $ getConst i) >> return i
+(Patch pd pi) // (Patch _ qi) = Patch (qi `transport` pd)
+                                      (utxMap InL pi)
 
--- |Merge two patches into a patch that may have conflicts.
---
---  PRECONDITION: assumes that the holes in both patches
---                have disjoint names
-merge' :: (Eq1 ki, IsNat v)
-       => Patch ki codes v
-       -> Patch ki codes v
-       -> PatchC ki codes v
-merge' (Patch dx ix) (Patch dy iy)
-  = Patch (mergeUTx dx dy) (mergeUTx ix iy)
-
-mergeUTx :: (Eq1 ki , IsNat v)
-         => UTx ki codes (Const Int) v
-         -> UTx ki codes (Const Int) v
-         -> UTx ki codes (Sum (Const Int) (Conflict ki codes)) v
-mergeUTx (UTxHere hx) y = utxMap InL y
-mergeUTx x (UTxHere hy) = utxMap InL x
-mergeUTx x@(UTxPeel c utx) y@(UTxPeel d uty)
-  = case testEquality c d of
-      Nothing   -> UTxHere (InR $ Conflict x y)
-      Just Refl -> case mapNPM (uncurry' mergeNA) $ zipNP utx uty of
-        -- Some opaque value was different in utx and uty
-        Nothing -> UTxHere (InR (Conflict x y))
-        Just r  -> UTxPeel c r
+-- |Transports a deletion context (second arg) to work
+--  on top of a insertion context.
+transport :: (IsNat v)
+          => UTx ki codes (Const Int) v -- holes0
+          -> UTx ki codes (Const Int) v -- holes1
+          -> UTx ki codes (Sum (Const Int) (Conflict ki codes)) v -- holes1
+-- ignores holes on the left
+transport (UTxHere _) ty
+  = utxMap InL ty
+-- transport preserves holes on the right
+transport tx (UTxHere i)
+  = UTxHere (InL i)
+-- Goes over constructors, preserving data on the right
+transport tx@(UTxPeel cx dx) ty@(UTxPeel cy dy)
+  = case testEquality cx cy of
+      Nothing   -> UTxHere (InR $ Conflict tx ty)
+      Just Refl -> UTxPeel cx (mapNP (uncurry' transportNA) $ zipNP dx dy)
   where
-    mergeNA :: (Eq1 ki)
-            => NA ki (UTx ki codes (Const Int)) ix
-            -> NA ki (UTx ki codes (Const Int)) ix
-            -> Maybe (NA ki (UTx ki codes (Sum (Const Int) (Conflict ki codes))) ix)
-    mergeNA (NA_K k1) (NA_K k2)
-      | eq1 k1 k2 = Just (NA_K k1)
-      | otherwise = Nothing
-    mergeNA (NA_I i1) (NA_I i2) = Just (NA_I $ mergeUTx i1 i2)
+    transportNA :: NA ki (UTx ki codes (Const Int)) a
+                -> NA ki (UTx ki codes (Const Int)) a
+                -> NA ki (UTx ki codes (Sum (Const Int) (Conflict ki codes))) a
+    transportNA (NA_K _) (NA_K k) = NA_K k
+    transportNA (NA_I i) (NA_I j) = NA_I $ transport i j
