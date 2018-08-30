@@ -134,17 +134,17 @@ instance Renderer W FamStmt CodesStmt where
   render pf IdxBExpr (BoolConst_ b)
     = renderK pf b
   render pf IdxBExpr (Not_ b)
-    = pretty "not" <+> layoutPrec 9 parens pf b 
+    = hsep' [pretty "not", layoutPrec 9 parens pf b ]
   render pf IdxBExpr (BBinary_ bop l r)
     = let pbop = precOf bop
-       in layoutPrec pbop parens pf l
-          <+> renderChunk bop
-          <+> layoutPrec pbop parens pf r
+       in hsep' [ layoutPrec pbop parens pf l
+                , renderChunk bop
+                , layoutPrec pbop parens pf r ]
   render pf IdxBExpr (RBinary_ bop l r)
     = let pbop = precOf bop
-       in layoutPrec pbop parens pf l
-          <+> renderChunk bop
-          <+> layoutPrec pbop parens pf r
+       in hsep' [ layoutPrec pbop parens pf l
+                , renderChunk bop
+                , layoutPrec pbop parens pf r ]
 
   render pf IdxBBinOp And_ = pretty "and"
   render pf IdxBBinOp Or_  = pretty "or"
@@ -156,16 +156,17 @@ instance Renderer W FamStmt CodesStmt where
   render pf IdxAExpr (Var_ s) = renderK pf s
   render pf IdxAExpr (IntConst_ i) = renderK pf i
   render pf IdxAExpr (Neg_ i)
-    = pretty "-" <+> layoutPrec 80 parens pf i
+    = hsep' [pretty "-" , layoutPrec 80 parens pf i]
   render pf IdxAExpr (ABinary_ bop l r)
     = let pbop = precOf bop
-       in layoutPrec pbop parens pf l
-          <+> renderChunk bop
-          <+> layoutPrec pbop parens pf r
+       in hsep' [ layoutPrec pbop parens pf l
+                , renderChunk bop
+                , layoutPrec pbop parens pf r ]
   render pf IdxAExpr (ARange_ l r)
-    = pretty "range"
-    <+> layoutPrec 0 parens pf l
-    <+> layoutPrec 0 parens pf r
+    = hsep' [pretty "range"
+            ,layoutPrec 1000 parens pf l
+            ,layoutPrec 1000 parens pf r
+            ]
 
   render pf IdxABinOp Add_      = pretty "+"
   render pf IdxABinOp Subtract_ = pretty "-"
@@ -181,18 +182,18 @@ instance Renderer W FamStmt CodesStmt where
   render pf IdxStmt (Seq_ ls)
     = vcat $ renderChunk ls
   render pf IdxStmt (Assign_ name expr)
-    = hcat (renderK pf name <+> pretty ":=" <+> renderChunk expr) <> semi
+    = hsep' [renderK pf name, pretty ":=", renderChunk expr] <> semi
   render pf IdxStmt Skip_
     = pretty "skip;"
   render pf IdxStmt (If_ c t e)
-    = vsep' [ hsep (pretty "if" <+> renderChunk c <+> pretty "then {")
+    = vsep' [ hsep' [pretty "if", renderChunk c, pretty "then {"]
             , myIndent (renderChunk t)
             , pretty "} else {"
             , myIndent (renderChunk e)
             , pretty "}"
             ]
   render pf IdxStmt (While_ c bdy)
-    = vsep' [ hsep (pretty "while" <+> renderChunk c <+> pretty "do {")
+    = vsep' [ hsep' [pretty "while", renderChunk c, pretty "do {"]
             , myIndent (renderChunk bdy)
             , pretty "}"
             ]
