@@ -51,6 +51,15 @@ pretty = singl . PP.pretty
 semi :: Chunk
 semi = pretty ";"
 
+comma :: Chunk
+comma = pretty ","
+
+equals :: Chunk
+equals = pretty "="
+
+colon :: Chunk
+colon = pretty ":"
+
 infixr 5 <+>
 (<+>) :: Chunk -> Chunk -> Chunk
 (Chunk ds) <+> (Chunk es) = Chunk (ds ++ es)
@@ -60,6 +69,9 @@ intercalate i = onChunk (L.intersperse i)
 
 vcat :: Chunk -> Chunk
 vcat (Chunk ds) = Chunk [PP.vcat ds]
+
+vcat' :: [Chunk] -> Chunk
+vcat' = Chunk . (:[]) . PP.vcat . map compile
 
 hcat :: Chunk -> Chunk
 hcat (Chunk ds) = Chunk [PP.hcat ds]
@@ -73,8 +85,17 @@ vsep' = Chunk . (:[]) . PP.vsep . map compile
 hsep :: Chunk -> Chunk
 hsep (Chunk ds) = Chunk [PP.hsep ds]
 
+hsep' :: [Chunk] -> Chunk
+hsep' = Chunk . (:[]) . PP.hsep . map compile
+
 indent :: Int -> Chunk -> Chunk
 indent i = onChunk (map (PP.indent i))
+
+align :: Chunk -> Chunk
+align = onChunk (map PP.align)
+
+group :: Chunk -> Chunk
+group = onChunk (map PP.group)
 
 compile :: Chunk -> Doc
 compile (Chunk [])  = PP.emptyDoc

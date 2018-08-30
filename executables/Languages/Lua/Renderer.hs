@@ -18,8 +18,7 @@ import Data.Type.Equality
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
-import           Data.Text.Prettyprint.Doc hiding (braces,parens,semi)
-import qualified Data.Text.Prettyprint.Doc as PP  (braces,parens,semi) 
+import qualified Data.Text.Prettyprint.Doc as PP
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
@@ -49,22 +48,24 @@ instance Renderer W FamBlock CodesBlock where
   render pf IdxExp (Number_ _ n)     = renderK pf n
   render pf IdxExp (String_ s)       = renderK pf s
   render pf IdxExp Vararg_           = pretty "..."
-  render pf IdxExp (EFunDef_ f)      = renderDoc f
-  render pf IdxExp (PrefixExp_ pe)   = renderDoc pe
-  render pf IdxExp (TableConst_ t)   = renderDoc t
+  render pf IdxExp (EFunDef_ f)      = renderChunk f
+  render pf IdxExp (PrefixExp_ pe)   = renderChunk pe
+  render pf IdxExp (TableConst_ t)
+    = braces (align (intercalate PP.comma (renderChunk t)))
   render pf IdxExp (Binop_ bop l r)  
     = let pbop = precOf bop
-       in layoutPrec pbop PP.parens pf l
-          <+> renderDoc bop
-          <+> layoutPrec pbop PP.parens pf r
+       in hsep' [layoutPrec pbop parens pf l
+                ,renderChunk bop
+                ,layoutPrec pbop parens pf r]
   render pf IdxExp (Unop_ uop e)
     = let puop = precOf uop
-       in renderDoc uop <+> layoutPrec puop PP.parens pf e
+       in hsep' [renderChunk uop, layoutPrec puop parens pf e]
 
-  render pf IdxVar (VarName_ n)   =  renderDoc n
-  render pf IdxVar (Select_ pe e) =  renderDoc pe
-                                  <> align (brackets (renderDoc e))
-  render pf IdxVar (SelectName_ pe n) = _
+  render pf IdxVar (VarName_ n)   =  renderChunk n
+  render pf IdxVar (Select_ pe e) =  renderChunk pe
+                                  <> align (brackets (renderChunk e))
+  render pf IdxVar (SelectName_ pe n)
+    = renderChunk pe <> pretty "." <> renderChunk n 
 
   render pf IdxBinop Add_    = pretty "+"
   render pf IdxBinop Sub_    = pretty "-"
@@ -93,112 +94,168 @@ instance Renderer W FamBlock CodesBlock where
   render pf IdxUnop Len_ = pretty "#"
   render pf IdxUnop Complement_ = pretty "~"
 
-  render pf IdxPrefixExp (PEVar_ var)         = renderDoc var
-  render pf IdxPrefixExp (PEFunCall_ funcall) = renderDoc funcall
-  render pf IdxPrefixExp (Paren_ e)           = PP.parens (renderDoc e)
+  render pf IdxPrefixExp (PEVar_ var)         = renderChunk var
+  render pf IdxPrefixExp (PEFunCall_ funcall) = renderChunk funcall
+  render pf IdxPrefixExp (Paren_ e)           = parens (renderChunk e)
 
-  render pf IdxListTableField ListTableField_Ifx0 = emptyDoc
+  render pf IdxListTableField ListTableField_Ifx0
+    = emptyChunk
   render pf IdxListTableField (ListTableField_Ifx1 f fs)
-    -- TODO: hacky AF!! Maybe we could play with the precedence table?
-    = let doComma = if length (show $ renderDoc fs) == 0
-                    then id
-                    else (<> comma)
-       in doComma (renderDoc f) <+> renderDoc fs
+    = renderChunk f <+> renderChunk fs
+
+  render pf IdxListVar (ListVar_Ifx0)
+    = emptyChunk
+  render pf IdxListVar (ListVar_Ifx1 f fs)
+    = renderChunk f <+> renderChunk fs
+
+  render pf IdxListStat (ListStat_Ifx0)
+    = emptyChunk
+  render pf IdxListStat (ListStat_Ifx1 f fs)
+    = renderChunk f <+> renderChunk fs
+
+  render pf IdxListTup1ExpBlock (ListTup1ExpBlock_Ifx0)
+    = emptyChunk
+  render pf IdxListTup1ExpBlock (ListTup1ExpBlock_Ifx1 f fs)
+    = renderChunk f <+> renderChunk fs
+
+  render pf IdxTup1ExpBlock (Tup1ExpBlock_Ifx0 x y)
+    = renderChunk x <+> renderChunk y
+
+  render pf IdxListName (ListName_Ifx0)
+    = emptyChunk
+  render pf IdxListName (ListName_Ifx1 f fs)
+    = renderChunk f <+> renderChunk fs
+
+  render pf IdxListExp (ListExp_Ifx0)
+    = emptyChunk
+  render pf IdxListExp (ListExp_Ifx1 f fs)
+    = renderChunk f <+> renderChunk fs
 
   render pf IdxTableField (ExpField_ e1 e2)
-    = brackets (renderDoc e1) <+> equals <+> renderDoc e2
+    = brackets (renderChunk e1) <+> equals <+> renderChunk e2
   render pf IdxTableField (NamedField_ name e)
-    = renderDoc name <+> equals <+> renderDoc e
+    = renderChunk name <+> equals <+> renderChunk e
   render pf IdxTableField (Field_ e)
-    = renderDoc e
+    = renderChunk e
 
   render pf IdxBlock (Block_ stats ret)
-    = vsep [renderDoc stats , renderDoc ret]
+    = vsep' [renderChunk stats , renderChunk ret]
 
-  render pf IdxMaybeListExp MaybeListExpNothing_ = emptyDoc
+  render pf IdxMaybeListExp MaybeListExpNothing_ = emptyChunk
   render pf IdxMaybeListExp (MaybeListExpJust_ ls)
-    = pretty "return" <+> renderDoc ls
-
-  render pf IdxListExp (ListExp_Ifx0) = emptyDoc
-  render pf IdxListExp (ListExp_Ifx1 f fs)
-    -- TODO: hacky AF!! Maybe we could play with the precedence table?
-    = let doComma = if length (show $ renderDoc fs) == 0
-                    then id
-                    else (<> comma)
-       in doComma (renderDoc f) <+> renderDoc fs
+    = hsep' [pretty "return", intercalate PP.comma (renderChunk ls)]
 
   render pf IdxFunName (FunName_ name s methods)
-    -- TODO: hacky AF^2
-    = let doS = replace ',' '.' $ show s
-       in renderDoc name <> dot <> pretty doS <> renderDoc methods
-    where
-      replace x y = map (\c -> if x == c then y else c)
+    = renderChunk name
+      <> pretty "."
+      <> intercalate PP.dot (renderChunk s)
+      <> renderChunk methods
 
-  render pf IdxMaybeName MaybeNameNothing_ = emptyDoc
+  render pf IdxMaybeName MaybeNameNothing_ = emptyChunk
   render pf IdxMaybeName (MaybeNameJust_ n)
-    = pretty ":" <> renderDoc n
-
-  render pf IdxListName (ListName_Ifx0) = emptyDoc
-  render pf IdxListName (ListName_Ifx1 f fs)
-    -- TODO: hacky AF!! Maybe we could play with the precedence table?
-    = let doComma = if length (show $ renderDoc fs) == 0
-                    then id
-                    else (<> comma)
-       in doComma (renderDoc f) <+> renderDoc fs
+    = pretty ":" <> renderChunk n
 
   render pf IdxFunBody (FunBody_ names vararg block)
-    = group (vcat [nest 2 $ vcat [header , renderDoc block] , pretty "end"])
+    = group (vcat' [indent 2 $ vcat' [header , renderChunk block] , pretty "end"])
     where
       dv = case vararg of
-              SLuaBool b -> if b then comma <+> pretty "..." else emptyDoc
+              SLuaBool b -> if b then comma <+> pretty "..." else emptyChunk
 
-      header = pretty "function" <+> PP.parens (renderDoc names <> dv)
+      header = hsep' [pretty "function" ,parens (renderChunk names <> dv)]
+
+  render pf IdxMaybeBlock (MaybeBlockJust_ x)
+    = indent 2 $ hsep' [pretty "else" , renderChunk x]
+  render pf IdxMaybeBlock MaybeBlockNothing_
+    = emptyChunk
 
   render pf IdxFunCall (NormalFunCall_ pe arg)
-    = renderDoc pe <> renderDoc arg
+    = renderChunk pe <> renderChunk arg
   render pf IdxFunCall (MethodCall_ pe method arg)
-    = renderDoc pe <> colon <> renderDoc method <> renderDoc arg 
+    = renderChunk pe <> colon <> renderChunk method <> renderChunk arg 
 
-  render pf IdxFunArg (Args_ args)   = PP.parens (renderDoc args)
-  render pf IdxFunArg (TableArg_ t)  = renderDoc t
-  render pf IdxFunArg (StringArg_ s) = renderK pf s
-  
-
-  render pf IdxListVar (ListVar_Ifx0) = emptyDoc
-  render pf IdxListVar (ListVar_Ifx1 f fs)
-    -- TODO: hacky AF!! Maybe we could play with the precedence table?
-    = let doComma = if length (show $ renderDoc fs) == 0
-                    then id
-                    else (<> comma)
-       in doComma (renderDoc f) <+> renderDoc fs
-
-  render pf IdxListStat (ListStat_Ifx0) = emptyDoc
-  render pf IdxListStat (ListStat_Ifx1 f fs)
-    -- TODO: hacky AF!! Maybe we could play with the precedence table?
-    = vcat [renderDoc f , renderDoc fs]
-
-  render pf IdxListTup1ExpBlock (ListTup1IdxBlock_Ifx0) = emptyDoc
-  render pf IdxListTup1ExpBlock (ListTup1IdxBlock_Ifx1) = _
+  render pf IdxFunArg (Args_ args)
+    = parens (intercalate PP.comma (renderChunk args))
+  render pf IdxFunArg (TableArg_ t)
+    = braces (align (intercalate PP.comma (renderChunk t)))
+  render pf IdxFunArg (StringArg_ s)
+    = renderK pf s
 
   render pf IdxStat (Assign_ names vals)
-    = renderDoc names <+> pretty "=" <+> renderDoc vals
+    = hsep' [intercalate PP.comma (renderChunk names)
+            , equals
+            , intercalate PP.comma (renderChunk vals)]
   render pf IdxStat (FunCall_ f)
-    = renderDoc f
+    = renderChunk f
   render pf IdxStat (Label_ name)
-    = pretty "::" <> renderDoc name <> pretty "::"
+    = pretty "::" <> renderChunk name <> pretty "::"
   render pf IdxStat Break_ = pretty "break"
-  render pf IdxStat (Goto_ name) = pretty "goto" <+> renderDoc name
+  render pf IdxStat (Goto_ name) = hsep' [pretty "goto", renderChunk name]
   render pf IdxStat (Do_ block)
-    = group $ vcat [nest 2 $ vcat [pretty "do", renderDoc block] , pretty "end"]
+    = group $ vcat' [indent 2 $ vcat' [pretty "do", renderChunk block] , pretty "end"]
   render pf IdxStat (While_ guard e)
-    = vcat [nest 2 $ vcat [pretty "while" <+> renderDoc guard <+> pretty "do" , renderDoc e]
-           ,pretty "end"]
+    = vcat' [indent 2 $ vcat' [hsep' [pretty "while", renderChunk guard, pretty "do"]
+                              , renderChunk e]
+           , pretty "end"]
   render pf IdxStat (Repeat_ block guard)
-    = vcat [ nest 2 $ vcat [pretty "repeat" , renderDoc block]
-           , nest 2 $ vcat [pretty "until" , renderDoc guard]]
+    = vcat' [indent 2 $ vcat' [pretty "repeat" , renderChunk block]
+           , indent 2 $ vcat' [pretty "until" , renderChunk guard]]
   render pf IdxStat (If_ cases elsePart)
-    = _
-  
+    = case renderChunk cases of
+        Chunk docs -> printIf docs elsePart
+    where
+      printIf [] e
+        = error "If statement can't be empty"
+      printIf (guard:block:rest) e
+        = vcat' [indent 2 $ hsep' [pretty "if", singl guard, pretty "then", singl block]
+                ,printIf' rest e]
 
+      printIf' [] e = renderChunk e
+      printIf' (guard:block:rest) e
+        = vcat' [indent 2 $ hsep' [pretty "elseif", singl guard, pretty "then", singl block]
+                ,printIf' rest e]
+  render pf IdxStat (ForRange_ name e1 e2 e3 block)
+    = vcat' [hsep' [ pretty "for"
+                   , renderChunk name
+                   , equals
+                   , renderChunk e1
+                   , comma
+                   , renderChunk e2
+                   , renderChunk e3
+                   , pretty "do"
+                   ]
+            , indent 2 $ renderChunk block
+            ]
+  render pf IdxStat (ForIn_ name exps block)
+    = vcat' [ hsep' [ pretty "for"
+                    , intercalate PP.comma (renderChunk name)
+                    , pretty "in"
+                    , intercalate PP.comma (renderChunk exps)
+                    , pretty "do"
+                    ]
+            , indent 2 $ renderChunk block
+            ]
+  render pf IdxStat (FunAssign_ name body)
+    = hsep' [renderChunk name, renderChunk body]
+  render pf IdxStat (LocalFunAssign_ name body)
+    = hsep' [pretty "local" , renderChunk name , renderChunk body]
+  render pf IdxStat (LocalAssign_ names exps)
+    = hsep' [ pretty "local"
+            , intercalate PP.comma (renderChunk names)
+            , equals
+            , intercalate PP.comma (renderChunk exps)
+            ]
+  render pf IdxStat EmptyStat_
+    = semi
 
-    
+  render pf IdxMaybeExp (MaybeExpJust_ e)
+    = comma <+> renderChunk e
+  render pf IdxMaybeExp (MaybeExpNothing_)
+    = emptyChunk
+
+  render pf IdxName (Name_ n) = renderK pf n
+
+  render pf idx _ = pretty "!!!!" <+> pretty (show $ go idx)
+    where
+      go :: SNat a -> Int
+      go SZ = 0
+      go (SS n) = 1 + go n

@@ -29,7 +29,6 @@ import Generics.MRSOP.TH
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 
-import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 
 data LuaKon = LuaText | LuaBool
@@ -62,24 +61,6 @@ parseFile file =
      case program of
        Left e  -> print e >> fail "parse error"
        Right r -> return r
-
-
--- Renderer instance
-
-{-
-instance Renderer LuaSingl FamBlock CodesBlock where
-  renderK _ (SLuaText s) = pretty (T.unpack s)
-  renderK _ (SLuaBool b) = pretty b
-
-  renderI pf idx (Tag c NP0)
-    = pretty (constructorName (constrInfoFor pf idx c))
-  renderI pf idx (Tag c p)
-    = let ci = constrInfoFor pf idx c
-       in PP.parens $ vsep
-          ( pretty (constructorName ci)
-          : elimNP (elimNA (renderK pf) getConst) p
-          )
--}
 
 type W = LuaSingl
 type Stmt = Block

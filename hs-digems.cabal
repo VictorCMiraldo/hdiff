@@ -42,8 +42,8 @@ executable digem
   hs-source-dirs:      executables
   main-is:             Digem.hs
   other-modules:       Languages.While
-               -- ,       Languages.Lua.Syntax
-               -- ,       Languages.Lua.Renderer
+               ,       Languages.Lua.Syntax
+               ,       Languages.Lua.Renderer
   build-depends:       base >=4.10 && <5
                ,       generics-mrsop
                ,       hs-digems
