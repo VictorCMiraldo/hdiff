@@ -140,13 +140,13 @@ class (HasDatatypeInfo ki fam codes)
   -- |Renders a tree without precedence information
   render :: Proxy fam
          -> SNat ix
-         -> View ki Rendered (Lkup ix codes)
+         -> NP Rendered (Lkup ix codes)
          -> Chunk
 
   -- |Returns the precedence of the constructor
   precOfConstr :: Proxy fam
                -> SNat ix
-               -> View ki (Const Int) (Lkup ix codes)
+               -> NP Rendered (Lkup ix codes)
                -> Int
   precOfConstr _ _ _ = 0
 
@@ -163,6 +163,7 @@ layoutPrec p layout pf r
   = let f = if p > precOf r then layout else id
      in f (renderChunk r)
 
+{-
 -- |Given a renderer instance, we can easily render
 --  an element of the family
 renderEl :: forall ki fam codes ix ann
@@ -170,6 +171,12 @@ renderEl :: forall ki fam codes ix ann
          => El fam ix -> Doc 
 renderEl = renderDoc . cata renderAlg . dfrom 
   where
+    renderK' :: ki k -> Rendered n
+    renderK' ki = Const (1000 , renderK (Proxy :: Proxy fam) ki)
+
+    cast :: Const k a -> Const k b
+    cast = Const . getConst
+    
     renderAlg :: forall iy
                . (IsNat iy)
               => Rep ki Rendered (Lkup iy codes)
@@ -178,6 +185,11 @@ renderEl = renderDoc . cata renderAlg . dfrom
       | s@(Tag c p) <- sop rep
       = let pf  = Proxy :: Proxy fam
             siy = getSNat (Proxy :: Proxy iy)
+            pr  = mapNP (elimNA renderK' cast) p
+         in Const (precOfConstr pf siy (_ pr) , _)
+          {-
          in Const
           . (precOfConstr pf siy (Tag c (mapNP (mapNA id (Const . fst . getConst)) p)),)
           . render pf siy $ s 
+            -}
+-}

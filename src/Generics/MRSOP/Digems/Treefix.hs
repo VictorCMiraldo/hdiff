@@ -17,64 +17,46 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Renderer
 
--- |An untyped tree prefix, 'UTx' is basically an n-hole context. The untyped
+-- * Generic Treefixes
+
+-- |An untyped tree prefix, 'GUTx' is basically an n-hole context. The untyped
 --  refers to the lack of an index that maintains the type of
 --  the holes. This is an issue with Haskell in general. The Agda equivalent
 --  keeps such index.
-data UTx :: (kon -> *) -> [[[Atom kon]]] -> (Nat -> *) -> Nat -> *  where
-  UTxHere :: (IsNat i)
-          => phi i -> UTx ki codes phi i
-  UTxPeel :: (IsNat n)
+data GUTx :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> Atom kon -> *  where
+  GUTxHere :: phi i -> GUTx ki codes phi i
+  GUTxPeel :: (IsNat n , IsNat i)
           => Constr (Lkup i codes) n
-          -> NP (NA ki (UTx ki codes phi)) (Lkup n (Lkup i codes))
-          -> UTx ki codes phi i
+          -> NP (GUTx ki codes phi) (Lkup n (Lkup i codes))
+          -> GUTx ki codes phi (I i)
 
--- |Returns the index of the UTx as a singleton.
-getUTxSNat :: (IsNat ix) => UTx ki codes f ix -> SNat ix
-getUTxSNat _ = getSNat (Proxy :: Proxy ix)
+-- |Returns the index of the GUTx as a singleton.
+getGUTxSNat :: (IsNat ix) => GUTx ki codes f (I ix) -> SNat ix
+getGUTxSNat _ = getSNat (Proxy :: Proxy ix)
 
--- |Our 'UTx' is a higher order functor and can be mapped over.
-utxMapM :: (Monad m)
-        => (forall i . IsNat i => f i -> m (g i))
-        -> UTx ki codes f i  
-        -> m (UTx ki codes g i)
-utxMapM f (UTxHere x)       = UTxHere   <$> f x
-utxMapM f (UTxPeel c utxnp) = UTxPeel c <$> mapNPM (mapNAM return (utxMapM f)) utxnp
+-- |Our 'GUTx' is a higher order functor and can be mapped over.
+gtxMapM :: (Monad m)
+        => (forall i . f i -> m (g i))
+        -> GUTx ki codes f i  
+        -> m (GUTx ki codes g i)
+gtxMapM f (GUTxHere x)       = GUTxHere   <$> f x
+gtxMapM f (GUTxPeel c gtxnp) = GUTxPeel c <$> mapNPM (gtxMapM f) gtxnp
 
-utxMap :: (forall i . IsNat i => f i -> g i)
-       -> UTx ki codes f ix
-       -> UTx ki codes g ix
-utxMap f = runIdentity . utxMapM (return . f)
+gtxMap :: (forall i . f i -> g i)
+       -> GUTx ki codes f ix
+       -> GUTx ki codes g ix
+gtxMap f = runIdentity . gtxMapM (return . f)
 
--- |Similar to 'utxMap', but allows to refine the structure of
+-- |Similar to 'gtxMap', but allows to refine the structure of
 --  a treefix if need be
-utxRefine :: (Monad m)
-       => (forall iy . IsNat iy => f iy -> m (UTx ki codes g iy))
-       -> UTx ki codes f iy 
-       -> m (UTx ki codes g iy)
-utxRefine f (UTxHere x)
+gtxRefine :: (Monad m)
+       => (forall iy . f iy -> m (GUTx ki codes g iy))
+       -> GUTx ki codes f iy 
+       -> m (GUTx ki codes g iy)
+gtxRefine f (GUTxHere x)
   = f x
-utxRefine f (UTxPeel c utxnp)
-  = UTxPeel c <$> mapNPM (mapNAM return (utxRefine f)) utxnp
-
--- |A stiff treefix is one with no holes
-utxStiff :: Fix ki codes ix -> UTx ki codes f ix
-utxStiff (Fix x) = case sop x of
-  Tag c p -> UTxPeel c (mapNP (mapNA id utxStiff) p)
-
--- * Pretty Printing
-
-utxPretty :: forall ki fam codes f ix ann
-           . (Show1 ki , Renderer ki fam codes , IsNat ix)
-          => Proxy fam
-          -> (forall iy . IsNat iy => f iy -> Chunk)
-          -> UTx ki codes f ix
-          -> Chunk
-utxPretty pfam sx (UTxHere x)
-  = braces (brackets $ sx x)
-utxPretty pfam sx utx@(UTxPeel c rest)
-  = render pfam (getUTxSNat utx)
-                (Tag c $ mapNP (mapNA id (Const . (1000,) . utxPretty pfam sx)) rest)
+gtxRefine f (GUTxPeel c gtxnp)
+  = GUTxPeel c <$> mapNPM (gtxRefine f) gtxnp
 
 -- * Show instances
 
@@ -87,6 +69,68 @@ instance Show1 p => Show1 (NP p) where
   show1 (v :* vs)
     = show1 v ++ " :* " ++ show1 vs
 
-instance (Show1 ki , Show1 f) => Show1 (UTx ki codes f) where
-  show1 (UTxHere x)      = "[" ++ show1 x ++ "]"
-  show1 (UTxPeel c rest) = "(" ++ show c ++ "| " ++ show1 rest ++ ")"
+instance (Show1 ki , Show1 f) => Show1 (GUTx ki codes f) where
+  show1 (GUTxHere x)      = "[" ++ show1 x ++ "]"
+  show1 (GUTxPeel c rest) = "(" ++ show c ++ "| " ++ show1 rest ++ ")"
+
+-- * Untyped Treefixes
+
+-- |The atoms of a treefix, 'TxAtom' can be either a solid value
+--  or a metavariable. 
+data TxAtom :: (kon -> *) -> [[[Atom kon]]]
+            -> (Atom kon -> *)
+            -> Atom kon -> * where
+  Meta   :: phi a           -> TxAtom ki codes phi a
+  SolidK :: ki k            -> TxAtom ki codes phi (K k)
+  SolidI :: (IsNat ix)
+         => Fix ki codes ix -> TxAtom ki codes phi (I ix) 
+
+-- |MapMs over a 'TxAtom'
+txatomMapM :: (Monad m)
+           => (forall x . phi x -> m (chi x))
+           -> TxAtom ki codes phi ix
+           -> m (TxAtom ki codes chi ix)
+txatomMapM f (Meta   x) = Meta <$> f x
+txatomMapM f (SolidK x) = return $ SolidK x
+txatomMapM f (SolidI x) = return $ SolidI x
+ 
+-- |Maps over a 'TxAtom'
+txatomMap :: (forall x . phi x -> chi x)
+          -> TxAtom ki codes phi ix
+          -> TxAtom ki codes chi ix
+txatomMap f (Meta   x) = Meta (f x)
+txatomMap f (SolidK x) = SolidK x
+txatomMap f (SolidI x) = SolidI x
+  
+-- |A threefix, henceforth, is a value that can contain @phi@s
+--  in its leaves.
+type UTx ki codes phi ix = GUTx ki codes (TxAtom ki codes phi) (I ix)
+
+-- |Maps a monadic action over a 'UTx'
+utxMapM :: (Monad m)
+        => (forall x . phi x -> m (chi x))
+        -> UTx ki codes phi ix
+        -> m (UTx ki codes chi ix)
+utxMapM f = gtxMapM (txatomMapM f)
+        
+-- |A stiff treefix is one with no holes
+utxStiff :: (IsNat ix) => Fix ki codes ix -> UTx ki codes f ix
+utxStiff  = GUTxHere . SolidI
+
+-- * Pretty Printing
+
+{-
+utxPretty :: forall ki fam codes f ix ann
+           . (Show1 ki , Renderer ki fam codes)
+          => Proxy fam
+          -> (forall iy . f iy -> Chunk)
+          -> UTx ki codes f ix
+          -> Chunk
+utxPretty pfam sx (GUTxHere x)
+  = braces (brackets $ _)
+utxPretty pfam sx gtx@(GUTxPeel c rest)
+  = render pfam (getGUTxSNat gtx)
+                (Tag c $ mapNP (_ . utxPretty pfam sx) rest)
+                -- (Tag c $ mapNP (mapNA id (Const . (1000,) . gtxPretty pfam sx)) rest)
+
+-}
