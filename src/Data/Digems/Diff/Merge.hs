@@ -45,7 +45,7 @@ type PatchC ki codes = RawPatch (Sum (Const Int) (Conflict ki codes)) ki codes
 
 -- |Transports a deletion context (second arg) to work
 --  on top of a insertion context.
-transport :: (IsNat v)
+transport :: (IsNat v , Eq1 ki)
           => UTx ki codes (Const Int) v -- holes0
           -> UTx ki codes (Const Int) v -- holes1
           -> UTx ki codes (Sum (Const Int) (Conflict ki codes)) v -- holes1
@@ -59,10 +59,16 @@ transport tx (UTxHere i)
 transport tx@(UTxPeel cx dx) ty@(UTxPeel cy dy)
   = case testEquality cx cy of
       Nothing   -> UTxHere (InR $ Conflict tx ty)
-      Just Refl -> UTxPeel cx (mapNP (uncurry' transportNA) $ zipNP dx dy)
+      Just Refl -> case mapNPM (uncurry' transportNA) $ zipNP dx dy of
+        Nothing -> UTxHere (InR $ Conflict tx ty)
+        Just d  -> UTxPeel cx d
   where
-    transportNA :: NA ki (UTx ki codes (Const Int)) a
+    transportNA :: (Eq1 ki)
+                => NA ki (UTx ki codes (Const Int)) a
                 -> NA ki (UTx ki codes (Const Int)) a
-                -> NA ki (UTx ki codes (Sum (Const Int) (Conflict ki codes))) a
-    transportNA (NA_K _) (NA_K k) = NA_K k
-    transportNA (NA_I i) (NA_I j) = NA_I $ transport i j
+                -> Maybe (NA ki (UTx ki codes (Sum (Const Int) (Conflict ki codes))) a)
+    transportNA (NA_K k) (NA_K l)
+      -- = Just $ NA_K k
+      | eq1 k l   = Just $ NA_K k
+      | otherwise = Nothing
+    transportNA (NA_I i) (NA_I j) = Just $ NA_I $ transport i j
