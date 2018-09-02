@@ -21,6 +21,7 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
+import           Data.Text.Prettyprint.Doc (pretty)
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
@@ -97,6 +98,7 @@ instance Show1 W where
 -- using 'W' for the constants.
 deriveFamilyWithTy [t| W |] [t| Stmt |]
 
+{-
 -- ** Pretty printer
 
 myIndent :: Chunk -> Chunk
@@ -200,7 +202,7 @@ instance Renderer W FamStmt CodesStmt where
 
   render _ _ _
     = undefined
-           
+-}
 
 
 -- ** Parser definition
@@ -333,10 +335,15 @@ parseString str =
     Left e  -> error $ show e
     Right r -> r
 
+renderK :: W k -> Doc
+renderK (W_Integer i) = pretty i
+renderK (W_String s)  = pretty s
+renderK (W_Bool b)    = pretty b
+
 testString :: String -> IO ()
 testString str
   = do let stmt = parseString str
-       putStrLn $ show $ renderEl (into @FamStmt stmt)
+       putStrLn $ show $ renderEl renderK (into @FamStmt stmt)
 
 parseFile :: String -> IO Stmt
 parseFile file =

@@ -13,6 +13,8 @@ import Data.Functor.Const
 
 import Control.Monad.Identity
 
+import qualified Data.Text.Prettyprint.Doc as PP
+
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Renderer
@@ -119,18 +121,29 @@ utxStiff  = GUTxHere . SolidI
 
 -- * Pretty Printing
 
-{-
-utxPretty :: forall ki fam codes f ix ann
-           . (Show1 ki , Renderer ki fam codes)
+gtxPretty :: forall ki fam codes f ix ann
+           . (HasDatatypeInfo ki fam codes)
           => Proxy fam
-          -> (forall iy . f iy -> Chunk)
-          -> UTx ki codes f ix
-          -> Chunk
-utxPretty pfam sx (GUTxHere x)
-  = braces (brackets $ _)
-utxPretty pfam sx gtx@(GUTxPeel c rest)
-  = render pfam (getGUTxSNat gtx)
-                (Tag c $ mapNP (_ . utxPretty pfam sx) rest)
-                -- (Tag c $ mapNP (mapNA id (Const . (1000,) . gtxPretty pfam sx)) rest)
+          -> (forall iy . f iy -> Doc)
+          -> GUTx ki codes f ix
+          -> Doc
+gtxPretty pfam sx (GUTxHere x)
+  = sx x
+gtxPretty pfam sx utx@(GUTxPeel c rest)
+  = renderNP pfam (getGUTxSNat utx) c
+  $ mapNP (Const . gtxPretty pfam sx) rest
 
--}
+
+utxPretty :: forall ki fam codes f ix ann
+           . (HasDatatypeInfo ki fam codes)
+          => Proxy fam
+          -> (forall iy . f  iy -> Doc)
+          -> (forall  k . ki  k -> Doc)
+          -> GUTx ki codes (TxAtom ki codes f) ix
+          -> Doc
+utxPretty pf sx sk = gtxPretty pf txatomPretty
+  where
+    txatomPretty :: TxAtom ki codes f iy -> Doc
+    txatomPretty (Meta v)   = sx v
+    txatomPretty (SolidK k) = sk k
+    txatomPretty (SolidI i) = renderFix sk i

@@ -33,7 +33,7 @@ import System.Console.CmdArgs.Implicit
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
-import qualified Data.Text.Prettyprint.Doc as PP
+import           Data.Text.Prettyprint.Doc hiding (Doc)
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
@@ -129,12 +129,12 @@ mainAST opts
        whenLoud $ do
          putStrLn (show fa)
          putStrLn ""
-       putStrLn (show (renderEl . into @FamStmt $ fa))
+       putStrLn (show (renderEl renderK . into @FamStmt $ fa))
 
 mainDiff :: Options -> IO ()
 mainDiff opts
   = getDiff (minHeight opts) (optFileA opts) (optFileB opts)
-  >>= displayRawPatch (pretty . show1)
+  >>= displayRawPatch metavarPretty
       -- let fb' = case apply patch fa of
       --             Nothing -> Left "apply failed"
       --             Just x  -> Right x
@@ -149,9 +149,9 @@ mainMerge opts
        patchOA <- getDiff (minHeight opts) (optFileO opts) (optFileA opts)
        patchOB <- getDiff (minHeight opts) (optFileO opts) (optFileB opts)
        putStrLn $ "O->A " ++ replicate 60 '#'
-       displayRawPatch (pretty . show1) patchOA
+       displayRawPatch metavarPretty patchOA
        putStrLn $ "O->B " ++ replicate 60 '#'
-       displayRawPatch (pretty . show1) patchOB
+       displayRawPatch metavarPretty patchOB
        let resAB = patchOA D.// patchOB
        let resBA = patchOB D.// patchOA
        putStrLn $ "O->A/O->B " ++ replicate 55 '#'
@@ -159,38 +159,42 @@ mainMerge opts
        putStrLn $ "O->B/O->A " ++ replicate 55 '#'
        displayRawPatch showConf resBA
 
+metavarPretty :: D.MetaVar ix -> Doc
+metavarPretty (NA_I v) = brackets (pretty "I" <> surround (pretty $ getConst v) (pretty "| ") (pretty " |"))
+metavarPretty (NA_K v) = brackets (pretty "K" <> surround (pretty $ getConst v) (pretty "| ") (pretty " |"))
+
 getDiff :: Int -> FilePath -> FilePath -> IO (D.Patch W CodesStmt 'Z)
 getDiff mh fA fB
   = do fa <- (dfrom . into @FamStmt) <$> parseFile fA
        fb <- (dfrom . into @FamStmt) <$> parseFile fB
        return $ D.digems mh fa fb
 
-showConf :: (IsNat i) => Sum (Const Int) (D.Conflict W CodesStmt) i -> Chunk
-showConf (InL (Const i)) = pretty i
+showConf :: Sum D.MetaVar (D.Conflict W CodesStmt) at -> Doc
+showConf (InL v) = metavarPretty v
 showConf (InR (D.Conflict l r))
-  = let dl = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) l
-        dr = utxPretty (Proxy :: Proxy FamStmt) (pretty . show1) r
-     in vsep' [ pretty ">>>"
-              , dl
-              , pretty "==="
-              , dr
-              , pretty "<<<"
-              ]
+  = let dl = utxPretty (Proxy :: Proxy FamStmt) metavarPretty renderK l
+        dr = utxPretty (Proxy :: Proxy FamStmt) metavarPretty renderK r
+     in hsep [ pretty ">>>"
+             , dl
+             , pretty "==="
+             , dr
+             , pretty "<<<"
+             ]
 
 -- |Pretty prints a patch on the terminal
 displayRawPatch :: (IsNat v)
-                => (forall i . IsNat i => x i -> Chunk)
+                => (forall i . x i -> Doc)
                 -> D.RawPatch x W CodesStmt v
                 -> IO ()
 displayRawPatch showX patch
-  = doubleColumn 55 (compile (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxDel patch)))
-                    (compile (utxPretty (Proxy :: Proxy FamStmt) showX (D.ctxIns patch)))
+  = doubleColumn 75 (utxPretty (Proxy :: Proxy FamStmt) showX renderK (D.ctxDel patch))
+                    (utxPretty (Proxy :: Proxy FamStmt) showX renderK (D.ctxIns patch))
 
 -- |displays two docs in a double column fashion
-doubleColumn :: Int -> PP.Doc ann -> PP.Doc ann -> IO ()
+doubleColumn :: Int -> Doc -> Doc -> IO ()
 doubleColumn width da db
-  = let pgdim = PP.LayoutOptions (PP.AvailablePerLine width 1)
-        lyout = PP.layoutSmart pgdim
+  = let pgdim = LayoutOptions (AvailablePerLine width 1)
+        lyout = layoutSmart pgdim
         ta    = T.lines . renderStrict $ lyout da
         tb    = T.lines . renderStrict $ lyout db
         compA = if length ta >= length tb

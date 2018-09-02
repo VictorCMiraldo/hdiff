@@ -24,172 +24,54 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.AG
 
--- * Domain Specific Pretty Printing
---
-
 type Doc = PP.Doc ()
 
-data Chunk = Chunk
-  { unChunk :: [Doc]
-  }
+-- |Default rendering of constructors
+renderView :: (HasDatatypeInfo ki fam codes)
+           => Proxy fam
+           -> (forall k . ki k -> Doc)
+           -> SNat ix
+           -> View ki (Const Doc) (Lkup ix codes)
+           -> Doc
+renderView pf renderK idx (Tag c p)
+  = renderNP pf idx c (mapNP (Const . elimNA renderK getConst) p)
 
-instance Semigroup Chunk where
-  ds <> es = Chunk [compile ds <> compile es]
-
-onChunk :: ([Doc] -> [Doc]) -> Chunk -> Chunk
-onChunk f = Chunk . f . unChunk
-
-emptyChunk :: Chunk
-emptyChunk = Chunk []
-
-singl :: Doc -> Chunk
-singl d = Chunk [d]
-
-pretty :: (PP.Pretty a) => a -> Chunk
-pretty = singl . PP.pretty
-
-semi :: Chunk
-semi = pretty ";"
-
-comma :: Chunk
-comma = pretty ","
-
-equals :: Chunk
-equals = pretty "="
-
-colon :: Chunk
-colon = pretty ":"
-
-infixr 5 <+>
-(<+>) :: Chunk -> Chunk -> Chunk
-(Chunk ds) <+> (Chunk es) = Chunk (ds ++ es)
-
-intercalate :: Doc -> Chunk -> Chunk
-intercalate i = onChunk (L.intersperse i)
-
-vcat :: Chunk -> Chunk
-vcat (Chunk ds) = Chunk [PP.vcat ds]
-
-vcat' :: [Chunk] -> Chunk
-vcat' = Chunk . (:[]) . PP.vcat . map compile
-
-hcat :: Chunk -> Chunk
-hcat (Chunk ds) = Chunk [PP.hcat ds]
-
-vsep :: Chunk -> Chunk
-vsep (Chunk ds) = Chunk [PP.vsep ds]
-
-vsep' :: [Chunk] -> Chunk
-vsep' = Chunk . (:[]) . PP.vsep . map compile
-
-hsep :: Chunk -> Chunk
-hsep (Chunk ds) = Chunk [PP.hsep ds]
-
-hsep' :: [Chunk] -> Chunk
-hsep' = Chunk . (:[]) . PP.hsep . map compile
-
-indent :: Int -> Chunk -> Chunk
-indent i = onChunk (map (PP.indent i))
-
-align :: Chunk -> Chunk
-align = onChunk (map PP.align)
-
-group :: Chunk -> Chunk
-group = onChunk (map PP.group)
-
-compile :: Chunk -> Doc
-compile (Chunk [])  = PP.emptyDoc
-compile (Chunk [p]) = p
-compile (Chunk ps)  = PP.vcat ps
-
-enclose :: Doc -> Doc -> Chunk -> Chunk
-enclose l r (Chunk [])   = Chunk []
-enclose l r (Chunk [ps]) = Chunk [PP.enclose l r ps]
-enclose l r (Chunk ps)   = Chunk (l:ps ++ [r])
-
-parens :: Chunk -> Chunk
-parens = enclose PP.lparen PP.rparen
-
-brackets :: Chunk -> Chunk
-brackets = enclose PP.lbracket PP.rbracket
-
-braces :: Chunk -> Chunk
-braces = enclose PP.lbrace PP.rbrace
-
--- * The typeclass
-
-type Rendered = Const (Int , Chunk)
-
-renderDoc :: Rendered ix -> Doc
-renderDoc = compile . snd . getConst
-
-renderChunk :: Rendered ix -> Chunk
-renderChunk = snd . getConst
-
--- |Returns the precedence of the topmost constructor in a
---  'rendered' instance.
-precOf :: Rendered ix
-       -> Int
-precOf = fst . getConst
-
-class (HasDatatypeInfo ki fam codes)
-    => Renderer ki fam codes where
-  -- |Renders opaque types
-  renderK :: Proxy fam -> ki k -> Chunk
-
-  -- |Renders a tree without precedence information
-  render :: Proxy fam
+-- |Default rendering of NP's with Docs inside
+renderNP :: (HasDatatypeInfo ki fam codes)
+         => Proxy fam
          -> SNat ix
-         -> NP Rendered (Lkup ix codes)
-         -> Chunk
+         -> Constr (Lkup ix codes) c
+         -> NP (Const Doc) (Lkup c (Lkup ix codes))
+         -> Doc
+renderNP pf idx c NP0
+  = PP.pretty (constructorName (constrInfoFor pf idx c))
+renderNP pf idx c p
+  = let ci = constrInfoFor pf idx c
+     in PP.parens $ PP.pretty (constructorName ci)
+             PP.<+> PP.align (PP.vsep (elimNP getConst p))
 
-  -- |Returns the precedence of the constructor
-  precOfConstr :: Proxy fam
-               -> SNat ix
-               -> NP Rendered (Lkup ix codes)
-               -> Int
-  precOfConstr _ _ _ = 0
-
--- |Applies a layout function iff the precedence @p@
---  is higher than the precedence of the underlying doc's
---  topmost operation.
-layoutPrec :: (Renderer ki fam codes , IsNat ix)
-           => Int
-           -> (Chunk -> Chunk)
-           -> Proxy fam
-           -> Rendered ix
-           -> Chunk 
-layoutPrec p layout pf r
-  = let f = if p > precOf r then layout else id
-     in f (renderChunk r)
-
-{-
--- |Given a renderer instance, we can easily render
---  an element of the family
+-- |Renders elements of the family
 renderEl :: forall ki fam codes ix ann
-          . (Family ki fam codes , Renderer ki fam codes , IsNat ix)
-         => El fam ix -> Doc 
-renderEl = renderDoc . cata renderAlg . dfrom 
-  where
-    renderK' :: ki k -> Rendered n
-    renderK' ki = Const (1000 , renderK (Proxy :: Proxy fam) ki)
+          . (Family ki fam codes , HasDatatypeInfo ki fam codes , IsNat ix)
+         => (forall k . ki k -> Doc)
+         -> El fam ix
+         -> Doc
+renderEl renderK = renderFix renderK . dfrom
 
-    cast :: Const k a -> Const k b
-    cast = Const . getConst
-    
+-- |Renders a fixpoint
+renderFix :: forall ki fam codes ix
+           . (HasDatatypeInfo ki fam codes , IsNat ix)
+          => (forall k . ki k -> Doc)
+          -> Fix ki codes ix
+          -> Doc
+renderFix renderK = getConst . cata renderAlg
+  where
     renderAlg :: forall iy
                . (IsNat iy)
-              => Rep ki Rendered (Lkup iy codes)
-              -> Rendered iy
-    renderAlg rep
-      | s@(Tag c p) <- sop rep
-      = let pf  = Proxy :: Proxy fam
-            siy = getSNat (Proxy :: Proxy iy)
-            pr  = mapNP (elimNA renderK' cast) p
-         in Const (precOfConstr pf siy (_ pr) , _)
-          {-
-         in Const
-          . (precOfConstr pf siy (Tag c (mapNP (mapNA id (Const . fst . getConst)) p)),)
-          . render pf siy $ s 
-            -}
--}
+              => Rep ki (Const Doc) (Lkup iy codes)
+              -> Const Doc iy
+    renderAlg = Const . renderView (Proxy :: Proxy fam)
+                                   renderK
+                                   (getSNat (Proxy :: Proxy iy))
+                      . sop
+

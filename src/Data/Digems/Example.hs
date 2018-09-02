@@ -76,6 +76,10 @@ tr = dfrom . into
 dgms :: Tree23 -> Tree23 -> Patch Singl CodesTree23 'Z
 dgms x y = digems 1 (dfrom $ into x) (dfrom $ into y)
 
+o , p , q :: Tree23
+o = Node2 10 (Node3 100 Leaf Leaf Leaf) (Node2 1000 Leaf Leaf)
+p = Node2 20 (Node3 100 (Node2 50 Leaf Leaf) Leaf Leaf) (Node2 1000 Leaf Leaf)
+q = Node2 10 (Node3 100 Leaf Leaf Leaf) (Node3 200 Leaf Leaf (Node2 1000 Leaf Leaf))
 {-
 import Generics.MRSOP.Examples.SimpTH
 
