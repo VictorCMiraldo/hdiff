@@ -50,8 +50,9 @@ renderNP pf idx c NP0
   = PP.pretty (constructorName (constrInfoFor pf idx c))
 renderNP pf idx c p
   = let ci = constrInfoFor pf idx c
-     in PP.parens $ PP.pretty (constructorName ci)
-             PP.<+> PP.indent 2 (PP.vsep (elimNP getConst p))
+     in PP.parens $ PP.vcat [ PP.pretty (constructorName ci)
+                            , PP.indent 1 (PP.vsep (elimNP getConst p))
+                            ]
 
 -- |Renders elements of the family
 renderEl :: forall ki fam codes ix ann
