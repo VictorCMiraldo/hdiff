@@ -8,7 +8,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
-module Languages.Lua.Syntax where
+module Languages.Lua where
 
 import Language.Lua.Syntax
 import qualified Language.Lua.Parser as Lua
@@ -30,11 +30,16 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 
 import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.Digems.Renderer
 
 data LuaKon = LuaText | LuaBool
 data LuaSingl (kon :: LuaKon) :: * where
   SLuaText :: Text -> LuaSingl LuaText
   SLuaBool :: Bool -> LuaSingl LuaBool
+
+instance Renderer1 LuaSingl where
+  render1 (SLuaText t) = pretty (T.unpack t)
+  render1 (SLuaBool b) = pretty b
 
 instance Digestible Text where
   digest = hash . encodeUtf8

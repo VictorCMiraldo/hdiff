@@ -20,6 +20,7 @@ library
                  ,     Data.Digems.Diff.Patch
                  ,     Data.Digems.Diff.Merge
                  ,     Data.Digems.Diff.Preprocess
+                 ,     Data.Digems.Diff.Show
                  ,     Data.Digems.Example
                  ,     Data.WordTrie
   -- other-modules:       
@@ -42,7 +43,8 @@ executable digem
   hs-source-dirs:      executables
   main-is:             Digem.hs
   other-modules:       Languages.While
-               ,       Languages.Lua.Syntax
+               ,       Languages.Lua
+               ,       Languages.Interface
   build-depends:       base >=4.10 && <5
                ,       generics-mrsop
                ,       hs-digems
@@ -53,3 +55,4 @@ executable digem
                ,       text 
                ,       cmdargs
                ,       language-lua
+               ,       mtl

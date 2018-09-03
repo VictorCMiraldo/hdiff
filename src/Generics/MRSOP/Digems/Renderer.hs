@@ -26,6 +26,9 @@ import Generics.MRSOP.AG
 
 type Doc = PP.Doc ()
 
+class Renderer1 f where
+  render1 :: f x -> Doc
+
 -- |Default rendering of constructors
 renderView :: (HasDatatypeInfo ki fam codes)
            => Proxy fam
@@ -48,7 +51,7 @@ renderNP pf idx c NP0
 renderNP pf idx c p
   = let ci = constrInfoFor pf idx c
      in PP.parens $ PP.pretty (constructorName ci)
-             PP.<+> PP.align (PP.vsep (elimNP getConst p))
+             PP.<+> PP.indent 2 (PP.vsep (elimNP getConst p))
 
 -- |Renders elements of the family
 renderEl :: forall ki fam codes ix ann

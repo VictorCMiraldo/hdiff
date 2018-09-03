@@ -21,6 +21,7 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
+import           Data.Type.Equality
 import           Data.Text.Prettyprint.Doc (pretty)
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
@@ -98,112 +99,16 @@ instance Show1 W where
 -- using 'W' for the constants.
 deriveFamilyWithTy [t| W |] [t| Stmt |]
 
-{-
--- ** Pretty printer
+instance Renderer1 W where
+  render1 (W_Integer i) = pretty i
+  render1 (W_String s)  = pretty s
+  render1 (W_Bool b)    = pretty b
 
-myIndent :: Chunk -> Chunk
-myIndent = indent 2
-
-instance Renderer W FamStmt CodesStmt where
-  renderK _ (W_Integer i) = pretty i
-  renderK _ (W_String s)  = pretty s
-  renderK _ (W_Bool b)    = pretty b
-
-  precOfConstr pf IdxBExpr (Not_ _) = 9
-  precOfConstr pf IdxBExpr (BBinary_ bop _ _) = getConst bop
-  precOfConstr pf IdxBExpr (RBinary_ rop _ _) = getConst rop
-
-  precOfConstr pf IdxRBinOp Greater_ = 10
-  precOfConstr pf IdxRBinOp Less_    = 10
-  precOfConstr pf IdxRBinOp Equal_   = 10
-
-  precOfConstr pf IdxBBinOp And_ = 8
-  precOfConstr pf IdxBBinOp Or_  = 8
-
-  precOfConstr pf IdxAExpr (Neg_ i) = 80
-  precOfConstr pf IdxAExpr (ABinary_ bop _ _) = getConst bop
-  precOfConstr pf IdxAExpr (ARange_ _ _) = 100
-
-  precOfConstr pf IdxABinOp Add_      = 40
-  precOfConstr pf IdxABinOp Subtract_ = 40
-  precOfConstr pf IdxABinOp Multiply_ = 50
-  precOfConstr pf IdxABinOp Reminder_ = 50
-  precOfConstr pf IdxABinOp Divide_   = 50
-  precOfConstr pf IdxABinOp Power_    = 60
-
-  precOfConstr _ _ _ = 1000
-  
-  render pf IdxBExpr (BoolConst_ b)
-    = renderK pf b
-  render pf IdxBExpr (Not_ b)
-    = hsep' [pretty "not", layoutPrec 9 parens pf b ]
-  render pf IdxBExpr (BBinary_ bop l r)
-    = let pbop = precOf bop
-       in hsep' [ layoutPrec pbop parens pf l
-                , renderChunk bop
-                , layoutPrec pbop parens pf r ]
-  render pf IdxBExpr (RBinary_ bop l r)
-    = let pbop = precOf bop
-       in hsep' [ layoutPrec pbop parens pf l
-                , renderChunk bop
-                , layoutPrec pbop parens pf r ]
-
-  render pf IdxBBinOp And_ = pretty "and"
-  render pf IdxBBinOp Or_  = pretty "or"
-
-  render pf IdxRBinOp Greater_ = pretty ">"
-  render pf IdxRBinOp Less_    = pretty "<"
-  render pf IdxRBinOp Equal_   = pretty "=="
-  
-  render pf IdxAExpr (Var_ s) = renderK pf s
-  render pf IdxAExpr (IntConst_ i) = renderK pf i
-  render pf IdxAExpr (Neg_ i)
-    = hsep' [pretty "-" , layoutPrec 80 parens pf i]
-  render pf IdxAExpr (ABinary_ bop l r)
-    = let pbop = precOf bop
-       in hsep' [ layoutPrec pbop parens pf l
-                , renderChunk bop
-                , layoutPrec pbop parens pf r ]
-  render pf IdxAExpr (ARange_ l r)
-    = hsep' [pretty "range"
-            ,layoutPrec 1000 parens pf l
-            ,layoutPrec 1000 parens pf r
-            ]
-
-  render pf IdxABinOp Add_      = pretty "+"
-  render pf IdxABinOp Subtract_ = pretty "-"
-  render pf IdxABinOp Multiply_ = pretty "*"
-  render pf IdxABinOp Reminder_ = pretty "%"
-  render pf IdxABinOp Divide_   = pretty "/"
-  render pf IdxABinOp Power_    = pretty "^"
-
-  render pf IdxListStmt ListStmt_Ifx0 = emptyChunk
-  render pf IdxListStmt (ListStmt_Ifx1 s ss)
-    = renderChunk s <+> renderChunk ss
-
-  render pf IdxStmt (Seq_ ls)
-    = vcat $ renderChunk ls
-  render pf IdxStmt (Assign_ name expr)
-    = hsep' [renderK pf name, pretty ":=", renderChunk expr] <> semi
-  render pf IdxStmt Skip_
-    = pretty "skip;"
-  render pf IdxStmt (If_ c t e)
-    = vsep' [ hsep' [pretty "if", renderChunk c, pretty "then {"]
-            , myIndent (renderChunk t)
-            , pretty "} else {"
-            , myIndent (renderChunk e)
-            , pretty "}"
-            ]
-  render pf IdxStmt (While_ c bdy)
-    = vsep' [ hsep' [pretty "while", renderChunk c, pretty "do {"]
-            , myIndent (renderChunk bdy)
-            , pretty "}"
-            ]
-
-  render _ _ _
-    = undefined
--}
-
+instance TestEquality W where
+  testEquality (W_Integer _) (W_Integer _) = Just Refl
+  testEquality (W_String _)  (W_String _)  = Just Refl
+  testEquality (W_Bool _)    (W_Bool _)    = Just Refl
+  testEquality _             _             = Nothing
 
 -- ** Parser definition
 
