@@ -167,6 +167,8 @@ overlapKs i dx dy = evalState (go dx dy) i
                               , gtxMap (txatomMap unForceI) y)
           Just Refl -> (GUTxPeel cx *** GUTxPeel cx) . unzipNP
                     <$> (mapNPM (fmap (uncurry (:*:)) . uncurry' go) $ zipNP px py)
+    go x y = return ( gtxMap (txatomMap unForceI) x
+                    , gtxMap (txatomMap unForceI) y)
 
     unForceI :: ForceI ix -> MetaVar ix
     unForceI (ForceI hole) = NA_I (Const hole)
