@@ -45,6 +45,9 @@ executable digem
   other-modules:       Languages.While
                ,       Languages.Lua
                ,       Languages.Interface
+               ,       Languages.Clojure
+               ,       Languages.Clojure.AST
+               ,       Languages.Clojure.Parser
   build-depends:       base >=4.10 && <5
                ,       generics-mrsop
                ,       hs-digems

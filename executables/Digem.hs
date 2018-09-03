@@ -50,8 +50,9 @@ import qualified Data.Digems.Diff.Merge as D
 import           Data.Digems.Diff.Show
 
 import           Languages.Interface
-import qualified Languages.While as While
--- import qualified Languages.Lua   as Lua
+import qualified Languages.While   as While
+import qualified Languages.Lua     as Lua
+import qualified Languages.Clojure as Clj
 
 ---------------------------
 -- * Cmd Line Options
@@ -139,7 +140,8 @@ main = cmdArgsRun options >>= \opts
 mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
-    -- ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
+    ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
+    ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
     ]
 
 mainAST :: Options -> IO ()
