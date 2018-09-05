@@ -8,8 +8,9 @@ import           System.IO
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
-import           Data.Text.Prettyprint.Doc hiding (Doc)
-import           Data.Text.Prettyprint.Doc.Render.Text
+import           Data.Text.Prettyprint.Doc
+import           Data.Text.Prettyprint.Doc.Render.Terminal
+import qualified Data.Text.Prettyprint.Doc.Render.Text as Text
 import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
@@ -23,29 +24,38 @@ import qualified Data.Digems.Diff.Patch as D
 import qualified Data.Digems.Diff.Merge as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
-spliced :: String -> Doc -> Doc
-spliced lbl d = brackets (pretty lbl <> surround d (pretty "| ") (pretty " |")) 
+spliced :: Doc ann -> Doc ann -> Doc ann
+spliced lbl d = brackets (lbl <> surround d (pretty "| ") (pretty " |")) 
 
 -- |Prints a metavariable
-metavarPretty :: D.MetaVar ix -> Doc
-metavarPretty (NA_I v) = spliced "I" (pretty $ getConst v)
-metavarPretty (NA_K v) = spliced "K" (pretty $ getConst v)
+metavarPretty :: D.MetaVar ix -> Doc AnsiStyle
+metavarPretty (NA_I v)
+  = annotate (color Blue)
+  $ spliced (annotate bold $ pretty "I")
+            (pretty $ getConst v)
+metavarPretty (NA_K v)
+  = annotate (color Green)
+  $ spliced (annotate bold $ pretty "K")
+            (pretty $ getConst v)
 
 -- |Shows a conflict in a pretty fashion  
 conflictPretty :: (HasDatatypeInfo ki fam codes)
-               => (forall k . ki k -> Doc)
-               -> Sum D.MetaVar (D.Conflict ki codes) at -> Doc
-conflictPretty renderK (InL v) = metavarPretty v
+               => (forall k . ki k -> Doc AnsiStyle)
+               -> Sum D.MetaVar (D.Conflict ki codes) at -> Doc AnsiStyle
+conflictPretty renderK (InL v)
+  = metavarPretty v
 conflictPretty renderK (InR (D.Conflict l r))
   = let dl = utxPretty (Proxy :: Proxy fam) metavarPretty renderK l
         dr = utxPretty (Proxy :: Proxy fam) metavarPretty renderK r
-     in spliced "C" (hsep [dl , pretty "<|>" , dr ])
+     in annotate (color Red)
+      $ spliced (annotate bold $ pretty "C")
+                (hsep [dl , pretty "<|>" , dr ])
 
 -- |Pretty prints a patch on the terminal
 displayRawPatch :: (HasDatatypeInfo ki fam codes , IsNat v)
                 => Handle
-                -> (forall i . x i  -> Doc)
-                -> (forall k . ki k -> Doc)
+                -> (forall i . x i  -> Doc AnsiStyle)
+                -> (forall k . ki k -> Doc AnsiStyle)
                 -> D.RawPatch x ki codes v
                 -> IO ()
 displayRawPatch hdl showX renderK patch
@@ -53,26 +63,36 @@ displayRawPatch hdl showX renderK patch
       (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxDel patch))
       (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxIns patch))
 
--- |displays two docs in a double column fashion
-doubleColumn :: Handle -> Int -> Doc -> Doc -> IO ()
+-- |Displays two docs in a double column fashion
+--
+--  This is a hacky function. We need to render both the colored
+--  and the non-colored versions to calculate
+--  the width spacing correctly (see @complete@ in the where clause)
+--
+doubleColumn :: Handle -> Int -> Doc AnsiStyle -> Doc AnsiStyle -> IO ()
 doubleColumn hdl width da db
   = let pgdim = LayoutOptions (AvailablePerLine width 1)
         lyout = layoutSmart pgdim
+        -- colored versions
         ta    = T.lines . renderStrict $ lyout da
         tb    = T.lines . renderStrict $ lyout db
+        -- non colored versions
+        sta   = T.lines . Text.renderStrict $ lyout da
+        stb   = T.lines . Text.renderStrict $ lyout db
         compA = if length ta >= length tb
                 then 0
                 else length tb - length ta
         compB = if length tb >= length ta
                 then 0
                 else length ta - length tb
-        fta   = ta ++ replicate compA (T.replicate width $ T.singleton ' ')
-        ftb   = tb ++ replicate compB T.empty
+        fta   = (zip ta sta) ++ replicate compA ((id &&& id) $ T.replicate width $ T.singleton ' ')
+        ftb   = (zip tb stb) ++ replicate compB ((id &&& id) $ T.empty)
      in mapM_ (\(la , lb) -> hPutStrLn hdl . T.unpack . T.concat
                            $ [ complete width la
                              , T.pack " -|+ "
-                             , lb
+                             , fst lb
                              ])
               (zip fta ftb)
   where
-    complete n t = T.concat [t , T.replicate (n - T.length t) $ T.singleton ' ']
+    complete n (color , nocolor)
+      = T.concat [color , T.replicate (n - T.length nocolor) $ T.singleton ' ']

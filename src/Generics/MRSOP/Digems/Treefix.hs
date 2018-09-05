@@ -124,9 +124,9 @@ utxStiff  = GUTxHere . SolidI
 gtxPretty :: forall ki fam codes f ix ann
            . (HasDatatypeInfo ki fam codes)
           => Proxy fam
-          -> (forall iy . f iy -> Doc)
+          -> (forall iy . f iy -> PP.Doc ann)
           -> GUTx ki codes f ix
-          -> Doc
+          -> PP.Doc ann
 gtxPretty pfam sx (GUTxHere x)
   = sx x
 gtxPretty pfam sx utx@(GUTxPeel c rest)
@@ -137,13 +137,13 @@ gtxPretty pfam sx utx@(GUTxPeel c rest)
 utxPretty :: forall ki fam codes f ix ann
            . (HasDatatypeInfo ki fam codes)
           => Proxy fam
-          -> (forall iy . f  iy -> Doc)
-          -> (forall  k . ki  k -> Doc)
+          -> (forall iy . f  iy -> PP.Doc ann)
+          -> (forall  k . ki  k -> PP.Doc ann)
           -> GUTx ki codes (TxAtom ki codes f) ix
-          -> Doc
+          -> PP.Doc ann
 utxPretty pf sx sk = gtxPretty pf txatomPretty
   where
-    txatomPretty :: TxAtom ki codes f iy -> Doc
+    txatomPretty :: TxAtom ki codes f iy -> PP.Doc ann
     txatomPretty (Meta v)   = sx v
     txatomPretty (SolidK k) = sk k
     txatomPretty (SolidI i) = renderFix sk i

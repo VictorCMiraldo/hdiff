@@ -240,15 +240,10 @@ parseString str =
     Left e  -> error $ show e
     Right r -> r
 
-renderK :: W k -> Doc
-renderK (W_Integer i) = pretty i
-renderK (W_String s)  = pretty s
-renderK (W_Bool b)    = pretty b
-
 testString :: String -> IO ()
 testString str
   = do let stmt = parseString str
-       putStrLn $ show $ renderEl renderK (into @FamStmt stmt)
+       putStrLn $ show $ renderEl render1 (into @FamStmt stmt)
 
 parseFile :: String -> IO Stmt
 parseFile file =

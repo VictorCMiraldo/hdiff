@@ -33,6 +33,7 @@ library
                ,       containers
                ,       mtl
                ,       prettyprinter
+               ,       prettyprinter-ansi-terminal
                ,       text
 
   hs-source-dirs:      src
