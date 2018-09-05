@@ -11,16 +11,12 @@
 {-# LANGUAGE TypeApplications      #-}
 -- |Illustrates the usage of MRSOP with a custom
 --  opaque type universe and the use of Digems to
---  compute diffs over a simple imperative WHILE-language.
---
---  The parser has been slightly modified from:
---
---   https://wiki.haskell.org/Parsing_a_simple_imperative_language
---
+--  compute diffs over various languages.
 --
 module Main (main) where
 
 import System.IO
+import System.Exit
 import Control.Monad
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
@@ -54,6 +50,14 @@ import qualified Languages.While   as While
 import qualified Languages.Lua     as Lua
 import qualified Languages.Clojure as Clj
 
+-- |The parsers that we support
+mainParsers :: [LangParser]
+mainParsers
+  = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
+    ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
+    ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
+    ]
+
 ---------------------------
 -- * Cmd Line Options
 
@@ -69,7 +73,7 @@ data Options
           , optFileO     :: FilePath
           , optFileB     :: FilePath
           , minHeight    :: Int
-          , testApply    :: Bool
+          , optDisplay   :: Bool
           }
   deriving (Data, Typeable, Eq , Show)
 
@@ -87,17 +91,17 @@ merge = Merge
       &= typ "INT"
       &= help "Specify the minimum height a tree must have to be shared"
       &= explicit &= name "h" &= name "height"
-  , testApply = False
+  , optDisplay = False
       &= typ "BOOL"
-      &= help "Attempts applying the patch and checks the result for equality "
-      &= explicit &= name "a" &= name "apply"
+      &= help "Displays the resulting patches"
+      &= explicit &= name "d" &= name "display"
   } 
-  &= help "Merges three WHILE programs"
+  &= help ("Merges three programs. Returns 0 upon success, 1 upon conflicting"
+         ++" patches and 2 upon unconflicting patches that do not commute")
 
 ast = AST
   { optFileA = def &= argPos 5 &= typ "FILE" }
-  &= help ("Parses a WHILE program. The WHILE parser has been extended from:"
-           ++ "'https://wiki.haskell.org/Parsing_a_simple_imperative_language'")
+  &= help ("Parses a program. We support *.while, *.lua and *.clj files" )
 
 diff = Diff
   { optFileA = def &= argPos 3 &= typ "OLDFILE"
@@ -111,13 +115,13 @@ diff = Diff
       &= help "Attempts applying the patch and checks the result for equality"
       &= explicit &= name "a" &= name "apply"
   } 
-  &= help "Computes the diff between two WHILE programs"
+  &= help "Computes the diff between two programs. The resulting diff is displayed"
 
 options :: Mode (CmdArgs Options)
 options = cmdArgsMode $ modes [merge , ast , diff &= auto]
   &= summary ("v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
   &= verbosity
-  &= program "digem-while"
+  &= program "digem"
 
 data OptionMode
   = OptAST | OptDiff | OptMerge
@@ -134,64 +138,68 @@ main = cmdArgsRun options >>= \opts
          OptAST   -> mainAST opts
          OptDiff  -> mainDiff  opts
          OptMerge -> mainMerge opts
+    >>= exitWith
+
+putStrLnErr :: String -> IO ()
+putStrLnErr = hPutStrLn stderr
 
 -- * Generic interface
 
-mainParsers :: [LangParser]
-mainParsers
-  = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
-    ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
-    ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
-    ]
-
-mainAST :: Options -> IO ()
+mainAST :: Options -> IO ExitCode
 mainAST opts = withParsed1 mainParsers (optFileA opts)
   $ \fa -> do
     putStrLn (show (renderFix render1 fa))
+    return ExitSuccess
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
-tryApply :: (Eq1 ki , TestEquality ki , IsNat ix)
+tryApply :: (Eq1 ki , TestEquality ki , IsNat ix, Renderer1 ki
+            ,HasDatatypeInfo ki fam codes)
          => D.Patch ki codes ix
          -> Fix ki codes ix
          -> Maybe (Fix ki codes ix)
          -> IO (Maybe (Fix ki codes ix))
 tryApply patch fa fb
-  = putStr "Application: "
-  >> case D.apply patch fa of
-      Nothing  -> putStrLn "!! apply failed"
-               >> return Nothing
-      Just fb' -> case fb of
-        Nothing  -> return (Just fb')
-        Just fbO -> putStrLn (if eqFix eq1 fbO fb' then "Ok" else "Wrong")
-                 >> return Nothing
+  = case D.apply patch fa of
+      Nothing  -> hPutStrLn stderr "!! apply failed"
+               >> hPutStrLn stderr (show $ renderFix render1 fa)
+               >> exitFailure
+      Just fb' -> return $ maybe (Just fb') (const Nothing) fb
 
-mainDiff :: Options -> IO ()
+mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
     let patch = D.digems (minHeight opts) fa fb
-    displayRawPatch metavarPretty render1 patch
+    displayRawPatch stdout metavarPretty render1 patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
+    return ExitSuccess
 
-mainMerge :: Options -> IO ()
+mainMerge :: Options -> IO ExitCode
 mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \fa fo fb -> do
     whenLoud $ do
-      putStrLn $ "O: " ++ optFileO opts
-      putStrLn $ "A: " ++ optFileA opts
-      putStrLn $ "B: " ++ optFileB opts
+      putStrLnErr $ "O: " ++ optFileO opts
+      putStrLnErr $ "A: " ++ optFileA opts
+      putStrLnErr $ "B: " ++ optFileB opts
     let patchOA = D.digems (minHeight opts) fo fa
     let patchOB = D.digems (minHeight opts) fo fb
-    whenLoud $ do
-      putStrLn $ "O->A " ++ replicate 60 '#'
-      displayRawPatch metavarPretty render1 patchOA
-      putStrLn $ "O->B " ++ replicate 60 '#'
-      displayRawPatch metavarPretty render1 patchOB
     let resAB = patchOA D.// patchOB
     let resBA = patchOB D.// patchOA
-    putStrLn $ "O->A/O->B " ++ replicate 55 '#'
-    displayRawPatch (conflictPretty render1) render1 resAB
-    putStrLn $ "O->B/O->A " ++ replicate 55 '#'
-    displayRawPatch (conflictPretty render1) render1 resBA
-    when (testApply opts) $ do
-      putStrLn "--apply: Not yet implemented"
+    when (optDisplay opts) $ do
+      putStrLnErr $ "O->A/O->B " ++ replicate 55 '#'
+      displayRawPatch stderr (conflictPretty render1) render1 resAB
+      putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
+      displayRawPatch stderr (conflictPretty render1) render1 resBA
+    case dstr (D.hasNoConflict resAB , D.hasNoConflict resBA) of
+      Nothing        -> putStrLnErr "!! Conflicts detected. Try with --display"
+                     >> return (ExitFailure 1)
+      Just (ab , ba) -> do
+        Just fb' <- tryApply ba fa Nothing
+        Just fa' <- tryApply ab fb Nothing
+        if eqFix eq1 fb' fa'
+        then return ExitSuccess
+        else return (ExitFailure 2)
+  where
+    dstr :: (Maybe a , Maybe b) -> Maybe (a , b)
+    dstr (Just x , Just y) = Just (x , y)
+    dstr _                 = Nothing

@@ -4,6 +4,7 @@
 {-# LANGUAGE GADTs      #-}
 module Data.Digems.Diff.Show where
 
+import           System.IO
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
@@ -42,17 +43,19 @@ conflictPretty renderK (InR (D.Conflict l r))
 
 -- |Pretty prints a patch on the terminal
 displayRawPatch :: (HasDatatypeInfo ki fam codes , IsNat v)
-                => (forall i . x i  -> Doc)
+                => Handle
+                -> (forall i . x i  -> Doc)
                 -> (forall k . ki k -> Doc)
                 -> D.RawPatch x ki codes v
                 -> IO ()
-displayRawPatch showX renderK patch
-  = doubleColumn 75 (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxDel patch))
-                    (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxIns patch))
+displayRawPatch hdl showX renderK patch
+  = doubleColumn hdl 75
+      (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxDel patch))
+      (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxIns patch))
 
 -- |displays two docs in a double column fashion
-doubleColumn :: Int -> Doc -> Doc -> IO ()
-doubleColumn width da db
+doubleColumn :: Handle -> Int -> Doc -> Doc -> IO ()
+doubleColumn hdl width da db
   = let pgdim = LayoutOptions (AvailablePerLine width 1)
         lyout = layoutSmart pgdim
         ta    = T.lines . renderStrict $ lyout da
@@ -65,7 +68,7 @@ doubleColumn width da db
                 else length ta - length tb
         fta   = ta ++ replicate compA (T.replicate width $ T.singleton ' ')
         ftb   = tb ++ replicate compB T.empty
-     in mapM_ (\(la , lb) -> putStrLn . T.unpack . T.concat
+     in mapM_ (\(la , lb) -> hPutStrLn hdl . T.unpack . T.concat
                            $ [ complete width la
                              , T.pack " -|+ "
                              , lb

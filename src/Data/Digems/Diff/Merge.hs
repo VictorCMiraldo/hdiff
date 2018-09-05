@@ -88,3 +88,15 @@ transport tx@(GUTxPeel cx dx) ty@(GUTxPeel cy dy)
   = case testEquality cx cy of
       Nothing   -> GUTxHere (Meta $ InR $ Conflict tx ty)
       Just Refl -> GUTxPeel cx (mapNP (uncurry' transport) $ zipNP dx dy)
+
+-- |Tries to cast a patch with conflicts to one with
+--  no conflicts. Only succeeeds if there are no conflicts,
+--  of course.
+hasNoConflict :: PatchC ki codes ix -> Maybe (Patch ki codes ix)
+hasNoConflict (Patch del ins)
+  = Patch <$> gtxMapM (txatomMapM unInL) del
+          <*> gtxMapM (txatomMapM unInL) ins
+  where
+    unInL :: Sum a b x -> Maybe (a x)
+    unInL (InL ax) = Just ax
+    unInL _        = Nothing
