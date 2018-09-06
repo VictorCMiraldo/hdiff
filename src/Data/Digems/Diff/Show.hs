@@ -70,14 +70,15 @@ displayRawPatch hdl showX renderK patch
 --  the width spacing correctly (see @complete@ in the where clause)
 --
 doubleColumn :: Handle -> Int -> Doc AnsiStyle -> Doc AnsiStyle -> IO ()
-doubleColumn hdl width da db
-  = let pgdim = LayoutOptions (AvailablePerLine width 1)
+doubleColumn hdl maxWidth da db
+  = let pgdim = LayoutOptions (AvailablePerLine maxWidth 1)
         lyout = layoutSmart pgdim
         -- colored versions
         ta    = T.lines . renderStrict $ lyout da
         tb    = T.lines . renderStrict $ lyout db
         -- non colored versions
         sta   = T.lines . Text.renderStrict $ lyout da
+        width = 1 + maximum (0 : map T.length sta)
         stb   = T.lines . Text.renderStrict $ lyout db
         compA = if length ta >= length tb
                 then 0
