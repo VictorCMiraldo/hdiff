@@ -71,6 +71,18 @@ transport tx@(GUTxHere (SolidI vx)) ty@(GUTxHere (SolidI vy))
   | eqFix eq1 vx vy = GUTxHere (SolidI vx)
   | otherwise       = GUTxHere (Meta $ InR $ Conflict tx ty)
 -- Recurses over fixes trees
+transport tx@(GUTxPeel cx dx)       ty@(GUTxHere (SolidI vy))
+  | Tag cy dy <- sop (unFix vy)
+  = case testEquality cx cy of
+      Nothing   -> GUTxHere (Meta $ InR $ Conflict tx ty)
+      Just Refl -> GUTxPeel cx (mapNP (uncurry' go) $ zipNP dx dy)
+  where
+    go :: (Eq1 ki)
+       => GUTx ki codes (TxAtom ki codes MetaVar) at
+       -> NA ki (Fix ki codes) at
+       -> GUTx ki codes (TxAtom ki codes (Sum MetaVar (Conflict ki codes))) at
+    go vx (NA_K k) = transport vx (GUTxHere (SolidK k))
+    go vx (NA_I i) = transport vx (GUTxHere (SolidI i))
 transport tx@(GUTxHere (SolidI vx)) ty@(GUTxPeel cy dy)
   | Tag cx dx <- sop (unFix vx)
   = case testEquality cx cy of
