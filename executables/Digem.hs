@@ -167,7 +167,8 @@ tryApply :: (Eq1 ki , TestEquality ki , IsNat ix, Renderer1 ki
 tryApply patch fa fb
   = case D.apply patch fa of
       Nothing  -> hPutStrLn stderr "!! apply failed"
-               >> hPutStrLn stderr (show $ renderFix render1 fa)
+               >> whenLoud
+                   (hPutStrLn stderr (show $ renderFix render1 fa))
                >> exitFailure
       Just fb' -> return $ maybe (Just fb') (const Nothing) fb
 
@@ -199,7 +200,9 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
       Nothing        -> putStrLnErr "!! Conflicts detected. Try with --display"
                      >> return (ExitFailure 1)
       Just (ab , ba) -> do
+        whenLoud (putStrLnErr "!! apply ba fa")
         Just fb' <- tryApply ba fa Nothing
+        whenLoud (putStrLnErr "!! apply ab fb")
         Just fa' <- tryApply ab fb Nothing
         if eqFix eq1 fb' fa'
         then return ExitSuccess

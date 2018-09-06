@@ -112,3 +112,120 @@ hasNoConflict (Patch del ins)
     unInL :: Sum a b x -> Maybe (a x)
     unInL (InL ax) = Just ax
     unInL _        = Nothing
+
+{-
+
+A tell tale of some WHILE programs as a guiding
+example to merging.
+
+Let:
+
+O.while  | f := a + b;
+         | g := x + y + z;
+
+A.while  | f := c + b;
+         | g := x + y + z;
+         | h := 42;
+
+B.while  | f := a + b;
+         | k := 24;
+         | g := x + y + z;
+
+Now consider the patch from O to A, call it OA:
+
+(Seq                 -|+ (Seq
+ (:                  -|+  (:
+  (Assign            -|+   (Assign
+   [K| 3 |]          -|+    [K| 3 |]
+   (ABinary          -|+    (ABinary
+    Add              -|+     Add
+    (Var             -|+     (Var
+     someIdent)      -|+      change)
+    (Var             -|+     (Var
+     [K| 4 |])))     -|+      [K| 4 |])))
+  (:                 -|+   (:
+   [I| 1 |]          -|+    [I| 1 |]
+   [])))             -|+    (:
+                     -|+     (Assign
+                     -|+      h
+                     -|+      (IntConst
+                     -|+       42))
+                     -|+     []))))
+
+And from O to B, call it OB:
+
+(Seq                 -|+ (Seq
+ (:                  -|+  (:
+  [I| 5 |]           -|+   [I| 5 |]
+  [I| 3 |]))         -|+   (:
+                     -|+    (Assign
+                     -|+     k
+                     -|+     (IntConst
+                     -|+      24))
+                     -|+    [I| 3 |])))
+
+The transport of OB over OA, meant to be applied to the
+destination of OA should be:
+
+(Seq                 -|+ (Seq
+ (:                  -|+  (:
+  [I| 6 |]           -|+   [I| 6 |]
+  [I| 7 |]))         -|+   (:
+                     -|+    (Assign
+                     -|+     k
+                     -|+     (IntConst
+                     -|+      24))
+                     -|+    [I| 7 |])))
+
+Whereas the transport of OA over OB, meant to be applied to
+the destination of OB should be:
+
+(Seq                 -|+ (Seq
+ (:                  -|+  (:
+  (Assign            -|+   (Assign
+   [K| 4 |]          -|+    [K| 4 |]
+   (ABinary          -|+    (ABinary
+    Add              -|+     Add
+    (Var             -|+     (Var
+     someIdent)      -|+      change)
+    (Var             -|+     (Var
+     [K| 5 |])))     -|+      [K| 5 |])))
+  (:                 -|+   (:
+   [I| 0 |]          -|+    [I| 0 |]
+   (:                -|+    (:
+    [I| 2 |]         -|+     [I| 2 |]
+    []))))           -|+     (:
+                     -|+      (Assign
+                     -|+       h
+                     -|+       (IntConst
+                     -|+        42))
+                     -|+      [])))))
+
+Lets say that the deletion context of (OA // OB) is obtained
+by the means of a (:+:) operator working over the insertion of
+OB and deletion of OB, hence:
+
+> delCtx (OA // OB) == insCtx OA :+: delCtx OB
+
+Hence:
+
+(Seq             :+: (Seq        ==
+ (:              :+:  (:         ==
+  (Assign        :+:   [I| 5     ==
+   [K| 3 |]      :+:     |       ==
+   (ABinary      :+:     |       ==
+    Add          :+:     |       ==
+    (Var         :+:     |       ==
+     change)     :+:     |       ==
+    (Var         :+:     |       ==
+     [K| 4 |]))) :+:     |]      ==
+  (:             :+:   [I| 3     ==
+   [I| 1 |]      :+:     |       ==
+   (:            :+:     |       ==
+    (Assign      :+:     |       ==
+     h           :+:     |       ==
+     (IntConst   :+:     |       ==
+      42))       :+:     |       ==
+    []))))       :+:     |] ))   ==
+
+-}
