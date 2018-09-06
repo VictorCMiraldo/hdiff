@@ -8,7 +8,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE CPP #-}
 module Languages.Lua where
+
+#ifdef ENABLE_LUA_SUPPORT
 
 import Language.Lua.Syntax
 import qualified Language.Lua.Parser as Lua
@@ -71,3 +74,5 @@ type W = LuaSingl
 type Stmt = Block
 type FamStmt = FamBlock
 type CodesStmt = CodesBlock
+
+#endif

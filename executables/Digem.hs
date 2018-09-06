@@ -9,6 +9,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE CPP                   #-}
 -- |Illustrates the usage of MRSOP with a custom
 --  opaque type universe and the use of Digems to
 --  compute diffs over various languages.
@@ -54,8 +55,12 @@ import qualified Languages.Clojure as Clj
 mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
+#ifdef ENABLE_LUA_SUPPORT
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
+#endif
+#ifdef ENABLE_CLOJURE_SUPPORT
     ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
+#endif
     ]
 
 ---------------------------
