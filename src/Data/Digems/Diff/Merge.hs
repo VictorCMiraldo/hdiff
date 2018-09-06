@@ -201,31 +201,67 @@ the destination of OB should be:
                      -|+        42))
                      -|+      [])))))
 
-Lets say that the deletion context of (OA // OB) is obtained
-by the means of a (:+:) operator working over the insertion of
-OB and deletion of OB, hence:
+The deletion context of (OA // OB) is obtained
+by the means of applying (delCtx OB) to (delCtx OA),
+yielding the following valuation:
 
-> delCtx (OA // OB) == insCtx OA :+: delCtx OB
+OB.5 |-> (Assign [K| OA.3 |]
+                (ABinary Add
+                (Var someIdent)
+                (Var [K| OA.4 |])))
 
-Hence:
+OB.3 |-> (: [I| OA.1 |] [] )
 
-(Seq             :+: (Seq        ==
- (:              :+:  (:         ==
-  (Assign        :+:   [I| 5     ==
-   [K| 3 |]      :+:     |       ==
-   (ABinary      :+:     |       ==
-    Add          :+:     |       ==
-    (Var         :+:     |       ==
-     change)     :+:     |       ==
-    (Var         :+:     |       ==
-     [K| 4 |]))) :+:     |]      ==
-  (:             :+:   [I| 3     ==
-   [I| 1 |]      :+:     |       ==
-   (:            :+:     |       ==
-    (Assign      :+:     |       ==
-     h           :+:     |       ==
-     (IntConst   :+:     |       ==
-      42))       :+:     |       ==
-    []))))       :+:     |] ))   ==
+
+If we apply this valuation to (insCtx OB), we get:
+
+(Seq
+ (:
+  (Assign
+   [K| OA.3 |]
+   (ABinary
+    Add
+    (Var
+     someIdent)
+    (Var
+     [K| OA.4 |])))
+  (:
+   (Assign k (IntConst 24))
+   (: [I| OA.1 |]
+      [] )
+  )
+ )
+)
+
+We now apply a generalization step: every tree that has no holes inside
+becomes a hole:
+
+(Seq
+ (:
+  (Assign
+   [K| OA.3 |]
+   (ABinary
+    Add
+    (Var
+     someIdent)
+    (Var
+     [K| OA.4 |])))
+  (:
+   [I| NEWHOLE |]
+   (: [I| OA.1 |]
+      [])
+  )
+ )
+)
+
+This is essentially the deletion context of (OA / OB) !
+The insertion context of (OA / OB), on the other hand, is obtained by
+applying the patch OA to the deletion context we just obtained!
+
+This will yield the valuation:
+
+3 |-> [K| OA.3 |]
+4 |-> [K| OA.4 |]
+1 |-> 
 
 -}
