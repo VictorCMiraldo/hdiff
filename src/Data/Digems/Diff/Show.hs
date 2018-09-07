@@ -21,23 +21,17 @@ import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
 import qualified Data.Digems.Diff.Patch as D
-import qualified Data.Digems.Diff.Merge as D
+-- import qualified Data.Digems.Diff.Merge as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
-spliced :: Doc ann -> Doc ann -> Doc ann
-spliced lbl d = brackets (lbl <> surround d (pretty "| ") (pretty " |")) 
+spliced :: Doc ann -> Doc ann
+spliced d = brackets (surround d (pretty "| ") (pretty " |")) 
 
--- |Prints a metavariable
-metavarPretty :: D.MetaVar ix -> Doc AnsiStyle
-metavarPretty (NA_I v)
-  = annotate (color Blue)
-  $ spliced (annotate bold $ pretty "I")
-            (pretty $ getConst v)
-metavarPretty (NA_K v)
-  = annotate (color Green)
-  $ spliced (annotate bold $ pretty "K")
-            (pretty $ getConst v)
+metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle) -> D.MetaVar ix -> Doc AnsiStyle
+metavarPretty sty (D.ForceI (Const i)) 
+  = sty $ spliced (pretty i)
 
+{-
 -- |Shows a conflict in a pretty fashion  
 conflictPretty :: (HasDatatypeInfo ki fam codes)
                => (forall k . ki k -> Doc AnsiStyle)
@@ -50,18 +44,39 @@ conflictPretty renderK (InR (D.Conflict l r))
      in annotate (color Red)
       $ spliced (annotate bold $ pretty "C")
                 (hsep [dl , pretty "<|>" , dr ])
+-}
 
 -- |Pretty prints a patch on the terminal
-displayRawPatch :: (HasDatatypeInfo ki fam codes , IsNat v)
+displayRawPatch :: (HasDatatypeInfo ki fam codes , IsNat v , Renderer1 ki)
                 => Handle
-                -> (forall i . x i  -> Doc AnsiStyle)
-                -> (forall k . ki k -> Doc AnsiStyle)
-                -> D.RawPatch x ki codes v
+                -> D.Patch ki codes v
                 -> IO ()
-displayRawPatch hdl showX renderK patch
+displayRawPatch hdl patch 
   = doubleColumn hdl 75
-      (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxDel patch))
-      (utxPretty (Proxy :: Proxy fam) showX renderK (D.ctxIns patch))
+      (utxPretty (Proxy :: Proxy fam) id prettyChangeDel patch)
+      (utxPretty (Proxy :: Proxy fam) id prettyChangeIns patch)
+
+prettyChangeDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+                => D.Change ki codes at
+                -> Doc AnsiStyle
+prettyChangeDel (D.SameMetaVar i)
+  = annotate (color Blue) $ spliced (pretty i)
+prettyChangeDel (D.Match del ins)
+  = utxPretty (Proxy :: Proxy fam)
+              (annotate (color Red))
+              (metavarPretty (annotate $ colorDull Red))
+              del
+
+prettyChangeIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+                => D.Change ki codes at
+                -> Doc AnsiStyle
+prettyChangeIns (D.SameMetaVar i)
+  = annotate (color Blue) $ spliced (pretty i)
+prettyChangeIns (D.Match del ins)
+  = utxPretty (Proxy :: Proxy fam)
+              (annotate (color Green))
+              (metavarPretty (annotate $ colorDull Green))
+              ins
 
 -- |Displays two docs in a double column fashion
 --

@@ -43,7 +43,7 @@ import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
 import qualified Data.Digems.Diff.Patch as D
-import qualified Data.Digems.Diff.Merge as D
+-- import qualified Data.Digems.Diff.Merge as D
 import           Data.Digems.Diff.Show
 
 import           Languages.Interface
@@ -176,10 +176,14 @@ mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
     let patch = D.digems (minHeight opts) fa fb
-    displayRawPatch stdout metavarPretty render1 patch
+    displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
     return ExitSuccess
 
+mainMerge :: Options -> IO ExitCode
+mainMerge = undefined
+
+{-
 mainMerge :: Options -> IO ExitCode
 mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \fa fo fb -> do
@@ -211,3 +215,4 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
     dstr :: (Maybe a , Maybe b) -> Maybe (a , b)
     dstr (Just x , Just y) = Just (x , y)
     dstr _                 = Nothing
+-}

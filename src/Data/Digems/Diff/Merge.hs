@@ -25,6 +25,7 @@ import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
 import Data.Digems.Diff.Patch
 
+{-
 -- * Merging
 
 -- TODO: flip Conflict and MetaVar; it is common to have the 'right'
@@ -113,6 +114,7 @@ hasNoConflict (Patch del ins)
     unInL (InL ax) = Just ax
     unInL _        = Nothing
 
+-}
 {-
 
 A tell tale of some WHILE programs as a guiding

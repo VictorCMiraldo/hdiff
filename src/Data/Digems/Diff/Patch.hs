@@ -43,19 +43,34 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 --
 --  Where @forget@ returns the values in the holes.
 --
-type Patch = RawPatch MetaVar
 
+{-
 type MetaVar = NA (Const Int) (Const Int)
 
 metavarGet :: MetaVar ix -> Int
 metavarGet (NA_K (Const i)) = i
 metavarGet (NA_I (Const i)) = i
-                      
+-}
+
+type MetaVar = ForceI (Const Int)
+
+-- |A 'Change' can be either a metavariable representing
+--  a copy or another treefix
+--  
+data Change ki codes at where
+  SameMetaVar :: (IsNat ix) => Int -> Change ki codes (I ix)
+  Match       :: { ctxDel :: UTx ki codes MetaVar at 
+                 , ctxIns :: UTx ki codes MetaVar at }
+              -> Change ki codes at
+
+type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
+
+{-
 -- |A 'RawPatch' is parametrizable over the
 --  functor that models metavariables
 data RawPatch phi ki codes v
-  = Patch { ctxDel :: UTx ki codes phi v
-          , ctxIns :: UTx ki codes phi v
+  = Patch { ctxDel :: UTx ki codes phi (I v)
+          , ctxIns :: UTx ki codes phi (I v)
           }
 
 -- |Maps over a patch
@@ -63,9 +78,8 @@ patchMap :: (Monad m)
          => (forall ix . phi ix -> m (chi ix))
          -> RawPatch phi ki codes v
          -> m (RawPatch chi ki codes v)
-patchMap f (Patch d i) = Patch <$> gtxMapM (txatomMapM f) d
-                               <*> gtxMapM (txatomMapM f) i
-
+patchMap f (Patch d i) = Patch <$> utxMapM f d <*> utxMapM f i
+-}
 
 -- * Diffing
 
@@ -114,78 +128,60 @@ buildSharingTrie minHeight x y
   $ T.zipWith (\_ _ -> ()) (buildTrie minHeight x)
                            (buildTrie minHeight y)
 
+-- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
+--  by forcing the atom to be an 'I'.
+data ForceI :: (Nat -> *) -> Atom kon -> * where
+  ForceI :: (IsNat i) => { unForceI :: f i } -> ForceI f (I i)
+
 -- |Given the sharing mapping between source and destination,
 --  we extract a tree prefix from a tree substituting every
 --  shared subtree by a hole with its respective identifier.
 --
 --  In this fist iteration, opaque values are not shared.
---  The 'NA' in the result type is more of a hack, the result
---  of this function does NOT contain any 'NA_K'. The opaque
---  values are stored in the 'TxAtom' as 'SolidK' values.
+--  This can be seen on the type-level since we are
+--  using the 'ForceI' type.
 extractUTx :: (IsNat ix)
            => MinHeight
            -> IsSharedMap
            -> PrepFix ki codes ix
-           -> UTx ki codes (NA ki (Const Int :*: (Fix ki codes))) ix
+           -> UTx ki codes (ForceI (Const Int :*: (Fix ki codes))) (I ix)
 extractUTx minHeight tr (AnnFix (Const prep) rep)
   -- TODO: if the tree's height is smaller than minHeight we don't
   --       even have to look it up on the map
   = case T.lookup (toW64s $ treeDigest prep) tr of
       Nothing | Tag c p <- sop rep
-              -> GUTxPeel c $ mapNP extractTxAtom p
-      Just i  -> GUTxHere (Meta $ NA_I $ Const i :*: Fix (mapRep forgetAnn rep))
+              -> UTxPeel c $ mapNP extractAtom p
+      Just i  -> UTxHole (ForceI $ Const i :*: Fix (mapRep forgetAnn rep))
   where
-    extractTxAtom :: NA ki (PrepFix ki codes) at
-                  -> GUTx ki codes (TxAtom ki codes (NA ki (Const Int :*: Fix ki codes))) at
-    extractTxAtom (NA_I i) = extractUTx minHeight tr i
-    extractTxAtom (NA_K k) = GUTxHere (SolidK k)
+    extractAtom :: NA ki (PrepFix ki codes) at
+                  -> UTx ki codes (ForceI (Const Int :*: Fix ki codes)) at
+    extractAtom (NA_I i) = extractUTx minHeight tr i
+    extractAtom (NA_K k) = UTxOpq k
 
-data ForceI :: Atom kon -> * where
-  ForceI :: (IsNat i) => Int -> ForceI (I i)
-
--- |Given two treefixes, will compute the atoms that were
---  copied. We start indexing at @i@ here.
---  PRECOND: @i@ is larger than any metavariable index appearing
---           in either @dx@ or @dy@
-overlapKs :: (Eq1 ki)
-          => Int
-          -> GUTx ki codes (TxAtom ki codes ForceI) ('I ix)
-          -> GUTx ki codes (TxAtom ki codes ForceI) ('I ix)
-          -> (UTx ki codes MetaVar ix, UTx ki codes MetaVar ix)
-overlapKs i dx dy = evalState (go dx dy) i
+-- |Given two treefixes, we will compute the longest path from
+--  the root that they overlap and will factor it out.
+--  This is somehow analogous to a @zipWith@
+extractSpine :: (Eq1 ki)
+             => UTx ki codes MetaVar (I ix)
+             -> UTx ki codes MetaVar (I ix)
+             -> UTx ki codes (Change ki codes) (I ix)
+extractSpine dx dy = go dx dy
   where
     go :: (Eq1 ki)
-       => GUTx ki codes (TxAtom ki codes ForceI) ix
-       -> GUTx ki codes (TxAtom ki codes ForceI) ix
-       -> State Int ( GUTx ki codes (TxAtom ki codes MetaVar) ix
-                    , GUTx ki codes (TxAtom ki codes MetaVar) ix)
-    go (GUTxHere x) (GUTxHere y)
-      = (GUTxHere *** GUTxHere) <$> goAtom x y 
-    go x@(GUTxPeel cx px) y@(GUTxPeel cy py)
+       => UTx ki codes MetaVar at
+       -> UTx ki codes MetaVar at
+       -> UTx ki codes (Change ki codes) at
+    go utx@(UTxHole (ForceI x)) uty@(UTxHole (ForceI y))
+      | x == y    = UTxHole $ SameMetaVar (getConst x)
+      | otherwise = UTxHole $ Match utx uty
+    go utx@(UTxOpq kx) uty@(UTxOpq ky)
+      | eq1 kx ky = UTxOpq kx
+      | otherwise = UTxHole (Match utx uty)
+    go utx@(UTxPeel cx px) uty@(UTxPeel cy py)
       = case testEquality cx cy of
-          Nothing   -> return ( gtxMap (txatomMap unForceI) x
-                              , gtxMap (txatomMap unForceI) y)
-          Just Refl -> (GUTxPeel cx *** GUTxPeel cx) . unzipNP
-                    <$> (mapNPM (fmap (uncurry (:*:)) . uncurry' go) $ zipNP px py)
-    go x y = return ( gtxMap (txatomMap unForceI) x
-                    , gtxMap (txatomMap unForceI) y)
-
-    unForceI :: ForceI ix -> MetaVar ix
-    unForceI (ForceI hole) = NA_I (Const hole)
-
-    goAtom :: (Eq1 ki)
-           => TxAtom ki codes ForceI ix
-           -> TxAtom ki codes ForceI ix
-           -> State Int ( TxAtom ki codes MetaVar ix
-                        , TxAtom ki codes MetaVar ix)
-    goAtom (SolidK kx) (SolidK ky)
-      | eq1 kx ky = do i <- get
-                       put (i+1)
-                       return (Meta $ NA_K (Const i) , Meta $ NA_K (Const i))
-      | otherwise = return (SolidK kx , SolidK ky)
-    goAtom ax ay  = return ( txatomMap unForceI ax
-                           , txatomMap unForceI ay )
-
+          Nothing   -> UTxHole (Match utx uty)
+          Just Refl -> UTxPeel cx (mapNP (uncurry' go) $ zipNP px py)
+    go x y = UTxHole (Match x y)
 
 -- |Diffs two generic merkelized structures.
 --  The outline of the process is:
@@ -203,39 +199,35 @@ digems :: (Eq1 ki , Digestible1 ki , IsNat ix)
        -> Fix ki codes ix
        -> Patch ki codes ix
 digems mh x y
-  = let dx            = preprocess x
-        dy            = preprocess y
-        (i , sharing) = buildSharingTrie mh dx dy
-        del'          = extractUTx mh sharing dx
-        ins'          = extractUTx mh sharing dy
-        holes         = execState (utxMapM getHole del') S.empty
-                          `S.intersection`
-                        execState (utxMapM getHole ins') S.empty
-        ins''         = runIdentity $ gtxRefine (refineHole holes) ins'
-        del''         = runIdentity $ gtxRefine (refineHole holes) del'
-        (del, ins)    = overlapKs i del'' ins''
-     in Patch del ins
+  = let dx      = preprocess x
+        dy      = preprocess y
+        sharing = snd $ buildSharingTrie mh dx dy
+        del'    = extractUTx mh sharing dx
+        ins'    = extractUTx mh sharing dy
+        holes   = execState (utxMapM getHole del') S.empty
+                    `S.intersection`
+                  execState (utxMapM getHole ins') S.empty
+        ins     = utxRefine (refineHole holes) ins'
+        del     = utxRefine (refineHole holes) del'
+     in extractSpine del ins
   where
     -- Gets all holes from a treefix.
-    getHole :: NA ki (Const Int :*: f) ix
-            -> State (S.Set Int) (NA ki (Const Int :*: f) ix)
-    getHole x@(NA_I (Const i :*: _)) = modify (S.insert i) >> return x
-    getHole x                        = return x
+    getHole :: ForceI (Const Int :*: f) ix
+            -> State (S.Set Int) (ForceI (Const Int :*: f) ix)
+    getHole x@(ForceI (Const i :*: _)) = modify (S.insert i) >> return x
 
     -- Given a set of holes that show up in both the insertion
     -- and deletion treefixes, we traverse a treefix and keep only
     -- those. All other places where there could be a hole are
     -- translated to a 'SolidI'
     refineHole :: S.Set Int
-               -> TxAtom ki codes (NA ki (Const Int :*: Fix ki codes)) ix
-               -> Identity (GUTx ki codes (TxAtom ki codes ForceI) ix)
-    refineHole s (SolidI i) = return $ GUTxHere (SolidI i)
-    refineHole s (SolidK k) = return $ GUTxHere (SolidK k)
-    refineHole s (Meta (NA_K k)) = return $ GUTxHere (SolidK k)
-    refineHole s (Meta (NA_I (Const i :*: f)))
-      | i `S.member` s = return $ GUTxHere (Meta $ ForceI i)
-      | otherwise      = return $ utxStiff f
+               -> ForceI (Const Int :*: Fix ki codes) ix
+               -> UTx ki codes MetaVar ix
+    refineHole s (ForceI (Const i :*: f))
+      | i `S.member` s = UTxHole (ForceI $ Const i)
+      | otherwise      = utxStiff f
 
+{-
 -- ** Applying a Patch
 --
 -- $applyingapatch
@@ -310,10 +302,10 @@ utxProj gutx = go M.empty gutx . NA_I
   where    
     go :: (TestEquality ki , Eq1 ki)
        => Valuation ki codes
-       -> GUTx ki codes (TxAtom ki codes MetaVar) ix
+       -> Utx ki codes (TxAtom ki codes MetaVar) ix
        -> NA ki (Fix ki codes) ix
        -> Maybe (Valuation ki codes)
-    go m (GUTxHere (Meta vi))   t
+    go m (UtxHole (Meta vi))   t
       -- We have already seen this hole; we need to make
       -- sure the tree's match. We are performing the
       -- 'contraction' step here.
@@ -323,11 +315,11 @@ utxProj gutx = go M.empty gutx . NA_I
       -- metavariable. We will just insert a new tree here
       | otherwise
       = Just (M.insert (metavarGet vi) (naeInj t) m)
-    go m (GUTxHere (SolidI i)) (NA_I ti)
+    go m (UtxHole (SolidI i)) (NA_I ti)
       = guard (eqFix eq1 i ti) >> return m
-    go m (GUTxHere (SolidK k)) (NA_K tk)
+    go m (UtxHole (SolidK k)) (NA_K tk)
       = guard (eq1 k tk) >> return m
-    go m (GUTxPeel c gutxnp) (NA_I (Fix t))
+    go m (UtxPeel c gutxnp) (NA_I (Fix t))
       | Tag ct pt <- sop t
       = do Refl <- testEquality c ct
            getConst <$> cataNPM (\x (Const val) -> fmap Const (uncurry' (go val) x))
@@ -342,17 +334,19 @@ utxInj :: (IsNat ix)
        -> Maybe (Fix ki codes ix)
 utxInj utx m = go utx m >>= \(NA_I vi) -> return vi
   where
-    go :: GUTx ki codes (TxAtom ki codes MetaVar) ix
+    go :: Utx ki codes (TxAtom ki codes MetaVar) ix
        -> Valuation ki codes
        -> Maybe (NA ki (Fix ki codes) ix)
-    go (GUTxHere (SolidK ki)) m = return (NA_K ki)
-    go (GUTxHere (SolidI vi)) m = return (NA_I vi)
-    go (GUTxHere (Meta var))  m
+    go (UtxHole (SolidK ki)) m = return (NA_K ki)
+    go (UtxHole (SolidI vi)) m = return (NA_I vi)
+    go (UtxHole (Meta var))  m
       = do nae <- M.lookup (metavarGet var) m
            naeCast nae var
-    go (GUTxPeel c gutxnp) m
+    go (UtxPeel c gutxnp) m
       = (NA_I . Fix . inj c) <$> mapNPM (flip go m) gutxnp
 
+
+-}
 
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
@@ -360,4 +354,5 @@ apply :: (TestEquality ki , Eq1 ki , IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
       -> Maybe (Fix ki codes ix)
-apply (Patch del ins) x = utxProj del x >>= utxInj ins
+apply = undefined
+-- apply (Patch del ins) x = utxProj del x >>= utxInj ins

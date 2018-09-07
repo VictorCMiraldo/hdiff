@@ -21,44 +21,65 @@ import Generics.MRSOP.Digems.Renderer
 
 -- * Generic Treefixes
 
--- |An untyped tree prefix, 'GUTx' is basically an n-hole context. The untyped
+-- |An untyped tree prefix, 'UTx' is basically an n-hole context. The untyped
 --  refers to the lack of an index that maintains the type of
 --  the holes. This is an issue with Haskell in general. The Agda equivalent
---  keeps such index.
-data GUTx :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> Atom kon -> *  where
-  GUTxHere :: phi i -> GUTx ki codes phi i
-  GUTxPeel :: (IsNat n , IsNat i)
+--  keeps such indexes.
+--
+--  Essentially, we have the following isomorphism:
+--
+--  > UTx ki codes phi at =~= (phi :+: NA ki (Rep ki (UTx ki codes phi)))
+--
+--  That is, we are extending the representations with values of
+--  type @phi@.
+--
+data UTx :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> Atom kon -> *  where
+  -- |A "hole" contains something of type @phi@ 
+  UTxHole :: phi at -> UTx ki codes phi at
+  -- |An opaque value
+  UTxOpq  :: ki k   -> UTx ki codes phi (K k) 
+  -- |A view over a constructor with its fields replaced
+  --  by treefixes.
+  UTxPeel :: (IsNat n , IsNat i)
           => Constr (Lkup i codes) n
-          -> NP (GUTx ki codes phi) (Lkup n (Lkup i codes))
-          -> GUTx ki codes phi (I i)
+          -> NP (UTx ki codes phi) (Lkup n (Lkup i codes))
+          -> UTx ki codes phi (I i)
 
--- |Returns the index of the GUTx as a singleton.
-getGUTxSNat :: (IsNat ix) => GUTx ki codes f (I ix) -> SNat ix
-getGUTxSNat _ = getSNat (Proxy :: Proxy ix)
+-- |Returns the index of the UTx as a singleton.
+getUTxSNat :: (IsNat ix) => UTx ki codes f (I ix) -> SNat ix
+getUTxSNat _ = getSNat (Proxy :: Proxy ix)
 
--- |Our 'GUTx' is a higher order functor and can be mapped over.
-gtxMapM :: (Monad m)
-        => (forall i . f i -> m (g i))
-        -> GUTx ki codes f i  
-        -> m (GUTx ki codes g i)
-gtxMapM f (GUTxHere x)       = GUTxHere   <$> f x
-gtxMapM f (GUTxPeel c gtxnp) = GUTxPeel c <$> mapNPM (gtxMapM f) gtxnp
+-- |Our 'UTx' is a higher order functor and can be mapped over.
+utxMapM :: (Monad m)
+        => (forall a . f a -> m (g a))
+        -> UTx ki codes f at
+        -> m (UTx ki codes g at)
+utxMapM f (UTxHole x)       = UTxHole   <$> f x
+utxMapM f (UTxOpq k)        = return $ UTxOpq k
+utxMapM f (UTxPeel c utxnp) = UTxPeel c <$> mapNPM (utxMapM f) utxnp
 
-gtxMap :: (forall i . f i -> g i)
-       -> GUTx ki codes f ix
-       -> GUTx ki codes g ix
-gtxMap f = runIdentity . gtxMapM (return . f)
+-- |Non-monadic version
+utxMap :: (forall a . f a -> g a)
+       -> UTx ki codes f at
+       -> UTx ki codes g at
+utxMap f = runIdentity . utxMapM (return . f)
 
 -- |Similar to 'gtxMap', but allows to refine the structure of
 --  a treefix if need be
-gtxRefine :: (Monad m)
-       => (forall iy . f iy -> m (GUTx ki codes g iy))
-       -> GUTx ki codes f iy 
-       -> m (GUTx ki codes g iy)
-gtxRefine f (GUTxHere x)
-  = f x
-gtxRefine f (GUTxPeel c gtxnp)
-  = GUTxPeel c <$> mapNPM (gtxRefine f) gtxnp
+utxRefineM :: (Monad m)
+           => (forall at . f at -> m (UTx ki codes g at))
+           -> UTx ki codes f at 
+           -> m (UTx ki codes g at)
+utxRefineM f (UTxHole x) = f x
+utxRefineM f (UTxOpq k)  = return (UTxOpq k)
+utxRefineM f (UTxPeel c utxnp)
+  = UTxPeel c <$> mapNPM (utxRefineM f) utxnp
+
+-- |Pure version of 'utxRefineM'
+utxRefine :: (forall at . f at -> UTx ki codes g at)
+          -> UTx ki codes f at 
+          -> UTx ki codes g at
+utxRefine f = runIdentity . utxRefineM (return . f)
 
 -- * Show instances
 
@@ -71,79 +92,34 @@ instance Show1 p => Show1 (NP p) where
   show1 (v :* vs)
     = show1 v ++ " :* " ++ show1 vs
 
-instance (Show1 ki , Show1 f) => Show1 (GUTx ki codes f) where
-  show1 (GUTxHere x)      = "[" ++ show1 x ++ "]"
-  show1 (GUTxPeel c rest) = "(" ++ show c ++ "| " ++ show1 rest ++ ")"
+instance (Show1 ki , Show1 f) => Show1 (UTx ki codes f) where
+  show1 (UTxHole x)      = "[" ++ show1 x ++ "]"
+  show1 (UTxOpq k)       = show1 k
+  show1 (UTxPeel c rest) = "(" ++ show c ++ "| " ++ show1 rest ++ ")"
 
--- * Untyped Treefixes
-
--- |The atoms of a treefix, 'TxAtom' can be either a solid value
---  or a metavariable. 
-data TxAtom :: (kon -> *) -> [[[Atom kon]]]
-            -> (Atom kon -> *)
-            -> Atom kon -> * where
-  Meta   :: phi a           -> TxAtom ki codes phi a
-  SolidK :: ki k            -> TxAtom ki codes phi (K k)
-  SolidI :: (IsNat ix)
-         => Fix ki codes ix -> TxAtom ki codes phi (I ix) 
-
--- |MapMs over a 'TxAtom'
-txatomMapM :: (Monad m)
-           => (forall x . phi x -> m (chi x))
-           -> TxAtom ki codes phi ix
-           -> m (TxAtom ki codes chi ix)
-txatomMapM f (Meta   x) = Meta <$> f x
-txatomMapM f (SolidK x) = return $ SolidK x
-txatomMapM f (SolidI x) = return $ SolidI x
- 
--- |Maps over a 'TxAtom'
-txatomMap :: (forall x . phi x -> chi x)
-          -> TxAtom ki codes phi ix
-          -> TxAtom ki codes chi ix
-txatomMap f (Meta   x) = Meta (f x)
-txatomMap f (SolidK x) = SolidK x
-txatomMap f (SolidI x) = SolidI x
-  
--- |A threefix, henceforth, is a value that can contain @phi@s
---  in its leaves.
-type UTx ki codes phi ix = GUTx ki codes (TxAtom ki codes phi) (I ix)
-
--- |Maps a monadic action over a 'UTx'
-utxMapM :: (Monad m)
-        => (forall x . phi x -> m (chi x))
-        -> UTx ki codes phi ix
-        -> m (UTx ki codes chi ix)
-utxMapM f = gtxMapM (txatomMapM f)
-        
--- |A stiff treefix is one with no holes
-utxStiff :: (IsNat ix) => Fix ki codes ix -> UTx ki codes f ix
-utxStiff  = GUTxHere . SolidI
-
--- * Pretty Printing
-
-gtxPretty :: forall ki fam codes f ix ann
-           . (HasDatatypeInfo ki fam codes)
-          => Proxy fam
-          -> (forall iy . f iy -> PP.Doc ann)
-          -> GUTx ki codes f ix
-          -> PP.Doc ann
-gtxPretty pfam sx (GUTxHere x)
-  = sx x
-gtxPretty pfam sx utx@(GUTxPeel c rest)
-  = renderNP pfam (getGUTxSNat utx) c
-  $ mapNP (Const . gtxPretty pfam sx) rest
-
-
-utxPretty :: forall ki fam codes f ix ann
-           . (HasDatatypeInfo ki fam codes)
-          => Proxy fam
-          -> (forall iy . f  iy -> PP.Doc ann)
-          -> (forall  k . ki  k -> PP.Doc ann)
-          -> GUTx ki codes (TxAtom ki codes f) ix
-          -> PP.Doc ann
-utxPretty pf sx sk = gtxPretty pf txatomPretty
+-- |A stiff treefix is one with no holes anywhere.
+utxStiff :: (IsNat ix) => Fix ki codes ix -> UTx ki codes f (I ix)
+utxStiff (Fix x) | Tag cx px <- sop x
+  = UTxPeel cx (mapNP stiff px)
   where
-    txatomPretty :: TxAtom ki codes f iy -> PP.Doc ann
-    txatomPretty (Meta v)   = sx v
-    txatomPretty (SolidK k) = sk k
-    txatomPretty (SolidI i) = renderFix sk i
+    stiff :: NA ki (Fix ki codes) at -> UTx ki codes f at
+    stiff (NA_K k) = UTxOpq k
+    stiff (NA_I i) = utxStiff i
+
+-- |Pretty-prints a treefix using a specific function to
+--  print holes.
+utxPretty :: forall ki fam codes f at ann
+           . (HasDatatypeInfo ki fam codes , Renderer1 ki)
+          => Proxy fam
+          -> (PP.Doc ann -> PP.Doc ann) -- ^ styling
+          -> (forall at . f at -> PP.Doc ann)
+          -> UTx ki codes f at
+          -> PP.Doc ann
+utxPretty pfam sty sx (UTxHole x)
+  = sty $ sx x
+utxPretty pfam sty sx (UTxOpq k)
+  = sty $ render1 k
+utxPretty pfam sty sx utx@(UTxPeel c rest)
+  = renderNP pfam sty (getUTxSNat utx) c
+  $ mapNP (Const . utxPretty pfam sty sx) rest
+

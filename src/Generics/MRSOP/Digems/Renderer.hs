@@ -36,20 +36,21 @@ renderView :: (HasDatatypeInfo ki fam codes)
            -> View ki (Const (Doc ann)) (Lkup ix codes)
            -> Doc ann
 renderView pf renderK idx (Tag c p)
-  = renderNP pf idx c (mapNP (Const . elimNA renderK getConst) p)
+  = renderNP pf id idx c (mapNP (Const . elimNA renderK getConst) p)
 
 -- |Default rendering of NP's with Docs inside
 renderNP :: (HasDatatypeInfo ki fam codes)
          => Proxy fam
+         -> (PP.Doc ann -> PP.Doc ann)
          -> SNat ix
          -> Constr (Lkup ix codes) c
          -> NP (Const (Doc ann)) (Lkup c (Lkup ix codes))
          -> Doc ann
-renderNP pf idx c NP0
-  = PP.pretty (constructorName (constrInfoFor pf idx c))
-renderNP pf idx c p
+renderNP pf sty idx c NP0
+  = sty $ PP.pretty (constructorName (constrInfoFor pf idx c))
+renderNP pf sty idx c p
   = let ci = constrInfoFor pf idx c
-     in PP.parens $ PP.vcat [ PP.pretty (constructorName ci)
+     in PP.parens $ PP.vcat [ sty $ PP.pretty (constructorName ci)
                             , PP.indent 1 (PP.vsep (elimNP getConst p))
                             ]
 
