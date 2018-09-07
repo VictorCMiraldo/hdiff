@@ -236,7 +236,6 @@ digems mh x y
       | i `S.member` s = UTxHole (ForceI $ Const i)
       | otherwise      = utxStiff f
 
-{-
 -- ** Applying a Patch
 --
 -- $applyingapatch
@@ -283,8 +282,8 @@ naeInj (NA_K k) = SomeOpq k
 
 -- |Casts an existential NAE to an expected one, from a metavariable.
 naeCast :: NAE ki codes
-        -> MetaVar ix
-        -> Maybe (NA ki (Fix ki codes) ix)
+        -> MetaVarIK at
+        -> Maybe (NA ki (Fix ki codes) at)
 -- TODO: remove this unsafeCoerce
 naeCast (SomeOpq x) (NA_K _) = Just $ NA_K (unsafeCoerce x)
 naeCast (SomeFix i) (NA_I v)
@@ -293,6 +292,10 @@ naeCast (SomeFix i) (NA_I v)
   where getConstIx :: Const k a -> Proxy a
         getConstIx _ = Proxy
 naeCast _           _        = Nothing
+
+-- |Returns the metavariable forgetting about type information
+metavarGet :: MetaVarIK at -> Int
+metavarGet = elimNA getConst getConst
 
 -- |And have our valuation be an assignment from
 --  hole-id's to trees.
@@ -303,32 +306,30 @@ type Valuation ki codes
 --  function is inherently partial because the constructors
 --  specified on a treefix might be different than
 --  those present in the value we are using.
-utxProj :: (TestEquality ki , Eq1 ki , IsNat ix)
-        => UTx ki codes MetaVar ix
-        -> Fix ki codes ix 
+utxProj :: (TestEquality ki , Eq1 ki)
+        => UTx ki codes MetaVarIK at
+        -> NA ki (Fix ki codes) at
         -> Maybe (Valuation ki codes)
-utxProj gutx = go M.empty gutx . NA_I
+utxProj utx = go M.empty utx
   where    
     go :: (TestEquality ki , Eq1 ki)
        => Valuation ki codes
-       -> Utx ki codes (TxAtom ki codes MetaVar) ix
+       -> UTx ki codes MetaVarIK ix
        -> NA ki (Fix ki codes) ix
        -> Maybe (Valuation ki codes)
-    go m (UtxHole (Meta vi))   t
+    go m (UTxHole var)   t
       -- We have already seen this hole; we need to make
       -- sure the tree's match. We are performing the
       -- 'contraction' step here.
-      | Just nae <- M.lookup (metavarGet vi) m
+      | Just nae <- M.lookup (metavarGet var) m
       = guard (naeMatch nae t) >> return m
       -- Otherwise, its the first time we see this
       -- metavariable. We will just insert a new tree here
       | otherwise
-      = Just (M.insert (metavarGet vi) (naeInj t) m)
-    go m (UtxHole (SolidI i)) (NA_I ti)
-      = guard (eqFix eq1 i ti) >> return m
-    go m (UtxHole (SolidK k)) (NA_K tk)
+      = Just (M.insert (metavarGet var) (naeInj t) m)
+    go m (UTxOpq k) (NA_K tk)
       = guard (eq1 k tk) >> return m
-    go m (UtxPeel c gutxnp) (NA_I (Fix t))
+    go m (UTxPeel c gutxnp) (NA_I (Fix t))
       | Tag ct pt <- sop t
       = do Refl <- testEquality c ct
            getConst <$> cataNPM (\x (Const val) -> fmap Const (uncurry' (go val) x))
@@ -337,25 +338,16 @@ utxProj gutx = go M.empty gutx . NA_I
 
 -- |Injects a valuation into a treefix producing a value,
 --  when possible.
-utxInj :: (IsNat ix)
-       => UTx ki codes MetaVar ix
+utxInj :: UTx ki codes MetaVarIK at
        -> Valuation ki codes
-       -> Maybe (Fix ki codes ix)
-utxInj utx m = go utx m >>= \(NA_I vi) -> return vi
-  where
-    go :: Utx ki codes (TxAtom ki codes MetaVar) ix
-       -> Valuation ki codes
-       -> Maybe (NA ki (Fix ki codes) ix)
-    go (UtxHole (SolidK ki)) m = return (NA_K ki)
-    go (UtxHole (SolidI vi)) m = return (NA_I vi)
-    go (UtxHole (Meta var))  m
-      = do nae <- M.lookup (metavarGet var) m
-           naeCast nae var
-    go (UtxPeel c gutxnp) m
-      = (NA_I . Fix . inj c) <$> mapNPM (flip go m) gutxnp
-
-
--}
+       -> Maybe (NA ki (Fix ki codes) at)
+utxInj (UTxHole var)  m
+  = do nae <- M.lookup (metavarGet var) m
+       naeCast nae var
+utxInj (UTxOpq  k)   m
+  = return (NA_K k)
+utxInj (UTxPeel c p) m
+  = (NA_I . Fix . inj c) <$> mapNPM (flip utxInj m) p
 
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
@@ -363,5 +355,9 @@ apply :: (TestEquality ki , Eq1 ki , IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
       -> Maybe (Fix ki codes ix)
-apply = undefined
--- apply (Patch del ins) x = utxProj del x >>= utxInj ins
+apply patch x 
+  = let patchD = utxJoin $ utxMap ctxDel patch
+        patchI = utxJoin $ utxMap ctxIns patch
+     in do val       <- utxProj patchD (NA_I x)
+           (NA_I x') <- utxInj  patchI val
+           return x'

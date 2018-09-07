@@ -10,6 +10,7 @@ module Generics.MRSOP.Digems.Treefix where
 
 import Data.Proxy
 import Data.Functor.Const
+import Data.List (foldl')
 
 import Control.Monad.Identity
 
@@ -64,6 +65,12 @@ utxMap :: (forall a . f a -> g a)
        -> UTx ki codes g at
 utxMap f = runIdentity . utxMapM (return . f)
 
+-- |Since 'UTx' is just a free monad, we can join them!
+utxJoin :: UTx ki codes (UTx ki codes f) at -> UTx ki codes f at
+utxJoin (UTxHole x)   = x
+utxJoin (UTxOpq  k)   = UTxOpq k
+utxJoin (UTxPeel c p) = UTxPeel c (mapNP utxJoin p)
+
 -- |Similar to 'gtxMap', but allows to refine the structure of
 --  a treefix if need be
 utxRefineM :: (Monad m)
@@ -80,6 +87,28 @@ utxRefine :: (forall at . f at -> UTx ki codes g at)
           -> UTx ki codes f at 
           -> UTx ki codes g at
 utxRefine f = runIdentity . utxRefineM (return . f)
+
+-- |Reduces a treefix back to a tree
+utxReduceM :: (Monad m)
+           => (forall at . f at -> m (NA ki (Fix ki codes) at))
+           -> UTx ki codes f at
+           -> m (NA ki (Fix ki codes) at)
+utxReduceM red (UTxHole x) = red x
+utxReduceM red (UTxOpq  k) = return (NA_K k)
+utxReduceM red (UTxPeel c p)
+  = (NA_I . Fix . inj c) <$> mapNPM (utxReduceM red) p
+
+-- |Walks over a 'UTx' performing a monadic action
+utxWalkM :: (Monad m)
+         => (a -> a -> a)
+         -> a
+         -> (forall at . f at -> m a)
+         -> UTx ki codes f at
+         -> m a
+utxWalkM cat e act (UTxHole x) = act x
+utxWalkM cat e act (UTxOpq _)  = return e
+utxWalkM cat e act (UTxPeel _ d)
+  = foldl' cat e <$> elimNPM (utxWalkM cat e act) d
 
 -- * Show instances
 
