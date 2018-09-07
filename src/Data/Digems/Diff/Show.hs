@@ -49,9 +49,9 @@ conflictPretty renderK (InR (D.Conflict l r))
 -}
 
 -- |Pretty prints a patch on the terminal
-displayRawPatch :: (HasDatatypeInfo ki fam codes , IsNat v , Renderer1 ki)
+displayRawPatch :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
                 => Handle
-                -> D.Patch ki codes v
+                -> UTx ki codes (D.Change ki codes) v
                 -> IO ()
 displayRawPatch hdl patch 
   = doubleColumn hdl 75

@@ -1,9 +1,12 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE PolyKinds     #-}
 {-# LANGUAGE GADTs         #-}
-module Data.Digems.Diff.Merge where
+{-# LANGUAGE TypeApplications #-}
+module Languages.WhileMerge where
 
 import Data.Proxy
 import Data.Type.Equality
@@ -16,14 +19,20 @@ import Control.Monad
 import Control.Monad.State
 import Control.Monad.Identity
 
+import           Data.Text.Prettyprint.Doc
+
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Treefix
 import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.Digems.Renderer
 
 import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
 import Data.Digems.Diff.Patch
+import Data.Digems.Diff.Show
+
+import Languages.While
 
 {-
 -- * Merging
@@ -134,7 +143,20 @@ B.while  | f := a + b;
          | g := x + y + z;
 -}
 
-a , o , b :: 
+a , o , b :: Stmt
+a = (Seq ((:) (Assign "f" (ABinary Add (Var "c") (Var "b"))) ((:)
+      (Assign "g" (ABinary Multiply (ABinary Multiply (Var "x") (Var
+      "y")) (Var "z"))) ((:) (Assign "h" (IntConst 42)) []))))
+
+o = (Seq ((:) (Assign "f" (ABinary Add (Var "a") (Var "b"))) ((:)
+      (Assign "g" (ABinary Multiply (ABinary Multiply (Var "x") (Var
+      "y")) (Var "z"))) [])))
+
+b = (Seq ((:) (Assign "f" (ABinary Add (Var "a") (Var "b"))) ((:)
+      (Assign "k" (IntConst 24)) ((:) (Assign "g" (ABinary Multiply
+      (ABinary Multiply (Var "x") (Var "y")) (Var "z"))) []))))
+
+
 
 {-
 
@@ -170,6 +192,13 @@ And from O to B, call it OB:
                      -|+     (IntConst
                      -|+      24))
                      -|+    [I| 3 |])))
+
+-}
+
+oa = digems 1 (dfrom $ into @FamStmt o) (dfrom $ into @FamStmt a)
+ob = digems 1 (dfrom $ into @FamStmt o) (dfrom $ into @FamStmt b)
+
+{-
 
 The transport of OB over OA, meant to be applied to the
 destination of OA should be:
@@ -221,12 +250,32 @@ OB.3 |-> (: [I| OA.1 |] [] )
 
 -}
 
+Right val = utxUnify (utxJoin (utxMap ctxDel ob)) oa
+
 data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
   UTxE :: UTx ki codes f at -> UTxE ki codes f
+
+instance Show (UTxE W CodesStmt (Change W CodesStmt)) where
+  show (UTxE utx) = show $ utxPretty Proxy id goChange utx
+    where
+      goChange :: Change W CodesStmt i -> Doc ()
+      goChange (Match del ins)
+        = vsep [ pretty ">>>"
+               , utxPretty Proxy id goVar del
+               , pretty "==="
+               , utxPretty Proxy id goVar ins
+               , pretty "<<<"
+               ]
+
+      goVar :: MetaVarIK at -> Doc ()
+      goVar (NA_I (Const i)) = brackets $ pretty "I" <> pretty i
+      goVar (NA_K (Const i)) = brackets $ pretty "K" <> pretty i             
 
 type MetaValuation ki codes
   = M.Map Int (UTxE ki codes (Change ki codes))
 
+-- |Unifies a UTx with another, producing a substitution of
+--  the variables of the first to transform it in the second
 utxUnify :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes)
          => UTx ki codes MetaVarIK at
          -> UTx ki codes (Change ki codes) at
