@@ -24,12 +24,14 @@ import qualified Data.Digems.Diff.Patch as D
 -- import qualified Data.Digems.Diff.Merge as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
-spliced :: Doc ann -> Doc ann
-spliced d = brackets (surround d (pretty "| ") (pretty " |")) 
+spliced :: Doc ann -> Doc ann -> Doc ann
+spliced lbl d = brackets (lbl <> surround d (pretty "| ") (pretty " |")) 
 
-metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle) -> D.MetaVar ix -> Doc AnsiStyle
-metavarPretty sty (D.ForceI (Const i)) 
-  = sty $ spliced (pretty i)
+metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle) -> D.MetaVarIK ix -> Doc AnsiStyle
+metavarPretty sty (NA_I (Const i)) 
+  = sty $ spliced (pretty "I") (pretty i)
+metavarPretty sty (NA_K (Const i)) 
+  = sty $ spliced (pretty "K") (pretty i)
 
 {-
 -- |Shows a conflict in a pretty fashion  
@@ -60,7 +62,7 @@ prettyChangeDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
                 => D.Change ki codes at
                 -> Doc AnsiStyle
 prettyChangeDel (D.SameMetaVar i)
-  = annotate (color Blue) $ spliced (pretty i)
+  = metavarPretty (annotate $ color Blue) i
 prettyChangeDel (D.Match del ins)
   = utxPretty (Proxy :: Proxy fam)
               (annotate (color Red))
@@ -71,7 +73,7 @@ prettyChangeIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
                 => D.Change ki codes at
                 -> Doc AnsiStyle
 prettyChangeIns (D.SameMetaVar i)
-  = annotate (color Blue) $ spliced (pretty i)
+  = metavarPretty (annotate $ color Blue) i
 prettyChangeIns (D.Match del ins)
   = utxPretty (Proxy :: Proxy fam)
               (annotate (color Green))

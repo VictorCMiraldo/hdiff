@@ -52,15 +52,16 @@ metavarGet (NA_K (Const i)) = i
 metavarGet (NA_I (Const i)) = i
 -}
 
-type MetaVar = ForceI (Const Int)
+type MetaVarI  = ForceI (Const Int)
+type MetaVarIK = NA (Const Int) (Const Int)
 
 -- |A 'Change' can be either a metavariable representing
 --  a copy or another treefix
 --  
 data Change ki codes at where
-  SameMetaVar :: (IsNat ix) => Int -> Change ki codes (I ix)
-  Match       :: { ctxDel :: UTx ki codes MetaVar at 
-                 , ctxIns :: UTx ki codes MetaVar at }
+  SameMetaVar :: MetaVarIK at -> Change ki codes at
+  Match       :: { ctxDel :: UTx ki codes MetaVarIK at 
+                 , ctxIns :: UTx ki codes MetaVarIK at }
               -> Change ki codes at
 
 type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
@@ -162,26 +163,31 @@ extractUTx minHeight tr (AnnFix (Const prep) rep)
 --  the root that they overlap and will factor it out.
 --  This is somehow analogous to a @zipWith@
 extractSpine :: (Eq1 ki)
-             => UTx ki codes MetaVar (I ix)
-             -> UTx ki codes MetaVar (I ix)
+             => Int
+             -> UTx ki codes MetaVarI (I ix)
+             -> UTx ki codes MetaVarI (I ix)
              -> UTx ki codes (Change ki codes) (I ix)
-extractSpine dx dy = go dx dy
+extractSpine i dx dy = evalState (go dx dy) i
   where
+    tr :: UTx ki codes MetaVarI at
+       -> UTx ki codes MetaVarIK at
+    tr = utxMap (\(ForceI x) -> NA_I x)
+    
     go :: (Eq1 ki)
-       => UTx ki codes MetaVar at
-       -> UTx ki codes MetaVar at
-       -> UTx ki codes (Change ki codes) at
+       => UTx ki codes MetaVarI at
+       -> UTx ki codes MetaVarI at
+       -> State Int (UTx ki codes (Change ki codes) at)
     go utx@(UTxHole (ForceI x)) uty@(UTxHole (ForceI y))
-      | x == y    = UTxHole $ SameMetaVar (getConst x)
-      | otherwise = UTxHole $ Match utx uty
+      | x == y    = return $ UTxHole $ SameMetaVar (NA_I x)
+      | otherwise = return $ UTxHole $ Match (tr utx) (tr uty)
     go utx@(UTxOpq kx) uty@(UTxOpq ky)
-      | eq1 kx ky = UTxOpq kx
-      | otherwise = UTxHole (Match utx uty)
+      | eq1 kx ky = get >>= \i -> put (i+1) >> return (UTxHole (SameMetaVar (NA_K $ Const i)))
+      | otherwise = return $ UTxHole (Match (UTxOpq kx) (UTxOpq ky))
     go utx@(UTxPeel cx px) uty@(UTxPeel cy py)
       = case testEquality cx cy of
-          Nothing   -> UTxHole (Match utx uty)
-          Just Refl -> UTxPeel cx (mapNP (uncurry' go) $ zipNP px py)
-    go x y = UTxHole (Match x y)
+          Nothing   -> return $ UTxHole (Match (tr utx) (tr uty))
+          Just Refl -> UTxPeel cx <$> mapNPM (uncurry' go) (zipNP px py)
+    go x y = return $ UTxHole (Match (tr x) (tr y))
 
 -- |Diffs two generic merkelized structures.
 --  The outline of the process is:
@@ -201,15 +207,15 @@ digems :: (Eq1 ki , Digestible1 ki , IsNat ix)
 digems mh x y
   = let dx      = preprocess x
         dy      = preprocess y
-        sharing = snd $ buildSharingTrie mh dx dy
-        del'    = extractUTx mh sharing dx
-        ins'    = extractUTx mh sharing dy
+        (i, sh) = buildSharingTrie mh dx dy
+        del'    = extractUTx mh sh dx
+        ins'    = extractUTx mh sh dy
         holes   = execState (utxMapM getHole del') S.empty
                     `S.intersection`
                   execState (utxMapM getHole ins') S.empty
         ins     = utxRefine (refineHole holes) ins'
         del     = utxRefine (refineHole holes) del'
-     in extractSpine del ins
+     in extractSpine i del ins
   where
     -- Gets all holes from a treefix.
     getHole :: ForceI (Const Int :*: f) ix
@@ -222,7 +228,7 @@ digems mh x y
     -- translated to a 'SolidI'
     refineHole :: S.Set Int
                -> ForceI (Const Int :*: Fix ki codes) ix
-               -> UTx ki codes MetaVar ix
+               -> UTx ki codes MetaVarI ix
     refineHole s (ForceI (Const i :*: f))
       | i `S.member` s = UTxHole (ForceI $ Const i)
       | otherwise      = utxStiff f
