@@ -61,8 +61,6 @@ displayRawPatch hdl patch
 prettyChangeDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
                 => D.Change ki codes at
                 -> Doc AnsiStyle
-prettyChangeDel (D.SameMetaVar i)
-  = metavarPretty (annotate $ color Blue) i
 prettyChangeDel (D.Match del ins)
   = utxPretty (Proxy :: Proxy fam)
               (annotate (color Red))
@@ -72,8 +70,6 @@ prettyChangeDel (D.Match del ins)
 prettyChangeIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
                 => D.Change ki codes at
                 -> Doc AnsiStyle
-prettyChangeIns (D.SameMetaVar i)
-  = metavarPretty (annotate $ color Blue) i
 prettyChangeIns (D.Match del ins)
   = utxPretty (Proxy :: Proxy fam)
               (annotate (color Green))

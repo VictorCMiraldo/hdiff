@@ -1,8 +1,9 @@
-{-# LANGUAGE RankNTypes    #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE PolyKinds     #-}
-{-# LANGUAGE GADTs         #-}
+{-# LANGUAGE RankNTypes      #-}
+{-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE PolyKinds       #-}
+{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Data.Digems.Diff.Patch where
 
 import Data.Proxy
@@ -59,10 +60,12 @@ type MetaVarIK = NA (Const Int) (Const Int)
 --  a copy or another treefix
 --  
 data Change ki codes at where
-  SameMetaVar :: MetaVarIK at -> Change ki codes at
   Match       :: { ctxDel :: UTx ki codes MetaVarIK at 
                  , ctxIns :: UTx ki codes MetaVarIK at }
               -> Change ki codes at
+
+sameMetaVar :: MetaVarIK at -> Change ki codes at
+sameMetaVar vik = Match (UTxHole vik) (UTxHole vik)
 
 type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
 
@@ -178,10 +181,10 @@ extractSpine i dx dy = evalState (go dx dy) i
        -> UTx ki codes MetaVarI at
        -> State Int (UTx ki codes (Change ki codes) at)
     go utx@(UTxHole (ForceI x)) uty@(UTxHole (ForceI y))
-      | x == y    = return $ UTxHole $ SameMetaVar (NA_I x)
+      | x == y    = return $ UTxHole $ sameMetaVar (NA_I x)
       | otherwise = return $ UTxHole $ Match (tr utx) (tr uty)
     go utx@(UTxOpq kx) uty@(UTxOpq ky)
-      | eq1 kx ky = get >>= \i -> put (i+1) >> return (UTxHole (SameMetaVar (NA_K $ Const i)))
+      | eq1 kx ky = get >>= \i -> put (i+1) >> return (UTxHole (sameMetaVar (NA_K $ Const i)))
       | otherwise = return $ UTxHole (Match (UTxOpq kx) (UTxOpq ky))
     go utx@(UTxPeel cx px) uty@(UTxPeel cy py)
       = case testEquality cx cy of
