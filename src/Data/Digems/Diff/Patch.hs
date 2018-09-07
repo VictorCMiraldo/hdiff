@@ -33,7 +33,11 @@ import Unsafe.Coerce
 getFixSNat :: (IsNat ix) => Fix ki codes ix -> SNat ix
 getFixSNat _ = getSNat (Proxy :: Proxy ix)
 
--- |A patch consists in two treefixes, for deletion
+-- * Patches
+--
+--  $patchintro
+-- 
+--  A patch consists in two treefixes, for deletion
 --  and insertion respectively and a set of swaps
 --  and contractions of their holes. In Haskell, this
 --  is too intricate to write on the type level, so
@@ -45,15 +49,11 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 --  Where @forget@ returns the values in the holes.
 --
 
-{-
-type MetaVar = NA (Const Int) (Const Int)
 
-metavarGet :: MetaVar ix -> Int
-metavarGet (NA_K (Const i)) = i
-metavarGet (NA_I (Const i)) = i
--}
-
+-- |A 'MetaVarI' has to be over a recursive position
 type MetaVarI  = ForceI (Const Int)
+
+-- |A 'MetaVarIK' can be over a opaque type and a recursive position
 type MetaVarIK = NA (Const Int) (Const Int)
 
 -- |A 'Change' can be either a metavariable representing
@@ -67,23 +67,10 @@ data Change ki codes at where
 sameMetaVar :: MetaVarIK at -> Change ki codes at
 sameMetaVar vik = Match (UTxHole vik) (UTxHole vik)
 
+-- |Instead of keeping unecessary information, a 'Patch' will
+--  factor out the common prefix before the actual changes.
+--
 type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
-
-{-
--- |A 'RawPatch' is parametrizable over the
---  functor that models metavariables
-data RawPatch phi ki codes v
-  = Patch { ctxDel :: UTx ki codes phi (I v)
-          , ctxIns :: UTx ki codes phi (I v)
-          }
-
--- |Maps over a patch
-patchMap :: (Monad m)
-         => (forall ix . phi ix -> m (chi ix))
-         -> RawPatch phi ki codes v
-         -> m (RawPatch chi ki codes v)
-patchMap f (Patch d i) = Patch <$> utxMapM f d <*> utxMapM f i
--}
 
 -- * Diffing
 
@@ -356,6 +343,9 @@ apply :: (TestEquality ki , Eq1 ki , IsNat ix)
       -> Fix ki codes ix
       -> Maybe (Fix ki codes ix)
 apply patch x 
+  -- We really have to first extract everything from 'ctxDel'
+  -- in order to bind every metavariable, then inject them
+  -- into 'patchI'. This is due to reordering and contractions
   = let patchD = utxJoin $ utxMap ctxDel patch
         patchI = utxJoin $ utxMap ctxIns patch
      in do val       <- utxProj patchD (NA_I x)
