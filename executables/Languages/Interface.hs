@@ -39,7 +39,7 @@ vecMapM f V0 = return V0
 vecMapM f (VS x xs) = VS <$> f x <*> vecMapM f xs
 
 type LangCnstr ki fam codes ix
-  = (HasDatatypeInfo ki fam codes , Eq1 ki , Renderer1 ki , IsNat ix
+  = (HasDatatypeInfo ki fam codes , Eq1 ki , Renderer1 ki , IsNat ix, Show1 ki
     ,Digestible1 ki,TestEquality ki)
 
 -- |Given a list of languages, parses a number of files

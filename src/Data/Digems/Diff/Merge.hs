@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds     #-}
@@ -25,116 +26,76 @@ import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
 import Data.Digems.Diff.Patch
 
-{-
--- * Merging
+data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
+  UTxE :: UTx ki codes f at -> UTxE ki codes f
 
--- TODO: flip Conflict and MetaVar; it is common to have the 'right'
---       result on the right side of the coproduct
+type MetaValuation ki codes
+  = M.Map Int (UTxE ki codes (Change ki codes))
 
-data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
-  Conflict :: GUTx ki codes (TxAtom ki codes MetaVar) v
-           -> GUTx ki codes (TxAtom ki codes MetaVar) v
-           -> Conflict ki codes v
+-- TODO: we might need renamings
 
-type PatchC ki codes = RawPatch (Sum MetaVar (Conflict ki codes)) ki codes
+-- |Unifies a UTx with another, producing a substitution of
+--  the variables of the first to transform it in the second
+utxUnify :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes)
+         => UTx ki codes (MetaVarIK ki) at
+         -> UTx ki codes (Change ki codes) at
+         -> Either String (MetaValuation ki codes)
+utxUnify (UTxHole var) uty
+  = return $ M.singleton (metavarGet var) (UTxE uty)
+utxUnify (UTxOpq kx) (UTxOpq ky)
+  | eq1 kx ky = return M.empty
+  | otherwise = Left . unwords $ ["utxUnify: " , "K" , show1 kx , " /= ", show1 ky ]
+utxUnify (UTxPeel cx px) (UTxPeel cy py)
+  = let pf = Proxy :: Proxy fam
+     in case testEquality cx cy of
+          Nothing   -> Left . unwords $ ["utxUnify: " , "Peel"] 
+          Just Refl -> M.unions <$> elimNPM (uncurry' utxUnify) (zipNP px py)
 
--- |Merge two patches into a patch that may have conflicts.
---  TODO: prove @(q // p) . p == (p // q) . p@ in the absence of conflicts
---
-(//) :: (Eq1 ki , IsNat v)
-      => Patch ki codes v
-      -> Patch ki codes v
-      -> PatchC ki codes v
-(Patch pd pi) // (Patch _ qi) = Patch (qi `transport` pd)
-                                      (gtxMap (txatomMap InL) pi)
+utxYfinu :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki cam codes 
+            , UTxTestEqualityCnstr ki (Change ki codes))
+         => UTx ki codes (MetaVarIK ki) at
+         -> MetaValuation ki codes
+         -> Either String (UTx ki codes (Change ki codes) at)
+utxYfinu utx@(UTxHole var) val
+  = case M.lookup (metavarGet var) val of
+      Nothing  -> Left . unwords $ ["utxYfinu:" , "undefined var:" , show var ]
+      -- hacking the typechecker!
+      Just (UTxE res) -> case testEquality utx (utxJoin $ utxMap ctxDel res) of
+        Nothing -> Left . unwords $ ["utxYfinu: testEquality:" , show var ]
+        Just Refl -> return res
+utxYfinu (UTxOpq  kx )   val = return (UTxOpq kx)
+utxYfinu (UTxPeel cx px) val
+  = UTxPeel cx <$> mapNPM (flip utxYfinu val) px
 
--- |Transports a deletion context (second arg) to work
---  on top of a insertion context.
---  We must produce a valuation in case the deletion context
---  copies some constants that need to be plugged into the
---  insertion context.
-transport :: (Eq1 ki)
-          => GUTx ki codes (TxAtom ki codes MetaVar) v -- holes0
-          -> GUTx ki codes (TxAtom ki codes MetaVar) v -- holes1
-          -> GUTx ki codes (TxAtom ki codes (Sum MetaVar (Conflict ki codes))) v -- holes1
--- transport preserves holes on the right
-transport tx (GUTxHere (Meta v))
-  = GUTxHere $ Meta (InL v)
--- ignores holes on the left
-transport (GUTxHere (Meta _)) ty
-  = gtxMap (txatomMap InL) ty
--- Checks constants for equality
-transport tx@(GUTxHere (SolidK kx)) ty@(GUTxHere (SolidK ky))
-  | eq1 kx ky = GUTxHere (SolidK kx)
-  | otherwise = GUTxHere (Meta $ InR $ Conflict tx ty)
--- Checks trees for equality
-transport tx@(GUTxHere (SolidI vx)) ty@(GUTxHere (SolidI vy))
-  | eqFix eq1 vx vy = GUTxHere (SolidI vx)
-  | otherwise       = GUTxHere (Meta $ InR $ Conflict tx ty)
--- Recurses over fixes trees
-transport tx@(GUTxPeel cx dx)       ty@(GUTxHere (SolidI vy))
-  | Tag cy dy <- sop (unFix vy)
+-- |applies a change to a UTx
+metaChange :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+              , UTxTestEqualityCnstr ki (Change ki codes))
+           => Change ki codes at
+           -> UTx ki codes (Change ki codes) at
+           -> Either String (UTx ki codes (Change ki codes) at)
+metaChange (Match del ins) utx
+  = utxUnify del utx >>= utxYfinu ins
+
+merger :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+          ,UTxTestEqualityCnstr ki (Change ki codes))
+       => UTx ki codes (Change ki codes) at
+       -> UTx ki codes (Change ki codes) at
+       -> Either String (UTx ki codes (Change ki codes) at)
+-- Holes on the left are preserved
+merger (UTxHole var) (UTxPeel cy py)
+  = return $ UTxHole var
+-- Holes on the right are applied
+merger utx (UTxHole var)
+  = metaChange var utx
+-- finding a copied constant is irrelevant
+merger (UTxOpq kx)     (UTxOpq ky)
+  = return (UTxOpq kx)
+-- in case both constructors are copied, they better
+-- be the same
+merger (UTxPeel cx px) (UTxPeel cy py)
   = case testEquality cx cy of
-      Nothing   -> GUTxHere (Meta $ InR $ Conflict tx ty)
-      Just Refl -> GUTxPeel cx (mapNP (uncurry' go) $ zipNP dx dy)
-  where
-    go :: (Eq1 ki)
-       => GUTx ki codes (TxAtom ki codes MetaVar) at
-       -> NA ki (Fix ki codes) at
-       -> GUTx ki codes (TxAtom ki codes (Sum MetaVar (Conflict ki codes))) at
-    go vx (NA_K k) = transport vx (GUTxHere (SolidK k))
-    go vx (NA_I i) = transport vx (GUTxHere (SolidI i))
-transport tx@(GUTxHere (SolidI vx)) ty@(GUTxPeel cy dy)
-  | Tag cx dx <- sop (unFix vx)
-  = case testEquality cx cy of
-      Nothing   -> GUTxHere (Meta $ InR $ Conflict tx ty)
-      Just Refl -> GUTxPeel cx (mapNP (uncurry' go) $ zipNP dx dy)
-  where
-    go :: (Eq1 ki)
-       => NA ki (Fix ki codes) at
-       -> GUTx ki codes (TxAtom ki codes MetaVar) at
-       -> GUTx ki codes (TxAtom ki codes (Sum MetaVar (Conflict ki codes))) at
-    go (NA_K k) = transport (GUTxHere (SolidK k))
-    go (NA_I i) = transport (GUTxHere (SolidI i))
--- Goes over constructors, preserving data on the right
-transport tx@(GUTxPeel cx dx) ty@(GUTxPeel cy dy)
-  = case testEquality cx cy of
-      Nothing   -> GUTxHere (Meta $ InR $ Conflict tx ty)
-      Just Refl -> GUTxPeel cx (mapNP (uncurry' transport) $ zipNP dx dy)
-
--- |Tries to cast a patch with conflicts to one with
---  no conflicts. Only succeeeds if there are no conflicts,
---  of course.
-hasNoConflict :: PatchC ki codes ix -> Maybe (Patch ki codes ix)
-hasNoConflict (Patch del ins)
-  = Patch <$> gtxMapM (txatomMapM unInL) del
-          <*> gtxMapM (txatomMapM unInL) ins
-  where
-    unInL :: Sum a b x -> Maybe (a x)
-    unInL (InL ax) = Just ax
-    unInL _        = Nothing
-
--}
-{-
-
-A tell tale of some WHILE programs as a guiding
-example to merging.
-
-Let:
-
-O.while  | f := a + b;
-         | g := x + y + z;
-
-A.while  | f := c + b;
-         | g := x + y + z;
-         | h := 42;
-
-B.while  | f := a + b;
-         | k := 24;
-         | g := x + y + z;
--}
-
-a , o , b :: 
+      Nothing   -> Left . unwords $ [ "merger:" , "conflict:" , "Peel Peel"]
+      Just Refl -> UTxPeel cx <$> mapNPM (uncurry' merger) (zipNP px py)
 
 {-
 
@@ -218,32 +179,6 @@ OB.5 |-> (Assign [K| OA.3 |]
                 (Var [K| OA.4 |])))
 
 OB.3 |-> (: [I| OA.1 |] [] )
-
--}
-
-data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
-  UTxE :: UTx ki codes f at -> UTxE ki codes f
-
-type MetaValuation ki codes
-  = M.Map Int (UTxE ki codes (Change ki codes))
-
-utxUnify :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes)
-         => UTx ki codes MetaVarIK at
-         -> UTx ki codes (Change ki codes) at
-         -> Either String (MetaValuation ki codes)
-utxUnify (UTxHole var) uty
-  = return $ M.singleton (metavarGet var) (UTxE uty)
-utxUnify (UTxOpq kx) (UTxOpq ky)
-  | eq1 kx ky = return M.empty
-  | otherwise = Left . unwords $ ["utxUnify: " , "K" , show1 kx , " /= ", show1 ky ]
-utxUnify (UTxPeel cx px) (UTxPeel cy py)
-  = let pf = Proxy :: Proxy fam
-     in case testEquality cx cy of
-          Nothing   -> Left . unwords $ ["utxUnify: " , "Peel"] 
-          Just Refl -> M.unions <$> elimNPM (uncurry' utxUnify) (zipNP px py)
-
-{-
-
 
 If we apply this valuation to (insCtx OB), we get:
 

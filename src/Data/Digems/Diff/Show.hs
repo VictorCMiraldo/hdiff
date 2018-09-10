@@ -27,10 +27,10 @@ import qualified Data.Digems.Diff.Patch as D
 spliced :: Doc ann -> Doc ann -> Doc ann
 spliced lbl d = brackets (lbl <> surround d (pretty "| ") (pretty " |")) 
 
-metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle) -> D.MetaVarIK ix -> Doc AnsiStyle
+metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle) -> D.MetaVarIK ki ix -> Doc AnsiStyle
 metavarPretty sty (NA_I (Const i)) 
   = sty $ spliced (pretty "I") (pretty i)
-metavarPretty sty (NA_K (Const i)) 
+metavarPretty sty (NA_K (D.Annotate i _)) 
   = sty $ spliced (pretty "K") (pretty i)
 
 {-

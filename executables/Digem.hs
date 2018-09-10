@@ -43,7 +43,7 @@ import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
 import qualified Data.Digems.Diff.Patch as D
--- import qualified Data.Digems.Diff.Merge as D
+import qualified Data.Digems.Diff.Merge as D
 import           Data.Digems.Diff.Show
 
 import           Languages.Interface
@@ -181,10 +181,6 @@ mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     return ExitSuccess
 
 mainMerge :: Options -> IO ExitCode
-mainMerge = undefined
-
-{-
-mainMerge :: Options -> IO ExitCode
 mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \fa fo fb -> do
     whenLoud $ do
@@ -193,13 +189,25 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
       putStrLnErr $ "B: " ++ optFileB opts
     let patchOA = D.digems (minHeight opts) fo fa
     let patchOB = D.digems (minHeight opts) fo fb
-    let resAB = patchOA D.// patchOB
-    let resBA = patchOB D.// patchOA
-    when (optDisplay opts) $ do
-      putStrLnErr $ "O->A/O->B " ++ replicate 55 '#'
-      displayRawPatch stderr (conflictPretty render1) render1 resAB
-      putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
-      displayRawPatch stderr (conflictPretty render1) render1 resBA
+    let resAB = D.merger patchOA patchOB
+    let resBA = D.merger patchOB patchOA
+    case (,) <$> resAB <*> resBA of
+      Left err        -> putStrLnErr (" !! Conflict: " ++ err)
+                      >> return (ExitFailure 1)
+      Right (ab , ba) -> do
+        when (optDisplay opts) $ do
+          putStrLnErr $ "O->A/O->B " ++ replicate 55 '#'
+          displayRawPatch stderr ab
+          putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
+          displayRawPatch stderr ba
+        whenLoud (putStrLnErr "!! apply ba fa")
+        Just fb' <- tryApply ba fa Nothing
+        whenLoud (putStrLnErr "!! apply ab fb")
+        Just fa' <- tryApply ab fb Nothing
+        if eqFix eq1 fb' fa'
+        then return ExitSuccess
+        else return (ExitFailure 2)
+{-
     case dstr (D.hasNoConflict resAB , D.hasNoConflict resBA) of
       Nothing        -> putStrLnErr "!! Conflicts detected. Try with --display"
                      >> return (ExitFailure 1)

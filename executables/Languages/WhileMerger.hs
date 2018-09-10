@@ -9,7 +9,7 @@
 module Languages.WhileMerge where
 
 import Data.Proxy
-import Data.Type.Equality
+import Data.Type.Equality hiding (apply)
 import Data.Functor.Const
 import Data.Functor.Sum
 import qualified Data.Map as M
@@ -195,6 +195,9 @@ And from O to B, call it OB:
 
 -}
 
+tr :: Stmt -> Fix W CodesStmt Z
+tr = dfrom . into @FamStmt
+
 oa = digems 1 (dfrom $ into @FamStmt o) (dfrom $ into @FamStmt a)
 ob = digems 1 (dfrom $ into @FamStmt o) (dfrom $ into @FamStmt b)
 
@@ -250,7 +253,10 @@ OB.3 |-> (: [I| OA.1 |] [] )
 
 -}
 
-Right val = utxUnify (utxJoin (utxMap ctxDel ob)) oa
+delPatch = utxJoin . utxMap ctxDel
+insPatch = utxJoin . utxMap ctxIns
+
+Right val = utxUnify (delPatch ob) oa
 
 data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
   UTxE :: UTx ki codes f at -> UTxE ki codes f
@@ -267,17 +273,20 @@ instance Show (UTxE W CodesStmt (Change W CodesStmt)) where
                , pretty "<<<"
                ]
 
-      goVar :: MetaVarIK at -> Doc ()
-      goVar (NA_I (Const i)) = brackets $ pretty "I" <> pretty i
-      goVar (NA_K (Const i)) = brackets $ pretty "K" <> pretty i             
+      goVar :: MetaVarIK ki at -> Doc ()
+      goVar (NA_I (Const i))      = brackets $ pretty "I" <> pretty i
+      goVar (NA_K (Annotate i _)) = brackets $ pretty "K" <> pretty i             
+
 
 type MetaValuation ki codes
   = M.Map Int (UTxE ki codes (Change ki codes))
 
+-- TODO: we might need renamings
+
 -- |Unifies a UTx with another, producing a substitution of
 --  the variables of the first to transform it in the second
 utxUnify :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes)
-         => UTx ki codes MetaVarIK at
+         => UTx ki codes (MetaVarIK ki) at
          -> UTx ki codes (Change ki codes) at
          -> Either String (MetaValuation ki codes)
 utxUnify (UTxHole var) uty
@@ -290,6 +299,61 @@ utxUnify (UTxPeel cx px) (UTxPeel cy py)
      in case testEquality cx cy of
           Nothing   -> Left . unwords $ ["utxUnify: " , "Peel"] 
           Just Refl -> M.unions <$> elimNPM (uncurry' utxUnify) (zipNP px py)
+
+utxYfinu :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki cam codes 
+            , UTxTestEqualityCnstr ki (Change ki codes))
+         => UTx ki codes (MetaVarIK ki) at
+         -> MetaValuation ki codes
+         -> Either String (UTx ki codes (Change ki codes) at)
+utxYfinu utx@(UTxHole var) val
+  = case M.lookup (metavarGet var) val of
+      Nothing  -> Left . unwords $ ["utxYfinu:" , "undefined var:" , show var ]
+      -- hacking the typechecker!
+      Just (UTxE res) -> case testEquality utx (utxJoin $ utxMap ctxDel res) of
+        Nothing -> Left . unwords $ ["utxYfinu: testEquality:" , show var ]
+        Just Refl -> return res
+utxYfinu (UTxOpq  kx )   val = return (UTxOpq kx)
+utxYfinu (UTxPeel cx px) val
+  = UTxPeel cx <$> mapNPM (flip utxYfinu val) px
+
+-- |applies a change to a UTx
+metaChange :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+              , UTxTestEqualityCnstr ki (Change ki codes))
+           => Change ki codes at
+           -> UTx ki codes (Change ki codes) at
+           -> Either String (UTx ki codes (Change ki codes) at)
+metaChange (Match del ins) utx
+  = utxUnify del utx >>= utxYfinu ins
+
+merger :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+          ,UTxTestEqualityCnstr ki (Change ki codes))
+       => UTx ki codes (Change ki codes) at
+       -> UTx ki codes (Change ki codes) at
+       -> Either String (UTx ki codes (Change ki codes) at)
+-- Holes on the left are preserved
+merger (UTxHole var) (UTxPeel cy py)
+  = return $ UTxHole var
+-- Holes on the right are applied
+merger utx (UTxHole var)
+  = metaChange var utx
+-- finding a copied constant is irrelevant
+merger (UTxOpq kx)     (UTxOpq ky)
+  = return (UTxOpq kx)
+-- in case both constructors are copied, they better
+-- be the same
+merger (UTxPeel cx px) (UTxPeel cy py)
+  = case testEquality cx cy of
+      Nothing   -> Left . unwords $ [ "merger:" , "conflict:" , "Peel Peel"]
+      Just Refl -> UTxPeel cx <$> mapNPM (uncurry' merger) (zipNP px py)
+{-
+utxApply :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes)
+         => UTx ki codes MetaVarIK at
+         -> MetaValuation ki codes
+         -> UTx ki codes (Change ki codes) at
+utxApply (UTxHole var) val
+  | UTxE
+
+-}
 
 {-
 

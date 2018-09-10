@@ -1,3 +1,5 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -10,6 +12,7 @@ module Generics.MRSOP.Digems.Treefix where
 
 import Data.Proxy
 import Data.Functor.Const
+import Data.Type.Equality
 import Data.List (foldl')
 
 import Control.Monad.Identity
@@ -152,3 +155,42 @@ utxPretty pfam sty sx utx@(UTxPeel c rest)
   = renderNP pfam sty (getUTxSNat utx) c
   $ mapNP (Const . utxPretty pfam sty sx) rest
 
+-- * Test Equality Instance
+--
+-- Are two treefixes indexes over the same atom?
+
+class HasIKProjInj (ki :: kon -> *) (f :: Atom kon -> *) where
+  konInj  :: ki k -> f (K k)
+  varProj :: Proxy ki -> f x -> Maybe (IsI x)
+
+data IsI :: Atom kon -> * where
+  IsI :: (IsNat i) => IsI (I i)
+  
+
+getIsISNat :: IsI (I i) -> SNat i
+getIsISNat IsI = getSNat (Proxy :: Proxy i)
+
+type UTxTestEqualityCnstr ki f
+  = (TestEquality ki , TestEquality f , HasIKProjInj ki f)
+
+instance (UTxTestEqualityCnstr ki f)
+    => TestEquality (UTx ki codes f) where
+  testEquality (UTxOpq kx) (UTxOpq ky)
+    = testEquality kx ky >>= return . apply (Refl :: K :~: K)
+  testEquality (UTxHole v) (UTxHole u)
+    = testEquality v u
+  testEquality (UTxOpq kx) (UTxHole v)
+    = testEquality (konInj kx) v
+  testEquality (UTxHole v) (UTxOpq ky)
+    = testEquality v (konInj ky)
+  testEquality x@(UTxPeel c p) (UTxHole u)
+    = do i@IsI <- varProj (Proxy :: Proxy ki) u
+         Refl  <- testEquality (getUTxSNat x) (getIsISNat i)
+         return Refl
+  testEquality (UTxHole u) x@(UTxPeel c p)
+    = do i@IsI <- varProj (Proxy :: Proxy ki) u
+         Refl  <- testEquality (getUTxSNat x) (getIsISNat i)
+         return Refl
+  testEquality x@(UTxPeel _ _) y@(UTxPeel _ _)
+    = do Refl <- testEquality (getUTxSNat x) (getUTxSNat y)
+         return Refl

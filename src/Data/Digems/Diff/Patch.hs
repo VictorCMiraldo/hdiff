@@ -1,9 +1,12 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE TypeOperators   #-}
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE PolyKinds       #-}
 {-# LANGUAGE GADTs           #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Digems.Diff.Patch where
 
 import Data.Proxy
@@ -54,18 +57,45 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 type MetaVarI  = ForceI (Const Int)
 
 -- |A 'MetaVarIK' can be over a opaque type and a recursive position
-type MetaVarIK = NA (Const Int) (Const Int)
+type MetaVarIK ki = NA (Annotate Int ki) (Const Int)
+
+instance Show (MetaVarIK ki at) where
+  show (NA_I (Const v))      = "i" ++ show v
+  show (NA_K (Annotate v _)) = "k" ++ show v
 
 -- |A 'Change' can be either a metavariable representing
 --  a copy or another treefix
 --  
 data Change ki codes at where
-  Match       :: { ctxDel :: UTx ki codes MetaVarIK at 
-                 , ctxIns :: UTx ki codes MetaVarIK at }
+  Match       :: { ctxDel :: UTx ki codes (MetaVarIK ki) at 
+                 , ctxIns :: UTx ki codes (MetaVarIK ki) at }
               -> Change ki codes at
 
-sameMetaVar :: MetaVarIK at -> Change ki codes at
+sameMetaVar :: MetaVarIK ki at -> Change ki codes at
 sameMetaVar vik = Match (UTxHole vik) (UTxHole vik)
+
+-- I need to keet the @ki k@ in order to test UTx for index equalirt
+data Annotate (x :: *) (f :: k -> *) :: k -> * where
+  Annotate :: x -> f i -> Annotate x f i
+
+instance HasIKProjInj ki (MetaVarIK ki) where
+  konInj    k        = NA_K (Annotate 0 k)
+  varProj _ (NA_I _) = Just IsI
+  varProj _ _        = Nothing
+
+instance HasIKProjInj ki (Change ki codes) where
+  konInj k = Match (UTxOpq k) (UTxOpq k)
+  varProj pk (Match (UTxHole h) _) = varProj pk h
+  varProj pk (Match (UTxPeel _ _) _) = Just IsI
+  varProj pk (Match _ _) = Nothing
+
+instance (TestEquality ki) => TestEquality (Annotate x ki) where
+  testEquality (Annotate _ x) (Annotate _ y)
+    = testEquality x y
+
+instance (TestEquality ki) => TestEquality (Change ki codes) where
+  testEquality (Match x _) (Match y _)
+    = testEquality x y
 
 -- |Instead of keeping unecessary information, a 'Patch' will
 --  factor out the common prefix before the actual changes.
@@ -160,7 +190,7 @@ extractSpine :: (Eq1 ki)
 extractSpine i dx dy = evalState (go dx dy) i
   where
     tr :: UTx ki codes MetaVarI at
-       -> UTx ki codes MetaVarIK at
+       -> UTx ki codes (MetaVarIK ki) at
     tr = utxMap (\(ForceI x) -> NA_I x)
     
     go :: (Eq1 ki)
@@ -171,7 +201,8 @@ extractSpine i dx dy = evalState (go dx dy) i
       | x == y    = return $ UTxHole $ sameMetaVar (NA_I x)
       | otherwise = return $ UTxHole $ Match (tr utx) (tr uty)
     go utx@(UTxOpq kx) uty@(UTxOpq ky)
-      | eq1 kx ky = get >>= \i -> put (i+1) >> return (UTxHole (sameMetaVar (NA_K $ Const i)))
+      | eq1 kx ky = get >>= \i -> put (i+1)
+                        >> return (UTxHole (sameMetaVar (NA_K $ Annotate i kx)))
       | otherwise = return $ UTxHole (Match (UTxOpq kx) (UTxOpq ky))
     go utx@(UTxPeel cx px) uty@(UTxPeel cy py)
       = case testEquality cx cy of
@@ -269,7 +300,7 @@ naeInj (NA_K k) = SomeOpq k
 
 -- |Casts an existential NAE to an expected one, from a metavariable.
 naeCast :: NAE ki codes
-        -> MetaVarIK at
+        -> MetaVarIK ki at
         -> Maybe (NA ki (Fix ki codes) at)
 -- TODO: remove this unsafeCoerce
 naeCast (SomeOpq x) (NA_K _) = Just $ NA_K (unsafeCoerce x)
@@ -281,8 +312,9 @@ naeCast (SomeFix i) (NA_I v)
 naeCast _           _        = Nothing
 
 -- |Returns the metavariable forgetting about type information
-metavarGet :: MetaVarIK at -> Int
-metavarGet = elimNA getConst getConst
+metavarGet :: MetaVarIK ki at -> Int
+metavarGet = elimNA go getConst
+  where go (Annotate x _) = x
 
 -- |And have our valuation be an assignment from
 --  hole-id's to trees.
@@ -294,14 +326,14 @@ type Valuation ki codes
 --  specified on a treefix might be different than
 --  those present in the value we are using.
 utxProj :: (TestEquality ki , Eq1 ki)
-        => UTx ki codes MetaVarIK at
+        => UTx ki codes (MetaVarIK ki) at
         -> NA ki (Fix ki codes) at
         -> Maybe (Valuation ki codes)
 utxProj utx = go M.empty utx
   where    
     go :: (TestEquality ki , Eq1 ki)
        => Valuation ki codes
-       -> UTx ki codes MetaVarIK ix
+       -> UTx ki codes (MetaVarIK ki) ix
        -> NA ki (Fix ki codes) ix
        -> Maybe (Valuation ki codes)
     go m (UTxHole var)   t
@@ -325,7 +357,7 @@ utxProj utx = go M.empty utx
 
 -- |Injects a valuation into a treefix producing a value,
 --  when possible.
-utxInj :: UTx ki codes MetaVarIK at
+utxInj :: UTx ki codes (MetaVarIK ki) at
        -> Valuation ki codes
        -> Maybe (NA ki (Fix ki codes) at)
 utxInj (UTxHole var)  m
