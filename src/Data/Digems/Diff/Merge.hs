@@ -45,13 +45,17 @@ utxUnify (UTxHole var) uty
 utxUnify (UTxOpq kx) (UTxOpq ky)
   | eq1 kx ky = return M.empty
   | otherwise = Left . unwords $ ["utxUnify: " , "K" , show1 kx , " /= ", show1 ky ]
-utxUnify _ (UTxHole var)
-  = Left . unwords $ ["utxUnify:" , "hole"]
 utxUnify (UTxPeel cx px) (UTxPeel cy py)
   = let pf = Proxy :: Proxy fam
      in case testEquality cx cy of
           Nothing   -> Left . unwords $ ["utxUnify: " , "Peel"] 
           Just Refl -> M.unions <$> elimNPM (uncurry' utxUnify) (zipNP px py)
+-- Conflicting scenarios
+utxUnify (UTxOpq ki) (UTxHole var)
+  = Left . unwords $ ["utxUnify:" , "opq hole"]
+utxUnify (UTxPeel cx px) (UTxHole var)
+  = Left . unwords $ ["utxUnify:" , "peel hole"]
+
 
 utxYfinu :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki cam codes 
             , UTxTestEqualityCnstr ki (Change ki codes))
@@ -78,6 +82,15 @@ metaChange :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
 metaChange (Match del ins) utx
   = utxUnify del utx >>= utxYfinu ins
 
+isSimpleCopy :: Change ki codes at -> Bool
+isSimpleCopy (Match (UTxHole h1) (UTxHole h2))
+  = h1 == h2
+isSimpleCopy _ = False
+
+-- |A call to @merger pa pb@ will either fail or
+--  return a patch that can be applied to the image of
+--  @pb@ and should commute with @merger pb pa@ applied
+--  to the image of @pa@.
 merger :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           ,UTxTestEqualityCnstr ki (Change ki codes))
        => UTx ki codes (Change ki codes) at
@@ -88,7 +101,7 @@ merger (UTxHole var) (UTxPeel cy py)
   = return $ UTxHole var
 -- Holes on the right are applied
 merger utx (UTxHole var)
-  = metaChange var utx
+  = metaChange var utx  
 -- finding a copied constant is irrelevant
 merger (UTxOpq kx)     (UTxOpq ky)
   = return (UTxOpq kx)

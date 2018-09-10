@@ -63,6 +63,11 @@ instance Show (MetaVarIK ki at) where
   show (NA_I (Const v))      = "i" ++ show v
   show (NA_K (Annotate v _)) = "k" ++ show v
 
+instance Eq (MetaVarIK ki at) where
+  (NA_I (Const i)) == (NA_I (Const j)) = i == j
+  (NA_K (Annotate v _)) == (NA_K (Annotate u _)) = v == u
+  _ == _ = False
+
 -- |A 'Change' can be either a metavariable representing
 --  a copy or another treefix
 --  
@@ -74,9 +79,17 @@ data Change ki codes at where
 sameMetaVar :: MetaVarIK ki at -> Change ki codes at
 sameMetaVar vik = Match (UTxHole vik) (UTxHole vik)
 
+instance (Show1 ki) => Show (Change ki codes at) where
+  show (Match del ins)
+    = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
+
 -- I need to keet the @ki k@ in order to test UTx for index equalirt
 data Annotate (x :: *) (f :: k -> *) :: k -> * where
   Annotate :: x -> f i -> Annotate x f i
+
+instance (Show1 f , Show x) => Show1 (Annotate x f) where
+  show1 (Annotate i f)
+    = show1 f ++ "[" ++ show i ++ "]"
 
 instance HasIKProjInj ki (MetaVarIK ki) where
   konInj    k        = NA_K (Annotate 0 k)
