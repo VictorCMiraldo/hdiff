@@ -45,6 +45,8 @@ utxUnify (UTxHole var) uty
 utxUnify (UTxOpq kx) (UTxOpq ky)
   | eq1 kx ky = return M.empty
   | otherwise = Left . unwords $ ["utxUnify: " , "K" , show1 kx , " /= ", show1 ky ]
+utxUnify _ (UTxHole var)
+  = Left . unwords $ ["utxUnify:" , "hole"]
 utxUnify (UTxPeel cx px) (UTxPeel cy py)
   = let pf = Proxy :: Proxy fam
      in case testEquality cx cy of
