@@ -62,7 +62,7 @@ withParsedEl (LangParser ext parser) vec f
     parseWithExt ext parser file
       | ("." ++ ext) `isSuffixOf` file = liftIO $ parser file
       | otherwise
-      = throwError ("Wrong Extension; expecting: " ++ show ext)
+      = throwError ("Wrong Extension; expecting: " ++ show ext ++ "\n")
 
 -- |Tries a variety of parsers on a number of
 --  files.
@@ -73,7 +73,7 @@ withParsedEls :: [LangParser]
                  => VectorOf (Fix ki codes ix) (S n)
                  -> IO res)
               -> ExceptT String IO res
-withParsedEls []     _     _ = throwError "No parser succeeded"
+withParsedEls []     _     _ = throwError "No parser succeeded\n"
 withParsedEls (p:ps) files f
   = withParsedEl p files f
   <|> withParsedEls ps files f
