@@ -190,17 +190,17 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
       putStrLnErr $ "B: " ++ optFileB opts
     let patchOA = D.digems (minHeight opts) fo fa
     let patchOB = D.digems (minHeight opts) fo fb
-    let resAB = D.merger patchOA patchOB
-    let resBA = D.merger patchOB patchOA
-    case (,) <$> resAB <*> resBA of
-      Left err        -> putStrLnErr (" !! Conflict: " ++ err)
-                      >> return (ExitFailure 1)
-      Right (ab , ba) -> do
-        when (optDisplay opts) $ do
-          putStrLnErr $ "O->A/O->B " ++ replicate 55 '#'
-          displayRawPatch stderr ab
-          putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
-          displayRawPatch stderr ba
+    let resAB = patchOA D.// patchOB
+    let resBA = patchOB D.// patchOA
+    when (optDisplay opts) $ do
+      putStrLnErr $ "O->A/O->B " ++ replicate 55 '#'
+      displayPatchC stderr resAB
+      putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
+      displayPatchC stderr resBA
+    case (,) <$> D.noConflicts resAB <*> D.noConflicts resBA of
+      Nothing        -> putStrLnErr " !! Conflicting !! "
+                     >> return (ExitFailure 1)
+      Just (ab , ba) -> do
         whenLoud (putStrLnErr "!! apply ba fa")
         Just fb' <- tryApply ba fa Nothing
         whenLoud (putStrLnErr "!! apply ab fb")

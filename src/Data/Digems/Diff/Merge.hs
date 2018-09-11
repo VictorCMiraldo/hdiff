@@ -26,6 +26,93 @@ import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
 import Data.Digems.Diff.Patch
 
+-- * Merging Treefixes
+--
+-- $mergingtreefixes
+--
+-- After merging two patches, we might end up with a conflict.
+-- That is, two changes that can't be reconciled.
+
+-- |Hence, a conflict is simply two changes together.
+data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
+  Conflict :: String
+           -> Change   ki codes at
+           -> Change   ki codes at
+           -> Conflict ki codes at
+
+-- |A 'PatchC' is a patch with potential conflicts inside
+type PatchC ki codes ix
+  = UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) (I ix)
+
+-- |Tries to cast a 'PatchC' back to a 'Patch'. Naturally,
+--  this is only possible if the patch has no conflicts.
+noConflicts :: PatchC ki codes ix -> Maybe (Patch ki codes ix)
+noConflicts = utxMapM rmvInL
+  where
+    rmvInL (InL _) = Nothing
+    rmvInL (InR x) = Just x
+
+-- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
+--  of @p@ so that it could be applied to an element in the
+--  image of @q@.
+(//) :: (Eq1 ki)
+     => Patch ki codes ix
+     -> Patch ki codes ix
+     -> PatchC ki codes ix
+p // q = utxMap (uncurry' reconcile) $ utxLCP p q
+
+-- |The 'reconcile' function will try to reconcile disagreeing
+--  patches.
+--
+--  Precondition: before calling @reconcile p q@, make sure
+--                @p@ and @q@ are different.
+reconcile :: (Eq1 ki)
+          => RawPatch ki codes at
+          -> RawPatch ki codes at
+          -> Sum (Conflict ki codes) (Change ki codes) at
+-- (i) both different patches consist in changes
+reconcile (UTxHole cp) (UTxHole cq) = cc cp cq
+-- (ii) We are transporting a spine over a change
+reconcile cp           (UTxHole cq) = sc cp cq
+-- (iii) We are transporting a change over a spine
+reconcile (UTxHole cp) cq           = cs cp cq
+-- (iv) Anything else is a conflict
+reconcile cp cq
+  = let cpD = utxJoin (utxMap ctxDel cp)
+        cpI = utxJoin (utxMap ctxIns cp)
+        cqD = utxJoin (utxMap ctxDel cq)
+        cqI = utxJoin (utxMap ctxIns cq)
+     in InL (Conflict "reconcile" (Match cpD cpI) (Match cqD cqI))
+
+-- * Reconciling Changes
+
+-- |Reconcile two changes. Must satisfy: cc x x == InR id
+cc :: (Eq1 ki)
+   => Change ki codes at
+   -> Change ki codes at
+   -> Sum (Conflict ki codes) (Change ki codes) at
+cc x y = InL $ Conflict "cc" x y
+
+-- |Transport a spine over a change. Ideally, this should return
+--  a spine.
+sc :: (Eq1 ki)
+   => RawPatch ki codes at
+   -> Change ki codes at
+   -> Sum (Conflict ki codes) (Change ki codes) at
+sc x y = let xD = utxJoin (utxMap ctxDel x)
+             xI = utxJoin (utxMap ctxIns x)
+          in InL (Conflict "sc" (Match xD xI) y)
+
+-- |Transports a change over a spine.
+cs :: (Eq1 ki)
+   => Change ki codes at
+   -> RawPatch ki codes at
+   -> Sum (Conflict ki codes) (Change ki codes) at
+cs x y = let yD = utxJoin (utxMap ctxDel y)
+             yI = utxJoin (utxMap ctxIns y)
+          in InL (Conflict "sc" x (Match yD yI))
+
+{-
 data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
   UTxE :: UTx ki codes f at -> UTxE ki codes f
 
@@ -111,7 +198,7 @@ merger (UTxPeel cx px) (UTxPeel cy py)
   = case testEquality cx cy of
       Nothing   -> Left . unwords $ [ "merger:" , "conflict:" , "Peel Peel"]
       Just Refl -> UTxPeel cx <$> mapNPM (uncurry' merger) (zipNP px py)
-
+-}
 {-
 
 Now consider the patch from O to A, call it OA:

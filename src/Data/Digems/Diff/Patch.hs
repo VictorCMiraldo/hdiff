@@ -110,9 +110,12 @@ instance (TestEquality ki) => TestEquality (Change ki codes) where
   testEquality (Match x _) (Match y _)
     = testEquality x y
 
--- |Instead of keeping unecessary information, a 'Patch' will
+-- |Instead of keeping unecessary information, a 'RawPatch' will
 --  factor out the common prefix before the actual changes.
 --
+type RawPatch ki codes = UTx ki codes (Change ki codes)
+
+-- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
 type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
 
 -- * Diffing
@@ -200,6 +203,7 @@ extractSpine :: (Eq1 ki)
              -> UTx ki codes MetaVarI (I ix)
              -> UTx ki codes MetaVarI (I ix)
              -> UTx ki codes (Change ki codes) (I ix)
+-- TODO: write this in terms of utxLCP
 extractSpine i dx dy = evalState (go dx dy) i
   where
     tr :: UTx ki codes MetaVarI at

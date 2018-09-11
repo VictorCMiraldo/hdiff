@@ -74,6 +74,27 @@ utxJoin (UTxHole x)   = x
 utxJoin (UTxOpq  k)   = UTxOpq k
 utxJoin (UTxPeel c p) = UTxPeel c (mapNP utxJoin p)
 
+-- |Factors out the largest common prefix of two treefixes
+--
+--  It enjoys naturality properties with utxJoin:
+--
+--  >  utxJoin (utxMap fst (utxLCP p q)) == p
+--  >  utxJoin (utxMap snd (utxLCP p q)) == q
+--
+utxLCP :: (Eq1 ki)
+       => UTx ki codes f at
+       -> UTx ki codes g at
+       -> UTx ki codes (UTx ki codes f :*: UTx ki codes g) at
+utxLCP (UTxOpq kx) (UTxOpq ky)
+  | eq1 kx ky = UTxOpq kx
+  | otherwise = UTxHole (UTxOpq kx :*: UTxOpq ky)
+utxLCP (UTxPeel cx px) (UTxPeel cy py)
+  = case testEquality cx cy of
+      Nothing   -> UTxHole (UTxPeel cx px :*: UTxPeel cy py)
+      Just Refl -> UTxPeel cx $ mapNP (uncurry' utxLCP) (zipNP px py)
+utxLCP x y
+  = UTxHole (x :*: y)
+
 -- |Similar to 'gtxMap', but allows to refine the structure of
 --  a treefix if need be
 utxRefineM :: (Monad m)

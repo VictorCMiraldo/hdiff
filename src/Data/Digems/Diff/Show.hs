@@ -21,7 +21,7 @@ import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
 import qualified Data.Digems.Diff.Patch as D
--- import qualified Data.Digems.Diff.Merge as D
+import qualified Data.Digems.Diff.Merge as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
 spliced :: Doc ann -> Doc ann -> Doc ann
@@ -57,24 +57,55 @@ displayRawPatch hdl patch
   = doubleColumn hdl 75
       (utxPretty (Proxy :: Proxy fam) id prettyChangeDel patch)
       (utxPretty (Proxy :: Proxy fam) id prettyChangeIns patch)
+  where
+    prettyChangeDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+                    => D.Change ki codes at
+                    -> Doc AnsiStyle
+    prettyChangeDel (D.Match del ins)
+      = utxPretty (Proxy :: Proxy fam)
+                  (annotate (color Red))
+                  (metavarPretty (annotate $ colorDull Red))
+                  del
 
-prettyChangeDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
-                => D.Change ki codes at
-                -> Doc AnsiStyle
-prettyChangeDel (D.Match del ins)
-  = utxPretty (Proxy :: Proxy fam)
-              (annotate (color Red))
-              (metavarPretty (annotate $ colorDull Red))
-              del
+    prettyChangeIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+                    => D.Change ki codes at
+                    -> Doc AnsiStyle
+    prettyChangeIns (D.Match del ins)
+      = utxPretty (Proxy :: Proxy fam)
+                  (annotate (color Green))
+                  (metavarPretty (annotate $ colorDull Green))
+                  ins
 
-prettyChangeIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
-                => D.Change ki codes at
-                -> Doc AnsiStyle
-prettyChangeIns (D.Match del ins)
-  = utxPretty (Proxy :: Proxy fam)
-              (annotate (color Green))
-              (metavarPretty (annotate $ colorDull Green))
-              ins
+displayPatchC :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+              => Handle
+              -> UTx ki codes (Sum (D.Conflict ki codes) (D.Change ki codes)) at
+              -> IO ()
+displayPatchC hdl patch 
+  = doubleColumn hdl 75
+      (utxPretty (Proxy :: Proxy fam) id prettyConfDel patch)
+      (utxPretty (Proxy :: Proxy fam) id prettyConfIns patch)
+  where
+    prettyConfDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+                    => Sum (D.Conflict ki codes) (D.Change ki codes) at
+                    -> Doc AnsiStyle
+    prettyConfDel (InL (D.Conflict lbl _ _))
+      = annotate (color Blue) (pretty lbl)
+    prettyConfDel (InR (D.Match del ins))
+      = utxPretty (Proxy :: Proxy fam)
+                  (annotate (color Red))
+                  (metavarPretty (annotate $ colorDull Red))
+                  del
+
+    prettyConfIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+                    => Sum (D.Conflict ki codes) (D.Change ki codes) at
+                    -> Doc AnsiStyle
+    prettyConfIns (InL (D.Conflict lbl _ _))
+      = annotate (color Blue) (pretty lbl)
+    prettyConfIns (InR (D.Match del ins))
+      = utxPretty (Proxy :: Proxy fam)
+                  (annotate (color Green))
+                  (metavarPretty (annotate $ colorDull Green))
+                  ins
 
 -- |Displays two docs in a double column fashion
 --
