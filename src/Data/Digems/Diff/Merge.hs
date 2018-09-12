@@ -59,7 +59,7 @@ noConflicts = utxMapM rmvInL
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = utxMap (uncurry' reconcile) $ utxLCP p q
+p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.
@@ -69,41 +69,44 @@ p // q = utxMap (uncurry' reconcile) $ utxLCP p q
 reconcile :: (Eq1 ki)
           => RawPatch ki codes at
           -> RawPatch ki codes at
-          -> Sum (Conflict ki codes) (Change ki codes) at
+          -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
 -- (i) both different patches consist in changes
 reconcile (UTxHole cp) (UTxHole cq) = cc cp cq
 -- (ii) We are transporting a spine over a change
 reconcile cp           (UTxHole cq) = sc cp cq
 -- (iii) We are transporting a change over a spine
-reconcile (UTxHole cp) cq           = cs cp cq
+reconcile (UTxHole cp) cq           = UTxHole $ cs cp cq
 -- (iv) Anything else is a conflict
 reconcile cp cq
   = let cpD = utxJoin (utxMap ctxDel cp)
         cpI = utxJoin (utxMap ctxIns cp)
         cqD = utxJoin (utxMap ctxDel cq)
         cqI = utxJoin (utxMap ctxIns cq)
-     in InL (Conflict "reconcile" (Match cpD cpI) (Match cqD cqI))
+     in UTxHole $ InL (Conflict "reconcile" (Match cpD cpI) (Match cqD cqI))
 
 -- * Reconciling Changes
 
--- |Reconcile two changes. Must satisfy: cc x x == InR id
+-- |Reconcile two changes. 
 cc :: (Eq1 ki)
    => Change ki codes at
    -> Change ki codes at
-   -> Sum (Conflict ki codes) (Change ki codes) at
-cc x y = InL $ Conflict "cc" x y
+   -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
+cc x y = UTxHole $ InL $ Conflict "cc" x y
 
--- |Transport a spine over a change. Ideally, this should return
---  a spine.
+-- |Transport a spine over a change. This returns a spine
+--  by adapting the old spine to the image of the change,
+--  if possible.
 sc :: (Eq1 ki)
    => RawPatch ki codes at
    -> Change ki codes at
-   -> Sum (Conflict ki codes) (Change ki codes) at
+   -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
 sc x y = let xD = utxJoin (utxMap ctxDel x)
              xI = utxJoin (utxMap ctxIns x)
-          in InL (Conflict "sc" (Match xD xI) y)
+          in UTxHole $ InL (Conflict "sc" (Match xD xI) y)
 
 -- |Transports a change over a spine.
+--  This adapts the change over the new spine and
+-- returns a new change (if possible)
 cs :: (Eq1 ki)
    => Change ki codes at
    -> RawPatch ki codes at
