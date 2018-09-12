@@ -55,7 +55,8 @@ noConflicts = utxMapM rmvInL
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
-(//) :: (Eq1 ki)
+(//) :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+        , UTxTestEqualityCnstr ki (Change ki codes))
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
@@ -66,7 +67,8 @@ p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 --
 --  Precondition: before calling @reconcile p q@, make sure
 --                @p@ and @q@ are different.
-reconcile :: (Eq1 ki)
+reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+             , UTxTestEqualityCnstr ki (Change ki codes))
           => RawPatch ki codes at
           -> RawPatch ki codes at
           -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
@@ -86,23 +88,39 @@ reconcile cp cq
 
 -- * Reconciling Changes
 
+isCpy :: Change ki codes at -> Bool
+isCpy (Match (UTxHole v) (UTxHole u)) = v == u
+isCpy _                               = False
+
 -- |Reconcile two changes. 
 cc :: (Eq1 ki)
    => Change ki codes at
    -> Change ki codes at
    -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
-cc x y = UTxHole $ InL $ Conflict "cc" x y
+cc x y
+  | isCpy y   = UTxHole (InR x)
+  | isCpy x   = UTxHole (InR y)
+  | otherwise = UTxHole $ InL $ Conflict "cc" x y
+{-
+  We need to be able to apply the deletion context of x after
+  the insertion context of y took place, then adapt the insertion of x
+  accordingly.
+-}
+
 
 -- |Transport a spine over a change. This returns a spine
 --  by adapting the old spine to the image of the change,
 --  if possible.
-sc :: (Eq1 ki)
+sc :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+      , UTxTestEqualityCnstr ki (Change ki codes))
    => RawPatch ki codes at
    -> Change ki codes at
    -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
-sc x y = let xD = utxJoin (utxMap ctxDel x)
-             xI = utxJoin (utxMap ctxIns x)
-          in UTxHole $ InL (Conflict "sc" (Match xD xI) y)
+sc x y = case metaChange y x of
+           Left err -> let xD = utxJoin (utxMap ctxDel x)
+                           xI = utxJoin (utxMap ctxIns x)
+                        in UTxHole $ InL (Conflict err (Match xD xI) y)
+           Right res -> utxMap InR res
 
 -- |Transports a change over a spine.
 --  This adapts the change over the new spine and
@@ -111,11 +129,16 @@ cs :: (Eq1 ki)
    => Change ki codes at
    -> RawPatch ki codes at
    -> Sum (Conflict ki codes) (Change ki codes) at
-cs x y = let yD = utxJoin (utxMap ctxDel y)
-             yI = utxJoin (utxMap ctxIns y)
-          in InL (Conflict "sc" x (Match yD yI))
+cs x y 
+  | isCpy x = InR x
+  | True    = InR x
+  | otherwise
+  = let yD = utxJoin (utxMap ctxDel y)
+        yI = utxJoin (utxMap ctxIns y)
+     in InL (Conflict "cs" x (Match yD yI))
 
-{-
+-- ** TEMPORARY
+
 data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
   UTxE :: UTx ki codes f at -> UTxE ki codes f
 
@@ -201,7 +224,6 @@ merger (UTxPeel cx px) (UTxPeel cy py)
   = case testEquality cx cy of
       Nothing   -> Left . unwords $ [ "merger:" , "conflict:" , "Peel Peel"]
       Just Refl -> UTxPeel cx <$> mapNPM (uncurry' merger) (zipNP px py)
--}
 {-
 
 Now consider the patch from O to A, call it OA:
