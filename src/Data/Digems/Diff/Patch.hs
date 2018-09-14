@@ -138,6 +138,7 @@ instance HasIKProjInj ki (MetaVarIK ki) where
   varProj _ (NA_I _) = Just IsI
   varProj _ _        = Nothing
 
+
 instance HasIKProjInj ki (Change ki codes) where
   konInj k = Match (UTxOpq k) (UTxOpq k)
   varProj pk (Match (UTxHole h) _) = varProj pk h
