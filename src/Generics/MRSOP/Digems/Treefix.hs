@@ -99,19 +99,22 @@ utxLCP x y
 --  a treefix if need be
 utxRefineM :: (Monad m)
            => (forall at . f at -> m (UTx ki codes g at))
+           -> (forall k  . ki k -> m (UTx ki codes g (K k)))
            -> UTx ki codes f at 
            -> m (UTx ki codes g at)
-utxRefineM f (UTxHole x) = f x
-utxRefineM f (UTxOpq k)  = return (UTxOpq k)
-utxRefineM f (UTxPeel c utxnp)
-  = UTxPeel c <$> mapNPM (utxRefineM f) utxnp
+utxRefineM f g (UTxHole x) = f x
+utxRefineM f g (UTxOpq k)  = g k
+utxRefineM f g (UTxPeel c utxnp)
+  = UTxPeel c <$> mapNPM (utxRefineM f g) utxnp
 
 -- |Pure version of 'utxRefineM'
 utxRefine :: (forall at . f at -> UTx ki codes g at)
+          -> (forall k  . ki k -> UTx ki codes g (K k))
           -> UTx ki codes f at 
           -> UTx ki codes g at
-utxRefine f = runIdentity . utxRefineM (return . f)
+utxRefine f g = runIdentity . utxRefineM (return . f) (return . g)
 
+{-
 -- |Reduces a treefix back to a tree
 utxReduceM :: (Monad m)
            => (forall at . f at -> m (NA ki (Fix ki codes) at))
@@ -133,6 +136,7 @@ utxWalkM cat e act (UTxHole x) = act x
 utxWalkM cat e act (UTxOpq _)  = return e
 utxWalkM cat e act (UTxPeel _ d)
   = foldl' cat e <$> elimNPM (utxWalkM cat e act) d
+-}
 
 -- * Show instances
 

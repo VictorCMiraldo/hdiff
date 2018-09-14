@@ -60,7 +60,9 @@ noConflicts = utxMapM rmvInL
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
+p // q = undefined -- utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
+
+{-
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.
@@ -224,6 +226,9 @@ merger (UTxPeel cx px) (UTxPeel cy py)
   = case testEquality cx cy of
       Nothing   -> Left . unwords $ [ "merger:" , "conflict:" , "Peel Peel"]
       Just Refl -> UTxPeel cx <$> mapNPM (uncurry' merger) (zipNP px py)
+
+
+-}
 {-
 
 Now consider the patch from O to A, call it OA:

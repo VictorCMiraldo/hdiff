@@ -11,7 +11,9 @@ module Data.Digems.Diff.Patch where
 
 import Data.Proxy
 import Data.Type.Equality
+import Data.Function (on)
 import Data.Functor.Const
+import Data.Functor.Sum
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -56,6 +58,15 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 -- |A 'MetaVarI' has to be over a recursive position
 type MetaVarI  = ForceI (Const Int)
 
+instance Eq (Exists MetaVarI) where
+  (==) = (==) `on` metavarI2Int
+
+instance Ord (Exists MetaVarI) where
+  compare = compare `on` metavarI2Int
+
+metavarI2Int :: Exists MetaVarI -> Int
+metavarI2Int (Exists (ForceI (Const i))) = i
+
 -- |A 'MetaVarIK' can be over a opaque type and a recursive position
 type MetaVarIK ki = NA (Annotate Int ki) (Const Int)
 
@@ -68,19 +79,50 @@ instance Eq (MetaVarIK ki at) where
   (NA_K (Annotate v _)) == (NA_K (Annotate u _)) = v == u
   _ == _ = False
 
--- |A 'Change' can be either a metavariable representing
---  a copy or another treefix
+instance Eq (Exists (MetaVarIK ki)) where
+  (==) = (==) `on` metavarIK2Int
+
+instance Ord (Exists (MetaVarIK ki)) where
+  compare = compare `on` metavarIK2Int
+
+metavarIK2Int :: Exists (MetaVarIK ki) -> Int
+metavarIK2Int (Exists (NA_I (Const i))) = i
+metavarIK2Int (Exists (NA_K (Annotate i _))) = i
+
+data Exists (f :: k -> *) :: * where
+  Exists :: f x -> Exists f
+
+exMap :: (forall x . f x -> g x) -> Exists f -> Exists g
+exMap f (Exists x) = Exists (f x)
+
+-- |A 'CChange', or, closed change, consists in a declaration of metavariables
+--  and two contexts. The precondition is that every variable declared
+--  occurs at least once in ctxDel and that every variable that occurs in ctxIns
+--  is declared.
 --  
-data Change ki codes at where
-  Match       :: { ctxDel :: UTx ki codes (MetaVarIK ki) at 
-                 , ctxIns :: UTx ki codes (MetaVarIK ki) at }
-              -> Change ki codes at
+data CChange ki codes at where
+  CMatch :: { cCtxVars :: S.Set (Exists (MetaVarIK ki))
+            , cCtxDel  :: UTx ki codes (MetaVarIK ki) at 
+            , cCtxIns  :: UTx ki codes (MetaVarIK ki) at }
+         -> CChange ki codes at
 
-sameMetaVar :: MetaVarIK ki at -> Change ki codes at
-sameMetaVar vik = Match (UTxHole vik) (UTxHole vik)
+-- |Issues a copy, this is a closed change analogous to
+--  > \x -> x
+changeCopy :: MetaVarIK ki at -> CChange ki codes at
+changeCopy vik = CMatch (S.singleton (Exists vik)) (UTxHole vik) (UTxHole vik)
 
-instance (Show1 ki) => Show (Change ki codes at) where
-  show (Match del ins)
+-- |A 'OChange', or, open change, is analogous to a 'CChange',
+--  but has a list of free variables. These are the ones that appear
+--  in 'oCtxIns' but not in 'oCtxDel'
+data OChange ki codes at where
+  OMatch :: { oCtxVars :: S.Set (Exists (MetaVarIK ki))
+            , oCtxFree :: S.Set (Exists (MetaVarIK ki))
+            , oCtxDel  :: UTx ki codes (MetaVarIK ki) at 
+            , oCtxIns  :: UTx ki codes (MetaVarIK ki) at }
+         -> OChange ki codes at
+
+instance (Show1 ki) => Show (CChange ki codes at) where
+  show (CMatch _ del ins)
     = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
 
 -- I need to keet the @ki k@ in order to test UTx for index equalirt
@@ -113,10 +155,22 @@ instance (TestEquality ki) => TestEquality (Change ki codes) where
 -- |Instead of keeping unecessary information, a 'RawPatch' will
 --  factor out the common prefix before the actual changes.
 --
-type RawPatch ki codes = UTx ki codes (Change ki codes)
+type RawPatch ki codes = UTx ki codes (CChange ki codes)
 
 -- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
 type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
+
+-- COMPAT MODE!!! TODO: REMOVE
+data Change ki codes at where
+  Match :: { ctxDel  :: UTx ki codes (MetaVarIK ki) at 
+           , ctxIns  :: UTx ki codes (MetaVarIK ki) at }
+        -> Change ki codes at
+
+chg :: CChange ki codes at -> Change ki codes at
+chg (CMatch _ del ins) = Match del ins
+
+
+
 
 -- * Diffing
 
@@ -198,12 +252,33 @@ extractUTx minHeight tr (AnnFix (Const prep) rep)
 -- |Given two treefixes, we will compute the longest path from
 --  the root that they overlap and will factor it out.
 --  This is somehow analogous to a @zipWith@
-extractSpine :: (Eq1 ki)
+extractSpine :: forall ki codes ix
+              . (Eq1 ki)
              => Int
              -> UTx ki codes MetaVarI (I ix)
              -> UTx ki codes MetaVarI (I ix)
-             -> UTx ki codes (Change ki codes) (I ix)
--- TODO: write this in terms of utxLCP
+             -> UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) (I ix)
+extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
+  where
+    go :: UTx ki codes MetaVarI at
+       -> UTx ki codes MetaVarI at
+       -> Sum (OChange ki codes) (CChange ki codes) at
+    -- precond utx and uty are different
+    go utx uty = let vx = utxGetHolesWith Exists utx
+                     vy = utxGetHolesWith Exists uty
+                     evx = toEx vx
+                     evy = toEx vy
+                  in if vy `S.isSubsetOf` vx
+                     then InR $ CMatch evx (tr utx) (tr uty)
+                     else InL $ OMatch evx (toEx $ S.difference vx vy) (tr utx) (tr uty)
+    
+    tr :: UTx ki codes MetaVarI at
+       -> UTx ki codes (MetaVarIK ki) at
+    tr = utxMap (\(ForceI x) -> NA_I x)
+
+    toEx :: S.Set (Exists MetaVarI) -> S.Set (Exists (MetaVarIK ki))
+    toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
+{-
 extractSpine i dx dy = evalState (go dx dy) i
   where
     tr :: UTx ki codes MetaVarI at
@@ -215,17 +290,70 @@ extractSpine i dx dy = evalState (go dx dy) i
        -> UTx ki codes MetaVarI at
        -> State Int (UTx ki codes (Change ki codes) at)
     go utx@(UTxHole (ForceI x)) uty@(UTxHole (ForceI y))
-      | x == y    = return $ UTxHole $ sameMetaVar (NA_I x)
+      | x == y    = return $ UTxHole $ changeCopy (NA_I x)
       | otherwise = return $ UTxHole $ Match (tr utx) (tr uty)
     go utx@(UTxOpq kx) uty@(UTxOpq ky)
       | eq1 kx ky = get >>= \i -> put (i+1)
-                        >> return (UTxHole (sameMetaVar (NA_K $ Annotate i kx)))
+                        >> return (UTxHole (changeCopy (NA_K $ Annotate i kx)))
       | otherwise = return $ UTxHole (Match (UTxOpq kx) (UTxOpq ky))
     go utx@(UTxPeel cx px) uty@(UTxPeel cy py)
       = case testEquality cx cy of
           Nothing   -> return $ UTxHole (Match (tr utx) (tr uty))
           Just Refl -> UTxPeel cx <$> mapNPM (uncurry' go) (zipNP px py)
     go x y = return $ UTxHole (Match (tr x) (tr y))
+-}
+
+-- |Returns the metavariables in a UTx
+utxGetHolesWith :: (Ord r) => (forall at . f at -> r) -> UTx ki codes f at -> S.Set r
+utxGetHolesWith tr = flip execState S.empty . utxMapM (getHole tr)
+  where
+    -- Gets all holes from a treefix.
+    getHole :: (Ord r)
+            => (forall at . f at -> r)
+            -> f ix
+            -> State (S.Set r) (f ix)
+    getHole f x = modify (S.insert $ f x) >> return x
+
+closedChangeDistr :: UTx ki codes (CChange ki codes) at
+                  -> CChange ki codes at
+closedChangeDistr utx = let vars = S.foldl' S.union S.empty
+                                 $ utxGetHolesWith cCtxVars utx
+                            del  = utxJoin $ utxMap cCtxDel utx
+                            ins  = utxJoin $ utxMap cCtxIns utx
+                         in CMatch vars del ins
+
+-- |Combines changes until they are closed
+changeDistr :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
+            -> Sum (OChange ki codes) (UTx ki codes (CChange ki codes)) at
+changeDistr (UTxOpq k)         = InR $ UTxOpq k
+changeDistr (UTxHole (InL oc)) = InL oc
+changeDistr (UTxHole (InR cc)) = InR $ UTxHole cc
+changeDistr (UTxPeel cx dx)
+  = let aux = mapNP changeDistr dx
+     in case mapNPM fromInR aux of
+          Just np -> InR $ UTxPeel cx np
+          Nothing -> let chgs = mapNP (either' InL (InR . closedChangeDistr)) aux
+                         dels = mapNP (either' oCtxDel cCtxDel) chgs
+                         inss = mapNP (either' oCtxIns cCtxIns) chgs
+                         fvs  = S.unions $ elimNP (either'' oCtxFree (const $ S.empty)) chgs 
+                         bvs  = S.unions $ elimNP (either'' oCtxVars cCtxVars) chgs
+                         fvs' = S.difference fvs bvs
+                      in if S.null fvs'
+                         then InR (UTxHole $ CMatch bvs (UTxPeel cx dels) (UTxPeel cx inss))
+                         else InL (OMatch bvs fvs' (UTxPeel cx dels) (UTxPeel cx inss))
+  where
+    either' :: (f x -> a x) -> (g x -> a x) -> Sum f g x -> a x
+    either' l r (InL x) = l x
+    either' l r (InR x) = r x
+
+    either'' :: (f x -> a) -> (g x -> a) -> Sum f g x -> a
+    either'' f g = getConst . either' (Const . f) (Const . g)
+    
+    fromInR :: Sum f g x -> Maybe (g x)
+    fromInR (InL _) = Nothing
+    fromInR (InR x) = Just x
+    
+
 
 -- |Diffs two generic merkelized structures.
 --  The outline of the process is:
@@ -248,18 +376,21 @@ digems mh x y
         (i, sh) = buildSharingTrie mh dx dy
         del'    = extractUTx mh sh dx
         ins'    = extractUTx mh sh dy
-        holes   = execState (utxMapM getHole del') S.empty
+        holes   = utxGetHolesWith unForceI' del'
                     `S.intersection`
-                  execState (utxMapM getHole ins') S.empty
-        ins     = utxRefine (refineHole holes) ins'
-        del     = utxRefine (refineHole holes) del'
-     in extractSpine i del ins
+                  utxGetHolesWith unForceI' ins'
+        ins     = utxRefine (refineHole holes) UTxOpq ins'
+        del     = utxRefine (refineHole holes) UTxOpq del'
+     in case changeDistr (extractSpine i del ins) of
+          InL oc -> error "There are open changes"
+          InR cc -> utxRefine (UTxHole . chg) opqCopy cc
   where
-    -- Gets all holes from a treefix.
-    getHole :: ForceI (Const Int :*: f) ix
-            -> State (S.Set Int) (ForceI (Const Int :*: f) ix)
-    getHole x@(ForceI (Const i :*: _)) = modify (S.insert i) >> return x
+    unForceI' :: ForceI (Const Int :*: x) at -> Int
+    unForceI' (ForceI (Const i :*: _)) = i
 
+    opqCopy :: ki k -> UTx ki codes (Change ki codes) (K k)
+    opqCopy = UTxHole . chg . changeCopy . NA_K . Annotate 0 
+    
     -- Given a set of holes that show up in both the insertion
     -- and deletion treefixes, we traverse a treefix and keep only
     -- those. All other places where there could be a hole are
@@ -384,6 +515,8 @@ utxInj (UTxOpq  k)   m
   = return (NA_K k)
 utxInj (UTxPeel c p) m
   = (NA_I . Fix . inj c) <$> mapNPM (flip utxInj m) p
+
+-- TODO: If changes are closed, we can now apply them locally!!
 
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
