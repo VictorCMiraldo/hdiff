@@ -25,6 +25,7 @@ import Generics.MRSOP.Digems.Digest
 import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
 import Data.Digems.Diff.Patch
+import Data.Digems.Diff.MetaVar
 
 -- * Merging Treefixes
 --
@@ -60,9 +61,7 @@ noConflicts = utxMapM rmvInL
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = undefined -- utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
-
-{-
+p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.
@@ -70,10 +69,10 @@ p // q = undefined -- utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 --  Precondition: before calling @reconcile p q@, make sure
 --                @p@ and @q@ are different.
 reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-             , UTxTestEqualityCnstr ki (Change ki codes))
+             , UTxTestEqualityCnstr ki (CChange ki codes))
           => RawPatch ki codes at
           -> RawPatch ki codes at
-          -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
+          -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 -- (i) both different patches consist in changes
 reconcile (UTxHole cp) (UTxHole cq) = cc cp cq
 -- (ii) We are transporting a spine over a change
@@ -82,23 +81,25 @@ reconcile cp           (UTxHole cq) = sc cp cq
 reconcile (UTxHole cp) cq           = UTxHole $ cs cp cq
 -- (iv) Anything else is a conflict
 reconcile cp cq
-  = let cpD = utxJoin (utxMap ctxDel cp)
-        cpI = utxJoin (utxMap ctxIns cp)
-        cqD = utxJoin (utxMap ctxDel cq)
-        cqI = utxJoin (utxMap ctxIns cq)
-     in UTxHole $ InL (Conflict "reconcile" (Match cpD cpI) (Match cqD cqI))
+  = let cpD = utxJoin (utxMap cCtxDel cp)
+        cpI = utxJoin (utxMap cCtxIns cp)
+        cqD = utxJoin (utxMap cCtxDel cq)
+        cqI = utxJoin (utxMap cCtxIns cq)
+        varsP = utxGetHolesWith Exists cpD
+        varsQ = utxGetHolesWith Exists cqD
+     in UTxHole $ InL (Conflict "reconcile" (CMatch varsP cpD cpI) (CMatch varsQ cqD cqI))
 
--- * Reconciling Changes
+-- * Reconciling CChanges
 
-isCpy :: Change ki codes at -> Bool
-isCpy (Match (UTxHole v) (UTxHole u)) = v == u
+isCpy :: CChange ki codes at -> Bool
+isCpy (CMatch _ (UTxHole v) (UTxHole u)) = v == u
 isCpy _                               = False
 
 -- |Reconcile two changes. 
 cc :: (Eq1 ki)
-   => Change ki codes at
-   -> Change ki codes at
-   -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
+   => CChange ki codes at
+   -> CChange ki codes at
+   -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 cc x y
   | isCpy y   = UTxHole (InR x)
   | isCpy x   = UTxHole (InR y)
@@ -114,30 +115,32 @@ cc x y
 --  by adapting the old spine to the image of the change,
 --  if possible.
 sc :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-      , UTxTestEqualityCnstr ki (Change ki codes))
+      , UTxTestEqualityCnstr ki (CChange ki codes))
    => RawPatch ki codes at
-   -> Change ki codes at
-   -> UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) at
-sc x y = case metaChange y x of
-           Left err -> let xD = utxJoin (utxMap ctxDel x)
-                           xI = utxJoin (utxMap ctxIns x)
-                        in UTxHole $ InL (Conflict err (Match xD xI) y)
+   -> CChange ki codes at
+   -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
+sc x y = case metaCChange y x of
+           Left err -> let xD = utxJoin (utxMap cCtxDel x)
+                           xI = utxJoin (utxMap cCtxIns x)
+                           xV = utxGetHolesWith Exists xD
+                        in UTxHole $ InL (Conflict err (CMatch xV xD xI) y)
            Right res -> utxMap InR res
 
 -- |Transports a change over a spine.
 --  This adapts the change over the new spine and
 -- returns a new change (if possible)
 cs :: (Eq1 ki)
-   => Change ki codes at
+   => CChange ki codes at
    -> RawPatch ki codes at
-   -> Sum (Conflict ki codes) (Change ki codes) at
+   -> Sum (Conflict ki codes) (CChange ki codes) at
 cs x y 
   | isCpy x = InR x
   | True    = InR x
   | otherwise
-  = let yD = utxJoin (utxMap ctxDel y)
-        yI = utxJoin (utxMap ctxIns y)
-     in InL (Conflict "cs" x (Match yD yI))
+  = let yD = utxJoin (utxMap cCtxDel y)
+        yI = utxJoin (utxMap cCtxIns y)
+        yV = utxGetHolesWith Exists yD
+     in InL (Conflict "cs" x (CMatch yV yD yI))
 
 -- ** TEMPORARY
 
@@ -145,7 +148,7 @@ data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
   UTxE :: UTx ki codes f at -> UTxE ki codes f
 
 type MetaValuation ki codes
-  = M.Map Int (UTxE ki codes (Change ki codes))
+  = M.Map Int (UTxE ki codes (CChange ki codes))
 
 -- TODO: we might need renamings
 
@@ -153,7 +156,7 @@ type MetaValuation ki codes
 --  the variables of the first to transform it in the second
 utxUnify :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes)
          => UTx ki codes (MetaVarIK ki) at
-         -> UTx ki codes (Change ki codes) at
+         -> UTx ki codes (CChange ki codes) at
          -> Either String (MetaValuation ki codes)
 utxUnify (UTxHole var) uty
   = return $ M.singleton (metavarGet var) (UTxE uty)
@@ -173,15 +176,15 @@ utxUnify (UTxPeel cx px) (UTxHole var)
 
 
 utxYfinu :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki cam codes 
-            , UTxTestEqualityCnstr ki (Change ki codes))
+            , UTxTestEqualityCnstr ki (CChange ki codes))
          => UTx ki codes (MetaVarIK ki) at
          -> MetaValuation ki codes
-         -> Either String (UTx ki codes (Change ki codes) at)
+         -> Either String (UTx ki codes (CChange ki codes) at)
 utxYfinu utx@(UTxHole var) val
   = case M.lookup (metavarGet var) val of
       Nothing  -> Left . unwords $ ["utxYfinu:" , "undefined var:" , show var ]
       -- hacking the typechecker!
-      Just (UTxE res) -> case testEquality utx (utxJoin $ utxMap ctxDel res) of
+      Just (UTxE res) -> case testEquality utx (utxJoin $ utxMap cCtxDel res) of
         Nothing -> Left . unwords $ ["utxYfinu: testEquality:" , show var ]
         Just Refl -> return res
 utxYfinu (UTxOpq  kx )   val = return (UTxOpq kx)
@@ -189,16 +192,16 @@ utxYfinu (UTxPeel cx px) val
   = UTxPeel cx <$> mapNPM (flip utxYfinu val) px
 
 -- |applies a change to a UTx
-metaChange :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-              , UTxTestEqualityCnstr ki (Change ki codes))
-           => Change ki codes at
-           -> UTx ki codes (Change ki codes) at
-           -> Either String (UTx ki codes (Change ki codes) at)
-metaChange (Match del ins) utx
+metaCChange :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+              , UTxTestEqualityCnstr ki (CChange ki codes))
+           => CChange ki codes at
+           -> UTx ki codes (CChange ki codes) at
+           -> Either String (UTx ki codes (CChange ki codes) at)
+metaCChange (CMatch _ del ins) utx
   = utxUnify del utx >>= utxYfinu ins
 
-isSimpleCopy :: Change ki codes at -> Bool
-isSimpleCopy (Match (UTxHole h1) (UTxHole h2))
+isSimpleCopy :: CChange ki codes at -> Bool
+isSimpleCopy (CMatch _ (UTxHole h1) (UTxHole h2))
   = h1 == h2
 isSimpleCopy _ = False
 
@@ -207,16 +210,16 @@ isSimpleCopy _ = False
 --  @pb@ and should commute with @merger pb pa@ applied
 --  to the image of @pa@.
 merger :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-          ,UTxTestEqualityCnstr ki (Change ki codes))
-       => UTx ki codes (Change ki codes) at
-       -> UTx ki codes (Change ki codes) at
-       -> Either String (UTx ki codes (Change ki codes) at)
+          ,UTxTestEqualityCnstr ki (CChange ki codes))
+       => UTx ki codes (CChange ki codes) at
+       -> UTx ki codes (CChange ki codes) at
+       -> Either String (UTx ki codes (CChange ki codes) at)
 -- Holes on the left are preserved
 merger (UTxHole var) (UTxPeel cy py)
   = return $ UTxHole var
 -- Holes on the right are applied
 merger utx (UTxHole var)
-  = metaChange var utx  
+  = metaCChange var utx  
 -- finding a copied constant is irrelevant
 merger (UTxOpq kx)     (UTxOpq ky)
   = return (UTxOpq kx)
@@ -228,7 +231,6 @@ merger (UTxPeel cx px) (UTxPeel cy py)
       Just Refl -> UTxPeel cx <$> mapNPM (uncurry' merger) (zipNP px py)
 
 
--}
 {-
 
 Now consider the patch from O to A, call it OA:
