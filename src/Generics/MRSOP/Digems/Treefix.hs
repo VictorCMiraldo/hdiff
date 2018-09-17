@@ -114,6 +114,26 @@ utxRefine :: (forall at . f at -> UTx ki codes g at)
           -> UTx ki codes g at
 utxRefine f g = runIdentity . utxRefineM (return . f) (return . g)
 
+-- |Zips a UTx and a generic value together
+utxZipRep :: (MonadPlus m)
+          => UTx ki codes f at
+          -> NA ki (Fix ki codes) at
+          -> m (UTx ki codes (f :*: NA ki (Fix ki codes)) at)
+utxZipRep (UTxHole i) x = return $ UTxHole (i :*: x)
+utxZipRep (UTxOpq k)  _ = return $ UTxOpq k
+utxZipRep (UTxPeel c d) (NA_I (Fix x))
+  | Tag cx dx <- sop x
+  = case testEquality c cx of
+      Nothing   -> mzero
+      Just Refl -> UTxPeel cx <$> mapNPM (uncurry' utxZipRep) (zipNP d dx)
+
+utxForget :: UTx ki codes (NA ki (Fix ki codes)) at
+          -> NA ki (Fix ki codes) at
+utxForget (UTxHole x)   = x
+utxForget (UTxOpq k)    = NA_K k
+utxForget (UTxPeel c d) = NA_I . Fix . inj c $ mapNP utxForget d
+          
+
 {-
 -- |Reduces a treefix back to a tree
 utxReduceM :: (Monad m)
@@ -184,6 +204,11 @@ utxPretty pfam sty sx utx@(UTxPeel c rest)
 --
 -- Are two treefixes indexes over the same atom?
 
+
+-- TODO: remove this class too!
+--       this is the same hack as Data.Digems.Diff.MetaVar.Annotate
+--       All we need is a class 'IsOpq' comming from mrsop that
+--       allows us to compare the indexes of 'ki' for equality.
 class HasIKProjInj (ki :: kon -> *) (f :: Atom kon -> *) where
   konInj  :: ki k -> f (K k)
   varProj :: Proxy ki -> f x -> Maybe (IsI x)

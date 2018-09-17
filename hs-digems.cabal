@@ -19,6 +19,7 @@ library
                  ,     Generics.MRSOP.Digems.Renderer
                  ,     Data.Digems.Diff.Patch
                  ,     Data.Digems.Diff.Merge
+                 ,     Data.Digems.Diff.MetaVar
                  ,     Data.Digems.Diff.Preprocess
                  ,     Data.Digems.Diff.Show
                  ,     Data.Digems.Example

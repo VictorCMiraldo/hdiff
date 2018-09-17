@@ -1,11 +1,11 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE RankNTypes      #-}
-{-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE PolyKinds       #-}
-{-# LANGUAGE GADTs           #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Digems.Diff.Patch where
 
@@ -28,6 +28,7 @@ import Generics.MRSOP.Digems.Digest
 
 import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
+import Data.Digems.Diff.MetaVar
 import Unsafe.Coerce
 
 -- * Utils
@@ -35,6 +36,7 @@ import Unsafe.Coerce
 -- $utils
 --
 
+-- TODO: bubble this up to generics-mrsop
 getFixSNat :: (IsNat ix) => Fix ki codes ix -> SNat ix
 getFixSNat _ = getSNat (Proxy :: Proxy ix)
 
@@ -53,47 +55,6 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 --
 --  Where @forget@ returns the values in the holes.
 --
-
-
--- |A 'MetaVarI' has to be over a recursive position
-type MetaVarI  = ForceI (Const Int)
-
-instance Eq (Exists MetaVarI) where
-  (==) = (==) `on` metavarI2Int
-
-instance Ord (Exists MetaVarI) where
-  compare = compare `on` metavarI2Int
-
-metavarI2Int :: Exists MetaVarI -> Int
-metavarI2Int (Exists (ForceI (Const i))) = i
-
--- |A 'MetaVarIK' can be over a opaque type and a recursive position
-type MetaVarIK ki = NA (Annotate Int ki) (Const Int)
-
-instance Show (MetaVarIK ki at) where
-  show (NA_I (Const v))      = "i" ++ show v
-  show (NA_K (Annotate v _)) = "k" ++ show v
-
-instance Eq (MetaVarIK ki at) where
-  (NA_I (Const i)) == (NA_I (Const j)) = i == j
-  (NA_K (Annotate v _)) == (NA_K (Annotate u _)) = v == u
-  _ == _ = False
-
-instance Eq (Exists (MetaVarIK ki)) where
-  (==) = (==) `on` metavarIK2Int
-
-instance Ord (Exists (MetaVarIK ki)) where
-  compare = compare `on` metavarIK2Int
-
-metavarIK2Int :: Exists (MetaVarIK ki) -> Int
-metavarIK2Int (Exists (NA_I (Const i))) = i
-metavarIK2Int (Exists (NA_K (Annotate i _))) = i
-
-data Exists (f :: k -> *) :: * where
-  Exists :: f x -> Exists f
-
-exMap :: (forall x . f x -> g x) -> Exists f -> Exists g
-exMap f (Exists x) = Exists (f x)
 
 -- |A 'CChange', or, closed change, consists in a declaration of metavariables
 --  and two contexts. The precondition is that every variable declared
@@ -125,32 +86,14 @@ instance (Show1 ki) => Show (CChange ki codes at) where
   show (CMatch _ del ins)
     = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
 
--- I need to keet the @ki k@ in order to test UTx for index equalirt
-data Annotate (x :: *) (f :: k -> *) :: k -> * where
-  Annotate :: x -> f i -> Annotate x f i
+instance HasIKProjInj ki (CChange ki codes) where
+  konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
+  varProj pk (CMatch _ (UTxHole h) _)   = varProj pk h
+  varProj pk (CMatch _ (UTxPeel _ _) _) = Just IsI
+  varProj pk (CMatch _ _ _)             = Nothing
 
-instance (Show1 f , Show x) => Show1 (Annotate x f) where
-  show1 (Annotate i f)
-    = show1 f ++ "[" ++ show i ++ "]"
-
-instance HasIKProjInj ki (MetaVarIK ki) where
-  konInj    k        = NA_K (Annotate 0 k)
-  varProj _ (NA_I _) = Just IsI
-  varProj _ _        = Nothing
-
-
-instance HasIKProjInj ki (Change ki codes) where
-  konInj k = Match (UTxOpq k) (UTxOpq k)
-  varProj pk (Match (UTxHole h) _) = varProj pk h
-  varProj pk (Match (UTxPeel _ _) _) = Just IsI
-  varProj pk (Match _ _) = Nothing
-
-instance (TestEquality ki) => TestEquality (Annotate x ki) where
-  testEquality (Annotate _ x) (Annotate _ y)
-    = testEquality x y
-
-instance (TestEquality ki) => TestEquality (Change ki codes) where
-  testEquality (Match x _) (Match y _)
+instance (TestEquality ki) => TestEquality (CChange ki codes) where
+  testEquality (CMatch _ x _) (CMatch _ y _)
     = testEquality x y
 
 -- |Instead of keeping unecessary information, a 'RawPatch' will
@@ -159,19 +102,7 @@ instance (TestEquality ki) => TestEquality (Change ki codes) where
 type RawPatch ki codes = UTx ki codes (CChange ki codes)
 
 -- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
-type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
-
--- COMPAT MODE!!! TODO: REMOVE
-data Change ki codes at where
-  Match :: { ctxDel  :: UTx ki codes (MetaVarIK ki) at 
-           , ctxIns  :: UTx ki codes (MetaVarIK ki) at }
-        -> Change ki codes at
-
-chg :: CChange ki codes at -> Change ki codes at
-chg (CMatch _ del ins) = Match del ins
-
-
-
+type Patch ki codes ix = UTx ki codes (CChange ki codes) (I ix)
 
 -- * Diffing
 
@@ -219,11 +150,6 @@ buildSharingTrie minHeight x y
   = T.mapAccum (\i _ -> (i+1 , i)) 0
   $ T.zipWith (\_ _ -> ()) (buildTrie minHeight x)
                            (buildTrie minHeight y)
-
--- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
---  by forcing the atom to be an 'I'.
-data ForceI :: (Nat -> *) -> Atom kon -> * where
-  ForceI :: (IsNat i) => { unForceI :: f i } -> ForceI f (I i)
 
 -- |Given the sharing mapping between source and destination,
 --  we extract a tree prefix from a tree substituting every
@@ -324,13 +250,17 @@ closedChangeDistr utx = let vars = S.foldl' S.union S.empty
                          in CMatch vars del ins
 
 -- |Combines changes until they are closed
-changeDistr :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
-            -> Sum (OChange ki codes) (UTx ki codes (CChange ki codes)) at
-changeDistr (UTxOpq k)         = InR $ UTxOpq k
-changeDistr (UTxHole (InL oc)) = InL oc
-changeDistr (UTxHole (InR cc)) = InR $ UTxHole cc
-changeDistr (UTxPeel cx dx)
-  = let aux = mapNP changeDistr dx
+closure :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
+        -> Sum (OChange ki codes) (UTx ki codes (CChange ki codes)) at
+closure (UTxOpq k)         = InR $ UTxOpq k
+closure (UTxHole (InL oc)) = InL oc
+closure (UTxHole (InR cc)) = InR $ UTxHole cc
+-- There is some magic going on here. First we compute
+-- the recursive closures and check whether any of them is open.
+-- If not, we are done.
+-- Otherwise, we apply a bunch of "monad distributive properties" around.
+closure (UTxPeel cx dx)
+  = let aux = mapNP closure dx
      in case mapNPM fromInR aux of
           Just np -> InR $ UTxPeel cx np
           Nothing -> let chgs = mapNP (either' InL (InR . closedChangeDistr)) aux
@@ -343,6 +273,7 @@ changeDistr (UTxPeel cx dx)
                          then InR (UTxHole $ CMatch bvs (UTxPeel cx dels) (UTxPeel cx inss))
                          else InL (OMatch bvs fvs' (UTxPeel cx dels) (UTxPeel cx inss))
   where
+    -- TODO: refactor this to Util
     either' :: (f x -> a x) -> (g x -> a x) -> Sum f g x -> a x
     either' l r (InL x) = l x
     either' l r (InR x) = r x
@@ -382,15 +313,16 @@ digems mh x y
                   utxGetHolesWith unForceI' ins'
         ins     = utxRefine (refineHole holes) UTxOpq ins'
         del     = utxRefine (refineHole holes) UTxOpq del'
-     in case changeDistr (extractSpine i del ins) of
+     in case closure (extractSpine i del ins) of
+          -- TODO: prove in agda this is unreachable
           InL oc -> error "There are open changes"
-          InR cc -> utxRefine (UTxHole . chg) opqCopy cc
+          InR cc -> utxRefine UTxHole opqCopy cc
   where
     unForceI' :: ForceI (Const Int :*: x) at -> Int
     unForceI' (ForceI (Const i :*: _)) = i
 
-    opqCopy :: ki k -> UTx ki codes (Change ki codes) (K k)
-    opqCopy = UTxHole . chg . changeCopy . NA_K . Annotate 0 
+    opqCopy :: ki k -> UTx ki codes (CChange ki codes) (K k)
+    opqCopy = UTxHole . changeCopy . NA_K . Annotate 0 
     
     -- Given a set of holes that show up in both the insertion
     -- and deletion treefixes, we traverse a treefix and keep only
@@ -452,6 +384,7 @@ naeCast :: NAE ki codes
         -> MetaVarIK ki at
         -> Maybe (NA ki (Fix ki codes) at)
 -- TODO: remove this unsafeCoerce
+--       The 'IsOpq' will fix this too
 naeCast (SomeOpq x) (NA_K _) = Just $ NA_K (unsafeCoerce x)
 naeCast (SomeFix i) (NA_I v)
   = do Refl <- testEquality (getFixSNat i) (getSNat $ getConstIx v)
@@ -459,11 +392,6 @@ naeCast (SomeFix i) (NA_I v)
   where getConstIx :: Const k a -> Proxy a
         getConstIx _ = Proxy
 naeCast _           _        = Nothing
-
--- |Returns the metavariable forgetting about type information
-metavarGet :: MetaVarIK ki at -> Int
-metavarGet = elimNA go getConst
-  where go (Annotate x _) = x
 
 -- |And have our valuation be an assignment from
 --  hole-id's to trees.
@@ -517,6 +445,13 @@ utxInj (UTxOpq  k)   m
 utxInj (UTxPeel c p) m
   = (NA_I . Fix . inj c) <$> mapNPM (flip utxInj m) p
 
+
+applyCChange :: (TestEquality ki , Eq1 ki)
+             => CChange ki codes at
+             -> NA ki (Fix ki codes) at
+             -> Maybe (NA ki (Fix ki codes) at)
+applyCChange (CMatch _ del ins) x = utxProj del x >>= utxInj ins
+
 -- TODO: If changes are closed, we can now apply them locally!!
 
 -- |Applying a patch is trivial, we simply project the
@@ -526,11 +461,11 @@ apply :: (TestEquality ki , Eq1 ki , IsNat ix)
       -> Fix ki codes ix
       -> Maybe (Fix ki codes ix)
 apply patch x 
-  -- We really have to first extract everything from 'ctxDel'
-  -- in order to bind every metavariable, then inject them
-  -- into 'patchI'. This is due to reordering and contractions
-  = let patchD = utxJoin $ utxMap ctxDel patch
-        patchI = utxJoin $ utxMap ctxIns patch
-     in do val       <- utxProj patchD (NA_I x)
-           (NA_I x') <- utxInj  patchI val
-           return x'
+    -- since all our changes are closed, we can apply them locally
+    -- over the spine.
+    =   utxZipRep patch (NA_I x)
+    >>= utxMapM (uncurry' applyCChange)
+    >>= return . unNA_I . utxForget
+  where
+    unNA_I :: NA f g (I i) -> g i
+    unNA_I (NA_I x) = x
