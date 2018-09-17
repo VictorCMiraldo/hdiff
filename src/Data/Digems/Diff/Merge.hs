@@ -15,6 +15,7 @@ import qualified Data.Set as S
 
 import Control.Monad
 import Control.Monad.State
+import Control.Monad.Writer hiding (Sum)
 import Control.Monad.Identity
 
 import Generics.MRSOP.Util
@@ -52,6 +53,14 @@ noConflicts = utxMapM rmvInL
   where
     rmvInL (InL _) = Nothing
     rmvInL (InR x) = Just x
+
+-- |Returns the labels of the conflicts ina a patch.
+getConflicts :: PatchC ki codes ix -> [String]
+getConflicts = snd . runWriter . utxMapM go
+  where
+    go x@(InL (Conflict str _ _)) = tell [str] >> return x
+    go x                          = return x
+    
 
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
@@ -93,7 +102,7 @@ reconcile cp cq
 
 isCpy :: CChange ki codes at -> Bool
 isCpy (CMatch _ (UTxHole v) (UTxHole u)) = v == u
-isCpy _                               = False
+isCpy _                                  = False
 
 -- |Reconcile two changes. 
 cc :: (Eq1 ki)
@@ -114,6 +123,10 @@ cc x y
 -- |Transport a spine over a change. This returns a spine
 --  by adapting the old spine to the image of the change,
 --  if possible.
+--
+--  The operation is defined as:
+--    i) Apply the change to the raw patch
+--    
 sc :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
       , UTxTestEqualityCnstr ki (CChange ki codes))
    => RawPatch ki codes at
@@ -170,26 +183,34 @@ utxUnify (UTxPeel cx px) (UTxPeel cy py)
           Just Refl -> M.unions <$> elimNPM (uncurry' utxUnify) (zipNP px py)
 -- Conflicting scenarios
 utxUnify (UTxOpq ki) (UTxHole var)
-  = Left . unwords $ ["utxUnify:" , "opq hole"]
+  | isCpy var = return M.empty
+  | otherwise = Left . unwords $ ["utxUnify:" , "opq hole"]
 utxUnify (UTxPeel cx px) (UTxHole var)
-  = Left . unwords $ ["utxUnify:" , "peel hole"]
+  | isCpy var = return M.empty
+  | otherwise = Left . unwords $ ["utxUnify:" , "peel hole"]
 
 
 utxYfinu :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki cam codes 
             , UTxTestEqualityCnstr ki (CChange ki codes))
          => UTx ki codes (MetaVarIK ki) at
+         -> UTx ki codes (CChange ki codes) at
          -> MetaValuation ki codes
          -> Either String (UTx ki codes (CChange ki codes) at)
-utxYfinu utx@(UTxHole var) val
+utxYfinu utx@(UTxHole var) uty val
   = case M.lookup (metavarGet var) val of
       Nothing  -> Left . unwords $ ["utxYfinu:" , "undefined var:" , show var ]
       -- hacking the typechecker!
       Just (UTxE res) -> case testEquality utx (utxJoin $ utxMap cCtxDel res) of
         Nothing -> Left . unwords $ ["utxYfinu: testEquality:" , show var ]
         Just Refl -> return res
-utxYfinu (UTxOpq  kx )   val = return (UTxOpq kx)
-utxYfinu (UTxPeel cx px) val
-  = UTxPeel cx <$> mapNPM (flip utxYfinu val) px
+utxYfinu (UTxOpq  kx ) (UTxHole var) val
+  = return (UTxHole var)
+utxYfinu (UTxPeel cx px) (UTxHole var) val
+  = return (UTxHole var)
+utxYfinu (UTxPeel cx px) (UTxPeel cy py) val
+  = case testEquality cx cy of
+      Nothing   -> Left "utxYfinu: testEquality peel peel"
+      Just Refl -> UTxPeel cx <$> mapNPM (flip (uncurry' utxYfinu) val) (zipNP px py)
 
 -- |applies a change to a UTx
 metaCChange :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
@@ -198,7 +219,7 @@ metaCChange :: (Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
            -> UTx ki codes (CChange ki codes) at
            -> Either String (UTx ki codes (CChange ki codes) at)
 metaCChange (CMatch _ del ins) utx
-  = utxUnify del utx >>= utxYfinu ins
+  = utxUnify del utx >>= utxYfinu ins utx
 
 isSimpleCopy :: CChange ki codes at -> Bool
 isSimpleCopy (CMatch _ (UTxHole h1) (UTxHole h2))

@@ -167,11 +167,12 @@ tryApply :: (Eq1 ki , TestEquality ki , IsNat ix, Renderer1 ki
          -> IO (Maybe (Fix ki codes ix))
 tryApply patch fa fb
   = case D.apply patch fa of
-      Nothing  -> hPutStrLn stderr "!! apply failed"
+      Left err -> hPutStrLn stderr "!! apply failed"
+               >> hPutStrLn stderr ("  " ++ err)
                >> whenLoud
                    (hPutStrLn stderr (show $ renderFix render1 fa))
                >> exitFailure
-      Just fb' -> return $ maybe (Just fb') (const Nothing) fb
+      Right b' -> return $ maybe (Just b') (const Nothing) fb
 
 mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
@@ -198,7 +199,10 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
       putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
       displayPatchC stderr resBA
     case (,) <$> D.noConflicts resAB <*> D.noConflicts resBA of
-      Nothing        -> putStrLnErr " !! Conflicting !! "
+      Nothing        -> putStrLnErr " !! Conflicts O->A/O->B !!"
+                     >> putStrLnErr ("  " ++ unwords (D.getConflicts resAB))
+                     >> putStrLnErr " !! Conflicts O->B/O->A !!"
+                     >> putStrLnErr ("  " ++ unwords (D.getConflicts resBA))
                      >> return (ExitFailure 1)
       Just (ab , ba) -> do
         whenLoud (putStrLnErr "!! apply ba fa")

@@ -361,16 +361,17 @@ naeInj (NA_K k) = SomeOpq k
 -- |Casts an existential NAE to an expected one, from a metavariable.
 naeCast :: NAE ki codes
         -> MetaVarIK ki at
-        -> Maybe (NA ki (Fix ki codes) at)
+        -> Either String (NA ki (Fix ki codes) at)
 -- TODO: remove this unsafeCoerce
 --       The 'IsOpq' will fix this too
-naeCast (SomeOpq x) (NA_K _) = Just $ NA_K (unsafeCoerce x)
+naeCast (SomeOpq x) (NA_K _) = return $ NA_K (unsafeCoerce x)
 naeCast (SomeFix i) (NA_I v)
-  = do Refl <- testEquality (getFixSNat i) (getSNat $ getConstIx v)
-       return (NA_I i)
+  = case testEquality (getFixSNat i) (getSNat $ getConstIx v) of
+      Nothing   -> Left "naeCast: testEquality fail"
+      Just Refl -> return (NA_I i)
   where getConstIx :: Const k a -> Proxy a
         getConstIx _ = Proxy
-naeCast _           _        = Nothing
+naeCast _           _        = Left "naeCast mismatch"
 
 -- |And have our valuation be an assignment from
 --  hole-id's to trees.
@@ -384,14 +385,14 @@ type Valuation ki codes
 utxProj :: (TestEquality ki , Eq1 ki)
         => UTx ki codes (MetaVarIK ki) at
         -> NA ki (Fix ki codes) at
-        -> Maybe (Valuation ki codes)
+        -> Either String (Valuation ki codes)
 utxProj utx = go M.empty utx
   where    
     go :: (TestEquality ki , Eq1 ki)
        => Valuation ki codes
        -> UTx ki codes (MetaVarIK ki) ix
        -> NA ki (Fix ki codes) ix
-       -> Maybe (Valuation ki codes)
+       -> Either String (Valuation ki codes)
     go m (UTxHole var)   t
       -- We have already seen this hole; we need to make
       -- sure the tree's match. We are performing the
@@ -401,12 +402,14 @@ utxProj utx = go M.empty utx
       -- Otherwise, its the first time we see this
       -- metavariable. We will just insert a new tree here
       | otherwise
-      = Just (M.insert (metavarGet var) (naeInj t) m)
+      = return (M.insert (metavarGet var) (naeInj t) m)
     go m (UTxOpq k) (NA_K tk)
       = guard (eq1 k tk) >> return m
     go m (UTxPeel c gutxnp) (NA_I (Fix t))
       | Tag ct pt <- sop t
-      = do Refl <- testEquality c ct
+      = case testEquality c ct of
+          Nothing   -> Left "proj UTxPeel c ct"
+          Just Refl -> do
            getConst <$> cataNPM (\x (Const val) -> fmap Const (uncurry' (go val) x))
                                 (return $ Const m)
                                 (zipNP gutxnp pt)
@@ -415,10 +418,14 @@ utxProj utx = go M.empty utx
 --  when possible.
 utxInj :: UTx ki codes (MetaVarIK ki) at
        -> Valuation ki codes
-       -> Maybe (NA ki (Fix ki codes) at)
+       -> Either String (NA ki (Fix ki codes) at)
 utxInj (UTxHole var)  m
-  = do nae <- M.lookup (metavarGet var) m
+  = do nae <- lookup (metavarGet var) m
        naeCast nae var
+  where
+    lookup i m = case M.lookup i m of
+      Nothing -> Left "utxInj: undefined var"
+      Just r  -> return r
 utxInj (UTxOpq  k)   m
   = return (NA_K k)
 utxInj (UTxPeel c p) m
@@ -428,7 +435,7 @@ utxInj (UTxPeel c p) m
 applyCChange :: (TestEquality ki , Eq1 ki)
              => CChange ki codes at
              -> NA ki (Fix ki codes) at
-             -> Maybe (NA ki (Fix ki codes) at)
+             -> Either String (NA ki (Fix ki codes) at)
 applyCChange (CMatch _ del ins) x = utxProj del x >>= utxInj ins
 
 -- TODO: If changes are closed, we can now apply them locally!!
@@ -438,7 +445,7 @@ applyCChange (CMatch _ del ins) x = utxProj del x >>= utxInj ins
 apply :: (TestEquality ki , Eq1 ki , IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
-      -> Maybe (Fix ki codes ix)
+      -> Either String (Fix ki codes ix)
 apply patch x 
     -- since all our changes are closed, we can apply them locally
     -- over the spine.
