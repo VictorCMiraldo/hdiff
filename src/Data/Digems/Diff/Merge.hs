@@ -36,13 +36,13 @@ import Data.Digems.Diff.Patch
 -- |Hence, a conflict is simply two changes together.
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
   Conflict :: String
-           -> Change   ki codes at
-           -> Change   ki codes at
+           -> CChange   ki codes at
+           -> CChange   ki codes at
            -> Conflict ki codes at
 
 -- |A 'PatchC' is a patch with potential conflicts inside
 type PatchC ki codes ix
-  = UTx ki codes (Sum (Conflict ki codes) (Change ki codes)) (I ix)
+  = UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) (I ix)
 
 -- |Tries to cast a 'PatchC' back to a 'Patch'. Naturally,
 --  this is only possible if the patch has no conflicts.
@@ -56,7 +56,7 @@ noConflicts = utxMapM rmvInL
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
 (//) :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-        , UTxTestEqualityCnstr ki (Change ki codes))
+        , UTxTestEqualityCnstr ki (CChange ki codes))
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix

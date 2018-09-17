@@ -241,6 +241,7 @@ utxGetHolesWith tr = flip execState S.empty . utxMapM (getHole tr)
             -> State (S.Set r) (f ix)
     getHole f x = modify (S.insert $ f x) >> return x
 
+-- |A Utx with closed changes distributes over a closed change
 closedChangeDistr :: UTx ki codes (CChange ki codes) at
                   -> CChange ki codes at
 closedChangeDistr utx = let vars = S.foldl' S.union S.empty
