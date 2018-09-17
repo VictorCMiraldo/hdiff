@@ -205,30 +205,6 @@ extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
 
     toEx :: S.Set (Exists MetaVarI) -> S.Set (Exists (MetaVarIK ki))
     toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
-{-
-extractSpine i dx dy = evalState (go dx dy) i
-  where
-    tr :: UTx ki codes MetaVarI at
-       -> UTx ki codes (MetaVarIK ki) at
-    tr = utxMap (\(ForceI x) -> NA_I x)
-    
-    go :: (Eq1 ki)
-       => UTx ki codes MetaVarI at
-       -> UTx ki codes MetaVarI at
-       -> State Int (UTx ki codes (Change ki codes) at)
-    go utx@(UTxHole (ForceI x)) uty@(UTxHole (ForceI y))
-      | x == y    = return $ UTxHole $ changeCopy (NA_I x)
-      | otherwise = return $ UTxHole $ Match (tr utx) (tr uty)
-    go utx@(UTxOpq kx) uty@(UTxOpq ky)
-      | eq1 kx ky = get >>= \i -> put (i+1)
-                        >> return (UTxHole (changeCopy (NA_K $ Annotate i kx)))
-      | otherwise = return $ UTxHole (Match (UTxOpq kx) (UTxOpq ky))
-    go utx@(UTxPeel cx px) uty@(UTxPeel cy py)
-      = case testEquality cx cy of
-          Nothing   -> return $ UTxHole (Match (tr utx) (tr uty))
-          Just Refl -> UTxPeel cx <$> mapNPM (uncurry' go) (zipNP px py)
-    go x y = return $ UTxHole (Match (tr x) (tr y))
--}
 
 -- |Returns the metavariables in a UTx
 utxGetHolesWith :: (Ord r) => (forall at . f at -> r) -> UTx ki codes f at -> S.Set r
@@ -350,6 +326,8 @@ digems mh x y
 --
 -- The only slight trick is that we need to
 -- wrap our trees in existentials inside our valuation.
+
+-- TODO: write NAE in terms of Exists from MetaVar module
 
 -- |We start by wrapping the index of an atom that is, in fact,
 --  a metavariable, into an existential.
