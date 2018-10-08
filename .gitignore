@@ -20,4 +20,5 @@ cabal.project.local
 .HTF/
 *~
 .*
+!.projectile
 #*
