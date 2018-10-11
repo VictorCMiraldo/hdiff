@@ -48,6 +48,7 @@ import           Data.Digems.Diff.Show
 
 import           Languages.Interface
 import qualified Languages.While   as While
+import qualified Languages.Lines   as Lines
 import qualified Languages.Lua     as Lua
 import qualified Languages.Clojure as Clj
 
@@ -61,6 +62,9 @@ mainParsers
 #endif
 #ifdef ENABLE_CLOJURE_SUPPORT
     ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
+#endif
+#ifdef ENABLE_LINES_SUPPORT
+    ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
 #endif
     ]
 

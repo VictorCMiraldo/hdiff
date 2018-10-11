@@ -88,7 +88,10 @@ reconcile (UTxHole cp) (UTxHole cq) = cc cp cq
 reconcile cp           (UTxHole cq) = sc cp cq
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq           = UTxHole $ cs cp cq
--- (iv) Anything else is a conflict
+-- (iv) Anything else is a conflict; this should be technically
+--      unreachable since both patches were applicable to at least
+--      one common element; hence the spines can't disagree other than
+--      on the placement of the holes.
 reconcile cp cq
   = let cpD = utxJoin (utxMap cCtxDel cp)
         cpI = utxJoin (utxMap cCtxIns cp)
