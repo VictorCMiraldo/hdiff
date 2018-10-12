@@ -37,11 +37,28 @@ genTree h
       x <- choose (0, 4)
       vectorOf x $ genTree (h-1)
 
+genTree' :: Int -> Gen RTree
+genTree' h
+  | h >= 3    = choose (h - 3 , h + 3) >>= genTree
+  | otherwise = genTree h
+
 genPartition :: [a] -> Gen [Either a a]
 genPartition = mapM coinflip
   where
     coinflip x = choose (True , False) >>= \c
       -> return $ if c then Left x else Right x
+
+genDisjTrees :: RTree -> Gen (RTree , RTree)
+genDisjTrees rt = oneof [ ins rt , del rt , mod rt ]
+  where
+    -- Generates an insertion
+    ins :: RTree -> Gen (RTree , RTree)
+    ins t = do
+      n  <- genConName
+      k  <- choose (1 , 3)
+      ts <- vectorOf k (genTree' (height t))
+       
+
 
 genMutatedTree :: RTree -> Gen RTree
 genMutatedTree = undefined
@@ -58,6 +75,7 @@ onlyOne xs = go xs >>= oneof . map return
       xs' <- go xs
       return ((Right x : map Left xs) : map ((Left x) :) xs')
 
+{-
 
 option :: Float -> (a -> Gen a) -> a -> Gen a
 option thr f x = do
@@ -104,6 +122,8 @@ genMerge o ab
           (as , bs) <- unzip <$> mapM (uncurry genMerge) (zip os abs)
           elements [ (o :>: as , ab :>: bs) , (ab :>: as , o :>: bs) ]
       
+-}
+
 t1 = "Add" :>: [ "Var" :>: [ "x" :>: [] ] , "Var" :>: [ "y" :>: [] ] ]
 t2 = "Sub" :>: [ "LOL" :>: [ "x" :>: [] ] ]
                    
