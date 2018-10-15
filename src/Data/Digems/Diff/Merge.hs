@@ -142,8 +142,6 @@ sc x y = case metaCChange y x of
                         in UTxHole $ InL (Conflict err (CMatch xV xD xI) y)
            Right res -> utxMap InR res
 
-
-
 -- |Transports a change over a spine.
 --  This adapts the change over the new spine and
 -- returns a new change (if possible)
