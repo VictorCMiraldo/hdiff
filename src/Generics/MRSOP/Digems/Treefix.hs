@@ -14,8 +14,10 @@ import Data.Proxy
 import Data.Functor.Const
 import Data.Type.Equality
 import Data.List (foldl')
+import qualified Data.Set as S (insert , empty , Set)
 
 import Control.Monad.Identity
+import Control.Monad.State
 
 import qualified Data.Text.Prettyprint.Doc as PP
 
@@ -133,6 +135,26 @@ utxForget (UTxHole x)   = x
 utxForget (UTxOpq k)    = NA_K k
 utxForget (UTxPeel c d) = NA_I . Fix . inj c $ mapNP utxForget d
           
+-- |Returns the metavariables in a UTx
+utxGetHolesWith :: (Ord r) => (forall at . f at -> r) -> UTx ki codes f at -> S.Set r
+utxGetHolesWith tr = flip execState S.empty . utxMapM (getHole tr)
+  where
+    -- Gets all holes from a treefix.
+    getHole :: (Ord r)
+            => (forall at . f at -> r)
+            -> f ix
+            -> State (S.Set r) (f ix)
+    getHole f x = modify (S.insert $ f x) >> return x
+
+utxGetHolesWith' :: (forall at . f at -> r) -> UTx ki codes f at -> [r]
+utxGetHolesWith' tr = flip execState [] . utxMapM (getHole tr)
+  where
+    -- Gets all holes from a treefix.
+    getHole :: (forall at . f at -> r)
+            -> f ix
+            -> State [r] (f ix)
+    getHole f x = modify (f x :) >> return x
+
 
 {-
 -- |Reduces a treefix back to a tree

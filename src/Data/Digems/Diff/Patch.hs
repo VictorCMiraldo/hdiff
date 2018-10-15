@@ -206,17 +206,6 @@ extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
     toEx :: S.Set (Exists MetaVarI) -> S.Set (Exists (MetaVarIK ki))
     toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
 
--- |Returns the metavariables in a UTx
-utxGetHolesWith :: (Ord r) => (forall at . f at -> r) -> UTx ki codes f at -> S.Set r
-utxGetHolesWith tr = flip execState S.empty . utxMapM (getHole tr)
-  where
-    -- Gets all holes from a treefix.
-    getHole :: (Ord r)
-            => (forall at . f at -> r)
-            -> f ix
-            -> State (S.Set r) (f ix)
-    getHole f x = modify (S.insert $ f x) >> return x
-
 -- |A Utx with closed changes distributes over a closed change
 closedChangeDistr :: UTx ki codes (CChange ki codes) at
                   -> CChange ki codes at
@@ -300,7 +289,7 @@ digems mh x y
 
     opqCopy :: ki k -> UTx ki codes (CChange ki codes) (K k)
     opqCopy = UTxHole . changeCopy . NA_K . Annotate 0 
-    
+
     -- Given a set of holes that show up in both the insertion
     -- and deletion treefixes, we traverse a treefix and keep only
     -- those. All other places where there could be a hole are
