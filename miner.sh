@@ -5,6 +5,7 @@ timeout="5s"
 mergetool="digem"
 lang="clj"
 skip=0
+exitonconflict=false
 
 function showUsage() {
   echo "usage: ./miner.sh [options] path/to/dataset"
@@ -34,6 +35,9 @@ function showUsage() {
   echo "      Select the language we are supposed to merge"
   echo "      Default: $lang"
   echo ""
+  echo "    -x , --exit-on-conflict"
+  echo "      Stops the script on the first true conflict or on 'panic'"
+  echo ""
   exit 0
 }
 
@@ -47,6 +51,7 @@ while [[ "$#" -gt "1" ]]; do
   case $arg in
     -s|--skip) skip="${1?'missing argument to --skip'}" ;;
     -l|--lang) lang="${1?'missing argument to --lang'}" ;;
+    -x|--exit-on-conflict) exitonconflict=true ;;
   esac
 done
 
@@ -77,7 +82,7 @@ for d in ${dir}/*; do
     case $res in
       0) echo "${d} $mergetool success" ;;
       1) echo "${d} $mergetool conflicting"
-         if [[ ! -e "$d/true-conflict" ]]; then
+         if $exitonconflict && [[ ! -e "$d/true-conflict" ]]; then
            mkdir -p PANIC      
            cp "${d}/A.$lang" PANIC/
            cp "${d}/O.$lang" PANIC/
@@ -86,11 +91,13 @@ for d in ${dir}/*; do
          fi 
       ;;
       2) echo "${d} $mergetool panic"
-         mkdir -p PANIC 
-         cp "${d}/A.$lang" PANIC/
-         cp "${d}/O.$lang" PANIC/
-         cp "${d}/B.$lang" PANIC/
-         exit 2
+         if $exitonconflict; then
+           mkdir -p PANIC 
+           cp "${d}/A.$lang" PANIC/
+           cp "${d}/O.$lang" PANIC/
+           cp "${d}/B.$lang" PANIC/
+           exit 2
+         fi
       ;;
       *) echo "${d} $mergetool unknown($res)" ;;
     esac
