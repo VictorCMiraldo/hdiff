@@ -197,7 +197,7 @@ extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
                      evy = toEx vy
                   in if vy `S.isSubsetOf` vx
                      then InR $ CMatch evx (tr utx) (tr uty)
-                     else InL $ OMatch evx (toEx $ S.difference vx vy) (tr utx) (tr uty)
+                     else InL $ OMatch evx (toEx $ S.difference vy vx) (tr utx) (tr uty)
     
     tr :: UTx ki codes MetaVarI at
        -> UTx ki codes (MetaVarIK ki) at
