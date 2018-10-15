@@ -135,12 +135,11 @@ sc :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
    => RawPatch ki codes at
    -> CChange ki codes at
    -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
-sc x y = case metaCChange y x of
-           Left err -> let xD = utxJoin (utxMap cCtxDel x)
-                           xI = utxJoin (utxMap cCtxIns x)
-                           xV = utxGetHolesWith Exists xD
-                        in UTxHole $ InL (Conflict err (CMatch xV xD xI) y)
-           Right res -> utxMap InR res
+sc x y = case metaChange y x of
+           Left err -> let xD = utxJoin (utxMap ctxDel x)
+                           xI = utxJoin (utxMap ctxIns x)
+                        in UTxHole $ InL (Conflict err (Match xD xI) y)
+           Right res -> utxGeneralize (utxMap InR res)
 
 -- |Transports a change over a spine.
 --  This adapts the change over the new spine and
