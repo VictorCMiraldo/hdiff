@@ -40,13 +40,17 @@ mustMerge lbl a o b
              case (oaob , oboa) of
                (Just ab , Just ba)
                  -> case (apply ab b' , apply ba a') of
-                     (Right c1 , Right c2) -> property (eqFix eq1 c1 c2)
+                     (Right c1 , Right c2)
+                       -> counterexample "results don't match" (property (eqFix eq1 c1 c2))
                      _ -> counterexample "apply failed" False
                _ -> property True -- the test above must have failed already!
   where
     isJust :: Maybe a -> Property
     isJust (Just _) = property True
     isJust Nothing  = counterexample "isJust: Nothing" False
+
+----------------------
+-- Example 1
 
 a1 , o1 , b1 :: RTree
 a1 = "a" :>: [ "b" :>: []
