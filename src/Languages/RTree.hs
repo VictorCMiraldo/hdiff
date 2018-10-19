@@ -21,6 +21,8 @@ import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Renderer
 
+import Data.Text.Prettyprint.Doc (pretty)
+
 import Control.Monad
 import Test.QuickCheck
 
@@ -41,6 +43,9 @@ instance Eq1 W where
 
 instance Digestible1 W where
   digest1 (W_String s)  = hashStr s
+
+instance Renderer1 W where
+  render1 (W_String s) = pretty s
 
 instance Show1 W where
   show1 (W_String s)  = s
