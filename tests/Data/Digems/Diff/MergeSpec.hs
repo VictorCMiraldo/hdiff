@@ -11,6 +11,7 @@ import Generics.MRSOP.Digems.Treefix
 import Data.Digems.Diff.Patch
 import Data.Digems.Diff.MetaVar
 import Data.Digems.Diff.Merge
+import Data.Digems.Diff.Show
 import Languages.RTree
 
 import Test.QuickCheck
