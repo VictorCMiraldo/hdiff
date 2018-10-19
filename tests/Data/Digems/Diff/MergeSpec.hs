@@ -23,6 +23,10 @@ digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = digems 1 (dfrom $ into @FamRTree a)
                           (dfrom $ into @FamRTree b)
 
+applyRTree :: PatchRTree -> RTree -> Maybe RTree
+applyRTree p x = either (const Nothing) (Just . unEl . dto @Z . unFix)
+               $ apply p (dfrom $ into @FamRTree x)
+
 --------------------------------------------
 -- ** Manual Merge Examples
 

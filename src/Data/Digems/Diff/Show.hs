@@ -38,8 +38,11 @@ metavarPretty sty (NA_K (D.Annotate i _))
 
 -- when using emacs, the output of the repl is in red;
 -- hence, life is easier when we show a different color isntead.
-myred   = Yellow
-mygreen = Green
+-- btw, emacs only interprets dull colors.
+myred       = colorDull Yellow
+mygreen     = colorDull Green
+mydullred   = colorDull Yellow
+mydullgreen = colorDull Green
 
 {-
 -- |Shows a conflict in a pretty fashion  
@@ -70,8 +73,8 @@ showRawPatch patch
                     -> Doc AnsiStyle
     prettyCChangeDel (D.CMatch _ del ins)
       = utxPretty (Proxy :: Proxy fam)
-                  (annotate (color myred))
-                  (metavarPretty (annotate $ colorDull myred))
+                  (annotate myred)
+                  (metavarPretty (annotate mydullred))
                   del
 
     prettyCChangeIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
@@ -79,8 +82,8 @@ showRawPatch patch
                     -> Doc AnsiStyle
     prettyCChangeIns (D.CMatch _ del ins)
       = utxPretty (Proxy :: Proxy fam)
-                  (annotate (color mygreen))
-                  (metavarPretty (annotate $ colorDull mygreen))
+                  (annotate mygreen)
+                  (metavarPretty (annotate mydullgreen))
                   ins
 
 showPatchC :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
@@ -98,8 +101,8 @@ showPatchC patch
       = annotate (color Blue) (pretty lbl)
     prettyConfDel (InR (D.CMatch _ del ins))
       = utxPretty (Proxy :: Proxy fam)
-                  (annotate (color myred))
-                  (metavarPretty (annotate $ colorDull myred))
+                  (annotate myred)
+                  (metavarPretty (annotate mydullred))
                   del
 
     prettyConfIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
@@ -109,8 +112,8 @@ showPatchC patch
       = annotate (color Blue) (pretty lbl)
     prettyConfIns (InR (D.CMatch _ del ins))
       = utxPretty (Proxy :: Proxy fam)
-                  (annotate (color mygreen))
-                  (metavarPretty (annotate $ colorDull mygreen))
+                  (annotate mygreen)
+                  (metavarPretty (annotate mydullgreen))
                   ins
 
 instance (HasDatatypeInfo ki fam codes , Renderer1 ki)
