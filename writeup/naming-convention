@@ -1,0 +1,35 @@
+#! /bin/bash
+
+forbid="!datatype,data type,data-type,\
+!fixpoint,fixed point,fixed-point,fix point,fixed-point,\
+!pattern functor,pattern-functor\
+!subtree,sub tree,sub-tree\
+!type level,type-level,typelevel"
+
+if [[ $# -ne 1 ]]; then
+  echo "I need a file!"
+  exit 1
+fi
+
+file=$1
+ok=true
+
+IFS=","
+for pat in ${forbid[*]}; do
+  if [[ "${pat:0:1}" == "!" ]]; then
+    echo "[Enforcing: $pat]"
+  else
+    grep -n --colour "$pat" $file
+    if [[ "$?" == "0" ]]; then
+      ok=false
+    fi
+  fi
+done
+
+if $ok; then
+  echo "You're ok! :)"
+  exit 0
+else
+  echo "Be congruent!"
+  exit 1
+fi
