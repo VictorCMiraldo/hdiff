@@ -85,7 +85,21 @@
   \postcode{3584 CC}
   \country{The Netherlands} 
 }
-\email{V.CacciariMiraldo@@uu.nl}
+\email{v.cacciarimiraldo@@uu.nl}
+
+\author{Wouter Swierstra}
+\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+\affiliation{
+  \position{Assistant Professor}
+  \department{Information and Computing Sciences}
+  \institution{Utrecht University}
+  \streetaddress{Princetonplein, 5}
+  \city{Utrecht}
+  \state{Utrecht}
+  \postcode{3584 CC}
+  \country{The Netherlands} 
+}
+\email{w.s.swierstra@@uu.nl}
 
 %% Abstract
 %% Note: \begin{abstract}...\end{abstract} environment must come
