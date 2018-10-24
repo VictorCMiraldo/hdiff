@@ -147,35 +147,112 @@ gzigzag zag = Fix (There (Here (Cons (NA_I zag) Nil)))
 look at representing structured diffs and discuss the advantages and disadvantages
 of each technique.
 
+\subsection{Unstructured Differencing}
+\label{sec:diff}
+
+Introduce \cite{McIlroy1979}.
+
 \subsubsection{Edit Scripts}
 \label{sec:es}
 
-  Introduce \cite{Loh2009,Vassena2016}.
+  Before explaining the tree-structured version of \emph{edit scripts}, it is worthwhile
+to take a look at the original notion of edit scripts upsed by the unix \texttt{diff}~\cite{McIlroy1979}.
+Those edit scripts are nothing but a list of \emph{instructions} to be applied on a per-line basis
+on the source file. Below we sketch how the list of instructions would act on a a file
+seen as a list of lines:
+
+\begin{myhs}
+\begin{code}
+data EditInst = Ins String | Del String | Cpy
+
+apply :: [EditInst] -> [String] -> Maybe [String]
+apply [] [] = Just []
+apply (Cpy    : es) (line : file) 
+  = (line :) <$$> apply es file
+apply (Del s  : es) (line : file) 
+  | s == line  = apply es file
+  | otherwise  = Nothing
+apply (Ins s  : es) file 
+  = (s :) <$$> apply es file
+apply _ _
+  = Nothing
+\end{code}
+\end{myhs}
+  
+  \TODO{Talk about how |[ES]| is isomorphic to |Nat -> ES|, here, the |Nat| corresponds to 
+        the location in the file, when seen as a list of lines}
+  \TODO{The operations correspond to three operations on |Nat|: pattern match and extract
+        something (del); succ (ins) and id (cpy)}
+
+  In \citet{Loh2009}, we see an extension of this idea based on the Euler traversal of a tree:
+one can still have a list of edit instructions and apply them to a tree. By traverssing the tree
+in a predetermined order, we can look at all the elements as if they were in a list. In fact,
+using some clever type level programming, one can even ensure that the edit intructions
+are well typed. The core idea relies on indexing the type of instructions based on the 
+code of the family being used:
+
+\victor{should we really be showing datatypes?}
+\begin{myhs}
+\begin{code}
+data ES (codes :: [[[Atom kon]]]) :: [Atom kon] -> [Atom kon] -> * where
+  E0   :: ES codes '[] '[]
+  Ins  :: Cof codes a c
+       -> ES codes i  (Tyof codes c  :++:     j)
+       -> ES codes i  (a             (P (:))  j)
+  Del  :: Cof codes a c
+       -> ES codes (Tyof codes c  :++:     i)  j
+       -> ES codes (a             (P (:))  i)  j
+  Cpy  :: Cof codes a c
+       -> ES codes (Tyof codes c :++:     i)  (Tyof codes c  :++:   j)
+       -> ES codes (a            (P (:))  i)  (a             (P :)  j)
+\end{code}
+\end{myhs}
+
+  Where |Cof codes a c| is a predicate that states that |c| is a valid constructor
+for a type |a| and |Tyof codes c| is a type level function that returns the list of
+atoms representing the fields of said constructor. 
+\victor{how important are the details of this implementations? I feel like we should
+just show the signature of |EditInst| and leave the details for the intersted reader to pursue}
+
+  The application function would then be declared as:
+
+\begin{myhs}
+\begin{code}
+apply :: ES codes xs ys -> NP (NA (Fix codes)) xs -> Maybe (NP (NA (Fix codes)) ys)
+\end{code}
+\end{myhs}
+
+  Which states that given a product of trees with types |xs|, it might be able to
+produce a product of trees with types |ys|. This approach has the advantage to enjoy
+a number of the optimization techniques that have been employed for the unix \texttt{diff}.
+In fact, a simple memoization table would already yield a quadratic algorithm in the sum
+of constructors in both origin and destinations. The heterogeneity brings a complicated problem,
+however, when one wants to consider the merging of two such edit scripts~\cite{Vassena2016}.
+Given |p :: ES codes xs ys| and |q :: ES codes xs zs|, it is hard to decide what will the
+index of the merge, |merge p q :: ES codes xs _| by. In fact, this might be impossible.
 
 \subsubsection{Spines and Alignments}
 \label{sec:stdiff}
 
+  \TODO{Homogeneous patches make life esier!}
+  \TODO{Homogeneous patches make computer's warm!}  
+
   Introduce \cite{Miraldo2017}.
-
-\subsection{Mutually Recursive Families}
-\label{sec:mrsop}
-
-  The \texttt{generics-mrsop} library provides a \emph{sums-of-products}
-view over the data.
-
-
-  \begin{itemize}
-    \item Go over representation of data and some generic functionality
-    \item the notion of constructors and their fields being the central aspect.
-  \end{itemize} 
 
 \section{Representing Changes}
 \label{sec:representing-changes}
+
+  \TODO{As we hinted earlier, a patch is all about a location and a instruction}
+  \TODO{look at locations in a tree}
+  \TODO{show how there are more operations we can perform on that and explain that that's
+        where the slow down is!}
 
   Some of the previous work on well-typed, structured differencing 
 
 \subsection{Well Typed Tree Prefixes}
 \label{sec:treefix}
+
+  \TODO{Treefixes!}
 
 \section{Computing Changes}
 \label{sec:algorithm}
