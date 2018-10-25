@@ -252,7 +252,32 @@ index of the merge, |merge p q :: ES codes xs _| by. In fact, this might be impo
 \subsection{Well Typed Tree Prefixes}
 \label{sec:treefix}
 
-  \TODO{Treefixes!}
+\TODO{I use ``source tree'' here; define it somewhere}
+
+  In fact, a tree diff is nothing but a collection of locations inside
+a tree with a change to be applied on each said location. We can imagine
+overlapping these changes into a single datatype that consists of a tree
+with the same shape as the source tree and holes where the changes happen.
+We can even go a step further and parametrize the type of said holes
+ariving in the following (free) monad:
+
+\begin{myhs}
+\begin{code}
+data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
+  TxHole  :: phi at  -> Tx codes phi at
+  TxOpq   :: Opq k   -> Tx codes phi (K k)
+  TxPeel  :: Constr (Lkup i codes) c
+          -> NP (Tx codes phi) (Tyof codes c)
+          -> Tx codes phi (I i)
+\end{code}
+\end{myhs}
+
+\TODO{Why no indicies?}
+
+  Extentionally, a value |t| of type |Tx codes phi (I i)| consists in a value of 
+type |Fix codes i| with certain subtrees replaced by a value of type |phi|. 
+  
+
 
 \section{Computing Changes}
 \label{sec:algorithm}
