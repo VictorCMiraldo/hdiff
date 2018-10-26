@@ -1,8 +1,49 @@
 \section{Introduction}
 \label{sec:introduction}
 
+\TODO{one or two paragraphs here}
+
+  The (well-typed) differencing problem consists in finding a type |Patch|, 
+together with functions |diff| and |apply|, for some type |a|, that
+satisfy a collection of properties.
+
+\begin{myhs}
+\begin{code}
+diff  :: a -> a -> Patch a
+apply :: Patch a -> a -> Maybe a 
+\end{code}
+\end{myhs}
+
+  Among the properties one might expect from this pair of functions
+is, at least, correctness:
+
+\[ \forall x y . apply (diff x y) x \equiv y \]
+
+  Yet, there is a collection of other properties that might
+by desirable to enjoy. For instance, it is certainly desirable that |diff|
+is both space and time efficient. That is, it must be fast to compute
+a |Patch| and the size of the patch must be smaller than storing both trees.
+
+  Another property one might want to have is the ability to apply a patch
+to a number of trees. In fact, we want to apply a patch to the \emph{maximum}
+number of trees possible. For example:
+
+\[ forall x y . apply (diff x x) y \equiv y \]
+
+  Capturing the idea that a patch that comes from not changing
+anything must be applicable to any element performing exactly 
+that action: not changing anything.
+
+  The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing problem
+for the special case of |a == [String]|, ie, it files are seen as
+lists of lines. We are interested in a more generic solution, however.
+
+  \TODO{one or two para's here}
+
+
 \subsection{Contributions}
 
+  Our contribution 
 \begin{itemize}
   \item We provide a linear algorithm to compute tree differences
         with support for swapping and contractions.
