@@ -9,15 +9,17 @@ satisfy a collection of properties.
 
 \begin{myhs}
 \begin{code}
-diff  :: a -> a -> Patch a
-apply :: Patch a -> a -> Maybe a 
+diff   :: a -> a -> Patch a
+apply  :: Patch a -> a -> Maybe a 
 \end{code}
 \end{myhs}
 
   Among the properties one might expect from this pair of functions
 is, at least, correctness:
 
-\[ \forall x y . apply (diff x y) x \equiv y \]
+\[
+| forall x y dot apply (diff x y) x == Just y |
+\]
 
   Yet, there is a collection of other properties that might
 by desirable to enjoy. For instance, it is certainly desirable that |diff|
@@ -28,7 +30,7 @@ a |Patch| and the size of the patch must be smaller than storing both trees.
 to a number of trees. In fact, we want to apply a patch to the \emph{maximum}
 number of trees possible. For example:
 
-\[ forall x y . apply (diff x x) y \equiv y \]
+\[ | forall x y dot apply (diff x x) y == Just y | \]
 
   Capturing the idea that a patch that comes from not changing
 anything must be applicable to any element performing exactly 
@@ -43,10 +45,15 @@ lists of lines. We are interested in a more generic solution, however.
 
 \subsection{Contributions}
 
-  Our contribution 
+  The main contributions of this paper are:
+
 \begin{itemize}
-  \item We provide a linear algorithm to compute tree differences
-        with support for swapping and contractions.
+  \item We provide a solution to the well-typed differencing problem that 
+        is space and time efficient, as outlined in \Cref{sec:introduction}. 
+  \item Our solution is applicable to a large universe of types,
+        namelly mutually recursive families.
+  \item We provide a prototype implementation of our algorithm
+        that can easily support multiple programming languages.
 \end{itemize}
 
 \section{Background}
@@ -160,12 +167,14 @@ fits perfectly:
 
 \begin{myhs}
 \begin{code}
+type Rep phi = NS (NP (NA phi))
+
 newtype Fix (codes :: P [ P [ P [ Atom ] ] ]) (ix :: Nat)
-  = Fix { unFix :: NS (NP (NA (Fix codes))) (Lkup codes ix) }
+  = Fix { unFix :: Rep (Fix codes) (Lkup codes ix) }
 \end{code}
 \end{myhs}
 
-Where |Lkup codes ix| denotes the type level lookup of the element with index |ix| within
+  Where |Lkup codes ix| denotes the type level lookup of the element with index |ix| within
 the list |codes|. This type family throws a type error if the index is out of bounds.
 We could then write the generic versions of the constructors of type |Zig|:
 
@@ -179,17 +188,41 @@ gzigzag zag = Fix (There (Here (Cons (NA_I zag) Nil)))
 \end{code}
 \end{myhs}
 
-\TODO{Write about |View|, |sop| and |match|}.
+  One of the main benefits of the \emph{sums-of-products} approach to generic
+programming is that it enables us to pattern match generically. In fact,
+we can state that a value of a type consists precisely in a choice of constructor
+and a product of its fields. We start by defining the notion of \emph{constructor}
+of a generic type:
 
-\subsection{Structured Differencing}
-\label{sec:bgstdiff}
+\begin{myhs}
+\begin{code}
+data Constr :: [[k]] -> Nat -> * where
+  CZ ::                 Constr (x (P (:)) xs)  Z
+  CS :: Constr xs c ->  Constr (x (P (:)) xs)  (S c)
+\end{code}
+\end{myhs}
 
-  Once equipped with enough terminology on generic programming, lets
-look at representing structured diffs and discuss the advantages and disadvantages
-of each technique.
+  We use |Constr sum c| as a predicate indicating that |c| is a valid constructor, ie,
+it is a valid index into the type level list |sum|. Next, we define a |View| over
+a value of a sum type to be a choice of constructor and corresponding product:
 
-\subsection{Unstructured Differencing}
+\begin{myhs}
+\begin{code}
+data View :: (Nat -> *) -> P [ P [ Atom ] ] -> * where
+  Tag :: Constr sum c -> NP (NA phi) (Lkup c sum) -> View phi sum
+
+sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
+\end{code}
+\end{myhs}
+
+  The |sop| functions converts a value in its standard representation
+to the more useful choice of constructor and associated product.
+
+\subsection{Differencing}
 \label{sec:diff}
+
+  Equipped with the vocabulary to talk about values of arbitrary data types
+generically, let us introduce some of the previous work on differencing.
 
 Introduce \cite{McIlroy1979}.
 
@@ -219,13 +252,15 @@ apply _ _
   = Nothing
 \end{code}
 \end{myhs}
-  
-  \TODO{Talk about how |[ES]| is isomorphic to |Nat -> ES|, here, the |Nat| corresponds to 
-        the location in the file, when seen as a list of lines}
-  \TODO{The operations correspond to three operations on |Nat|: pattern match and extract
-        something (del); succ (ins) and id (cpy)}
 
-  In \citet{Loh2009}, we see an extension of this idea based on the Euler traversal of a tree:
+  We call the list of instructions, |[EditInst]|, the \emph{edit script}. Note how this list
+is essentially isomorphic to a partial function from |Nat| to |EditInst|, tabulating
+that list. Under this view there is a nice correlation between the operations on the
+file and their semantics over the subsequent locations. Deleting a line can be seen
+as decreasing the locations (by pattern matching). Inserting a line is changing
+the locations to be their successor and copying a line is the identity operation on locations.
+
+   In \citet{Loh2009}, we see an extension of this idea based on the Euler traversal of a tree:
 one can still have a list of edit instructions and apply them to a tree. By traverssing the tree
 in a predetermined order, we can look at all the elements as if they were in a list. In fact,
 using some clever type level programming, one can even ensure that the edit intructions
@@ -272,13 +307,14 @@ however, when one wants to consider the merging of two such edit scripts~\cite{V
 Given |p :: ES codes xs ys| and |q :: ES codes xs zs|, it is hard to decide what will the
 index of the merge, |merge p q :: ES codes xs _| by. In fact, this might be impossible.
 
-\subsubsection{Spines and Alignments}
-\label{sec:stdiff}
-
-  \TODO{Homogeneous patches make life esier!}
-  \TODO{Homogeneous patches make computer's warm!}  
-
-  Introduce \cite{Miraldo2017}.
+  In an effort to overcome this limitation \citet{Miraldo2017} introduces a 
+more structured approach that consists in constraining the heterogeneity to
+only the necessary places. That is, the |Patch| type receives a single
+index, call it |ty|, and represents a change that transform values of type |ty|
+into each other. \TODO{cite Arian and Giovanni?} Although this
+makes merging easier, computing these patches is drastically more expensive. 
+The algorithm is not more complicated, per se, but we lose the ability to
+use memoization to speed up the computation.
 
 \section{Representing Changes}
 \label{sec:representing-changes}
