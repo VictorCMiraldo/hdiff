@@ -38,7 +38,8 @@ that action: not changing anything.
 
   The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing problem
 for the special case of |a == [String]|, ie, it files are seen as
-lists of lines. We are interested in a more generic solution, however.
+lists of lines. We are interested in a solution that handles more types other
+than simply lists of strings.
 
   \TODO{one or two para's here}
 
@@ -314,10 +315,43 @@ index, call it |ty|, and represents a change that transform values of type |ty|
 into each other. \TODO{cite Arian and Giovanni?} Although this
 makes merging easier, computing these patches is drastically more expensive. 
 The algorithm is not more complicated, per se, but we lose the ability to
-use memoization to speed up the computation.
+easily exploit memoization to speed up the computation.
 
 \section{Representing Changes}
 \label{sec:representing-changes}
+
+  Unlike the previous work on well-typed structured differencing, we will 
+represent changes in a drastically different way. We will illustrate our generic
+definitions by instantiating them to work on top of |Tree23|, defined as follows:
+
+\begin{myhs}
+\begin{code}
+data Tree23  = Leaf
+             | Node2 Int Tree23 Tree23
+             | Node3 Int Tree23 Tree23 Tree23
+\end{code}
+\end{myhs}
+
+  Now, suppose one wants to transform the trees below into each other:
+
+\begin{myhs}
+\begin{code}
+t1 = Node2 10 (Node3 100 a b c) d
+t2 = Node3 42 a b d
+\end{code}
+\end{myhs}
+
+  \TODO{draw the treefixes}
+
+  
+
+
+  Our representation of changes will abstract away all the subtrees that are 
+copied. 
+
+  Extensionally, a diff is a collection of changes coupled with a location
+inside a given tree, which dictates ``where'' in the source object this
+change should be applied. 
 
   \TODO{As we hinted earlier, a patch is all about a location and a instruction}
   \TODO{look at locations in a tree}
@@ -330,10 +364,14 @@ use memoization to speed up the computation.
 \label{sec:treefix}
 
 \TODO{I use ``source tree'' here; define it somewhere}
+ 
+  Extensionally, diff is nothing but a collection of locations inside
+a tree with a change to be applied on each said location. 
 
-  In fact, a tree diff is nothing but a collection of locations inside
-a tree with a change to be applied on each said location. We can imagine
-overlapping these changes into a single datatype that consists of a tree
+
+Since there can
+only be at most one change per location, overlapping these changes into a 
+single datatype that consists of a tree
 with the same shape as the source tree and holes where the changes happen.
 We can even go a step further and parametrize the type of said holes
 ariving in the following (free) monad:
@@ -351,9 +389,21 @@ data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
 
 \TODO{Why no indicies?}
 
-  Extentionally, a value |t| of type |Tx codes phi (I i)| consists in a value of 
+  A value |t| of type |Tx codes phi (I i)| consists in a value of 
 type |Fix codes i| with certain subtrees replaced by a value of type |phi|. 
-  
+There are two important operations one can perform over a ``treefix''. We can inject
+a valuation for the atoms into the treefix, yielding a tree. Or we can project a
+valuation from a treefix and a tree.
+
+
+\begin{myhs}
+\begin{code}
+txInj :: Tx codes phi at
+      -> Valuation codes phi
+      -> Maybe (NA (Fix codes) at)
+\end{code}
+\end{myhs}
+
 
 
 \section{Computing Changes}
