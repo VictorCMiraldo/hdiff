@@ -9,6 +9,8 @@
 %% Our packages
 \usepackage{xcolor}
 \usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{shapes}
 
 %% Cleveref must be the last loaded package
 %% since it modifies the cross-ref system.
@@ -17,6 +19,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %% Our defs
+
+%% Drawing patches using tikz
+\newenvironment{twothreetree}{%
+\begin{tikzpicture}[%
+  sibling distance=3em,
+  innernode/.style = {rectangle , draw},
+  leafnode/.style = { } ,
+  subtree/.style = {regular polygon , regular polygon sides=3 , draw , scale=0.2} ]%
+}{%
+\end{tikzpicture}%
+}
 
 %% More space between rows
 \newcommand{\ra}[1]{\renewcommand{\arraystretch}{#1}}

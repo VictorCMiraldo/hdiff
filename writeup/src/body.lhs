@@ -1,6 +1,9 @@
 \section{Introduction}
 \label{sec:introduction}
 
+% Bug because of double lines?
+% https://blog.codecentric.de/en/2014/02/curly-braces/
+
 \TODO{one or two paragraphs here}
 
   The (well-typed) differencing problem consists in finding a type |Patch|, 
@@ -222,7 +225,7 @@ to the more useful choice of constructor and associated product.
 \subsection{Differencing}
 \label{sec:diff}
 
-  Equipped with the vocabulary to talk about values of arbitrary data types
+  Equipped with the vocabulary to talk about values of arbitrary datatypes
 generically, let us introduce some of the previous work on differencing.
 
 Introduce \cite{McIlroy1979}.
@@ -317,11 +320,58 @@ makes merging easier, computing these patches is drastically more expensive.
 The algorithm is not more complicated, per se, but we lose the ability to
 easily exploit memoization to speed up the computation.
 
+\TODO{linear vs tree patches nomenclature}
+
 \section{Representing Changes}
 \label{sec:representing-changes}
 
+  Throughout the rest of the paper we will be defining a number of generic functions.
+In order to facilitate the presentation, we shall be illustrating some examples
+on the type of |Tree23|, defined below.
+
+\begin{myhs}
+\begin{code}
+data Tree23  = Leaf
+             | Node2 Int Tree23 Tree23
+             | Node3 Int Tree23 Tree23 Tree23
+\end{code}
+\end{myhs}
+
+  Regardless of the representation, the core of a differencing algorithm is 
+to identify and pursue the copy opportunities as much as possible. In the
+previous approaches, discussed in \Cref{sec:es}, the lack of a representation for
+moving subtrees and duplicating them means that, upon finding a subtree that can be copied
+to two different places, the algorithm needs to choose between one of them. Besides
+efficiency problems, this also brings a complicated theoretical problems: it is impossible
+to order tree structured patches like one can do with linear patches~\cite{Mimram2013}. 
+If the only operations we have at hand are insertions, deletions and copying of a subtree,
+we cannot choose between copying the left or the right subtree in:
+
+\begin{myhs}
+\begin{code}
+diff (Node2 42 a a) a
+\end{code}
+\end{myhs}
+
+  As we mentioned before, the |diff| function has to choose between deleting the constructor
+accompained by the left or the right subtree in |Node2 42 a a|. Yet, we cannot compare these
+patches in arguing which is \emph{better} than which without making some arbitrary choices.
+One example of an arbitrary choice would be to prefer patches that delete leftmost subtrees first.
+This would make the |diff| function choose to copy the rightmost |a|, but this is not an educated
+decision: \TODO{and the result might be different. Applying one or the other to |Node2 42 x y|}.
+
+
+To illustrate
+this and other concepts, we will be referring to |Tree23|, even though our definitions
+will be given in a generic setting.
+
+
+
   Unlike the previous work on well-typed structured differencing, we will 
-represent changes in a drastically different way. We will illustrate our generic
+represent changes in a different fashion. 
+
+
+We will illustrate our generic
 definitions by instantiating them to work on top of |Tree23|, defined as follows:
 
 \begin{myhs}
