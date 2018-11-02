@@ -45,7 +45,7 @@ that action: not changing anything.
 and satisfies many of these desirable properties,
 for the special case of |a == [String]|, ie, files are seen as
 lists of lines. There has been some attempts at a more general solution.
-First by Lempsink and L\"{o}h~\cite{Loh2004}, which was later extended by
+First by Lempsink and L\"{o}h~\cite{Loh2009}, which was later extended by
 Vassena~\cite{Vassena2016}. Their work consists largely in using the same
 algorithm as \texttt{diff} in the flattened representations of a tree.
 A prallel attempt was done by Miraldo et al.~\cite{Miraldo2017}, where
@@ -67,8 +67,8 @@ ways, he algorithm must choose between one of them. Besides efficiency
 problems, this also brings a complicated theoretical problems: it is
 impossible to order these patches in an educated fashion.
 
-  Imagine we want to compute a patch that transforms a tree |Node2 42 t u| 
-into |Node 42 u t|.  If the only operations we have at hand are insertions,
+  Imagine we want to compute a patch that transforms a tree |Bin t u| 
+into |Bin u t|.  If the only operations we have at hand are insertions,
 deletions and copying of a subtree, we cannot compare choosing to copy
 the left or the right subtree. No option is better than the other. If, however,
 we have some operation that encodes permutation of subtrees, we have not only removed
@@ -78,8 +78,7 @@ contrary to what one might expect, more is less in this scenario. By
 adding more expressive basic change operations (duplicate and permute) we
 were able to remove choice points and arrive at a very efficient algorithm.
 
-\paragraph{Contributions.} The main contributions of this paper
-can be summarized as:
+\paragraph{Contributions.} 
 
 \begin{itemize}
   \item A solution to the well-typed differencing problem
@@ -96,23 +95,17 @@ can be summarized as:
         namelly, any mutually recursive family.
 \end{itemize}
 
-\section{Background}
-\label{sec:background}
-
-  There are two dimensions of backgroung to our work. On one hand, we
-use recent generic programming techniques that allows us to write our
-algorithm for a range of datatypes at once. On the other hand, there
-is the nuances of our diffing algorithm with the previous work in the
-field.  These dimensions are not independent. A more expressive
-generic programming library enables us to explore better alternatives
-to the existing algorithms. On this section we will briefly present
-the generic programming approach we used and we will discuss how the
-previous work would look like under that library.
-
-\subsection{Generic Programming}
-\label{sec:genericprogramming}
+\section{Background: Generic Programming}
+\label{sec:generic-prog}
 
 \victor{How much type level programming introduction do we need?}
+
+  Through the remainder of this paper we will be presenting a series
+of generic algorithms and data structures used to solve the differencing
+problem introduced in \Cref{sec:intro}. That is, these algorithms behave
+the same way independently of the datatypes they are operating over. 
+This style of programming is usually refered to as (datatype) generic
+programming.
 
   We subscribe to the \emph{sums-of-products} school of generic 
 programming~\cite{deVries2014}. Yet, since we need to handle arbitrary abstract 
@@ -131,7 +124,7 @@ position, |I n|, or a opaque type, |K k|.
 
 \begin{myhs}
 \begin{code}
-type family    Code (a :: Star) :: P ([ (P [Atom]) ])
+type family Code (a :: Star) :: P ([ (P [Atom]) ])
 \end{code}
 \end{myhs}
 
@@ -258,120 +251,174 @@ sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
   The |sop| functions converts a value in its standard representation
 to the more useful choice of constructor and associated product.
 
-\subsection{Differencing}
-\label{sec:diff}
-
-  Equipped with the vocabulary to talk about values of arbitrary datatypes
-generically, let us introduce some of the previous work on differencing.
-
-Introduce \cite{McIlroy1979}.
-
-\subsubsection{Edit Scripts}
-\label{sec:es}
-
-  Before explaining the tree-structured version of \emph{edit scripts}, it is worthwhile
-to take a look at the original notion of edit scripts upsed by the unix \texttt{diff}~\cite{McIlroy1979}.
-Those edit scripts are nothing but a list of \emph{instructions} to be applied on a per-line basis
-on the source file. Below we sketch how the list of instructions would act on a a file
-seen as a list of lines:
-
-\begin{myhs}
-\begin{code}
-data EditInst = Ins String | Del String | Cpy
-
-apply :: [EditInst] -> [String] -> Maybe [String]
-apply [] [] = Just []
-apply (Cpy    : es) (line : file) 
-  = (line :) <$$> apply es file
-apply (Del s  : es) (line : file) 
-  | s == line  = apply es file
-  | otherwise  = Nothing
-apply (Ins s  : es) file 
-  = (s :) <$$> apply es file
-apply _ _
-  = Nothing
-\end{code}
-\end{myhs}
-
-  We call the list of instructions, |[EditInst]|, the \emph{edit script}. Note how this list
-is essentially isomorphic to a partial function from |Nat| to |EditInst|, tabulating
-that list. Under this view there is a nice correlation between the operations on the
-file and their semantics over the subsequent locations. Deleting a line can be seen
-as decreasing the locations (by pattern matching). Inserting a line is changing
-the locations to be their successor and copying a line is the identity operation on locations.
-
-   In \citet{Loh2009}, we see an extension of this idea based on the Euler traversal of a tree:
-one can still have a list of edit instructions and apply them to a tree. By traverssing the tree
-in a predetermined order, we can look at all the elements as if they were in a list. In fact,
-using some clever type level programming, one can even ensure that the edit intructions
-are well typed. The core idea relies on indexing the type of instructions based on the 
-code of the family being used:
-
-\victor{should we really be showing datatypes?}
-\begin{myhs}
-\begin{code}
-data ES (codes :: [[[Atom kon]]]) :: [Atom kon] -> [Atom kon] -> * where
-  E0   :: ES codes '[] '[]
-  Ins  :: Cof codes a c
-       -> ES codes i  (Tyof codes c  :++:     j)
-       -> ES codes i  (a             (P (:))  j)
-  Del  :: Cof codes a c
-       -> ES codes (Tyof codes c  :++:     i)  j
-       -> ES codes (a             (P (:))  i)  j
-  Cpy  :: Cof codes a c
-       -> ES codes (Tyof codes c :++:     i)  (Tyof codes c  :++:   j)
-       -> ES codes (a            (P (:))  i)  (a             (P :)  j)
-\end{code}
-\end{myhs}
-
-  Where |Cof codes a c| is a predicate that states that |c| is a valid constructor
-for a type |a| and |Tyof codes c| is a type level function that returns the list of
-atoms representing the fields of said constructor. 
-\victor{how important are the details of this implementations? I feel like we should
-just show the signature of |EditInst| and leave the details for the intersted reader to pursue}
-
-  The application function would then be declared as:
-
-\begin{myhs}
-\begin{code}
-apply :: ES codes xs ys -> NP (NA (Fix codes)) xs -> Maybe (NP (NA (Fix codes)) ys)
-\end{code}
-\end{myhs}
-
-  Which states that given a product of trees with types |xs|, it might be able to
-produce a product of trees with types |ys|. This approach has the advantage to enjoy
-a number of the optimization techniques that have been employed for the unix \texttt{diff}.
-In fact, a simple memoization table would already yield a quadratic algorithm in the sum
-of constructors in both origin and destinations. The heterogeneity brings a complicated problem,
-however, when one wants to consider the merging of two such edit scripts~\cite{Vassena2016}.
-Given |p :: ES codes xs ys| and |q :: ES codes xs zs|, it is hard to decide what will the
-index of the merge, |merge p q :: ES codes xs _| by. In fact, this might be impossible.
-
-  In an effort to overcome this limitation \citet{Miraldo2017} introduces a 
-more structured approach that consists in constraining the heterogeneity to
-only the necessary places. That is, the |Patch| type receives a single
-index, call it |ty|, and represents a change that transform values of type |ty|
-into each other. \TODO{cite Arian and Giovanni?} Although this
-makes merging easier, computing these patches is drastically more expensive. 
-The algorithm is not more complicated, per se, but we lose the ability to
-easily exploit memoization to speed up the computation.
-
-\TODO{linear vs tree patches nomenclature}
+%% \subsubsection{Edit Scripts}
+%% \label{sec:es}
+%% 
+%%   Before explaining the tree-structured version of \emph{edit scripts}, it is worthwhile
+%% to take a look at the original notion of edit scripts upsed by the unix \texttt{diff}~\cite{McIlroy1979}.
+%% Those edit scripts are nothing but a list of \emph{instructions} to be applied on a per-line basis
+%% on the source file. Below we sketch how the list of instructions would act on a a file
+%% seen as a list of lines:
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% data EditInst = Ins String | Del String | Cpy
+%% 
+%% apply :: [EditInst] -> [String] -> Maybe [String]
+%% apply [] [] = Just []
+%% apply (Cpy    : es) (line : file) 
+%%   = (line :) <$$> apply es file
+%% apply (Del s  : es) (line : file) 
+%%   | s == line  = apply es file
+%%   | otherwise  = Nothing
+%% apply (Ins s  : es) file 
+%%   = (s :) <$$> apply es file
+%% apply _ _
+%%   = Nothing
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   We call the list of instructions, |[EditInst]|, the \emph{edit script}. Note how this list
+%% is essentially isomorphic to a partial function from |Nat| to |EditInst|, tabulating
+%% that list. Under this view there is a nice correlation between the operations on the
+%% file and their semantics over the subsequent locations. Deleting a line can be seen
+%% as decreasing the locations (by pattern matching). Inserting a line is changing
+%% the locations to be their successor and copying a line is the identity operation on locations.
+%% 
+%%    In \citet{Loh2009}, we see an extension of this idea based on the Euler traversal of a tree:
+%% one can still have a list of edit instructions and apply them to a tree. By traverssing the tree
+%% in a predetermined order, we can look at all the elements as if they were in a list. In fact,
+%% using some clever type level programming, one can even ensure that the edit intructions
+%% are well typed. The core idea relies on indexing the type of instructions based on the 
+%% code of the family being used:
+%% 
+%% \victor{should we really be showing datatypes?}
+%% \begin{myhs}
+%% \begin{code}
+%% data ES (codes :: [[[Atom kon]]]) :: [Atom kon] -> [Atom kon] -> * where
+%%   E0   :: ES codes '[] '[]
+%%   Ins  :: Cof codes a c
+%%        -> ES codes i  (Tyof codes c  :++:     j)
+%%        -> ES codes i  (a             (P (:))  j)
+%%   Del  :: Cof codes a c
+%%        -> ES codes (Tyof codes c  :++:     i)  j
+%%        -> ES codes (a             (P (:))  i)  j
+%%   Cpy  :: Cof codes a c
+%%        -> ES codes (Tyof codes c :++:     i)  (Tyof codes c  :++:   j)
+%%        -> ES codes (a            (P (:))  i)  (a             (P :)  j)
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   Where |Cof codes a c| is a predicate that states that |c| is a valid constructor
+%% for a type |a| and |Tyof codes c| is a type level function that returns the list of
+%% atoms representing the fields of said constructor. 
+%% \victor{how important are the details of this implementations? I feel like we should
+%% just show the signature of |EditInst| and leave the details for the intersted reader to pursue}
+%% 
+%%   The application function would then be declared as:
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% apply :: ES codes xs ys -> NP (NA (Fix codes)) xs -> Maybe (NP (NA (Fix codes)) ys)
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   Which states that given a product of trees with types |xs|, it might be able to
+%% produce a product of trees with types |ys|. This approach has the advantage to enjoy
+%% a number of the optimization techniques that have been employed for the unix \texttt{diff}.
+%% In fact, a simple memoization table would already yield a quadratic algorithm in the sum
+%% of constructors in both origin and destinations. The heterogeneity brings a complicated problem,
+%% however, when one wants to consider the merging of two such edit scripts~\cite{Vassena2016}.
+%% Given |p :: ES codes xs ys| and |q :: ES codes xs zs|, it is hard to decide what will the
+%% index of the merge, |merge p q :: ES codes xs _| by. In fact, this might be impossible.
+%% 
+%%   In an effort to overcome this limitation \citet{Miraldo2017} introduces a 
+%% more structured approach that consists in constraining the heterogeneity to
+%% only the necessary places. That is, the |Patch| type receives a single
+%% index, call it |ty|, and represents a change that transform values of type |ty|
+%% into each other. \TODO{cite Arian and Giovanni?} Although this
+%% makes merging easier, computing these patches is drastically more expensive. 
+%% The algorithm is not more complicated, per se, but we lose the ability to
+%% easily exploit memoization to speed up the computation.
+%% 
+%% \TODO{linear vs tree patches nomenclature}
 
 \section{Representing Changes}
 \label{sec:representing-changes}
 
-  Throughout the rest of the paper we will be defining a number of generic functions.
-In order to facilitate the presentation, we shall be illustrating some examples
-on the type of |Tree23|, defined below.
+\TODO{intro the section: start explaining the repr of changes; then show how to compute using orcale}
+
+  With a common vocabulary to talk about datatypes, \Cref{sec:generic-prog}, we shall start
+discussing the representation of changes and the necessary operations over this
+representation. Although our datatypes and algorithms will be stated in a generic fashion,
+we will constantly use the type |Tree23| for illustrations and examples.
 
 \begin{myhs}
 \begin{code}
 data Tree23  = Leaf
-             | Node2 Int Tree23 Tree23
-             | Node3 Int Tree23 Tree23 Tree23
+             | Node2 Tree23 Tree23
+             | Node3 Tree23 Tree23 Tree23
 \end{code}
 \end{myhs}
+
+  Recall that we are interested in identifying and pursuing as many copy
+opportunities as possible. Once we copy a subtree, we need not inspect inside
+it any longer. Hence, we will represent patches as trees with \emph{holes}. The holes
+correspond to coppied subtrees whereas the tree leading to the hole corresponds to
+the deleted an inserted part. The type of changes over |Tree23| can be obtained by
+adding an extra constructor to |Tree23|:
+
+\begin{myhs}
+\begin{code}
+data Tree23C = LeafC
+             | Node2C Tree23C Tree23C
+             | Node3C Tree23C Tree23C Tree23C
+             | Hole Int
+\end{code}
+\end{myhs}
+
+  We could now represent the patch that transforms |Node2 t u| in |Node2 u t|
+by a pair of |Tree23C|, namelly: |(Node2C (Hole 0) (Hole 1) , Node2C (Hole 1) (Hole 0))|.
+The |fst| component of the pair denotes the deleted part. The result of
+deleting a |Tree23C| from a |Tree23| is a valuation for the holes, if the
+deletion succeeds:
+
+\begin{myhs}
+\begin{code}
+del :: Tree23C -> Tree23 -> Maybe (Map Int Tree23)
+del ctx tree = go ctx tree empty 
+  where
+    go :: Tree23C -> Tree23 -> Map Int Tree23 -> Maybe (Map Int Tree23)
+    go LeafC           Leaf           m = return m
+    go (Node2C x y)    (Node2 a b)    m = go x a m >>= go y b
+    go (Node3C x y z)  (Node3 a b c)  m = go x a m >>= go y b >>= go z c
+    go (Hole i)        t              m = case lookup i t of
+                                            Nothing  -> return (singleton i t)
+                                            Just t'  -> guard (t == t') 
+                                                     >> return m
+    go _               _              m = Nothing
+\end{code}
+\end{myhs}
+
+  Note that we use an auxiliar function that starts with an empty valuation
+and gradually inserts new values into it. This makes it easier to make sure
+that in case a variable already exist, its value is the same as what we are
+trying to insert.
+
+  Inserting a |Map Int Tree23| into a |Tree23C| is the dual operation:
+
+\begin{myhs}
+\begin{code}
+ins :: Tree23C -> Map Int Tree23 -> Maybe Tree23
+ins LeafC           m  = return Leaf
+ins (Node2C x y)    m  = Node2 <$$> ins x m <*> ins y m
+ins (Node3C x y z)  m  = Node3 <$$> ins x m <*> ins y m <*> ins z m
+ins (Hole i)        m  = lookup i m
+\end{code}
+\end{myhs}
+
+\TODO{\huge I'm here!}
+
 
   Regardless of the representation, the core of a differencing algorithm is 
 to identify and pursue the copy opportunities as much as possible. In the
