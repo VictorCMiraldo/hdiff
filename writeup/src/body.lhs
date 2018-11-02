@@ -39,25 +39,61 @@ number of trees possible. For example:
 anything must be applicable to any element performing exactly 
 that action: not changing anything.
 
-  The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing problem
-for the special case of |a == [String]|, ie, it files are seen as
-lists of lines. We are interested in a solution that handles more types other
-than simply lists of strings.
+\TODO{cite \cite{Bergroth2000} and \cite{Mimram2013} somewhere}
 
-  \TODO{one or two para's here}
+  The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing problem,
+and satisfies many of these desirable properties,
+for the special case of |a == [String]|, ie, files are seen as
+lists of lines. There has been some attempts at a more general solution.
+First by Lempsink and L\"{o}h~\cite{Loh2004}, which was later extended by
+Vassena~\cite{Vassena2016}. Their work consists largely in using the same
+algorithm as \texttt{diff} in the flattened representations of a tree.
+A prallel attempt was done by Miraldo et al.~\cite{Miraldo2017}, where
+the authors tried to define operations that work directly on trees.
+There is also a significant body of work on less formal approaches
+that suffer similar problems~\cite{Demaine2007,Klein1998,Akutsu2010}.
+All of these algorithms work in a similar way. First we compute all possible
+patches betweem two objects, then we filter out \emph{the best}. There
+two big problems being (A) the inefficiency of a non-deterministic algorithm
+with many choice points and (B) defining what is \emph{the best} patch. 
+These two problems stem from the same place: having access only to insert,
+delete and copy as base operations. 
 
+  The core of a differencing algorithm is to identify and pursue the
+copy opportunities as much as possible. Therefore the lack of a
+representation for moving and duplicating subtrees is an inherent
+issue.  Upon finding a subtree that can be copied in two different
+ways, he algorithm must choose between one of them. Besides efficiency
+problems, this also brings a complicated theoretical problems: it is
+impossible to order these patches in an educated fashion.
 
-\subsection{Contributions}
+  Imagine we want to compute a patch that transforms a tree |Node2 42 t u| 
+into |Node 42 u t|.  If the only operations we have at hand are insertions,
+deletions and copying of a subtree, we cannot compare choosing to copy
+the left or the right subtree. No option is better than the other. If, however,
+we have some operation that encodes permutation of subtrees, we have not only removed
+a choice point from the algorithm but also arrived at a provably better patch
+without having to resort to heuristics or arbitrary choices. And, 
+contrary to what one might expect, more is less in this scenario. By
+adding more expressive basic change operations (duplicate and permute) we
+were able to remove choice points and arrive at a very efficient algorithm.
 
-  The main contributions of this paper are:
+\paragraph{Contributions.} The main contributions of this paper
+can be summarized as:
 
 \begin{itemize}
-  \item We provide a solution to the well-typed differencing problem that 
-        is space and time efficient, as outlined in \Cref{sec:introduction}. 
-  \item Our solution is applicable to a large universe of types,
-        namelly mutually recursive families.
-  \item We provide a prototype implementation of our algorithm
-        that can easily support multiple programming languages.
+  \item A solution to the well-typed differencing problem
+        that does not suffer from problems (A) and (B) outline above.
+        In fact, our approach supports subtree duplications and permutations
+        and satisfy a number of the desired properties listed above, including
+        space efficiency.
+  \item An idealized algorithm capable of computing a patch that
+        transforms a source tree into a target tree. We also give a practical
+        instantiation of this algorithm that is correct modulo cryptographic hash
+        collisions and runs in linear time.
+  \item A prototype implementation of our algorithm that
+        is immediately applciable to a large universe of datatypes,
+        namelly, any mutually recursive family.
 \end{itemize}
 
 \section{Background}
