@@ -17,6 +17,11 @@ apply  :: Patch a -> a -> Maybe a
 \end{code}
 \end{myhs}
 
+  The |diff| function computes a |Patch| for a given type whereas the
+|apply| function interprets these patches as partial functions over |a|.
+Naturally, we must impose some properties on how |diff| and |apply|
+behave for them to be of any use.
+
   Among the properties one might expect from this pair of functions
 is, at least, correctness:
 
@@ -95,24 +100,177 @@ were able to remove choice points and arrive at a very efficient algorithm.
         namelly, any mutually recursive family.
 \end{itemize}
 
-\section{Background: Generic Programming}
+\section{Sketch and Background}
+
+  Before exploring the fully generic implementation of our algorithm,
+it is very valuable to look at a simple instance first. On this
+section we will sketch our algorithm for a simple type and outline its
+basic building blocks, \Cref{sec:concrete-changes}.  Then, we will
+briefly explain some generic programming techniques,
+\Cref{sec:generic-prog}, that are necessary to translate the simple
+implementation into a fully generic one.
+
+\subsection{Representing Changes, Concrete Example}
+\label{sec:concrete-changes}
+
+  Let us define a solution to the differencing problem for |Tree23|, the type
+of two-three-trees, defined below:
+
+\begin{myhs}
+\begin{code}
+data Tree23  = Leaf
+             | Node2 Tree23 Tree23
+             | Node3 Tree23 Tree23 Tree23
+\end{code}
+\end{myhs}
+
+  Recall that we are interested in identifying and pursuing as many copy
+opportunities as possible. Once we copy a subtree, we need not inspect inside
+it any longer. Hence, we will represent patches as trees with \emph{holes}. The holes
+correspond to coppied subtrees whereas the tree leading to the hole corresponds to
+the deleted an inserted part. The type of changes over |Tree23| can be obtained by
+adding an extra constructor to |Tree23|:
+
+\begin{myhs}
+\begin{code}
+data Tree23C = LeafC
+             | Node2C Tree23C Tree23C
+             | Node3C Tree23C Tree23C Tree23C
+             | Hole Int
+\end{code}
+\end{myhs}
+
+  We could now represent the patch that transforms |Node2 t u| in |Node2 u t|
+by a pair of |Tree23C|, namelly: |(Node2C (Hole 0) (Hole 1) , Node2C (Hole 1) (Hole 0))|.
+The |fst| component of the pair denotes the deleted tree with \emph{metavariables} inside,
+whereas the second component is the inserted tree. Applying a patch is modelled by 
+deleting the first component, yielding a valuation of metavariables to trees when successful,
+then substituing the metavariables in the insertion context with such valuation. 
+
+\begin{myhs}
+\begin{code}
+del :: Tree23C -> Tree23 -> Maybe (Map Int Tree23)
+del ctx tree = go ctx tree empty 
+  where
+    go :: Tree23C -> Tree23 -> Map Int Tree23 -> Maybe (Map Int Tree23)
+    go LeafC           Leaf           m = return m
+    go (Node2C x y)    (Node2 a b)    m = go x a m >>= go y b
+    go (Node3C x y z)  (Node3 a b c)  m = go x a m >>= go y b >>= go z c
+    go (Hole i)        t              m = case lookup i t of
+                                            Nothing  -> return (singleton i t)
+                                            Just t'  -> guard (t == t') 
+                                                     >> return m
+    go _               _              m = Nothing
+\end{code}
+\end{myhs}
+
+  Note that we use an auxiliar function that starts with an empty valuation
+and gradually inserts new values into it. This makes it easier to make sure
+that in case a variable already exist, its value is the same as what we are
+trying to insert.
+
+  Inserting a |Map Int Tree23| into a |Tree23C| is the dual operation:
+
+\begin{myhs}
+\begin{code}
+ins :: Tree23C -> Map Int Tree23 -> Maybe Tree23
+ins LeafC           m  = return Leaf
+ins (Node2C x y)    m  = Node2 <$$> ins x m <*> ins y m
+ins (Node3C x y z)  m  = Node3 <$$> ins x m <*> ins y m <*> ins z m
+ins (Hole i)        m  = lookup i m
+\end{code}
+\end{myhs}
+
+  Finally, we can define our application function by composing |ins| and
+|del|:
+
+\begin{myhs}
+\begin{code}
+type Patch = (Tree23C , Tree23C)
+
+apply :: Patch -> Tree23 -> Maybe Tree23
+apply (d , i) x = del d x >>= ins i
+\end{code}
+\end{myhs}
+
+  Next, we must be able to produce a |Patch| from a source and a destination,
+essentially defining our |diff| function. Recall that the core characteristic
+of the differencing function is to exploit as many copy opportunities as possible.
+Assume we have access to a function |ics|, \emph{is common subtree},
+with type |Tree23 -> Tree23 -> Tree23 -> Maybe Int|. When calling |ics s d x|
+we shall get a |Nothing| when |x| is not a subtree of |s| and |d| or |Just i|
+when |x| is a common subtree. The |Int| inside the |Just| tells us which metavariable
+number to use. The only condition we impose is injectivty of |ics s d| on the |Just|
+subset of the image. That is, if |ics s d x == ics s d y == Just j|, then |x == y|.
+Later on we will provide an efficient implementation for |ics|, but for now, let us
+take it as an oracle. Finally, the |diff| function is defined as:
+
+\begin{myhs}
+\begin{code}
+diff :: Tree23 -> Tree23 -> Patch
+diff s d = (extract (ics s d) s , extract (ics s d) d)
+\end{code}
+\end{myhs}
+
+  Where the |extract| function traverses the |Tree23| and extracts a |Tree23C|
+according to a function that assigns metavariables to trees. This assignment must be
+injective whenever it returns a |Just|.
+
+\begin{myhs}
+\begin{code}
+extract :: (Tree23 -> Maybe Int) -> Tree23 -> Tree23C
+extract o x = maybe (peel x) Hole (o x)
+  where
+    peel Leaf           = LeafC
+    peel (Node2 a b)    = Node2C (extract o a) (extract o b)
+    peel (Node3 a b c)  = Node3C (extract o a) (extract o b) (extract o c)
+\end{code}
+\end{myhs}
+
+  Assuming that |ics s d| is \emph{the best} possible function, that is, it will
+correctly issue metavariables to \emph{all} common subtrees of |s| and |d|, we see
+that our implementation satisfy a number of the desired properties stated in \Cref{sec:intro}:
+
+\begin{description}
+  \item[Correctness] Assuming |ics| is correct, 
+    \[ |forall x y dot apply (diff x y) x == Just y| \]
+  \item[Preciseness] Assuming |ics| is correct,
+    \[ |forall x y . apply (diff x x) y == Just y| \]
+  \item[Time Efficiency] 
+    Assuming |ics| constant, the run-time of our algorithm 
+    is linear on the number of constructors everywhere else.
+    We will provide such constant |ics| function in \Cref{sec:oracle}.
+  \item[Space Efficiency] 
+    The size of a |Patch| is, on average, smaller than 
+    storing its source and destination tree.
+\end{description}
+
+\paragraph{Summary} We have provided a simple algorithm 
+to solve the differencing problem for |Tree23|. We start by creating 
+a type |Tree23C| which consists in adding a \emph{metavariable} constructor
+to |Tree23| and assume the existence of an oracle that answers whether
+an arbitrary tree is a subtree of the source and the destination.
+
+  The attentive reader might have noticed some shortcommings of our |extract|
+function above. For instance, it will share every single |Leaf| under the same
+metavariable. This is because we have imposed no condition about
+which parts of the tree we consider shareable or not. We shall discuss different
+mechanisms to \emph{drive} the algorithm in \Cref{sec:sharing}. 
+Another issue is the lack of a post-processing step. We are currently
+assinging metavariables to \emph{every} shared subtree, even if it appears
+as a subtree of another shared subtree. We shall address these and others
+issues while developing the final implementation. 
+
+\subsection{Background: Generic Programming}
 \label{sec:generic-prog}
 
-\victor{How much type level programming introduction do we need?}
-
-  Through the remainder of this paper we will be presenting a series
-of generic algorithms and data structures used to solve the differencing
-problem introduced in \Cref{sec:intro}. That is, these algorithms behave
-the same way independently of the datatypes they are operating over. 
-This style of programming is usually refered to as (datatype) generic
-programming.
-
-  We subscribe to the \emph{sums-of-products} school of generic 
+  Now that we have an idea of how our algorithm looks like for a specific
+type, let us briefly explain the \texttt{generics-mrsop}~\cite{Miraldo2018}
+library, which will allow us to rewrite the code in \Cref{sec:concrete-changes}
+in a fully generic setting. This library follows the \emph{sums-of-products} school of generic 
 programming~\cite{deVries2014}. Yet, since we need to handle arbitrary abstract 
 syntax trees, must encode mutually recursive families within 
-our universe. The rest of this section briefly explains the 
-\texttt{generics-mrsop}~\cite{Miraldo2018} library, which was inspired by
-the \texttt{generics-sop}~\cite{deVries2014}. 
+our universe. 
 
   In the \emph{sums-of-products} approach, every datatype is assigned
 a \emph{code} that consists in two nested lists of atoms. The outer
@@ -251,6 +409,51 @@ sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
   The |sop| functions converts a value in its standard representation
 to the more useful choice of constructor and associated product.
 
+\section{Representing Changes, Generically}
+\label{sec:representing-changes}
+
+  \TODO{one or two paras}
+
+\subsection{Tree Prefixes}
+\label{sec:treefix}
+
+  Recall our |Tree23C| type, from \Cref{sec:concrete-changes}. It augmented
+the |Tree23| type with an extra constructor for representing holes, by the
+means of metavariables. 
+
+\begin{myhs}
+\begin{code}
+data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
+  TxHole  :: phi at  -> Tx codes phi at
+  TxOpq   :: Opq k   -> Tx codes phi (K k)
+  TxPeel  :: Constr (Lkup i codes) c
+          -> NP (Tx codes phi) (Tyof codes c)
+          -> Tx codes phi (I i)
+\end{code}
+\end{myhs}
+
+\begin{itemize}
+  \item |ForceI|
+  \item show |utxMap| and |utxRefine|
+  \item |MetaVarI| and |MetaVarIK|
+\end{itemize}
+
+
+\subsection{Computing Patches}
+\label{sec:computing}
+
+\section{Instantiating the Oracle}
+\label{sec:oracle}
+
+\section{Discussion and Future Work}
+\label{sec:discussion}
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+\TODO{\huge I'm here!}
+
+
 %% \subsubsection{Edit Scripts}
 %% \label{sec:es}
 %% 
@@ -343,81 +546,8 @@ to the more useful choice of constructor and associated product.
 %% 
 %% \TODO{linear vs tree patches nomenclature}
 
-\section{Representing Changes}
-\label{sec:representing-changes}
+  
 
-\TODO{intro the section: start explaining the repr of changes; then show how to compute using orcale}
-
-  With a common vocabulary to talk about datatypes, \Cref{sec:generic-prog}, we shall start
-discussing the representation of changes and the necessary operations over this
-representation. Although our datatypes and algorithms will be stated in a generic fashion,
-we will constantly use the type |Tree23| for illustrations and examples.
-
-\begin{myhs}
-\begin{code}
-data Tree23  = Leaf
-             | Node2 Tree23 Tree23
-             | Node3 Tree23 Tree23 Tree23
-\end{code}
-\end{myhs}
-
-  Recall that we are interested in identifying and pursuing as many copy
-opportunities as possible. Once we copy a subtree, we need not inspect inside
-it any longer. Hence, we will represent patches as trees with \emph{holes}. The holes
-correspond to coppied subtrees whereas the tree leading to the hole corresponds to
-the deleted an inserted part. The type of changes over |Tree23| can be obtained by
-adding an extra constructor to |Tree23|:
-
-\begin{myhs}
-\begin{code}
-data Tree23C = LeafC
-             | Node2C Tree23C Tree23C
-             | Node3C Tree23C Tree23C Tree23C
-             | Hole Int
-\end{code}
-\end{myhs}
-
-  We could now represent the patch that transforms |Node2 t u| in |Node2 u t|
-by a pair of |Tree23C|, namelly: |(Node2C (Hole 0) (Hole 1) , Node2C (Hole 1) (Hole 0))|.
-The |fst| component of the pair denotes the deleted part. The result of
-deleting a |Tree23C| from a |Tree23| is a valuation for the holes, if the
-deletion succeeds:
-
-\begin{myhs}
-\begin{code}
-del :: Tree23C -> Tree23 -> Maybe (Map Int Tree23)
-del ctx tree = go ctx tree empty 
-  where
-    go :: Tree23C -> Tree23 -> Map Int Tree23 -> Maybe (Map Int Tree23)
-    go LeafC           Leaf           m = return m
-    go (Node2C x y)    (Node2 a b)    m = go x a m >>= go y b
-    go (Node3C x y z)  (Node3 a b c)  m = go x a m >>= go y b >>= go z c
-    go (Hole i)        t              m = case lookup i t of
-                                            Nothing  -> return (singleton i t)
-                                            Just t'  -> guard (t == t') 
-                                                     >> return m
-    go _               _              m = Nothing
-\end{code}
-\end{myhs}
-
-  Note that we use an auxiliar function that starts with an empty valuation
-and gradually inserts new values into it. This makes it easier to make sure
-that in case a variable already exist, its value is the same as what we are
-trying to insert.
-
-  Inserting a |Map Int Tree23| into a |Tree23C| is the dual operation:
-
-\begin{myhs}
-\begin{code}
-ins :: Tree23C -> Map Int Tree23 -> Maybe Tree23
-ins LeafC           m  = return Leaf
-ins (Node2C x y)    m  = Node2 <$$> ins x m <*> ins y m
-ins (Node3C x y z)  m  = Node3 <$$> ins x m <*> ins y m <*> ins z m
-ins (Hole i)        m  = lookup i m
-\end{code}
-\end{myhs}
-
-\TODO{\huge I'm here!}
 
 
   Regardless of the representation, the core of a differencing algorithm is 
