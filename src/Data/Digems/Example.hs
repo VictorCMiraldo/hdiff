@@ -13,6 +13,7 @@
 {-# LANGUAGE GADTs #-}
 module Data.Digems.Example where
 
+import qualified Data.Map as M
 import Data.Functor.Const
 import Data.Text.Prettyprint.Doc
 
@@ -22,8 +23,11 @@ import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
 import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Digems.Unify
 -- import Generics.MRSOP.Digems.Renderer
 import Data.Digems.Diff.Patch
+import Data.Digems.Diff.MetaVar
 
 instance Digestible1 Singl where
   digest1 (SString s) = hashStr s
@@ -97,3 +101,22 @@ genFib = tr $ test1 "fib" "n" "aux"
 genFib2 :: MyFix (S (S Z))
 genFib2 = tr $ test1 "fab" "m" "b"
 -}
+
+type TreeTerm = UTx Singl CodesTree23 (MetaVarIK Singl) (I Z)
+
+unif1 :: TreeTerm
+unif1 = UTxPeel CZ (UTxOpq (SInt 100)
+                 :* UTxHole (NA_I $ Const 1)
+                 :* UTxHole (NA_I $ Const 2)
+                 :* NP0)
+
+unif2 :: TreeTerm
+unif2 = UTxPeel CZ (UTxOpq (SInt 100)
+                 :* UTxPeel (CS CZ)
+                    (UTxHole (NA_K $ Annotate 6 (SInt 42))
+                     :* UTxHole (NA_I $ Const 2)
+                     :* UTxPeel (CS (CS CZ)) NP0
+                     :* UTxPeel (CS (CS CZ)) NP0
+                     :* NP0)
+                 :* UTxPeel (CS (CS CZ)) NP0
+                 :* NP0)

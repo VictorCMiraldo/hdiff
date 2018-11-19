@@ -1,5 +1,4 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -237,7 +236,6 @@ class HasIKProjInj (ki :: kon -> *) (f :: Atom kon -> *) where
 
 data IsI :: Atom kon -> * where
   IsI :: (IsNat i) => IsI (I i)
-  
 
 getIsISNat :: IsI (I i) -> SNat i
 getIsISNat IsI = getSNat (Proxy :: Proxy i)
