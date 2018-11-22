@@ -98,7 +98,7 @@ showPatchC patch
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
     prettyConfDel (InL (D.Conflict lbl _ _))
-      = annotate (color Blue) (pretty lbl)
+      = annotate (color Blue) (pretty $ show lbl)
     prettyConfDel (InR (D.CMatch _ del ins))
       = utxPretty (Proxy :: Proxy fam)
                   (annotate myred)
@@ -109,7 +109,7 @@ showPatchC patch
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
     prettyConfIns (InL (D.Conflict lbl _ _))
-      = annotate (color Blue) (pretty lbl)
+      = annotate (color Blue) (pretty $ show lbl)
     prettyConfIns (InR (D.CMatch _ del ins))
       = utxPretty (Proxy :: Proxy fam)
                   (annotate mygreen)

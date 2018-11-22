@@ -22,6 +22,7 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Treefix
 import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.Digems.Unify
 
 import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
@@ -37,10 +38,10 @@ import Data.Digems.Diff.MetaVar
 
 -- |Hence, a conflict is simply two changes together.
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
-  Conflict :: String
-           -> CChange   ki codes at
-           -> CChange   ki codes at
-           -> Conflict ki codes at
+  Conflict :: UnificationErr ki codes
+           -> CChange        ki codes at
+           -> CChange        ki codes at
+           -> Conflict       ki codes at
 
 -- |A 'PatchC' is a patch with potential conflicts inside
 type PatchC ki codes ix
@@ -55,10 +56,10 @@ noConflicts = utxMapM rmvInL
     rmvInL (InR x) = Just x
 
 -- |Returns the labels of the conflicts ina a patch.
-getConflicts :: PatchC ki codes ix -> [String]
+getConflicts :: (Show1 ki) => PatchC ki codes ix -> [String]
 getConflicts = snd . runWriter . utxMapM go
   where
-    go x@(InL (Conflict str _ _)) = tell [str] >> return x
+    go x@(InL (Conflict str _ _)) = tell [show str] >> return x
     go x                          = return x
     
 
@@ -83,24 +84,38 @@ reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> RawPatch ki codes at
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 -- (i) both different patches consist in changes
-reconcile (UTxHole cp) (UTxHole cq) = cc cp cq
+reconcile (UTxHole cp) (UTxHole cq) =
+ UTxHole $ mergeCChange cp cq
 -- (ii) We are transporting a spine over a change
-reconcile cp           (UTxHole cq) = sc cp cq
+reconcile cp           (UTxHole cq) =
+  UTxHole $ mergeCChange (closedChangeDistr cp) cq
 -- (iii) We are transporting a change over a spine
-reconcile (UTxHole cp) cq           = UTxHole $ cs cp cq
+reconcile (UTxHole cp) cq           =
+  UTxHole $ mergeCChange cp (closedChangeDistr cq)
 -- (iv) Anything else is a conflict; this should be technically
 --      unreachable since both patches were applicable to at least
 --      one common element; hence the spines can't disagree other than
 --      on the placement of the holes.
-reconcile cp cq
-  = let cpD = utxJoin (utxMap cCtxDel cp)
-        cpI = utxJoin (utxMap cCtxIns cp)
-        cqD = utxJoin (utxMap cCtxDel cq)
-        cqI = utxJoin (utxMap cCtxIns cq)
-        varsP = utxGetHolesWith Exists cpD
-        varsQ = utxGetHolesWith Exists cqD
-     in UTxHole $ InL (Conflict "reconcile" (CMatch varsP cpD cpI) (CMatch varsQ cqD cqI))
+reconcile cp cq = error "unreachable"
 
+mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+                , UTxTestEqualityCnstr ki (CChange ki codes))
+             => CChange ki codes at
+             -> CChange ki codes at
+             -> Sum (Conflict ki codes) (CChange ki codes) at
+mergeCChange ca cb
+  = let resD = utxUnify (cCtxDel ca) (cCtxDel cb) (cCtxIns ca)
+        resI = utxUnify (cCtxDel ca) (cCtxIns cb) (cCtxIns ca)
+     in either (\uerr   -> InL $ Conflict uerr ca cb)
+               (\(d, i) -> InR $ CMatch S.empty d i)
+      $ codelta resD resI
+  where
+    codelta (Left e) _ = Left e
+    codelta _ (Left e) = Left e
+    codelta (Right a) (Right b) = Right (a , b)
+
+
+{-
 -- * Reconciling CChanges
 
 isCpy :: CChange ki codes at -> Bool
@@ -253,7 +268,7 @@ merger (UTxPeel cx px) (UTxPeel cy py)
   = case testEquality cx cy of
       Nothing   -> Left . unwords $ [ "merger:" , "conflict:" , "Peel Peel"]
       Just Refl -> UTxPeel cx <$> mapNPM (uncurry' merger) (zipNP px py)
-
+-}
 
 {-
 

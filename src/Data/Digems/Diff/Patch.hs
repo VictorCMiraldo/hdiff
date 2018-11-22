@@ -207,6 +207,8 @@ extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
     toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
 
 -- |A Utx with closed changes distributes over a closed change
+--
+--  TODO: renames!!
 closedChangeDistr :: UTx ki codes (CChange ki codes) at
                   -> CChange ki codes at
 closedChangeDistr utx = let vars = S.foldl' S.union S.empty
@@ -367,6 +369,10 @@ naeCast _           _        = Left "naeCast mismatch"
 type Valuation ki codes
   = M.Map Int (NAE ki codes)
 
+guard' :: String -> Bool -> Either String ()
+guard' str False = Left str
+guard' str _     = Right ()
+
 -- |Projects an assignment out of a treefix. This
 --  function is inherently partial because the constructors
 --  specified on a treefix might be different than
@@ -387,13 +393,13 @@ utxProj utx = go M.empty utx
       -- sure the tree's match. We are performing the
       -- 'contraction' step here.
       | Just nae <- M.lookup (metavarGet var) m
-      = guard (naeMatch nae t) >> return m
+      = guard' "naeMatch" (naeMatch nae t) >> return m
       -- Otherwise, its the first time we see this
       -- metavariable. We will just insert a new tree here
       | otherwise
       = return (M.insert (metavarGet var) (naeInj t) m)
     go m (UTxOpq k) (NA_K tk)
-      = guard (eq1 k tk) >> return m
+      = guard' "OpqMatch" (eq1 k tk) >> return m
     go m (UTxPeel c gutxnp) (NA_I (Fix t))
       | Tag ct pt <- sop t
       = case testEquality c ct of

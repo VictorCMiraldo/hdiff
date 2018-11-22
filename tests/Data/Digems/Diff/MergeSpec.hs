@@ -23,9 +23,12 @@ digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = digems 1 (dfrom $ into @FamRTree a)
                           (dfrom $ into @FamRTree b)
 
-applyRTree :: PatchRTree -> RTree -> Maybe RTree
-applyRTree p x = either (const Nothing) (Just . unEl . dto @Z . unFix)
+applyRTree :: PatchRTree -> RTree -> Either String RTree
+applyRTree p x = either Left (Right . unEl . dto @Z . unFix)
                $ apply p (dfrom $ into @FamRTree x)
+
+applyRTree' :: PatchRTree -> RTree -> Maybe RTree
+applyRTree' p = either (const Nothing) Just . applyRTree p
 
 --------------------------------------------
 -- ** Manual Merge Examples
@@ -39,20 +42,14 @@ mustMerge lbl a o b
         ob = digems 1 o' b'
         oaob = noConflicts (oa // ob)
         oboa = noConflicts (ob // oa)
-     in do it (lbl ++ ": has no conflicts") $ do
-             isJust oaob .&&. isJust oboa
-           it (lbl ++ ": apply commutes") $ do
+     in do it (lbl ++ ": merge square commutes") $ do
              case (oaob , oboa) of
                (Just ab , Just ba)
-                 -> case (apply ab b' , apply ba a') of
+                 -> case (apply ab a' , apply ba b') of
                      (Right c1 , Right c2)
-                       -> counterexample "results don't match" (property (eqFix eq1 c1 c2))
-                     _ -> counterexample "apply failed" False
-               _ -> property True -- the test above must have failed already!
-  where
-    isJust :: Maybe a -> Property
-    isJust (Just _) = property True
-    isJust Nothing  = counterexample "isJust: Nothing" False
+                       -> eqFix eq1 c1 c2 `shouldBe` True
+                     _ -> expectationFailure "apply failed"
+               _ -> expectationFailure "has conflicts"
 
 ----------------------
 -- Example 1
@@ -71,7 +68,24 @@ b1 = "a" :>: [ "b'" :>: []
              , "d" :>: []
              ]
 
+-------------------
+-- Example 2
+
+a2, o2, b2 :: RTree
+a2 = "b" :>: [ "u" :>: [ "3" :>: [] ] , ".." :>: [] ]
+
+o2 = "b" :>: [ "b" :>: [ "u" :>: [ "3" :>: [] ] , ".." :>: [] ]
+             , "." :>: []
+             ]
+
+b2 = "b" :>: [ "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
+             , "." :>: []
+             ]
+
+
+
 spec :: Spec
 spec = do
   describe "manual examples" $ do
     mustMerge "1" a1 o1 b1
+    mustMerge "2" a2 o2 b2
