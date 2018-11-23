@@ -6,6 +6,7 @@ mergetool="digem"
 lang="clj"
 skip=0
 exitonconflict=false
+logfile=""
 
 function showUsage() {
   echo "usage: ./miner.sh [options] path/to/dataset"
@@ -38,6 +39,9 @@ function showUsage() {
   echo "    -x , --exit-on-conflict"
   echo "      Stops the script on the first true conflict or on 'panic'"
   echo ""
+  echo "    -o , --log-file FILE"
+  echo "      Keeps a log in a given file, if specified"
+  echo ""
   exit 0
 }
 
@@ -49,8 +53,9 @@ while [[ "$#" -gt "1" ]]; do
   arg=$1;
   shift;
   case $arg in
-    -s|--skip) skip="${1?'missing argument to --skip'}" ;;
-    -l|--lang) lang="${1?'missing argument to --lang'}" ;;
+    -s|--skip) skip="${1?'missing argument to --skip'}" ; shift ;;
+    -l|--lang) lang="${1?'missing argument to --lang'}" ; shift ;;
+    -o|--log-file) logfile="${1?'missing argument to --log-file'}" ; shift ;;
     -x|--exit-on-conflict) exitonconflict=true ;;
   esac
 done
@@ -58,6 +63,12 @@ done
 if [[ ! -d "$1" ]]; then
   echo "'$1' is not a directory!"
   showUsage
+fi
+
+if [[ -e "$logfile" ]]; then
+  echo "Log file exists, please rename or choose another one."
+  echo " !! abborting"
+  exit 1
 fi
 
 dir="$1"
@@ -77,11 +88,16 @@ for d in ${dir}/*; do
     skip=$(( $skip - 1 ));
     echo "${d} skip"
   else
+    if [[ ! -f "${d}/A.$lang" ]] || [[ ! -f "${d}/B.$lang" ]] || [[ ! -f "${d}/O.$lang" ]]; then
+      echo "${d} $mergetool file-not-found" | tee -a $logfile 
+      continue
+    fi
+
     timeout "${timeout}" "${mergetool}" merge "${d}/A.$lang" "${d}/O.$lang" "${d}/B.$lang"
     res=$?
     case $res in
-      0) echo "${d} $mergetool success" ;;
-      1) echo "${d} $mergetool conflicting"
+      0) echo "${d} $mergetool success" | tee -a $logfile ;;
+      1) echo "${d} $mergetool conflicting" | tee -a $logfile
          if $exitonconflict && [[ ! -e "$d/true-conflict" ]]; then
            mkdir -p PANIC      
            cp "${d}/A.$lang" PANIC/
@@ -90,7 +106,7 @@ for d in ${dir}/*; do
            exit 1
          fi 
       ;;
-      2) echo "${d} $mergetool panic"
+      2) echo "${d} $mergetool panic" | tee -a $logfile
          if $exitonconflict; then
            mkdir -p PANIC 
            cp "${d}/A.$lang" PANIC/
@@ -99,7 +115,7 @@ for d in ${dir}/*; do
            exit 2
          fi
       ;;
-      *) echo "${d} $mergetool unknown($res)" ;;
+      *) echo "${d} $mergetool unknown($res)" | tee -a $logfile ;;
     esac
   fi
 done
