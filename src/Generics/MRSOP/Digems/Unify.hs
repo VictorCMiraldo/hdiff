@@ -107,7 +107,7 @@ substR _ (UTxHole var) = get >>= lookupVar var
 substR _ (UTxOpq oy)   = return $ UTxOpq oy
 substR x@(UTxPeel cx px) y@(UTxPeel cy py) =
   case testEquality cx cy of
-    Nothing   -> throwError (IncompatibleTerms "3" x y)
+    Nothing   -> return y -- throwError (IncompatibleTerms "3" x y)
     Just Refl -> UTxPeel cy <$> mapNPM (uncurry' substR) (zipNP px py)
 
 lookupVar :: forall ki codes ix

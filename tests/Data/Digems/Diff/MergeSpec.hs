@@ -45,7 +45,7 @@ mustMerge lbl a o b
      in do it (lbl ++ ": merge square commutes") $ do
              case (oaob , oboa) of
                (Just ab , Just ba)
-                 -> case (apply ab a' , apply ba b') of
+                 -> case (apply ab b' , apply ba a') of
                      (Right c1 , Right c2)
                        -> eqFix eq1 c1 c2 `shouldBe` True
                      _ -> expectationFailure "apply failed"
@@ -82,6 +82,16 @@ b2 = "b" :>: [ "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
              , "." :>: []
              ]
 
+-----------------
+-- Example 3
+
+a3 , o3 , b3 :: RTree
+a3 = "x'" :>: [ "y" :>: [] , "z" :>: [] ]
+
+o3 = "x" :>: [ "y" :>: [] , "z" :>: [] ]
+
+b3 = "x" :>: [ "y'" :>: [] ]
+
 
 
 spec :: Spec
@@ -89,3 +99,4 @@ spec = do
   describe "manual examples" $ do
     mustMerge "1" a1 o1 b1
     mustMerge "2" a2 o2 b2
+    mustMerge "3" a3 o3 b3
