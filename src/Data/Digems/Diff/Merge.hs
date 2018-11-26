@@ -77,6 +77,7 @@ p // q = let p' = changeDistr p
                InL conf -> UTxHole (InL conf)
                InR ok   -> utxMap (InR . uncurry' CMatch)
                          $ utxLCP (cCtxDel ok) (cCtxIns ok)
+
 mergeChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
                 , UTxTestEqualityCnstr ki (Change ki codes))
              => Change ki codes at

@@ -80,7 +80,7 @@ utxUnify pa pb ea
                              varmax = maybe 0 id $ S.lookupMax varsx
                           in utxRefine (UTxHole . metavarAdd varmax) UTxOpq
 
--- |The first step traverses @pa@ and @pb@ instantiating the variables of @pa@.
+-- |@unifyL pa pb@ traverses @pa@ and @pb@ instantiating the variables of @pa@.
 unifyL :: (Unifiable ki codes)
        => Term ki codes ix
        -> Term ki codes ix
@@ -95,9 +95,9 @@ unifyL x@(UTxPeel cx px) y@(UTxPeel cy py) =
     Nothing   -> throwError (IncompatibleTerms "2" x y)
     Just Refl -> void $ elimNPM (uncurry' unifyL) (zipNP px py)
 
--- |The second step is substituting the variables in @ea@ for the
---  values they were instantiated for in @pa@, but using the variables
---  in @pb@ to take precedence.
+-- |The second step is @substR pb ea@, where we substitue the variables
+--  in @ea@ for the values they were instantiated for in @pa@,
+--  but using the variables in @pb@ to take precedence.
 substR :: (Unifiable ki codes)
        => Term ki codes ix
        -> Term ki codes ix
@@ -107,7 +107,7 @@ substR _ (UTxHole var) = get >>= lookupVar var
 substR _ (UTxOpq oy)   = return $ UTxOpq oy
 substR x@(UTxPeel cx px) y@(UTxPeel cy py) =
   case testEquality cx cy of
-    Nothing   -> return y -- throwError (IncompatibleTerms "3" x y)
+    Nothing   -> throwError (IncompatibleTerms "3" x y)
     Just Refl -> UTxPeel cy <$> mapNPM (uncurry' substR) (zipNP px py)
 
 lookupVar :: forall ki codes ix

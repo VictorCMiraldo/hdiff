@@ -31,6 +31,35 @@ applyRTree' :: PatchRTree -> RTree -> Maybe RTree
 applyRTree' p = either (const Nothing) Just . applyRTree p
 
 --------------------------------------------
+-- ** Merge Properties
+
+genSimilarTrees' :: Gen (RTree , RTree)
+genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
+
+merge_id :: Property
+merge_id = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = digemRTree t1 t2
+         iden  = digemRTree t1 t1
+         mpid  = noConflicts (patch // iden)
+         midp  = noConflicts (iden  // patch)
+      in case (,) <$> mpid <*> midp of
+           Nothing -> expectationFailure "has conflicts"
+           Just (pid , idp) ->
+             case (,) <$> applyRTree' pid t1 <*> applyRTree' idp t2 of
+               Nothing -> expectationFailure "apply failed"
+               Just (r1 , r2) -> (r1 , r2) `shouldBe` (t2 , t2)
+         
+
+merge_diag :: Property
+merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = digemRTree t1 t2
+      in case noConflicts (patch // patch) of
+           Nothing -> expectationFailure "has conflicts"
+           Just p  -> case applyRTree' p t2 of
+             Nothing -> expectationFailure "apply failed"
+             Just r  -> r `shouldBe` t2
+
+--------------------------------------------
 -- ** Manual Merge Examples
 
 mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
@@ -92,11 +121,21 @@ o3 = "x" :>: [ "y" :>: [] , "z" :>: [] ]
 
 b3 = "x" :>: [ "y'" :>: [] ]
 
+---------------------------------
+-- Example 4
 
+a4 , o4 , b4 :: RTree
+a4 = "y" :>: []
+o4 = "x" :>: []
+b4 = "y" :>: []
 
 spec :: Spec
 spec = do
+  describe "properties" $ do
+    it "p // id == p && id // p == id" $ merge_id
+  
   describe "manual examples" $ do
     mustMerge "1" a1 o1 b1
     mustMerge "2" a2 o2 b2
     mustMerge "3" a3 o3 b3
+    mustMerge "4" a4 o4 b4
