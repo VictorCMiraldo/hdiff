@@ -412,14 +412,129 @@ to the more useful choice of constructor and associated product.
 \section{Representing Changes, Generically}
 \label{sec:representing-changes}
 
-  \TODO{one or two paras}
+  In \Cref{sec:concrete-changes} we gained some intuition about the
+workings of our algorithm. In \Cref{sec:generic-prog} we saw some techniques
+for writting programs over arbitrary mutually recursive families. The natural
+next step is to start writing our algorithm in a generic fashion. Yet, our
+reasoning so far relied on a specific oracle for answering \emph{is |t| a subtree 
+of |s| and |d|} in constant time. Let us take a small detour through defining
+this oracle and then using it throughout our algorithm.
+
+\subsection{The Oracle}
+\label{sec:orable}
+
+  Recall that the task of our oracle is not only to answer whether a
+tree |t| is a subtree of two given trees: |s| and |d|, but also to 
+provide a unique name for |t|. That is, we are looking to inhabit the
+type of |buildOracle| below with an efficient implementation.
+
+\begin{myhs}
+\begin{code}
+type Oracle codes = forall j dot Fix codes j -> Maybe Int
+
+buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
+\end{code}
+\end{myhs}
+
+  Before focusing on efficiency, lets first look at a correct, but
+rather inefficient, implementation. Namelly, checking every single
+subtree for propositional equality.  Upon finding a match, returns the
+index of such subtree in the list of all subtrees. We start by enumerating
+all possible subtrees:
+
+\begin{myhs}
+\begin{code}
+subtrees :: Fix codes i -> [ forall j . Fix codes j ]
+subtrees x = x : case sop x of
+  Tag _ pt -> concat (elimNP (elimNA (const []) subtrees) pt)
+\end{code}
+\end{myhs}
+
+  where |elimNP| and |elimNA| are eliminators for their respective type,
+defined as:
+
+\begin{minipage}[t]{.45\textwidth}
+\begin{myhs}
+\begin{code}
+elimNA f g (NA_I x)  = f x
+elimNA f g (NA_K x)  = g x
+\end{code}
+\end{myhs}
+\end{minipage}
+\begin{minipage}[t]{.45\textwidth}
+\begin{myhs}
+\begin{code}
+elimNP f NP0        = []
+elimNP f (x :* xs)  = f x : elimNP f xs
+\end{code}
+\end{myhs}
+\end{minipage}
+
+  Next, we define a heterogeneous equality over |Fix codes| and search the list:
+
+\begin{myhs}
+\begin{code}
+idx :: (a -> Bool) -> [a] -> Maybe Int
+idx f  []     = Nothing
+idx f  (x:xs) = if f x then Just 0 else (1+) <$$> idx f xs
+
+heqFix :: Fix codes i -> Fix codes j -> Bool
+heqFix x y = case testEquality x y of
+               Nothing    -> False
+               Just Refl  -> eqFix x y
+\end{code}
+\end{myhs}
+
+  Finally, we can put together our inefficient |buildOracle|. We check
+whether the target tree is a subtree of |s|, if it is, we search for
+its index in |d|. If we find it in both |s| and |d|, then it is
+a common subtree:
+
+\begin{myhs}
+\begin{code}
+buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
+buildOracle s d x = do
+  is <- idx (heqFix x) (subtrees s)
+  id <- idx (heqFix x) (subtrees d)
+  return is
+\end{code}
+\end{myhs}
+
+  There are two sources of inefficiency in the |buildOracle| above. First,
+it is very space inefficient since it builds the |subtrees| list twice.
+This is easy to fix, since we could just traverse |s| and |d| instead.
+We present it in terms of |subtree| to promote readability here. The second
+point comes from |heqFix|. Comparing trees for equality is expensive. We can
+also address this issue by annotating our trees with cryptographic hashes.
+
+  In fact, the efficient oracle consists in annotating the source and
+destination trees with hashes:
+
+\begin{myhs}
+\begin{code}
+newtype AnnFix x codes i = AnnFix (x , Rep (AnnFix x codes) (Lkup i codes))
+
+prepare :: Fix codes i -> AnnFix Digest codes i
+\end{code}
+\end{myhs}
+
+  Here, |AnnFix| is a cofree comonad to add a label to each recursive branch
+of our trees. In our case, this lavel will be the cryptographic digest of the
+concatenation of its subtree's digests. Much like in a \emph{merkle tree}~\cite{?}.
+
+  
+
+
+
+
+
 
 \subsection{Tree Prefixes}
 \label{sec:treefix}
 
   Recall our |Tree23C| type, from \Cref{sec:concrete-changes}. It augmented
 the |Tree23| type with an extra constructor for representing holes, by the
-means of metavariables. 
+means of a \emph{metavariable}. We can do the same to arbitrary codes:
 
 \begin{myhs}
 \begin{code}
@@ -431,6 +546,40 @@ data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
           -> Tx codes phi (I i)
 \end{code}
 \end{myhs}
+
+  Here, we parametrize the type of our \emph{metavariables} and call it |phi|.
+Note that our |Tx| is, in fact, the indexed free monad over the |Rep| functor.
+Essentialy, a value of type |Tx codes phi at| is nothing but a value of
+type |NA (Fix codes) at| augmented with \emph{holes} of type |phi|.
+
+  In our case, the metavariables will be integers, but will represent
+either a recursive position or an opaque type:
+
+\begin{myhs}
+\begin{code}
+type MetaVarIK = NA (Const Int) (Const Int)
+\end{code}
+\end{myhs}
+
+  Then, assuming we have access to an oracle for \emph{is-common-subtree} querying,
+of type |forall at dot Fix codes at -> Maybe Int|, we can define the \emph{extract}
+function as:
+
+\begin{myhs}
+\begin{code}
+txExtract  :: (forall at dot Fix codes at -> Maybe Int)
+           -> NA (Fix codes) at
+           -> Tx codes MetaVarIK at
+txExtract ics  (NA_K opq)  = TxOpq opq
+txExtract ics  (NA_I t)    = maybe (recurse t) instantiate $$ ics t
+  where
+   recurse t = case sop t of
+     Tag ct pt -> TxPeel ct (mapNP (txExtract ics pt))
+
+   instantiate var = TxHole 
+\end{code}
+\end{myhs}
+
 
 \begin{itemize}
   \item |ForceI|
