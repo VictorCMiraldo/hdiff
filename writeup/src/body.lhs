@@ -387,7 +387,7 @@ of a generic type:
 
 \begin{myhs}
 \begin{code}
-data Constr :: [[k]] -> Nat -> * where
+data Constr :: [[k]] -> Nat -> Star where
   CZ ::                 Constr (x (P (:)) xs)  Z
   CS :: Constr xs c ->  Constr (x (P (:)) xs)  (S c)
 \end{code}
@@ -399,7 +399,7 @@ a value of a sum type to be a choice of constructor and corresponding product:
 
 \begin{myhs}
 \begin{code}
-data View :: (Nat -> *) -> P [ P [ Atom ] ] -> * where
+data View :: (Nat -> Star) -> P [ P [ Atom ] ] -> Star where
   Tag :: Constr sum c -> NP (NA phi) (Lkup c sum) -> View phi sum
 
 sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
@@ -475,54 +475,61 @@ txExtract ics x = case ics x of
 \end{code}
 \end{myhs}
 
-  The |ForceI| is used to ensure that the index is of the |I ix| form and 
-|(:*:)| is just a indexed product. Both types are defined as:
+  The above code is very similar to |extract| from \Cref{sec:concrete-changes},
+but here we hace some additional types: |ForceI| is used to ensure that 
+the index is of the |I ix| form and |(:*:)| is just a indexed product.
 
 \begin{myhs}
 \begin{code}
-data ForceI :: (Nat -> *) -> Atom -> * where
+data ForceI :: (Nat -> Star) -> Atom -> Star where
   ForceI :: f i -> ForceI f (I i)
 
 data (:*:) f g x = f x :*: g x
 \end{code}
 \end{myhs}
 
-
-
-  In our case, the metavariables will be integers, but will represent
-either a recursive position or an opaque type:
-
-\begin{myhs}
-\begin{code}
-type MetaVarIK = NA (Const Int) (Const Int)
-\end{code}
-\end{myhs}
-
-  Then, assuming we have access to an oracle for \emph{is-common-subtree} querying,
-of type |forall at dot Fix codes at -> Maybe Int|, we can define the \emph{extract}
-function as:
+  Once we extract the |Tx| from both the source and destination trees,
+we must decide which holes should be kept, and which holes whould be demoted
+to a |Tx|. In fact, we only want the holes that appear both in the source |Tx|
+and the destination |Tx|. To ilustrate the problem, magine the following two |Tree23|:
 
 \begin{myhs}
 \begin{code}
-txExtract  :: (forall at dot Fix codes at -> Maybe Int)
-           -> NA (Fix codes) at
-           -> Tx codes MetaVarIK at
-txExtract ics  (NA_K opq)  = TxOpq opq
-txExtract ics  (NA_I t)    = maybe (recurse t) instantiate $$ ics t
-  where
-   recurse t = case sop t of
-     Tag ct pt -> TxPeel ct (mapNP (txExtract ics pt))
-
-   instantiate var = TxHole 
+a = Node2 (Node2 t k) u
+b = Node2 (Node2 t k) t
 \end{code}
 \end{myhs}
 
+  Our oracle will recognize |Node2 t k| and |t| as a common subtree. Extracting
+the |Tree23C| will from both trees yields:
 
-\begin{itemize}
-  \item |ForceI|
-  \item show |utxMap| and |utxRefine|
-  \item |MetaVarI| and |MetaVarIK|
-\end{itemize}
+\begin{myhs}
+\begin{code}
+extract a = Node2C (Hole 0) u
+extract b = Node2C (Hole 0) (Hole 1)
+\end{code}
+\end{myhs}
+
+  Note how the metavariable |Hole 1| is essentially unmatched. That happens because it
+occurs inside a bigger common subtree. We solve this by postprocessing the resulting
+|Tx|s and keeping only the metavariables that occur in both contexts. Lets call this
+function |txPostprocess|:
+
+\begin{myhs}
+\begin{code}
+txPostprocess  ::  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
+               ->  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
+               ->  (  Tx codes (ForceI (Const Int))
+                   ,  Tx codes (ForceI (Const Int)))
+\end{code}
+\end{myhs}
+
+  The definition is uninteresting. It proceeds by grouping every metariable in a set,
+computing the intersection of the sets, then mapping over the arguments and replacing
+the |Const Int :*: Fix codes| hole by either |Const Int|, if the |Int| belongs in
+the set, or by a |Tx codes (ForceI (Const Int))| with no holes, isomorphic to the 
+second component of the pair.
+
 
 
 \subsection{The Oracle}
@@ -721,7 +728,7 @@ whole tree once.
 %% \victor{should we really be showing datatypes?}
 %% \begin{myhs}
 %% \begin{code}
-%% data ES (codes :: [[[Atom kon]]]) :: [Atom kon] -> [Atom kon] -> * where
+%% data ES (codes :: [[[Atom kon]]]) :: [Atom kon] -> [Atom kon] -> Star where
 %%   E0   :: ES codes '[] '[]
 %%   Ins  :: Cof codes a c
 %%        -> ES codes i  (Tyof codes c  :++:     j)
