@@ -505,7 +505,16 @@ it is very space inefficient since it builds the |subtrees| list twice.
 This is easy to fix, since we could just traverse |s| and |d| instead.
 We present it in terms of |subtree| to promote readability here. The second
 point comes from |heqFix|. Comparing trees for equality is expensive. We can
-also address this issue by annotating our trees with cryptographic hashes.
+also address this issue by annotating our trees with cryptographic hashes and
+comparing them instead of the trees themselves.
+
+  The efficient version of the oracle will consist in annotating both source
+and destination with cryptographic hashes. We then insert these hashes in
+a lookup-efficient structure. A |Trie| is a good choice here, since it provides
+constant lookup\footnote{In our scenario, the trie's depth is bounded, hance the
+amortized cost of lookups is bounded by a constant}. Finally, we compute the 
+intersection of said |Trie|s arriving at a map containing only the hashes that
+belong in both source and destination trees.
 
   In fact, the efficient oracle consists in annotating the source and
 destination trees with hashes:
@@ -515,13 +524,32 @@ destination trees with hashes:
 newtype AnnFix x codes i = AnnFix (x , Rep (AnnFix x codes) (Lkup i codes))
 
 prepare :: Fix codes i -> AnnFix Digest codes i
+prepare = synthesize authAlgebra
 \end{code}
 \end{myhs}
 
   Here, |AnnFix| is a cofree comonad to add a label to each recursive branch
-of our trees. In our case, this lavel will be the cryptographic digest of the
+of our trees. In our case, this label will be the cryptographic digest of the
 concatenation of its subtree's digests. Much like in a \emph{merkle tree}~\cite{?}.
+The |synthesize| generic combinator will annotate each node of the tree with
+a result of calling a catamorphism with the same algebra. Our algebra
+is sketched in pseudo-Haskell below:
 
+\begin{myhs}
+\begin{code}
+authAlgebra :: Rep (Const Digest) sum -> Const Digest iy
+authAlgebra rep = case sop rep of
+  Tag c [p_1 , dots , p_n]  -> Const . digestConcat
+                            $$ [digest c , digest (getSNat @iy) , p_1 , dots , p_n]
+\end{code}
+\end{myhs} 
+
+  Note that we must append the index of the type in question to our digest computation
+to differentiate constructors of different types in the family indexed by the same number.
+Moreover, annotating the tree with these hashes means that we only have to traverse the
+whole tree once.
+  
+  
   
 
 
