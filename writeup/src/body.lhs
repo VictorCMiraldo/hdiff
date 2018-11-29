@@ -415,10 +415,115 @@ to the more useful choice of constructor and associated product.
   In \Cref{sec:concrete-changes} we gained some intuition about the
 workings of our algorithm. In \Cref{sec:generic-prog} we saw some techniques
 for writting programs over arbitrary mutually recursive families. The natural
-next step is to start writing our algorithm in a generic fashion. Yet, our
-reasoning so far relied on a specific oracle for answering \emph{is |t| a subtree 
-of |s| and |d|} in constant time. Let us take a small detour through defining
-this oracle and then using it throughout our algorithm.
+next step is to start writing our algorithm in a generic fashion. Throughout
+this section we will continue to assume the existence of an efficient oracle
+|ics|, for answering \emph{is |t| a subtree of |s| and |d| indexed by |n|}.
+The type of oracles is defined below together with a function that
+builds an oracle from a source, |s|, and a destination, |d|: 
+
+\begin{myhs}
+\begin{code}
+type Oracle codes = forall j dot Fix codes j -> Maybe Int
+
+buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
+\end{code}
+\end{myhs}
+
+
+\subsection{Tree Prefixes}
+\label{sec:treefix}
+
+  Recall our |Tree23C| type, from \Cref{sec:concrete-changes}. It augmented
+the |Tree23| type with an extra constructor for representing holes, by the
+means of a \emph{metavariable}. This type construction is crucial to the
+representation of our patches. In fact, it works out for an arbitrary
+mutually recursive family:
+
+\begin{myhs}
+\begin{code}
+data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
+  TxHole  :: phi at  -> Tx codes phi at
+  TxOpq   :: Opq k   -> Tx codes phi (K k)
+  TxPeel  :: Constr (Lkup i codes) c
+          -> NP (Tx codes phi) (Tyof codes c)
+          -> Tx codes phi (I i)
+\end{code}
+\end{myhs}
+
+  Note that our |Tx| is, in fact, the indexed free monad over the |Rep| functor.
+Essentialy, a value of type |Tx codes phi at| is nothing but a value of
+type |NA (Fix codes) at| augmented with \emph{holes} of type |phi|.
+
+  Differently then with |Tree23C|, in |Tx| we parametrize the type of \emph{metavariables}.
+This comes in quite handy as it allows us to use the |Tx| for a number of intermediate
+steps in the algorithm. The first one being the extraction of a |Tx| from
+a |Fix codes ix| by annotating the common subtrees with their index,
+provided by the oracle. We first check whether |x| is a subtree, if so,
+we annotate it with a hole. Otherwise we extract the constructor and
+its fields from |x|. We the map |TxOpq| on the opaque fields and continue extracting
+on the fields that reference recursive positions:
+
+\begin{myhs}
+\begin{code}
+txExtract :: Oracle codes
+          -> Fix codes ix 
+          -> Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
+txExtract ics x = case ics x of
+    Just i   -> TxHole (ForceI (Const i :*: x))
+    Nothing  -> let Tag c p = sop (unFix x)
+                 in TxPeel c (mapNP (elimNA TxOpq (extractAtom ics)) p)
+\end{code}
+\end{myhs}
+
+  The |ForceI| is used to ensure that the index is of the |I ix| form and 
+|(:*:)| is just a indexed product. Both types are defined as:
+
+\begin{myhs}
+\begin{code}
+data ForceI :: (Nat -> *) -> Atom -> * where
+  ForceI :: f i -> ForceI f (I i)
+
+data (:*:) f g x = f x :*: g x
+\end{code}
+\end{myhs}
+
+
+
+  In our case, the metavariables will be integers, but will represent
+either a recursive position or an opaque type:
+
+\begin{myhs}
+\begin{code}
+type MetaVarIK = NA (Const Int) (Const Int)
+\end{code}
+\end{myhs}
+
+  Then, assuming we have access to an oracle for \emph{is-common-subtree} querying,
+of type |forall at dot Fix codes at -> Maybe Int|, we can define the \emph{extract}
+function as:
+
+\begin{myhs}
+\begin{code}
+txExtract  :: (forall at dot Fix codes at -> Maybe Int)
+           -> NA (Fix codes) at
+           -> Tx codes MetaVarIK at
+txExtract ics  (NA_K opq)  = TxOpq opq
+txExtract ics  (NA_I t)    = maybe (recurse t) instantiate $$ ics t
+  where
+   recurse t = case sop t of
+     Tag ct pt -> TxPeel ct (mapNP (txExtract ics pt))
+
+   instantiate var = TxHole 
+\end{code}
+\end{myhs}
+
+
+\begin{itemize}
+  \item |ForceI|
+  \item show |utxMap| and |utxRefine|
+  \item |MetaVarI| and |MetaVarIK|
+\end{itemize}
+
 
 \subsection{The Oracle}
 \label{sec:orable}
@@ -555,65 +660,6 @@ whole tree once.
 
 
 
-
-
-\subsection{Tree Prefixes}
-\label{sec:treefix}
-
-  Recall our |Tree23C| type, from \Cref{sec:concrete-changes}. It augmented
-the |Tree23| type with an extra constructor for representing holes, by the
-means of a \emph{metavariable}. We can do the same to arbitrary codes:
-
-\begin{myhs}
-\begin{code}
-data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
-  TxHole  :: phi at  -> Tx codes phi at
-  TxOpq   :: Opq k   -> Tx codes phi (K k)
-  TxPeel  :: Constr (Lkup i codes) c
-          -> NP (Tx codes phi) (Tyof codes c)
-          -> Tx codes phi (I i)
-\end{code}
-\end{myhs}
-
-  Here, we parametrize the type of our \emph{metavariables} and call it |phi|.
-Note that our |Tx| is, in fact, the indexed free monad over the |Rep| functor.
-Essentialy, a value of type |Tx codes phi at| is nothing but a value of
-type |NA (Fix codes) at| augmented with \emph{holes} of type |phi|.
-
-  In our case, the metavariables will be integers, but will represent
-either a recursive position or an opaque type:
-
-\begin{myhs}
-\begin{code}
-type MetaVarIK = NA (Const Int) (Const Int)
-\end{code}
-\end{myhs}
-
-  Then, assuming we have access to an oracle for \emph{is-common-subtree} querying,
-of type |forall at dot Fix codes at -> Maybe Int|, we can define the \emph{extract}
-function as:
-
-\begin{myhs}
-\begin{code}
-txExtract  :: (forall at dot Fix codes at -> Maybe Int)
-           -> NA (Fix codes) at
-           -> Tx codes MetaVarIK at
-txExtract ics  (NA_K opq)  = TxOpq opq
-txExtract ics  (NA_I t)    = maybe (recurse t) instantiate $$ ics t
-  where
-   recurse t = case sop t of
-     Tag ct pt -> TxPeel ct (mapNP (txExtract ics pt))
-
-   instantiate var = TxHole 
-\end{code}
-\end{myhs}
-
-
-\begin{itemize}
-  \item |ForceI|
-  \item show |utxMap| and |utxRefine|
-  \item |MetaVarI| and |MetaVarIK|
-\end{itemize}
 
 
 \subsection{Computing Patches}
