@@ -409,8 +409,11 @@ sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
   The |sop| functions converts a value in its standard representation
 to the more useful choice of constructor and associated product.
 
-\section{Representing Changes, Generically}
+\section{Representing and Computing Changes, Generically}
 \label{sec:representing-changes}
+
+\TODO{Disclaimer: we present significantly simpler code.
+go check the repo for the actual stuff!}
 
   In \Cref{sec:concrete-changes} we gained some intuition about the
 workings of our algorithm. In \Cref{sec:generic-prog} we saw some techniques
@@ -428,10 +431,6 @@ type Oracle codes = forall j dot Fix codes j -> Maybe Int
 buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 \end{code}
 \end{myhs}
-
-
-\subsection{Tree Prefixes}
-\label{sec:treefix}
 
   Recall our |Tree23C| type, from \Cref{sec:concrete-changes}. It augmented
 the |Tree23| type with an extra constructor for representing holes, by the
@@ -519,8 +518,8 @@ function |txPostprocess|:
 \begin{code}
 txPostprocess  ::  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
                ->  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
-               ->  (  Tx codes (ForceI (Const Int))
-                   ,  Tx codes (ForceI (Const Int)))
+               ->  (  Tx codes (ForceI (Const Int)) (I ix)
+                   ,  Tx codes (ForceI (Const Int)) (I ix))
 \end{code}
 \end{myhs}
 
@@ -530,25 +529,46 @@ the |Const Int :*: Fix codes| hole by either |Const Int|, if the |Int| belongs i
 the set, or by a |Tx codes (ForceI (Const Int))| with no holes, isomorphic to the 
 second component of the pair.
 
+  The last step is identifying the opaque values that should be copied. This can be done by
+traversing both |Tx|s together while they agree and substitute the |TxOpq| occurences
+that are equal on both sides by a fresh metavariable.
 
+\begin{myhs}
+\begin{code}
+txAbstractOpq  ::  Tx codes (ForceI (Const Int))
+               ->  Tx codes (ForceI (Const Int))
+               ->  (Tx codes MetaVarIK , Tx codes MetaVarIK at)
+\end{code}
+\end{myhs}
+
+  Where |MetaVarIK| is defined by |NA (Const Int) (Const Int)|, essentially distinguishing
+between a metavariable that is suppused to be instantiated by a recursive member of the
+family or a opaque type. Finally, we package the code up and define our |diff| function as
+
+\begin{myhs}
+\begin{code}
+type Patch codes at = (Tx codes MetaVarIK at , Tx codes MetaVarIK at)
+
+diff :: Fix codes ix -> Fix codes ix -> Patch codes (I ix)
+diff x y = let  ics = buildOracle x y
+                del = txExtract ics x
+                ins = txExtract ics y
+            in uncurry txAbstractOpq $$ txPostprocess del ins
+\end{code}
+\end{myhs}
+
+  The application of a |Patch| follows very closely the implementation
+of the application presented in \Cref{sec:concrete-changes} but uses
+some more advanced type level mechanisms. 
+
+\TODO{should we explain it?} 
 
 \subsection{The Oracle}
 \label{sec:orable}
 
-  Recall that the task of our oracle is not only to answer whether a
-tree |t| is a subtree of two given trees: |s| and |d|, but also to 
-provide a unique name for |t|. That is, we are looking to inhabit the
-type of |buildOracle| below with an efficient implementation.
-
-\begin{myhs}
-\begin{code}
-type Oracle codes = forall j dot Fix codes j -> Maybe Int
-
-buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
-\end{code}
-\end{myhs}
-
-  Before focusing on efficiency, lets first look at a correct, but
+  The presentation of our algorithm is entirely dependent on the oracle
+being efficient. In this section we shall explain how to build such
+oracle. Before focusing on efficiency, however, lets first look at a correct, but
 rather inefficient, implementation. Namelly, checking every single
 subtree for propositional equality.  Upon finding a match, returns the
 index of such subtree in the list of all subtrees. We start by enumerating
@@ -556,31 +576,31 @@ all possible subtrees:
 
 \begin{myhs}
 \begin{code}
-subtrees :: Fix codes i -> [ forall j . Fix codes j ]
+subtrees :: Fix codes i -> [ forall j dot Fix codes j ]
 subtrees x = x : case sop x of
   Tag _ pt -> concat (elimNP (elimNA (const []) subtrees) pt)
 \end{code}
 \end{myhs}
 
-  where |elimNP| and |elimNA| are eliminators for their respective type,
-defined as:
-
-\begin{minipage}[t]{.45\textwidth}
-\begin{myhs}
-\begin{code}
-elimNA f g (NA_I x)  = f x
-elimNA f g (NA_K x)  = g x
-\end{code}
-\end{myhs}
-\end{minipage}
-\begin{minipage}[t]{.45\textwidth}
-\begin{myhs}
-\begin{code}
-elimNP f NP0        = []
-elimNP f (x :* xs)  = f x : elimNP f xs
-\end{code}
-\end{myhs}
-\end{minipage}
+%   where |elimNP| and |elimNA| are eliminators for their respective type,
+% defined as:
+% 
+% \begin{minipage}[t]{.45\textwidth}
+% \begin{myhs}
+% \begin{code}
+% elimNA f g (NA_I x)  = f x
+% elimNA f g (NA_K x)  = g x
+% \end{code}
+% \end{myhs}
+% \end{minipage}
+% \begin{minipage}[t]{.45\textwidth}
+% \begin{myhs}
+% \begin{code}
+% elimNP f NP0        = []
+% elimNP f (x :* xs)  = f x : elimNP f xs
+% \end{code}
+% \end{myhs}
+% \end{minipage}
 
   Next, we define a heterogeneous equality over |Fix codes| and search the list:
 
@@ -597,28 +617,64 @@ heqFix x y = case testEquality x y of
 \end{code}
 \end{myhs}
 
-  Finally, we can put together our inefficient |buildOracle|. We check
-whether the target tree is a subtree of |s|, if it is, we search for
-its index in |d|. If we find it in both |s| and |d|, then it is
-a common subtree:
-
+  Finally, we can put together our inefficient |buildOracle|. We start
+by looking for our target, |t|, in the subtrees of |x|. If we find something,
+we proceed to check whether |t| also belongs in the subtrees of |y|. Since
+we are in the |Maybe| monad, if either of those steps fail, the entire function
+will return  |Nothing|.
+ 
 \begin{myhs}
 \begin{code}
+type Oracle codes = forall j dot Fix codes j -> Maybe Int
+
 buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
-buildOracle s d x = do
-  is <- idx (heqFix x) (subtrees s)
-  id <- idx (heqFix x) (subtrees d)
+buildOracle x y t = do
+  ix <- idx (heqFix t) (subtrees x)
+  iy <- idx (heqFix t) (subtrees y)
   return is
 \end{code}
 \end{myhs}
 
   There are two sources of inefficiency in the |buildOracle| above. First,
-it is very space inefficient since it builds the |subtrees| list twice.
-This is easy to fix, since we could just traverse |s| and |d| instead.
-We present it in terms of |subtree| to promote readability here. The second
-point comes from |heqFix|. Comparing trees for equality is expensive. We can
+we build the |subtrees| list twice, once for the source and once for the destination.
+We then proceed to compare a third tree, |t|, for equality with every subtree in
+the prepared lists. That is an extremely expensive computation, but we can 
+achieve radically better complexity by precomputing some data and storing it
+in a proper structure.
+
+  Comparing trees for equality can be made faster if we preprocess our trees annotating
+them with cryptographic hashes. This enables us to compare trees in constant time.
+Better yet, we can also store the hashes of all possible subtrees in a structure
+that provides efficient lookup and some sort of intersection operation. Building an
+oracle would then be composed of two steps: annotate both source and destination
+with cryptographic hashes at every subtree, store those in a structure and compute
+the intersection. The result should be a searchable structure that will return a
+result only if a tree is a common subtree of both the source and destination of
+the |buildOracle| function.
+
+  
+  A hash funtion will receive some data and output a fixed-length 
+sequence of words. We can store those sequences of words in a |Trie|, also known as
+a \emph{prefix tree}, indexed by machine words:
+
+\begin{myhs}
+\begin{code}
+data Trie a = Trie (Maybe a) (Map Word (Trie a)
+\end{code}
+\end{myhs}
+
+  We also need tree simple functions over this structure: insertion, lookup
+and intersection. 
+
+  Now,  hashing functionality by the means of a type class
+
+
+
+The second point comes from |heqFix|. Comparing trees for equality on every possible subtree is expensive. We can
 also address this issue by annotating our trees with cryptographic hashes and
 comparing them instead of the trees themselves.
+
+  
 
   The efficient version of the oracle will consist in annotating both source
 and destination with cryptographic hashes. We then insert these hashes in
@@ -661,17 +717,6 @@ to differentiate constructors of different types in the family indexed by the sa
 Moreover, annotating the tree with these hashes means that we only have to traverse the
 whole tree once.
   
-  
-  
-
-
-
-
-
-
-\subsection{Computing Patches}
-\label{sec:computing}
-
 \section{Instantiating the Oracle}
 \label{sec:oracle}
 
