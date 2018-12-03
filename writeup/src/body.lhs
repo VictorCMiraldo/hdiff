@@ -659,7 +659,7 @@ a \emph{prefix tree}, indexed by machine words:
 
 \begin{myhs}
 \begin{code}
-data Trie a = Trie (Maybe a) (Map Word (Trie a)
+data Trie a = Trie (Maybe a) (Map Word (Trie a))
 \end{code}
 \end{myhs}
 
