@@ -22,14 +22,14 @@ diff_wellscoped_changes = forAll genSimilarTrees' $ \(t1 , t2)
   -> let gt1   = dfrom (into @FamRTree t1)
          gt2   = dfrom (into @FamRTree t2)
          patch = digems 1 gt1 gt2
-      in conjoin $ utxGetHolesWith' go patch
+      in go $ changeDistr patch -- conjoin $ utxGetHolesWith' go patch
   where
-    go :: CChange W CodesRTree ix -> Property
-    go (CMatch vars del ins)
+    go :: Change W CodesRTree ix -> Property
+    go (CMatch del ins)
       = let vd = utxGetHolesWith metavarGet del
             vi = utxGetHolesWith metavarGet ins
-            v  = S.map metavarIK2Int vars
-         in v === vd .&&. property (vi `S.isSubsetOf` v)
+            -- v  = S.map metavarIK2Int vars
+         in {- v === vd .&&. -} property (vi `S.isSubsetOf` vd)
 
 apply_correctness :: Property
 apply_correctness = forAll genSimilarTrees' $ \(t1 , t2)

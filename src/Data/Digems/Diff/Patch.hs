@@ -56,22 +56,34 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 --  Where @forget@ returns the values in the holes.
 --
 
--- |A 'CChange', or, closed change, consists in a declaration of metavariables
+-- |A 'Change', or, closed change, consists in a declaration of metavariables
 --  and two contexts. The precondition is that every variable declared
 --  occurs at least once in ctxDel and that every variable that occurs in ctxIns
 --  is declared.
 --  
-data CChange ki codes at where
-  CMatch :: { cCtxVars :: S.Set (Exists (MetaVarIK ki))
-            , cCtxDel  :: UTx ki codes (MetaVarIK ki) at 
+data Change ki codes at where
+  CMatch :: { cCtxDel  :: UTx ki codes (MetaVarIK ki) at 
             , cCtxIns  :: UTx ki codes (MetaVarIK ki) at }
-         -> CChange ki codes at
+         -> Change ki codes at
 
 -- |Issues a copy, this is a closed change analogous to
+--  
 --  > \x -> x
-changeCopy :: MetaVarIK ki at -> CChange ki codes at
-changeCopy vik = CMatch (S.singleton (Exists vik)) (UTxHole vik) (UTxHole vik)
+--
+--  WARNING: does not takes care of name shadowing!
+--           please, make sure @vik@ is fresh
+changeCopy :: MetaVarIK ki at -> Change ki codes at
+changeCopy vik = CMatch (UTxHole vik) (UTxHole vik)
 
+-- |A 'UTx' that contains changes inside distributes over these
+--  changes.
+changeDistr :: UTx ki codes (Change ki codes) at
+            -> Change ki codes at
+changeDistr utx = let del  = utxJoin $ utxMap cCtxDel utx
+                      ins  = utxJoin $ utxMap cCtxIns utx
+                   in CMatch del ins
+
+{-
 -- |A 'OChange', or, open change, is analogous to a 'CChange',
 --  but has a list of free variables. These are the ones that appear
 --  in 'oCtxIns' but not in 'oCtxDel'
@@ -81,28 +93,29 @@ data OChange ki codes at where
             , oCtxDel  :: UTx ki codes (MetaVarIK ki) at 
             , oCtxIns  :: UTx ki codes (MetaVarIK ki) at }
          -> OChange ki codes at
+-}
 
-instance (Show1 ki) => Show (CChange ki codes at) where
-  show (CMatch _ del ins)
+instance (Show1 ki) => Show (Change ki codes at) where
+  show (CMatch del ins)
     = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
 
-instance HasIKProjInj ki (CChange ki codes) where
-  konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
-  varProj pk (CMatch _ (UTxHole h) _)   = varProj pk h
-  varProj pk (CMatch _ (UTxPeel _ _) _) = Just IsI
-  varProj pk (CMatch _ _ _)             = Nothing
+instance HasIKProjInj ki (Change ki codes) where
+  konInj k = CMatch (UTxOpq k) (UTxOpq k)
+  varProj pk (CMatch (UTxHole h) _)   = varProj pk h
+  varProj pk (CMatch (UTxPeel _ _) _) = Just IsI
+  varProj pk (CMatch _ _)             = Nothing
 
-instance (TestEquality ki) => TestEquality (CChange ki codes) where
-  testEquality (CMatch _ x _) (CMatch _ y _)
+instance (TestEquality ki) => TestEquality (Change ki codes) where
+  testEquality (CMatch x _) (CMatch y _)
     = testEquality x y
 
 -- |Instead of keeping unecessary information, a 'RawPatch' will
 --  factor out the common prefix before the actual changes.
 --
-type RawPatch ki codes = UTx ki codes (CChange ki codes)
+type RawPatch ki codes = UTx ki codes (Change ki codes)
 
 -- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
-type Patch ki codes ix = UTx ki codes (CChange ki codes) (I ix)
+type Patch ki codes ix = UTx ki codes (Change ki codes) (I ix)
 
 -- * Diffing
 
@@ -181,11 +194,15 @@ extractUTx minHeight tr (AnnFix (Const prep) rep)
 --  This is somehow analogous to a @zipWith@
 extractSpine :: forall ki codes ix
               . (Eq1 ki)
-             => Int
+             => UTx ki codes MetaVarI (I ix)
              -> UTx ki codes MetaVarI (I ix)
-             -> UTx ki codes MetaVarI (I ix)
-             -> UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) (I ix)
-extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
+             -> UTx ki codes (Change ki codes) (I ix)
+extractSpine dx dy = utxMap (\(x :*: y) -> CMatch (tr x) (tr y)) $ utxLCP dx dy
+  where
+    tr :: UTx ki codes MetaVarI at
+       -> UTx ki codes (MetaVarIK ki) at
+    tr = utxMap (\(ForceI x) -> NA_I x)
+{-
   where
     go :: UTx ki codes MetaVarI at
        -> UTx ki codes MetaVarI at
@@ -199,14 +216,16 @@ extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
                      then InR $ CMatch evx (tr utx) (tr uty)
                      else InL $ OMatch evx (toEx $ S.difference vy vx) (tr utx) (tr uty)
     
-    tr :: UTx ki codes MetaVarI at
-       -> UTx ki codes (MetaVarIK ki) at
-    tr = utxMap (\(ForceI x) -> NA_I x)
 
     toEx :: S.Set (Exists MetaVarI) -> S.Set (Exists (MetaVarIK ki))
     toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
+-}
+
+{-
 
 -- |A Utx with closed changes distributes over a closed change
+--
+--  TODO: renames!!
 closedChangeDistr :: UTx ki codes (CChange ki codes) at
                   -> CChange ki codes at
 closedChangeDistr utx = let vars = S.foldl' S.union S.empty
@@ -251,7 +270,7 @@ closure (UTxPeel cx dx)
     fromInR (InL _) = Nothing
     fromInR (InR x) = Just x
     
-
+-}
 
 -- |Diffs two generic merkelized structures.
 --  The outline of the process is:
@@ -279,16 +298,24 @@ digems mh x y
                   utxGetHolesWith unForceI' ins'
         ins     = utxRefine (refineHole holes) UTxOpq ins'
         del     = utxRefine (refineHole holes) UTxOpq del'
-     in case closure (extractSpine i del ins) of
+     in flip evalState i
+      . utxRefineM (return . UTxHole) opqCopy
+      $ extractSpine del ins
+      {- case closure (extractSpine i del ins) of
           -- TODO: prove in agda this is unreachable
           InL oc -> error "There are open changes"
           InR cc -> utxRefine UTxHole opqCopy cc
+      -}
   where
     unForceI' :: ForceI (Const Int :*: x) at -> Int
     unForceI' (ForceI (Const i :*: _)) = i
 
-    opqCopy :: ki k -> UTx ki codes (CChange ki codes) (K k)
-    opqCopy = UTxHole . changeCopy . NA_K . Annotate 0 
+    opqCopy :: ki k
+            -> State Int (UTx ki codes (Change ki codes) (K k))
+    opqCopy ki = do
+      i <- get
+      put (i+1)
+      return . UTxHole . changeCopy . NA_K . Annotate i $ ki
 
     -- Given a set of holes that show up in both the insertion
     -- and deletion treefixes, we traverse a treefix and keep only
@@ -367,6 +394,10 @@ naeCast _           _        = Left "naeCast mismatch"
 type Valuation ki codes
   = M.Map Int (NAE ki codes)
 
+guard' :: String -> Bool -> Either String ()
+guard' str False = Left str
+guard' str _     = Right ()
+
 -- |Projects an assignment out of a treefix. This
 --  function is inherently partial because the constructors
 --  specified on a treefix might be different than
@@ -387,13 +418,13 @@ utxProj utx = go M.empty utx
       -- sure the tree's match. We are performing the
       -- 'contraction' step here.
       | Just nae <- M.lookup (metavarGet var) m
-      = guard (naeMatch nae t) >> return m
+      = guard' "naeMatch" (naeMatch nae t) >> return m
       -- Otherwise, its the first time we see this
       -- metavariable. We will just insert a new tree here
       | otherwise
       = return (M.insert (metavarGet var) (naeInj t) m)
     go m (UTxOpq k) (NA_K tk)
-      = guard (eq1 k tk) >> return m
+      = guard' "OpqMatch" (eq1 k tk) >> return m
     go m (UTxPeel c gutxnp) (NA_I (Fix t))
       | Tag ct pt <- sop t
       = case testEquality c ct of
@@ -421,11 +452,11 @@ utxInj (UTxPeel c p) m
   = (NA_I . Fix . inj c) <$> mapNPM (flip utxInj m) p
 
 
-applyCChange :: (TestEquality ki , Eq1 ki)
-             => CChange ki codes at
+applyChange :: (TestEquality ki , Eq1 ki)
+             => Change ki codes at
              -> NA ki (Fix ki codes) at
              -> Either String (NA ki (Fix ki codes) at)
-applyCChange (CMatch _ del ins) x = utxProj del x >>= utxInj ins
+applyChange (CMatch del ins) x = utxProj del x >>= utxInj ins
 
 -- TODO: If changes are closed, we can now apply them locally!!
 
@@ -435,12 +466,16 @@ apply :: (TestEquality ki , Eq1 ki , IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
       -> Either String (Fix ki codes ix)
-apply patch x 
+apply patch x
+  = applyChange (changeDistr patch) (NA_I x)
+  >>= return . unNA_I
+  {-
     -- since all our changes are closed, we can apply them locally
     -- over the spine.
     =   utxZipRep patch (NA_I x)
-    >>= utxMapM (uncurry' applyCChange)
+    >>= utxMapM (uncurry' applyChange)
     >>= return . unNA_I . utxForget
+  -}
   where
     unNA_I :: NA f g (I i) -> g i
     unNA_I (NA_I x) = x

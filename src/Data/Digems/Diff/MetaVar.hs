@@ -56,6 +56,11 @@ metavarGet :: MetaVarIK ki at -> Int
 metavarGet = elimNA go getConst
   where go (Annotate x _) = x
 
+-- |Adds a number to a metavar
+metavarAdd :: Int -> MetaVarIK ki at -> MetaVarIK ki at
+metavarAdd n (NA_K (Annotate i x)) = NA_K $ Annotate (n + i) x
+metavarAdd n (NA_I (Const i))      = NA_I $ Const    (n + i)
+
 instance Show (MetaVarIK ki at) where
   show (NA_I (Const v))      = "i" ++ show v
   show (NA_K (Annotate v _)) = "k" ++ show v
