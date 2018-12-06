@@ -344,13 +344,18 @@ digems mh x y
      in case closure (extractSpine i del ins) of
           -- TODO: prove in agda this is unreachable
           InL oc -> error "There are open changes"
-          InR cc -> utxRefine UTxHole opqCopy cc
+          InR cc -> flip evalState i
+                  $ utxRefineM (return . UTxHole) opqCopy cc
   where
     unForceI' :: ForceI (Const Int :*: x) at -> Int
     unForceI' (ForceI (Const i :*: _)) = i
 
-    opqCopy :: ki k -> UTx ki codes (CChange ki codes) (K k)
-    opqCopy = UTxHole . changeCopy . NA_K . Annotate 0 
+    opqCopy :: ki k
+            -> State Int (UTx ki codes (CChange ki codes) (K k))
+    opqCopy ki = do
+      i <- get
+      put (i+1)
+      return . UTxHole . changeCopy . NA_K . Annotate i $ ki
 
     -- Given a set of holes that show up in both the insertion
     -- and deletion treefixes, we traverse a treefix and keep only
