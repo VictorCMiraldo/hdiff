@@ -498,8 +498,6 @@ applyCChange :: (TestEquality ki , Eq1 ki)
              -> Either String (NA ki (Fix ki codes) at)
 applyCChange (CMatch _ del ins) x = utxProj del x >>= utxInj ins
 
--- TODO: If changes are closed, we can now apply them locally!!
-
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
 apply :: (TestEquality ki , Eq1 ki , IsNat ix)

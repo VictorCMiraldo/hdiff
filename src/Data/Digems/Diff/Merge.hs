@@ -71,23 +71,52 @@ getConflicts = snd . runWriter . utxMapM go
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = let p' = changeDistr p
-             q' = changeDistr q
-          in case mergeChange p' q' of
-               InL conf -> UTxHole (InL conf)
-               InR ok   -> utxMap (InR . uncurry' CMatch)
-                         $ utxLCP (cCtxDel ok) (cCtxIns ok)
+p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 
-mergeChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-                , UTxTestEqualityCnstr ki (Change ki codes))
-             => Change ki codes at
-             -> Change ki codes at
-             -> Sum (Conflict ki codes) (Change ki codes) at
-mergeChange cb ca
+-- |The 'reconcile' function will try to reconcile disagreeing
+--  patches.
+--
+--  Precondition: before calling @reconcile p q@, make sure
+--                @p@ and @q@ are different.
+reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+             , UTxTestEqualityCnstr ki (CChange ki codes))
+          => RawPatch ki codes at
+          -> RawPatch ki codes at
+          -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
+-- (i) both different patches consist in changes
+reconcile (UTxHole cp) (UTxHole cq)
+  | isCpy cp       = UTxHole $ InR cp
+  | isCpy cq       = UTxHole $ InR cp
+  | changeEq cp cq = UTxHole $ InR (makeCopyFrom cp)
+  | otherwise      = UTxHole $ mergeCChange cp cq
+ 
+-- (ii) We are transporting a spine over a change
+reconcile cp           (UTxHole cq) 
+  | isCpy cq  = utxMap InR cp
+  | otherwise = UTxHole $ mergeCChange (closedChangeDistr cp) cq
+
+-- (iii) We are transporting a change over a spine
+reconcile (UTxHole cp) cq
+  | isCpy cp  = UTxHole $ InR cp
+  | otherwise = UTxHole $ mergeCChange cp (closedChangeDistr cq)
+
+-- (iv) Anything else is a conflict; this should be technically
+--      unreachable since both patches were applicable to at least
+--      one common element; hence the spines can't disagree other than
+--      on the placement of the holes.
+reconcile cp cq = error "unreachable"
+
+mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+                 , UTxTestEqualityCnstr ki (CChange ki codes))
+              => CChange ki codes at
+              -> CChange ki codes at
+              -> Sum (Conflict ki codes) (CChange ki codes) at
+mergeCChange cb ca
   = let resD = utxUnify (cCtxDel ca) (cCtxDel cb) (cCtxIns ca)
         resI = utxUnify (cCtxDel ca) (cCtxIns cb) (cCtxIns ca)
      in either (\uerr   -> InL $ Conflict uerr ca cb)
-               (\(d, i) -> InR $ CMatch d i)
+               -- FIXME: compute variables!
+               (\(d, i) -> InR $ CMatch S.empty d i)
       $ codelta resD resI
   where
     codelta (Left e) _ = Left e
@@ -138,7 +167,7 @@ mergeCChange ca cb
     codelta _ (Left e) = Left e
     codelta (Right a) (Right b) = Right (a , b)
 
-
+-}
 {-
 -- * Reconciling CChanges
 
