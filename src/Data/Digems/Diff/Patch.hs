@@ -19,6 +19,7 @@ import qualified Data.Set as S
 
 import Control.Monad
 import Control.Monad.State
+import Control.Monad.Cont
 import Control.Monad.Identity
 
 import Generics.MRSOP.Util
@@ -67,10 +68,69 @@ data CChange ki codes at where
             , cCtxIns  :: UTx ki codes (MetaVarIK ki) at }
          -> CChange ki codes at
 
+-- |Alpha-equality for 'CChange'
+changeEq :: (Eq1 ki) => CChange ki codes at -> CChange ki codes at -> Bool
+changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
+  = S.size v1 == S.size v2 && aux d1 d2 i1 i2
+ where
+   aux :: (Eq1 ki)
+       => UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> Bool
+   aux d1 d2 i1 i2 = (`runCont` id) $
+     callCC $ \exit -> flip evalStateT M.empty $ do
+       utxMapM (uncurry' (reg (cast exit))) (utxLCP d1 d2)
+       utxMapM (uncurry' (chk (cast exit))) (utxLCP i1 i2)
+       return True
+   
+   cast :: (Bool -> Cont Bool b)
+        -> Bool -> Cont Bool (Const () a)
+   cast f b = (const (Const ())) <$> f b
+
+   reg :: (Bool -> Cont Bool (Const () at))
+       -> UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
+   reg _ (UTxHole m1) (UTxHole m2) 
+     = modify (M.insert (metavarGet m1) (metavarGet m2))
+     >> return (Const ())
+   reg exit _ _ 
+     = lift $ exit False
+
+   chk :: (Bool -> Cont Bool (Const () at))
+       -> UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
+   chk exit (UTxHole m1) (UTxHole m2) 
+     = do st <- get
+          case M.lookup (metavarGet m1) st of
+            Nothing -> lift $ exit False
+            Just r  -> if r == metavarGet m2
+                       then return (Const ())
+                       else lift $ exit False
+   chk exit _ _ = lift (exit False)
+
 -- |Issues a copy, this is a closed change analogous to
 --  > \x -> x
 changeCopy :: MetaVarIK ki at -> CChange ki codes at
 changeCopy vik = CMatch (S.singleton (Exists vik)) (UTxHole vik) (UTxHole vik)
+
+-- |Checks whetehr a change is a copy.
+isCpy :: (Eq1 ki) => CChange ki codes at -> Bool
+isCpy (CMatch _ (UTxHole v1) (UTxHole v2))
+  -- arguably, we don't even need that since changes are closed.
+  = metavarGet v1 == metavarGet v2
+isCpy _ = False
+
+makeCopyFrom :: CChange ki codes at -> CChange ki codes at
+makeCopyFrom chg = case cCtxDel chg of
+  UTxHole var -> changeCopy var
+  UTxPeel _ _ -> changeCopy (NA_I (Const 0))
+  UTxOpq k    -> changeCopy (NA_K (Annotate 0 k))
+  
+
 
 -- |A 'OChange', or, open change, is analogous to a 'CChange',
 --  but has a list of free variables. These are the ones that appear
