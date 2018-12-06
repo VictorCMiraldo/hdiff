@@ -71,7 +71,31 @@ getConflicts = snd . runWriter . utxMapM go
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
+p // q = let p' = changeDistr p
+             q' = changeDistr q
+          in case mergeChange p' q' of
+               InL conf -> UTxHole (InL conf)
+               InR ok   -> utxMap (InR . uncurry' CMatch)
+                         $ utxLCP (cCtxDel ok) (cCtxIns ok)
+
+mergeChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+                , UTxTestEqualityCnstr ki (Change ki codes))
+             => Change ki codes at
+             -> Change ki codes at
+             -> Sum (Conflict ki codes) (Change ki codes) at
+mergeChange cb ca
+  = let resD = utxUnify (cCtxDel ca) (cCtxDel cb) (cCtxIns ca)
+        resI = utxUnify (cCtxDel ca) (cCtxIns cb) (cCtxIns ca)
+     in either (\uerr   -> InL $ Conflict uerr ca cb)
+               (\(d, i) -> InR $ CMatch d i)
+      $ codelta resD resI
+  where
+    codelta (Left e) _ = Left e
+    codelta _ (Left e) = Left e
+    codelta (Right a) (Right b) = Right (a , b)
+
+{-
+  -- utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.
