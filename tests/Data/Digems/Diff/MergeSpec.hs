@@ -133,6 +133,7 @@ spec :: Spec
 spec = do
   describe "properties" $ do
     it "p // id == p && id // p == id" $ merge_id
+    it "p // p  == id"                 $ merge_diag
   
   describe "manual examples" $ do
     mustMerge "1" a1 o1 b1
