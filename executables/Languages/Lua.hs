@@ -28,6 +28,9 @@ import qualified Data.Text.Prettyprint.Doc as PP  (braces,parens,semi)
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
+import System.Exit
+import System.IO
+
 import Generics.MRSOP.TH
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
@@ -64,11 +67,11 @@ instance TestEquality LuaSingl where
 deriveFamilyWith ''LuaSingl [t| Block |]
 
 parseFile :: String -> IO Block
-parseFile file =
-  do program  <- Lua.parseFile file
-     case program of
-       Left e  -> print e >> fail "parse error"
-       Right r -> return r
+parseFile file = do
+  res <- Lua.parseFile file
+  case res of
+    Left e  -> hPutStrLn stderr (show e) >> exitWith (ExitFailure 10)
+    Right r -> return r
 
 type W = LuaSingl
 type Stmt = Block
