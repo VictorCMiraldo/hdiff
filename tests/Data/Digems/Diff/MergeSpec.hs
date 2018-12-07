@@ -7,6 +7,7 @@ import qualified Data.Set as S
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Digems.Unify
 
 import Data.Digems.Diff.Patch
 import Data.Digems.Diff.MetaVar
@@ -40,14 +41,19 @@ merge_id :: Property
 merge_id = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = digemRTree t1 t2
          iden  = digemRTree t1 t1
-         mpid  = noConflicts (patch // iden)
-         midp  = noConflicts (iden  // patch)
-      in case (,) <$> mpid <*> midp of
-           Nothing -> expectationFailure "has conflicts"
+         mpid  = patch // iden
+         midp  = iden  // patch
+      in case (,) <$> noConflicts mpid <*> noConflicts midp of
+           Nothing -> expectationFailure
+                    $ unwords [ "has conflicts:"
+                              , unwords $ getConflicts mpid
+                              , ";;"
+                              , unwords $ getConflicts midp
+                              ]
            Just (pid , idp) ->
-             case (,) <$> applyRTree' pid t1 <*> applyRTree' idp t2 of
-               Nothing -> expectationFailure "apply failed"
-               Just (r1 , r2) -> (r1 , r2) `shouldBe` (t2 , t2)
+             case (,) <$> applyRTree pid t1 <*> applyRTree idp t2 of
+               Left err -> expectationFailure ("apply failed: " ++ err)
+               Right (r1 , r2) -> (r1 , r2) `shouldBe` (t2 , t2)
          
 
 merge_diag :: Property
@@ -69,16 +75,22 @@ mustMerge lbl a o b
         o' = dfrom $ into @FamRTree o
         oa = digems 1 o' a'
         ob = digems 1 o' b'
-        oaob = noConflicts (oa // ob)
-        oboa = noConflicts (ob // oa)
+        oaob = (oa // ob)
+        oboa = (ob // oa)
      in do it (lbl ++ ": merge square commutes") $ do
-             case (oaob , oboa) of
-               (Just ab , Just ba)
-                 -> case (apply ab b' , apply ba a') of
-                     (Right c1 , Right c2)
+             case (,) <$> noConflicts oaob <*> noConflicts oboa of
+               Just (ab , ba)
+                 -> case (,) <$> apply ab b' <*> apply ba a' of
+                     Right (c1 , c2)
                        -> eqFix eq1 c1 c2 `shouldBe` True
-                     _ -> expectationFailure "apply failed"
-               _ -> expectationFailure "has conflicts"
+                     Left err
+                       -> expectationFailure ("apply failed: " ++ err)
+               _ -> expectationFailure
+                    $ unwords [ "has conflicts:"
+                              , unwords $ getConflicts oaob
+                              , ";;"
+                              , unwords $ getConflicts oboa
+                              ]
 
 ----------------------
 -- Example 1
@@ -131,9 +143,9 @@ b4 = "y" :>: []
 
 spec :: Spec
 spec = do
-  describe "properties" $ do
-    it "p // id == p && id // p == id" $ merge_id
-    it "p // p  == id"                 $ merge_diag
+  -- describe "properties" $ do
+  --   it "p // id == p && id // p == id" $ merge_id
+  --   it "p // p  == id"                 $ merge_diag
   
   describe "manual examples" $ do
     mustMerge "1" a1 o1 b1

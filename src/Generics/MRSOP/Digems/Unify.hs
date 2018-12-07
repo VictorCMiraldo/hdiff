@@ -63,24 +63,25 @@ type Unifiable ki codes = (Show1 ki , Eq1 ki , TestEquality ki)
 
 -- |We try to unify @pa@ and @pq@ onto @ea@. The idea is that
 --  we instantiate the variables of @pa@ with their corresponding expression
---  on @pb@, and substitute those in @ea@. Whereas if we reach a variable in @pb@
+--  on @x@, and substitute those in @ea@. Whereas if we reach a variable in @x@
 --  we ignore whatever was on @ea@ and give that variable instead.
 --
+--  We are essentially applying 
 utxUnify :: (Unifiable ki codes)
          => Term ki codes ix
          -> Term ki codes ix
          -> Term ki codes ix
          -> Either (UnificationErr ki codes) (Term ki codes ix)
-utxUnify pa pb ea
-  = let pb' = uniquenessNaming pa pb
-     in runExcept $ evalStateT (unifyL pa pb' >> substR pb' ea) M.empty
+utxUnify pa ea x   
+  = let x' = uniquenessNaming pa x
+     in runExcept $ evalStateT (unifyL pa x' >> substR x' ea) M.empty
   where
     uniquenessNaming :: Term ki codes iy -> Term ki codes ix -> Term ki codes ix
     uniquenessNaming x = let varsx  = utxGetHolesWith metavarGet x
                              varmax = maybe 0 id $ S.lookupMax varsx
                           in utxRefine (UTxHole . metavarAdd varmax) UTxOpq
 
--- |@unifyL pa pb@ traverses @pa@ and @pb@ instantiating the variables of @pa@.
+-- |@unifyL pa x@ traverses @pa@ and @x@ instantiating the variables of @pa@.
 unifyL :: (Unifiable ki codes)
        => Term ki codes ix
        -> Term ki codes ix
@@ -95,9 +96,9 @@ unifyL x@(UTxPeel cx px) y@(UTxPeel cy py) =
     Nothing   -> throwError (IncompatibleTerms "2" x y)
     Just Refl -> void $ elimNPM (uncurry' unifyL) (zipNP px py)
 
--- |The second step is @substR pb ea@, where we substitue the variables
+-- |The second step is @substR x ea@, where we substitue the variables
 --  in @ea@ for the values they were instantiated for in @pa@,
---  but using the variables in @pb@ to take precedence.
+--  but using the variables in @x@ to take precedence.
 substR :: (Unifiable ki codes)
        => Term ki codes ix
        -> Term ki codes ix
@@ -123,51 +124,3 @@ lookupVar var = maybe (throwError (UndefinedVar $ metavarGet var)) cast
     cast (UTxE res) = case testEquality res (UTxHole var) of
       Nothing   -> throwError IncompatibleTypes
       Just Refl -> return res
-
-{-
-replace :: (Unifiable ki codes)
-        => MetaVarIK ki ix
-        -> Term ki codes ix
-        -> Term ki codes iy
-        -> Term ki codes iy
-replace var x = utxRefine (go x var) UTxOpq
-  where
-    go :: (Unifiable ki codes)
-       => Term ki codes ix
-       -> MetaVarIK ki ix
-       -> MetaVarIK ki iy
-       -> UTx ki codes (MetaVarIK ki) iy
-    go x var v = case testEquality var v of
-      Nothing   -> UTxHole v
-      Just Refl -> if metavarGet v == metavarGet var
-                   then x
-                   else UTxHole v
-  
-unifyVar :: forall ki codes ix
-          . (Unifiable ki codes)
-         => MetaVarIK ki ix
-         -> Term ki codes ix
-         -> UnifyM ki codes ()
-unifyVar var x = get
-             >>= maybe notThere (either throwError isThere)
-               . lookupVar var
-  where
-    notThere :: UnifyM ki codes ()
-    notThere = if occursCheck var x
-               then throwError OccursCheck
-               else modify ( M.insert (metavarGet var) (UTxE x)
-                           . fmap (utxe $ replace var x))
-
-    isThere :: UTx ki codes (MetaVarIK ki) ix -> UnifyM ki codes ()
-    isThere utx = _ -- unify utx x
-
-
-occursCheck :: MetaVarIK ki ix
-            -> Term ki codes ix
-            -> Bool
-occursCheck var = maybe True (const False)
-                . utxRefineM (\x -> guard (metavarGet x /= metavarGet var)
-                                 >> return (UTxHole x))
-                             (return . UTxOpq)
-    
--}
