@@ -1,5 +1,7 @@
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 module Data.Digems.Diff.MergeSpec (spec) where
 
 import qualified Data.Set as S
@@ -141,6 +143,18 @@ a4 = "y" :>: []
 o4 = "x" :>: []
 b4 = "y" :>: []
 
+---------------------------------
+-- Example 5
+
+a5 , o5 , b5 :: RTree
+a5 = "x" :>: [ "k" :>: [] , "u" :>: []]
+o5 = "x" :>: [ "u" :>: [] , "k" :>: []]
+b5 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
+             , "u" :>: [] , "k" :>: [] ]
+
+oa = digemRTree o5 a5
+ob = digemRTree o5 b5
+
 spec :: Spec
 spec = do
   -- describe "properties" $ do
@@ -152,3 +166,4 @@ spec = do
     mustMerge "2" a2 o2 b2
     mustMerge "3" a3 o3 b3
     mustMerge "4" a4 o4 b4
+    mustMerge "5" a5 o5 b5
