@@ -163,7 +163,7 @@ mergeCChange cp cq =
         (CDel , CMod) -> InR cp
         (CMod , CDel) -> inj cclass $ adapt cp cq
   where
-    inj confclass = either (\uerr -> trace (show uerr) $ InL $ Conflict confclass cp cq) InR
+    inj confclass = either (const $ InL $ Conflict confclass cp cq) InR
     
     adapt :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
              , UTxTestEqualityCnstr ki (CChange ki codes))
