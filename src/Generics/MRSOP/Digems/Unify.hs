@@ -81,7 +81,7 @@ utxUnify :: (Unifiable ki codes)
          -> Either (UnificationErr ki codes) (Term ki codes ix)
 utxUnify pa ea x   
   = let x' = uniquenessNaming pa x
-     in runExcept $ evalStateT (pmatch pa x >> dbg >> transport ea) M.empty
+     in runExcept $ evalStateT (pmatch pa x >> dbg >> transport1 ea) M.empty
   where
     uniquenessNaming :: Term ki codes iy -> Term ki codes ix -> Term ki codes ix
     uniquenessNaming x = let varsx  = utxGetHolesWith metavarGet x
@@ -112,7 +112,6 @@ pmatch pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
     Nothing   -> throwError (IncompatibleTerms "2" pa x)
     Just Refl -> void $ elimNPM (uncurry' pmatch) (zipNP ppa px)
 
-{-
 -- |The second step is @transport x ea@, where we substitue the variables
 --  in @ea@ for the values they were instantiated for in @pa@,
 --  but using the variables in @x@ to take precedence.
@@ -121,27 +120,25 @@ transport :: (Unifiable ki codes)
        -> Term ki codes ix
        -> UnifyM ki codes (Term ki codes ix)
 transport x (UTxHole var) = lookupVar var
-                     -- >>= return . maybe x id
-                        >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
-transport (UTxHole var) y = return (UTxHole var)
+                        >>= return . maybe x id
+                        -- >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
+transport (UTxHole var) y
+  | utxArity y == 0 = return (UTxHole var)
+  | otherwise       = transport1 y
 transport _ (UTxOpq oy)   = return $ UTxOpq oy
 transport x@(UTxPeel cx px) y@(UTxPeel cy py) =
   case testEquality cx cy of
     Nothing   -> throwError (IncompatibleTerms "3" x y)
     Just Refl -> UTxPeel cy <$> mapNPM (uncurry' transport) (zipNP px py)
--}
--- |The second step is @transport x ea@, where we substitue the variables
---  in @ea@ for the values they were instantiated for in @pa@,
---  but using the variables in @x@ to take precedence.
-transport :: (Unifiable ki codes)
+
+transport1 :: (Unifiable ki codes)
        => Term ki codes ix
        -> UnifyM ki codes (Term ki codes ix)
-transport (UTxHole var) = lookupVar var
-                     -- >>= return . maybe x id
-                     >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
-transport (UTxOpq oy)   = return $ UTxOpq oy
-transport y@(UTxPeel cy py) =
-  UTxPeel cy <$> mapNPM transport py
+transport1 (UTxHole var) = lookupVar var
+                       >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
+transport1 (UTxOpq oy)   = return $ UTxOpq oy
+transport1 y@(UTxPeel cy py) =
+  UTxPeel cy <$> mapNPM transport1 py
 
 lookupVar :: forall ki codes ix
            . (Unifiable ki codes)

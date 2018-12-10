@@ -29,6 +29,8 @@ import Data.Digems.Diff.Preprocess
 import Data.Digems.Diff.Patch
 import Data.Digems.Diff.MetaVar
 
+import Debug.Trace
+
 -- * Merging Treefixes
 --
 -- $mergingtreefixes
@@ -85,6 +87,8 @@ reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 -- (i) both different patches consist in changes
 reconcile (UTxHole cp) (UTxHole cq)
+  | isCpy cp       = UTxHole (InR cp)
+  | isCpy cq       = UTxHole (InR cp)
   | changeEq cp cq = UTxHole $ InR (makeCopyFrom cp)
   | otherwise      = UTxHole $ mergeCChange cp cq
  
@@ -105,18 +109,30 @@ reconcile (UTxHole cp) cq
 reconcile cp cq = error "unreachable"
 
 data ChangeClass
-  = CMod | CIns | CDel | CCpy
+  = CMod | CIns | CDel
   deriving (Eq , Show)
 
 type ConflictClass = (ChangeClass , ChangeClass)
 
 changeClassify :: CChange ki codes at -> ChangeClass
 changeClassify c =
+  let mi = utxMultiplicity 0 (cCtxIns c)
+      md = utxMultiplicity 0 (cCtxDel c)
+   in case (mi , md) of
+    (0 , _) -> CIns
+    (_ , 0) -> CDel
+    (_ , _) -> CMod
+{-
+  classifying changes just by pattern matching is a bad idea,
+  we should instead count how many subtrees ot arity 0 we see
+  in each context. If we see no subtree of arity zero in eith
+
   case (cCtxDel c , cCtxIns c) of
     (UTxHole _ , UTxHole _) -> CCpy
     (UTxHole _ , _)         -> CIns
     (_         , UTxHole _) -> CDel
-    (_         , _)         -> CMod
+    (_         , _)         -> DMod
+-}
 
 -- |If we are transporting @cp@ over @cq@, we need to adapt
 --  both the pattern and expression of @cp@. Also known as the
@@ -133,9 +149,6 @@ mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
 mergeCChange cp cq =
   let cclass = (changeClassify cp , changeClassify cq)
    in case cclass of
-        (CCpy , _   ) -> InR cp -- cp is a copy,
-        (_    , CCpy) -> InR cp
-
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
@@ -150,7 +163,7 @@ mergeCChange cp cq =
         (CDel , CMod) -> InR cp
         (CMod , CDel) -> inj cclass $ adapt cp cq
   where
-    inj confclass = either (const $ InL $ Conflict confclass cp cq) InR
+    inj confclass = either (\uerr -> trace (show uerr) $ InL $ Conflict confclass cp cq) InR
     
     adapt :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
              , UTxTestEqualityCnstr ki (CChange ki codes))
