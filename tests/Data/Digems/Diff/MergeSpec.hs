@@ -152,8 +152,28 @@ o5 = "x" :>: [ "u" :>: [] , "k" :>: []]
 b5 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
              , "u" :>: [] , "k" :>: [] ]
 
-oa = digemRTree o5 a5
-ob = digemRTree o5 b5
+---------------------------------
+-- Example 6
+
+a6 , o6 , b6 :: RTree
+a6 = "x" :>: [ "u" :>: []]
+o6 = "x" :>: [ "u" :>: [] , "k" :>: []]
+b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
+             , "u" :>: [] , "k" :>: [] ]
+
+
+---------------------------------
+-- Example 6
+
+a7 , o7 , b7 :: RTree
+a7 = "x" :>: [ "u" :>: [ "b" :>: [] ] , "l" :>: [] ]
+o7 = "x" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "l" :>: []]
+b7 = "y" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "new" :>: [] , "l" :>: []]
+
+
+
+oa = digemRTree o7 a7
+ob = digemRTree o7 b7
 
 spec :: Spec
 spec = do
@@ -167,3 +187,5 @@ spec = do
     mustMerge "3" a3 o3 b3
     mustMerge "4" a4 o4 b4
     mustMerge "5" a5 o5 b5
+    mustMerge "6" a6 o6 b6
+    mustMerge "7" a7 o7 b7

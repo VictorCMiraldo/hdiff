@@ -38,7 +38,7 @@ import Data.Digems.Diff.MetaVar
 
 -- |Hence, a conflict is simply two changes together.
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
-  Conflict :: UnificationErr ki codes
+  Conflict :: ConflictClass
            -> CChange        ki codes at
            -> CChange        ki codes at
            -> Conflict       ki codes at
@@ -85,8 +85,6 @@ reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 -- (i) both different patches consist in changes
 reconcile (UTxHole cp) (UTxHole cq)
-  | isCpy cp       = UTxHole $ InR cp
-  | isCpy cq       = UTxHole $ InR cp
   | changeEq cp cq = UTxHole $ InR (makeCopyFrom cp)
   | otherwise      = UTxHole $ mergeCChange cp cq
  
@@ -106,6 +104,20 @@ reconcile (UTxHole cp) cq
 --      on the placement of the holes.
 reconcile cp cq = error "unreachable"
 
+data ChangeClass
+  = CMod | CIns | CDel | CCpy
+  deriving (Eq , Show)
+
+type ConflictClass = (ChangeClass , ChangeClass)
+
+changeClassify :: CChange ki codes at -> ChangeClass
+changeClassify c =
+  case (cCtxDel c , cCtxIns c) of
+    (UTxHole _ , UTxHole _) -> CCpy
+    (UTxHole _ , _)         -> CIns
+    (_         , UTxHole _) -> CDel
+    (_         , _)         -> CMod
+
 -- |If we are transporting @cp@ over @cq@, we need to adapt
 --  both the pattern and expression of @cp@. Also known as the
 --  deletion and insertion context, respectively.
@@ -118,17 +130,44 @@ mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
               => CChange ki codes at -- ^ @cp@
               -> CChange ki codes at -- ^ @cq@
               -> Sum (Conflict ki codes) (CChange ki codes) at
-mergeCChange cp cq
-  = let resD = metaApply cq (cCtxDel cp)
-        resI = metaApply cq (cCtxIns cp)
-     in either (\uerr   -> InL $ Conflict uerr cp cq)
-               -- FIXME: compute variables!
-               (\(d, i) -> InR $ CMatch S.empty d i)
-      $ codelta resD resI
+mergeCChange cp cq =
+  let cclass = (changeClassify cp , changeClassify cq)
+   in case cclass of
+        (CCpy , _   ) -> InR cp -- cp is a copy,
+        (_    , CCpy) -> InR cp
+
+        (CIns , CIns) -> InL (Conflict cclass cp cq)
+        (CDel , CDel) -> InL (Conflict cclass cp cq)
+
+        (CDel , CIns) -> inj cclass $ adapt cp cq
+        (CMod , CIns) -> inj cclass $ adapt cp cq
+
+        (CIns , CDel) -> InR cp
+        (CIns , CMod) -> InR cp
+
+        (CMod , CMod) -> inj cclass $ adapt cp cq
+
+        (CDel , CMod) -> InR cp
+        (CMod , CDel) -> inj cclass $ adapt cp cq
   where
-    codelta (Left e) _ = Left e
-    codelta _ (Left e) = Left e
-    codelta (Right a) (Right b) = Right (a , b)
+    inj confclass = either (const $ InL $ Conflict confclass cp cq) InR
+    
+    adapt :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+             , UTxTestEqualityCnstr ki (CChange ki codes))
+          => CChange ki codes at -- ^ @cp@
+          -> CChange ki codes at -- ^ @cq@
+          -> Either (UnificationErr ki codes) (CChange ki codes at)
+    adapt cp cq = 
+      let resD = metaApply cq (cCtxDel cp)
+          resI = metaApply cq (cCtxIns cp)
+       in either Left
+                 -- FIXME: compute variables!
+                 (\(d, i) -> Right $ CMatch S.empty d i)
+        $ codelta resD resI
+      where
+        codelta (Left e) _ = Left e
+        codelta _ (Left e) = Left e
+        codelta (Right a) (Right b) = Right (a , b)
 
 -- |Applies a change to a term containing metavariables.
 metaApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
