@@ -122,7 +122,7 @@ transport :: (Unifiable ki codes)
        -> UnifyM ki codes (Term ki codes ix)
 transport x (UTxHole var) = lookupVar var
                      -- >>= return . maybe x id
-                     >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
+                        >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
 transport (UTxHole var) y = return (UTxHole var)
 transport _ (UTxOpq oy)   = return $ UTxOpq oy
 transport x@(UTxPeel cx px) y@(UTxPeel cy py) =
@@ -142,7 +142,6 @@ transport (UTxHole var) = lookupVar var
 transport (UTxOpq oy)   = return $ UTxOpq oy
 transport y@(UTxPeel cy py) =
   UTxPeel cy <$> mapNPM transport py
-
 
 lookupVar :: forall ki codes ix
            . (Unifiable ki codes)
