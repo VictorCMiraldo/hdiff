@@ -509,8 +509,9 @@ extract b = Node2C (Hole 0) (Hole 1)
 \end{code}
 \end{myhs}
 
-  Note how the metavariable |Hole 1| is essentially unmatched. That happens because it
-occurs inside a bigger common subtree. We solve this by postprocessing the resulting
+  Note how the metavariable |Hole 1| is appears only on one side. That happens because it
+occurs inside a bigger common subtree. If we were to apply this patch to |a|, we would
+get an \emph{undefined variable} error. We solve this by postprocessing the resulting
 |Tx|s and keeping only the metavariables that occur in both contexts. Lets call this
 function |txPostprocess|:
 
@@ -528,6 +529,59 @@ computing the intersection of the sets, then mapping over the arguments and repl
 the |Const Int :*: Fix codes| hole by either |Const Int|, if the |Int| belongs in
 the set, or by a |Tx codes (ForceI (Const Int))| with no holes, isomorphic to the 
 second component of the pair.
+
+  At this point, given two trees |a, b| of type |Fix codes ix|, we have extracted both
+the deletion and insertion contexts, of type |Tx codes (ForceI (Const Int)) (I ix)|. These
+are just like a value of type |Fix codes ix| with possible holes in some recursive positions,
+called \emph{metavariables}. In fact, one such deletion and one such insertion context
+make up a \emph{change}.
+
+\begin{myhs}
+\begin{code}
+data Change codes phi at = Change (Tx codes phi at) (Tx codes phi at)
+\end{code}
+\end{myhs}
+
+  We could then write a prelimanry |diff| function using the |txExtract| and |txPostprocess|
+described above:
+
+\begin{myhs}
+\begin{code}
+diff0 :: Fix codes ix -> Fix codes ix -> Change codes (ForceI (Const Int)) (I ix)
+diff0 x y = let  ics = buildOracle x y
+                del = txExtract ics x
+                ins = txExtract ics y
+            in uncurry Change $$ txPostprocess del ins
+\end{code}
+\end{myhs}
+
+  This function will output \emph{one} single change that transforms |x| into |y|. This is not
+very ideal. For starters, a good number of the constructors of our trees will be repeated on both
+the insertion and deletion contexts. Moreover, when we try to merge these changes together, it is 
+much easier to have a number of small changes throughout the tree than a single big change. Hence,
+we want to chop that big change comming out of |diff0| into a tree with holes, where these holes
+contain smaller changes. That is, we will divide that change into the \emph{greatest common prefix}
+of the insertion and deletion context with smaller changes inside:
+
+\begin{myhs}
+\begin{code}
+txGCP :: Tx codes phi at -> Tx codes psi at -> Tx codes (Tx phi :*: Tx psi) at
+txGCP (TxHole x) b = TxHole (TxHole x :*: b)
+txGCP a (TxHole y) = TxHole (a :*: TxHole y)
+txGCP (TxOpq x) (TxOpq y) 
+  | x == y     = TxOpq x
+  | otherwise  = TxHole (TxOpq x :*: TxOpq y)
+txGCP (TxPeel cx px) (TxPeel cy py)
+  = case testEquality cx px of
+      Nothing   -> TxHole (TxPeel cx px :*: TxPeel cy py)
+      Jus Refl  -> TxPeel cx (mapNP (uncurry' txGCP) (zipNP px py))
+\end{code}
+\end{myhs}
+
+  \TODO{now we have a scoping problem...} 
+
+  
+
 
   The last step is identifying the opaque values that should be copied. This can be done by
 traversing both |Tx|s together while they agree and substitute the |TxOpq| occurences
