@@ -16,6 +16,9 @@ import Data.Type.Equality
 import Control.Applicative
 import Control.Monad.Except
 
+import System.IO
+import System.Exit
+
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.Digems.Renderer
@@ -82,7 +85,10 @@ withParsedEls (p:ps) files f
 -- * Fixed interface for one, two and three files
 
 redirectErr :: ExceptT String IO a -> IO a
-redirectErr f = runExceptT f >>= either error return
+redirectErr f = runExceptT f >>= either myerr return
+  where
+    myerr str = hPutStrLn stderr str
+             >> exitWith (ExitFailure 10)
          
 withParsed1 :: [LangParser]
             -> FilePath

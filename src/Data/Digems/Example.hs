@@ -14,6 +14,7 @@
 module Data.Digems.Example where
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Functor.Const
 import Data.Text.Prettyprint.Doc
 
@@ -109,7 +110,29 @@ unif1 = UTxPeel CZ (UTxOpq (SInt 100)
                  :* UTxHole (NA_I $ Const 1)
                  :* UTxHole (NA_I $ Const 2)
                  :* NP0)
+unif12 :: TreeTerm
+unif12 = UTxPeel CZ (UTxOpq (SInt 500)
+                 :* UTxHole (NA_I $ Const 1)
+                 :* UTxHole (NA_I $ Const 2)
+                 :* NP0)
 
+unif2 :: TreeTerm
+unif2 = UTxPeel CZ (UTxOpq (SInt 200)
+                 :* UTxHole (NA_I $ Const 4)
+                 :* UTxHole (NA_I $ Const 5)
+                 :* NP0)
+unif22 :: TreeTerm
+unif22 = UTxPeel CZ (UTxOpq (SInt 500)
+                 :* UTxHole (NA_I $ Const 4)
+                 :* UTxHole (NA_I $ Const 5)
+                 :* NP0)
+
+
+
+change1 = CMatch S.empty unif1 unif12
+change2 = CMatch S.empty unif2 unif22
+
+{-
 unif2 :: TreeTerm
 unif2 = UTxPeel CZ (UTxOpq (SInt 100)
                  :* UTxPeel (CS CZ)
@@ -120,3 +143,4 @@ unif2 = UTxPeel CZ (UTxOpq (SInt 100)
                      :* NP0)
                  :* UTxPeel (CS (CS CZ)) NP0
                  :* NP0)
+-}

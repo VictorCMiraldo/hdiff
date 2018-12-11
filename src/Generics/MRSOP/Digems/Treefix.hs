@@ -154,6 +154,18 @@ utxGetHolesWith' tr = flip execState [] . utxMapM (getHole tr)
             -> State [r] (f ix)
     getHole f x = modify (f x :) >> return x
 
+-- |Returns how many holes are inside a treefix
+utxArity :: UTx ki codes f at -> Int
+utxArity = length . utxGetHolesWith' (const ())
+
+-- |Counts the number of subtrees with a given arity
+utxMultiplicity :: Int -> UTx ki codes f at -> Int
+utxMultiplicity k utx
+  | utxArity utx == k = 1
+  | otherwise = case utx of
+      UTxPeel c p -> sum $ elimNP (utxMultiplicity k) p
+      _           -> 0
+
 
 {-
 -- |Reduces a treefix back to a tree

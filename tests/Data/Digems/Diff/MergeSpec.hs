@@ -1,5 +1,7 @@
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 module Data.Digems.Diff.MergeSpec (spec) where
 
 import qualified Data.Set as S
@@ -7,6 +9,7 @@ import qualified Data.Set as S
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Digems.Unify
 
 import Data.Digems.Diff.Patch
 import Data.Digems.Diff.MetaVar
@@ -40,14 +43,19 @@ merge_id :: Property
 merge_id = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = digemRTree t1 t2
          iden  = digemRTree t1 t1
-         mpid  = noConflicts (patch // iden)
-         midp  = noConflicts (iden  // patch)
-      in case (,) <$> mpid <*> midp of
-           Nothing -> expectationFailure "has conflicts"
+         mpid  = patch // iden
+         midp  = iden  // patch
+      in case (,) <$> noConflicts mpid <*> noConflicts midp of
+           Nothing -> expectationFailure
+                    $ unwords [ "has conflicts:"
+                              , unwords $ getConflicts mpid
+                              , ";;"
+                              , unwords $ getConflicts midp
+                              ]
            Just (pid , idp) ->
-             case (,) <$> applyRTree' pid t1 <*> applyRTree' idp t2 of
-               Nothing -> expectationFailure "apply failed"
-               Just (r1 , r2) -> (r1 , r2) `shouldBe` (t2 , t2)
+             case (,) <$> applyRTree pid t1 <*> applyRTree idp t2 of
+               Left err -> expectationFailure ("apply failed: " ++ err)
+               Right (r1 , r2) -> (r1 , r2) `shouldBe` (t2 , t2)
          
 
 merge_diag :: Property
@@ -69,16 +77,22 @@ mustMerge lbl a o b
         o' = dfrom $ into @FamRTree o
         oa = digems 1 o' a'
         ob = digems 1 o' b'
-        oaob = noConflicts (oa // ob)
-        oboa = noConflicts (ob // oa)
+        oaob = (oa // ob)
+        oboa = (ob // oa)
      in do it (lbl ++ ": merge square commutes") $ do
-             case (oaob , oboa) of
-               (Just ab , Just ba)
-                 -> case (apply ab b' , apply ba a') of
-                     (Right c1 , Right c2)
+             case (,) <$> noConflicts oaob <*> noConflicts oboa of
+               Just (ab , ba)
+                 -> case (,) <$> apply ab b' <*> apply ba a' of
+                     Right (c1 , c2)
                        -> eqFix eq1 c1 c2 `shouldBe` True
-                     _ -> expectationFailure "apply failed"
-               _ -> expectationFailure "has conflicts"
+                     Left err
+                       -> expectationFailure ("apply failed: " ++ err)
+               _ -> expectationFailure
+                    $ unwords [ "has conflicts:"
+                              , unwords $ getConflicts oaob
+                              , ";;"
+                              , unwords $ getConflicts oboa
+                              ]
 
 ----------------------
 -- Example 1
@@ -129,13 +143,49 @@ a4 = "y" :>: []
 o4 = "x" :>: []
 b4 = "y" :>: []
 
+---------------------------------
+-- Example 5
+
+a5 , o5 , b5 :: RTree
+a5 = "x" :>: [ "k" :>: [] , "u" :>: []]
+o5 = "x" :>: [ "u" :>: [] , "k" :>: []]
+b5 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
+             , "u" :>: [] , "k" :>: [] ]
+
+---------------------------------
+-- Example 6
+
+a6 , o6 , b6 :: RTree
+a6 = "x" :>: [ "u" :>: []]
+o6 = "x" :>: [ "u" :>: [] , "k" :>: []]
+b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
+             , "u" :>: [] , "k" :>: [] ]
+
+
+---------------------------------
+-- Example 6
+
+a7 , o7 , b7 :: RTree
+a7 = "x" :>: [ "u" :>: [ "b" :>: [] ] , "l" :>: [] ]
+o7 = "x" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "l" :>: []]
+b7 = "y" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "new" :>: [] , "l" :>: []]
+
+
+
+oa = digemRTree o7 a7
+ob = digemRTree o7 b7
+
 spec :: Spec
 spec = do
-  describe "properties" $ do
-    it "p // id == p && id // p == id" $ merge_id
+  -- describe "properties" $ do
+  --   it "p // id == p && id // p == id" $ merge_id
+  --   it "p // p  == id"                 $ merge_diag
   
   describe "manual examples" $ do
     mustMerge "1" a1 o1 b1
     mustMerge "2" a2 o2 b2
     mustMerge "3" a3 o3 b3
     mustMerge "4" a4 o4 b4
+    mustMerge "5" a5 o5 b5
+    mustMerge "6" a6 o6 b6
+    mustMerge "7" a7 o7 b7

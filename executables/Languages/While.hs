@@ -34,6 +34,9 @@ import Generics.MRSOP.Digems.Digest
 
 import Debug.Trace
 
+import System.IO
+import System.Exit
+
 -----------------------
 -- * Parser
 
@@ -249,7 +252,7 @@ parseFile :: String -> IO Stmt
 parseFile file =
   do program  <- readFile file
      case parse whileParser "" program of
-       Left e  -> print e >> fail "parse error"
+       Left e  -> hPutStrLn stderr (show e) >> exitWith (ExitFailure 10)
        Right r -> return r
 
 type Block = Stmt
