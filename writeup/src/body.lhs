@@ -227,7 +227,7 @@ extract o x = maybe (peel x) Hole (o x)
 \end{code}
 \end{myhs}
 
-  Assuming that |ics s d| is \emph{the best} possible function, that is, it will
+  Assuming that |ics s d| is \emph{the best} possible such function, that is, it will
 correctly issue metavariables to \emph{all} common subtrees of |s| and |d|, we see
 that our implementation satisfy a number of the desired properties stated in \Cref{sec:intro}:
 
@@ -249,17 +249,22 @@ that our implementation satisfy a number of the desired properties stated in \Cr
 to solve the differencing problem for |Tree23|. We start by creating 
 a type |Tree23C| which consists in adding a \emph{metavariable} constructor
 to |Tree23| and assume the existence of an oracle that answers whether
-an arbitrary tree is a subtree of the source and the destination.
+an arbitrary tree is a subtree of the source and the destination. We then
+construct a value of type |Tree23C| from a |Tree23| and an oracle. That
+really is the core principle behind the algorithm.
 
-  The attentive reader might have noticed some shortcommings of our |extract|
-function above. For instance, it will share every single |Leaf| under the same
-metavariable. This is because we have imposed no condition about
-which parts of the tree we consider shareable or not. We shall discuss different
-mechanisms to \emph{drive} the algorithm in \Cref{sec:sharing}. 
-Another issue is the lack of a post-processing step. We are currently
-assinging metavariables to \emph{every} shared subtree, even if it appears
-as a subtree of another shared subtree. We shall address these and others
-issues while developing the final implementation. 
+  Naturally, this illustrative version of our algorithm does have some shortcomings that
+are addressed in a later stage, \Cref{sec:representing-changes}.
+For one, we are not trying to minimize the changes after we |extract| 
+a context from the source or destination trees. This makes merging harder.
+Another shortcomming is that we are not addressing what happens when there
+exists a subtree that appears in at least two different places with one occurence
+being under a larger subtree. This can break the apply function and needs to
+be idenfied. Moreover, this example algorithm shares subtrees too eagerly.
+For instance, every occurence of |Leaf| will be shared under the same metavariable.
+This restriction does not impact the correctness of the algorithm but 
+is an important point on the design space: how do we drive this machinery,
+\Cref{sec:sharing}.
 
 \subsection{Background: Generic Programming}
 \label{sec:generic-prog}
@@ -578,7 +583,70 @@ txGCP (TxPeel cx px) (TxPeel cy py)
 \end{code}
 \end{myhs}
 
+  Now, given a |Change codes phi at|, we can identify the exactly where the
+changes happen by pushing the |Change| as close to the leaves as possible
+by pulling out the constructors that are \emph{deleted} then \emph{inserted}.
+This is not without consequences, though. Imagine the following value of
+type |Change Tree23Codes (Const Int) (I Z)|, shown here in its isomorphic
+type |(Tree23C , Tree23C)|:
+
+\begin{myhs}
+\begin{code}
+prob  :: (Tree23C , Tree23C)
+prob  =  (  Node2C (Hole 0) x
+         ,  Node2C (Hole 0) (Hole 0)
+         )
+\end{code}
+\end{myhs}
+
+  Calling |txGCP prob| will return:
+
+\begin{myhs}
+\begin{code}
+txGCP prob = Node2C  (Change (TxHole 0)  (TxHole 0))
+                     (Change x           (TxHole 0))
+\end{code}
+\end{myhs}
+  
+  Note how on the second change, the |TxHole 0| is unbound. That happens because
+\TODO{continue}
+
+
+
   \TODO{now we have a scoping problem...} 
+
+\begin{myhs}
+\begin{code}
+closure  :: Tx codes (Sum (Change codes phi) (Change codes phi)) at
+         -> Sum (Change codes phi) (Tx codes (Change codes phi)) at
+closure (TxOpq x) = InR (TxOpq x)
+closure (TxHole (InL oc)) = InL oc
+closure (TxHole (InR cc)) = InR cc
+closure (TxPeel cx px) 
+  = let aux = mapNP closure px
+     in case mapNPM fromInR aux of
+       Just np  -> InR (TxPeel cx np)
+       Nothing  -> let  chgs = mapNP (either' InL (InR . distr)) aux
+                        dels = mapNP (either' chgDel chgDel) chgs
+                        inss = mapNP (either' chgIns chgIns) chgs
+                        tmp  = Change (TxPeel cx dels) (TxPeel cx inss)
+                    in if isClosed tmp
+                       then InR (TxHole tmp)
+                       else InL (Change tmp)
+\end{code}
+\end{myhs}
+
+\begin{myhs}
+\begin{code}
+distr :: Tx codes (Change codes phi) at -> Change codes phi at
+distr tx = Change (join (txMap chgDel tx)) (join (txMap chgIns tx))
+\end{code}
+\end{myhs}
+
+
+
+
+  \TODO{\Huge I'm here}
 
   
 
