@@ -710,14 +710,21 @@ some more advanced type level mechanisms.
 \subsection{The Oracle}
 \label{sec:oracle}
 
-  The presentation of our algorithm is entirely dependent on the oracle
-being efficient. In this section we shall explain how to build such
-oracle. Before focusing on efficiency, however, lets first look at a correct, but
-rather inefficient, implementation. Namelly, checking every single
-subtree for propositional equality.  Upon finding a match, returns the
-index of such subtree in the list of all subtrees. We start by enumerating
-all possible subtrees:
+  The oracle used to decide which subtrees to share between source and
+destination is a central part of the algorithm. The overall efficiency
+of the algorithm depends exclusively on this oracle being
+efficient. In this section we shall provide two implementations for
+the oracle. One inefficient but intuitive, and another that is more
+involved but satisfies the efficiency constraints.
 
+  When deciding whether a given subtree |x| should be shared, s naive
+oracle would check every single subtree of the source and destination
+for equality against |x|.  Upon finding a match, it would return the
+index of such subtree in the list of all subtrees. The implementation
+of this oracle is quite straightforwar. First, we enumerate all
+possible subtrees:
+
+\victor{Does this typecheck? I think I need a |Exists|}
 \begin{myhs}
 \begin{code}
 subtrees :: Fix codes i -> [ forall j dot Fix codes j ]
@@ -746,7 +753,10 @@ subtrees x = x : case sop x of
 % \end{myhs}
 % \end{minipage}
 
-  Next, we define a heterogeneous equality over |Fix codes| and search the list:
+  Next, we define a heterogeneous equality over |Fix codes| and search through the
+list of all possible subtrees. The heterogeneous equality starts by comparing the
+indexes of the |Fix codes| values. If they agree, we proceed to compare them for
+propositional equality.
 
 \begin{myhs}
 \begin{code}
@@ -761,8 +771,8 @@ heqFix x y = case testEquality x y of
 \end{code}
 \end{myhs}
 
-  Finally, we can put together our inefficient |buildOracle|. We start
-by looking for our target, |t|, in the subtrees of |x|. If we find something,
+  Finally, we can put together our inefficient |buildOracle|: start
+by looking for our target, |t|, in the subtrees of |x|. Upon finding something,
 we proceed to check whether |t| also belongs in the subtrees of |y|. Since
 we are in the |Maybe| monad, if either of those steps fail, the entire function
 will return  |Nothing|.
@@ -775,92 +785,77 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 buildOracle x y t = do
   ix <- idx (heqFix t) (subtrees x)
   iy <- idx (heqFix t) (subtrees y)
-  return is
+  return ix
 \end{code}
 \end{myhs}
 
-  There are two sources of inefficiency in the |buildOracle| above. First,
+  There are two points of inefficiency in the naive |buildOracle| above. First,
 we build the |subtrees| list twice, once for the source and once for the destination.
 We then proceed to compare a third tree, |t|, for equality with every subtree in
-the prepared lists. That is an extremely expensive computation, but we can 
-achieve radically better complexity by precomputing some data and storing it
-in a proper structure.
+the prepared lists. That is an extremely expensive computation that can be avoided
+by precomputing some values and storing them in the correct structure.
 
-  Comparing trees for equality can be made faster if we preprocess our trees annotating
-them with cryptographic hashes. This enables us to compare trees in constant time.
-Better yet, we can also store the hashes of all possible subtrees in a structure
-that provides efficient lookup and some sort of intersection operation. Building an
-oracle would then be composed of two steps: annotate both source and destination
-with cryptographic hashes at every subtree, store those in a structure and compute
-the intersection. The result should be a searchable structure that will return a
-result only if a tree is a common subtree of both the source and destination of
-the |buildOracle| function.
-
-  
-  A hash funtion will receive some data and output a fixed-length 
-sequence of words. We can store those sequences of words in a |Trie|, also known as
-a \emph{prefix tree}, indexed by machine words:
+  In order to compare trees for equality in constant time we can annotate them
+with cryptographic hashes~\cite{Menezes1997} and compare those instead. This technique 
+transforms our trees into \emph{merkle trees}~\cite{Merkle1988} and is more commonly
+seen in the security and authentication context~\cite{Miller2014,Miraldo2018HAMM}.
+Nevertheless, we can use the generic programming machinery that is already at our
+disposal. The \texttt{generics-mrsop} provide some attribute grammar~\cite{Knuth1990} mechanisms,
+in particular synthetization of attributes:
 
 \begin{myhs}
 \begin{code}
-data Trie a = Trie (Maybe a) (Map Word (Trie a))
-\end{code}
-\end{myhs}
+newtype AnnFix x codes i = AnnFix (x i , Rep (AnnFix x codes) (Lkup i codes))
 
-  We also need tree simple functions over this structure: insertion, lookup
-and intersection. 
-
-  Now,  hashing functionality by the means of a type class
-
-
-
-The second point comes from |heqFix|. Comparing trees for equality on every possible subtree is expensive. We can
-also address this issue by annotating our trees with cryptographic hashes and
-comparing them instead of the trees themselves.
-
-  
-
-  The efficient version of the oracle will consist in annotating both source
-and destination with cryptographic hashes. We then insert these hashes in
-a lookup-efficient structure. A |Trie| is a good choice here, since it provides
-constant lookup\footnote{In our scenario, the trie's depth is bounded, hance the
-amortized cost of lookups is bounded by a constant}. Finally, we compute the 
-intersection of said |Trie|s arriving at a map containing only the hashes that
-belong in both source and destination trees.
-
-  In fact, the efficient oracle consists in annotating the source and
-destination trees with hashes:
-
-\begin{myhs}
-\begin{code}
-newtype AnnFix x codes i = AnnFix (x , Rep (AnnFix x codes) (Lkup i codes))
-
-prepare :: Fix codes i -> AnnFix Digest codes i
+prepare :: Fix codes i -> AnnFix (Const Digest) codes i
 prepare = synthesize authAlgebra
 \end{code}
 \end{myhs}
 
   Here, |AnnFix| is a cofree comonad to add a label to each recursive branch
-of our trees. In our case, this label will be the cryptographic digest of the
-concatenation of its subtree's digests. Much like in a \emph{merkle tree}~\cite{?}.
-The |synthesize| generic combinator will annotate each node of the tree with
-a result of calling a catamorphism with the same algebra. Our algebra
+of our generic trees. In our case, this label will be the cryptographic hash of the
+concatenation of its subtree's hashes.
+The |synthesize| generic combinator annotates each node of the tree with
+the result of the catamorphism called at that point. Our algebra
 is sketched in pseudo-Haskell below:
 
 \begin{myhs}
 \begin{code}
 authAlgebra :: Rep (Const Digest) sum -> Const Digest iy
 authAlgebra rep = case sop rep of
-  Tag c [p_1 , dots , p_n]  -> Const . digestConcat
-                            $$ [digest c , digest (getSNat @iy) , p_1 , dots , p_n]
+  Tag c [p_1 , dots , p_n]  -> Const . sha256Concat
+                            $$ [encode c , encode (getSNat @iy) , p_1 , dots , p_n]
 \end{code}
 \end{myhs} 
 
-  Note that we must append the index of the type in question to our digest computation
-to differentiate constructors of different types in the family indexed by the same number.
-Moreover, annotating the tree with these hashes means that we only have to traverse the
-whole tree once.
-  
+  Note that we must append the index of the type in question to our hash computation
+to differentiate constructors of different types in the family represented by the same number.
+Once we have the hashes of all subtrees we must store them in a search-efficient structure.
+Given that a hash is just a |[Word]|, the optimal choice is a |Trie|~\cite{Brass2008} 
+from |Word| to |Int|, where the |Int| indicates what is the \emph{identifier} of that very tree. 
+
+  Let us make a small modification to our |Oracle| type and allow it
+to receive trees annotated with hashes and proceed to define the efficient |buildOracle|
+function.
+
+\begin{myhs}
+\begin{code}
+type Oracle codes = forall j dot AnnFix (Const Digest) codes j -> Maybe Int
+
+buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
+buildOracle s d = let  s'  = prepare s
+                       d'  = prepare d
+                   in lookup (mkSharingTrie s' `intersect` mkSharingTrie d')
+  where
+    -- insert all digests in a trie
+    mkSharingTrie :: AnnFix (Const Digest) codes j -> Trie Word Int
+\end{code}
+\end{myhs}
+
+
+This enables us to efficiently lookup values and compute
+intersection of |Trie|s.
+
 \section{Discussion and Future Work}
 \label{sec:discussion}
 
