@@ -114,11 +114,22 @@ data ChangeClass
 
 type ConflictClass = (ChangeClass , ChangeClass)
 
+-- FIXME:
+--
+-- I can make this functions' life a nightmare with a patch
+-- such as:
+--
+--  (\ (Bin (Bin x y) z -> Bin (Bin y x) (Bin Leaf z))
+--
+--  Multiplicity on the left is 0, on the right is 1 but
+--  there is a structural change.
+--
 changeClassify :: CChange ki codes at -> ChangeClass
 changeClassify c =
   let mi = utxMultiplicity 0 (cCtxIns c)
       md = utxMultiplicity 0 (cCtxDel c)
    in case (mi , md) of
+    (0 , 0) -> CMod
     (0 , _) -> CIns
     (_ , 0) -> CDel
     (_ , _) -> CMod
