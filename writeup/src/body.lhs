@@ -701,31 +701,6 @@ txRefine :: (forall at  dot f at   -> Tx codes g at)
 \end{code}
 \end{myhs}
 
-
-
-
-  \TODO{\Huge I'm here}
-
-\begin{myhs}
-\begin{code}
-txAbstractOpq  ::  Tx codes (ForceI (Const Int))
-               ->  Tx codes (ForceI (Const Int))
-               ->  (Tx codes MetaVarIK , Tx codes MetaVarIK at)
-\end{code}
-\end{myhs}
-
-\begin{myhs}
-\begin{code}
-type Patch codes at = (Tx codes MetaVarIK at , Tx codes MetaVarIK at)
-
-diff :: Fix codes ix -> Fix codes ix -> Patch codes (I ix)
-diff x y = let  ics = buildOracle x y
-                del = txExtract ics x
-                ins = txExtract ics y
-            in uncurry txAbstractOpq $$ txPostprocess del ins
-\end{code}
-\end{myhs}
-
   The application of a |Patch| follows very closely the implementation
 of the application presented in \Cref{sec:concrete-changes} but uses
 some more advanced type level mechanisms. 
@@ -733,7 +708,7 @@ some more advanced type level mechanisms.
 \TODO{should we explain it?} 
 
 \subsection{The Oracle}
-\label{sec:orable}
+\label{sec:oracle}
 
   The presentation of our algorithm is entirely dependent on the oracle
 being efficient. In this section we shall explain how to build such
@@ -886,11 +861,20 @@ to differentiate constructors of different types in the family indexed by the sa
 Moreover, annotating the tree with these hashes means that we only have to traverse the
 whole tree once.
   
-\section{Instantiating the Oracle}
-\label{sec:oracle}
-
 \section{Discussion and Future Work}
 \label{sec:discussion}
+
+\subsection{Controlling Sharing}
+\label{sec:sharing}
+
+  One interesting discussion point in the algorithm is how to control sharing. As
+it stands, the differencing algorithm will share anything that the oracle 
+indicates as \emph{shareable}. This can be undesired. For example, we do not
+want to share \emph{all} occurences of a variable in a program. We need to respect
+the scope of this variables. Same applies for constants. It seems like
+the easiest way to control this is by the means of a custom oracle that
+keeps track of scope and hashes occurences of the same identifer under a different
+scope differently, for instance.
 
 \section{Conclusions}
 \label{sec:conclusions}
