@@ -588,8 +588,9 @@ changes happen by pushing the |Change| as close to the leaves as possible
 by pulling out the constructors that are \emph{deleted} then \emph{inserted}.
 This is not without consequences, though. Imagine the following value of
 type |Change Tree23Codes (Const Int) (I Z)|, shown here in its isomorphic
-type |(Tree23C , Tree23C)|:
+type |(Tree23C , Tree23C)| and the resulting call to |txGCP|:
 
+\begin{minipage}[t]{.45\textwidth}
 \begin{myhs}
 \begin{code}
 prob  :: (Tree23C , Tree23C)
@@ -598,22 +599,35 @@ prob  =  (  Node2C (Hole 0) x
          )
 \end{code}
 \end{myhs}
-
-  Calling |txGCP prob| will return:
-
+\end{minipage}
+\begin{minipage}[t]{.45\textwidth}
 \begin{myhs}
 \begin{code}
 txGCP prob = Node2C  (Change (TxHole 0)  (TxHole 0))
                      (Change x           (TxHole 0))
 \end{code}
 \end{myhs}
+\end{minipage}
   
-  Note how on the second change, the |TxHole 0| is unbound. That happens because
-\TODO{continue}
+  Note how the second change in |txGCP prob| has |TxHole 0| unbound. That happens because
+|TxHole 0| will be bound to the left child from the root. Hence, we cannot decouple these changes.
+We call the changes were the deletion context instantiates all the necessary variables for the
+insertion context \emph{closed changes}. The \emph{open changes} are those that contain metavariables in the
+insertion context that do not occur on the deletion context.
 
+  We can map over |txGCP prob| and classify the changes we see in either \emph{open}
+or \emph{closed}. We would arrive at something like:
+\victor{shall I add the code? How about explaining |Sum|?}
 
+\begin{myhs}
+\begin{code}
+classify (txGCP prov)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
+\end{code}                       (InL (Change x           (TxHole 0)))
+\end{myhs}
 
-  \TODO{now we have a scoping problem...} 
+  Finally, we traverse the result trying to eliminate all the \emph{open changes},
+tagged by |InL|. We do so by finding the closest closed change that binds the required
+variables:
 
 \begin{myhs}
 \begin{code}
@@ -636,10 +650,54 @@ closure (TxPeel cx px)
 \end{code}
 \end{myhs}
 
+  The only interesting case of the |closure| function is the |TxPeel|. We
+essentially try to compute all the closures for the fields of the constructor.
+If no more open changes are left, we are done. Otherwise, we have to bubble the changes
+up to the |TxPeel| and finally check whether we were able to \emph{close} this
+change or not. We use two simple auxiliar functions to distribute a |Change| over
+a |Tx| and to eliminate a |Sum| type:
+
+\TODO{move |either'| out of here}
 \begin{myhs}
 \begin{code}
 distr :: Tx codes (Change codes phi) at -> Change codes phi at
 distr tx = Change (join (txMap chgDel tx)) (join (txMap chgIns tx))
+
+either' :: (f x -> r x) -> (g x -> r x) -> Sum f g x -> r x
+either' a b (InL fx) = a fx
+either' a b (InR gx) = b gx
+
+\end{code}
+\end{myhs}
+
+  We finalize by assembling all of these pieces in a single |diff| function.
+Where |MetaVarIK| is defined by |NA (Const Int) (Const Int)|, essentially distinguishing
+between a metavariable that is suppused to be instantiated by a recursive member of the
+family or a opaque type. 
+
+\begin{myhs}
+\begin{code}
+diff :: Fix codes ix -> Fix codes ix -> Tx codes (Change codes MetaVarIK) (I ix)
+diff x y = let  ics   = buildOracle x y
+                del0  = txExtract ics x
+                ins0  = txExtract ics y
+                (del1 , ins1) = txPostprocess del ins
+            in case closure (txGCP del1 ins1) of
+              InL _ -> error "unreachable"
+              InR r -> txRefine TxHole mkCpy r
+\end{code}
+\end{myhs}
+
+  The last step in the |diff| function is identifying the opaque values that should be copied. 
+This is easy to do since the |txGCP| already put those opaque values in the \emph{copied} part
+of the patch. Hence, we simply need to traverse the patch and replace the occurences of |TxOpq|
+by a new \emph{copy} change. We use the |txRefine| function, declared below.
+
+\begin{myhs}
+\begin{code}
+txRefine :: (forall at  dot f at   -> Tx codes g at) 
+         -> (forall k   dot Opq k  -> Tx codes g (K k)) 
+         -> Tx codes f at -> Tx codes g at
 \end{code}
 \end{myhs}
 
@@ -648,13 +706,6 @@ distr tx = Change (join (txMap chgDel tx)) (join (txMap chgIns tx))
 
   \TODO{\Huge I'm here}
 
-  
-
-
-  The last step is identifying the opaque values that should be copied. This can be done by
-traversing both |Tx|s together while they agree and substitute the |TxOpq| occurences
-that are equal on both sides by a fresh metavariable.
-
 \begin{myhs}
 \begin{code}
 txAbstractOpq  ::  Tx codes (ForceI (Const Int))
@@ -662,10 +713,6 @@ txAbstractOpq  ::  Tx codes (ForceI (Const Int))
                ->  (Tx codes MetaVarIK , Tx codes MetaVarIK at)
 \end{code}
 \end{myhs}
-
-  Where |MetaVarIK| is defined by |NA (Const Int) (Const Int)|, essentially distinguishing
-between a metavariable that is suppused to be instantiated by a recursive member of the
-family or a opaque type. Finally, we package the code up and define our |diff| function as
 
 \begin{myhs}
 \begin{code}
