@@ -968,147 +968,146 @@ scope differently, for instance.
 %% easily exploit memoization to speed up the computation.
 %% 
 %% \TODO{linear vs tree patches nomenclature}
-
-  
-
-
-
-  Regardless of the representation, the core of a differencing algorithm is 
-to identify and pursue the copy opportunities as much as possible. In the
-previous approaches, discussed in \Cref{sec:es}, the lack of a representation for
-moving subtrees and duplicating them means that, upon finding a subtree that can be copied
-to two different places, the algorithm needs to choose between one of them. Besides
-efficiency problems, this also brings a complicated theoretical problems: it is impossible
-to order tree structured patches like one can do with linear patches~\cite{Mimram2013}. 
-If the only operations we have at hand are insertions, deletions and copying of a subtree,
-we cannot choose between copying the left or the right subtree in:
-
-\begin{myhs}
-\begin{code}
-diff (Node2 42 a a) a
-\end{code}
-\end{myhs}
-
-  As we mentioned before, the |diff| function has to choose between deleting the constructor
-accompained by the left or the right subtree in |Node2 42 a a|. Yet, we cannot compare these
-patches in arguing which is \emph{better} than which without making some arbitrary choices.
-One example of an arbitrary choice would be to prefer patches that delete leftmost subtrees first.
-This would make the |diff| function choose to copy the rightmost |a|, but this is not an educated
-decision: \TODO{and the result might be different. Applying one or the other to |Node2 42 x y|}.
-
-
-To illustrate
-this and other concepts, we will be referring to |Tree23|, even though our definitions
-will be given in a generic setting.
-
-
-
-  Unlike the previous work on well-typed structured differencing, we will 
-represent changes in a different fashion. 
-
-
-We will illustrate our generic
-definitions by instantiating them to work on top of |Tree23|, defined as follows:
-
-\begin{myhs}
-\begin{code}
-data Tree23  = Leaf
-             | Node2 Int Tree23 Tree23
-             | Node3 Int Tree23 Tree23 Tree23
-\end{code}
-\end{myhs}
-
-  Now, suppose one wants to transform the trees below into each other:
-
-\begin{myhs}
-\begin{code}
-t1 = Node2 10 (Node3 100 a b c) d
-t2 = Node3 42 a b d
-\end{code}
-\end{myhs}
-
-  \TODO{draw the treefixes}
-
-  
-
-
-  Our representation of changes will abstract away all the subtrees that are 
-copied. 
-
-  Extensionally, a diff is a collection of changes coupled with a location
-inside a given tree, which dictates ``where'' in the source object this
-change should be applied. 
-
-  \TODO{As we hinted earlier, a patch is all about a location and a instruction}
-  \TODO{look at locations in a tree}
-  \TODO{show how there are more operations we can perform on that and explain that that's
-        where the slow down is!}
-
-  Some of the previous work on well-typed, structured differencing 
-
-\subsection{Well Typed Tree Prefixes}
-\label{sec:treefix}
-
-\TODO{I use ``source tree'' here; define it somewhere}
- 
-  Extensionally, diff is nothing but a collection of locations inside
-a tree with a change to be applied on each said location. 
-
-
-Since there can
-only be at most one change per location, overlapping these changes into a 
-single datatype that consists of a tree
-with the same shape as the source tree and holes where the changes happen.
-We can even go a step further and parametrize the type of said holes
-ariving in the following (free) monad:
-
-\begin{myhs}
-\begin{code}
-data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
-  TxHole  :: phi at  -> Tx codes phi at
-  TxOpq   :: Opq k   -> Tx codes phi (K k)
-  TxPeel  :: Constr (Lkup i codes) c
-          -> NP (Tx codes phi) (Tyof codes c)
-          -> Tx codes phi (I i)
-\end{code}
-\end{myhs}
-
-\TODO{Why no indicies?}
-
-  A value |t| of type |Tx codes phi (I i)| consists in a value of 
-type |Fix codes i| with certain subtrees replaced by a value of type |phi|. 
-There are two important operations one can perform over a ``treefix''. We can inject
-a valuation for the atoms into the treefix, yielding a tree. Or we can project a
-valuation from a treefix and a tree.
-
-
-\begin{myhs}
-\begin{code}
-txInj :: Tx codes phi at
-      -> Valuation codes phi
-      -> Maybe (NA (Fix codes) at)
-\end{code}
-\end{myhs}
-
-
-
-\section{Computing Changes}
-\label{sec:algorithm}
-
-  Convey the observation that contractions and permutations are
-paramount to have a fast algorithm: if we don't have to choose one of
-all common subtrees to copy, we can copy them all and remove the choice point!
-
-  Assume we have an oracle that answers the question: ``is $t$ a subtree of
-both the origin and the destination''?
-
-\subsection{Instantiating the Oracle}
-\label{sec:oracle}
-
-  With crypto is quite easy to create such oracle.
-
-\section{Discussion and Future Work}
-\label{sec:discussion}
-
-\section{Conclusion}
-\label{sec:conclusion}
+%%   
+%% 
+%% 
+%% 
+%%   Regardless of the representation, the core of a differencing algorithm is 
+%% to identify and pursue the copy opportunities as much as possible. In the
+%% previous approaches, discussed in \Cref{sec:es}, the lack of a representation for
+%% moving subtrees and duplicating them means that, upon finding a subtree that can be copied
+%% to two different places, the algorithm needs to choose between one of them. Besides
+%% efficiency problems, this also brings a complicated theoretical problems: it is impossible
+%% to order tree structured patches like one can do with linear patches~\cite{Mimram2013}. 
+%% If the only operations we have at hand are insertions, deletions and copying of a subtree,
+%% we cannot choose between copying the left or the right subtree in:
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% diff (Node2 42 a a) a
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   As we mentioned before, the |diff| function has to choose between deleting the constructor
+%% accompained by the left or the right subtree in |Node2 42 a a|. Yet, we cannot compare these
+%% patches in arguing which is \emph{better} than which without making some arbitrary choices.
+%% One example of an arbitrary choice would be to prefer patches that delete leftmost subtrees first.
+%% This would make the |diff| function choose to copy the rightmost |a|, but this is not an educated
+%% decision: \TODO{and the result might be different. Applying one or the other to |Node2 42 x y|}.
+%% 
+%% 
+%% To illustrate
+%% this and other concepts, we will be referring to |Tree23|, even though our definitions
+%% will be given in a generic setting.
+%% 
+%% 
+%% 
+%%   Unlike the previous work on well-typed structured differencing, we will 
+%% represent changes in a different fashion. 
+%% 
+%% 
+%% We will illustrate our generic
+%% definitions by instantiating them to work on top of |Tree23|, defined as follows:
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% data Tree23  = Leaf
+%%              | Node2 Int Tree23 Tree23
+%%              | Node3 Int Tree23 Tree23 Tree23
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   Now, suppose one wants to transform the trees below into each other:
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% t1 = Node2 10 (Node3 100 a b c) d
+%% t2 = Node3 42 a b d
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   \TODO{draw the treefixes}
+%% 
+%%   
+%% 
+%% 
+%%   Our representation of changes will abstract away all the subtrees that are 
+%% copied. 
+%% 
+%%   Extensionally, a diff is a collection of changes coupled with a location
+%% inside a given tree, which dictates ``where'' in the source object this
+%% change should be applied. 
+%% 
+%%   \TODO{As we hinted earlier, a patch is all about a location and a instruction}
+%%   \TODO{look at locations in a tree}
+%%   \TODO{show how there are more operations we can perform on that and explain that that's
+%%         where the slow down is!}
+%% 
+%%   Some of the previous work on well-typed, structured differencing 
+%% 
+%% \subsection{Well Typed Tree Prefixes}
+%% \label{sec:treefix}
+%% 
+%% \TODO{I use ``source tree'' here; define it somewhere}
+%%  
+%%   Extensionally, diff is nothing but a collection of locations inside
+%% a tree with a change to be applied on each said location. 
+%% 
+%% 
+%% Since there can
+%% only be at most one change per location, overlapping these changes into a 
+%% single datatype that consists of a tree
+%% with the same shape as the source tree and holes where the changes happen.
+%% We can even go a step further and parametrize the type of said holes
+%% ariving in the following (free) monad:
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
+%%   TxHole  :: phi at  -> Tx codes phi at
+%%   TxOpq   :: Opq k   -> Tx codes phi (K k)
+%%   TxPeel  :: Constr (Lkup i codes) c
+%%           -> NP (Tx codes phi) (Tyof codes c)
+%%           -> Tx codes phi (I i)
+%% \end{code}
+%% \end{myhs}
+%% 
+%% \TODO{Why no indicies?}
+%% 
+%%   A value |t| of type |Tx codes phi (I i)| consists in a value of 
+%% type |Fix codes i| with certain subtrees replaced by a value of type |phi|. 
+%% There are two important operations one can perform over a ``treefix''. We can inject
+%% a valuation for the atoms into the treefix, yielding a tree. Or we can project a
+%% valuation from a treefix and a tree.
+%% 
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% txInj :: Tx codes phi at
+%%       -> Valuation codes phi
+%%       -> Maybe (NA (Fix codes) at)
+%% \end{code}
+%% \end{myhs}
+%% 
+%% 
+%% 
+%% \section{Computing Changes}
+%% \label{sec:algorithm}
+%% 
+%%   Convey the observation that contractions and permutations are
+%% paramount to have a fast algorithm: if we don't have to choose one of
+%% all common subtrees to copy, we can copy them all and remove the choice point!
+%% 
+%%   Assume we have an oracle that answers the question: ``is $t$ a subtree of
+%% both the origin and the destination''?
+%% 
+%% \subsection{Instantiating the Oracle}
+%% \label{sec:oracle}
+%% 
+%%   With crypto is quite easy to create such oracle.
+%% 
+%% \section{Discussion and Future Work}
+%% \label{sec:discussion}
+%% 
+%% \section{Conclusion}
+%% \label{sec:conclusion}
