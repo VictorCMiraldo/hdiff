@@ -105,7 +105,17 @@
 %% Note: \begin{abstract}...\end{abstract} environment must come
 %% before \maketitle command
 \begin{abstract}
-  Abstract comes here!
+  Understanding the differences between different versions of a source
+file is crucual for software development. The UNIX \texttt{diff} is the
+cannonical tool for the task. It compares files line-by-line and outputs
+the differences. Yet, observing changes at such a fixed granularity leads to
+unnecessary conflicts beween different edits. Structural differencing tools
+on the other hand provide a finer granularity control over the presentation
+of changes but tend to be fairly inefficient. This paper proposes
+a \emph{generic representation} for describing transformations between elements
+of a mutually recursive family supporting permutation and duplication of subtrees.
+Moreover, we propose a linear algorithm for computing and merging these 
+structured transformations.
 \end{abstract}
 
 
