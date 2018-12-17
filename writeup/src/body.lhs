@@ -928,6 +928,32 @@ p / q = utxMap (uncurry' reconcile) $$ txGCP p q
 \end{code}
 \end{myhs}
 
+  Note that a merge is not always possible, for we introduce a new datatype
+called |Conflict| to mark those situations. A |Conflict| is nothing but
+a pair of irreconciliable patches.
+
+\begin{myhs}
+\begin{code}
+type Conflict codes = Patch codes :*: Patch codes
+\end{code}
+\end{myhs}
+
+\victor{define the notion of applicable}
+  The |reconcile| function receives two disagreeing patches and attempt
+to transport the left argument over the right argument. Here, we also assume
+that both patches are applicable to at least one common value.
+
+\begin{myhs}
+\begin{code}
+reconcile :: Patch codes at -> Patch codes at -> Sum (Conflict codes) (Change codes) at
+reconcile (TxHole p) (TxHole q) = _
+reconcile (TxHole p) q = _ 
+reconcile p (TxHole q) = _
+reconcile _ _ = error "unreachable"
+\end{code}
+\end{myhs}
+
+
   \TODO{Describe reconcile; describe change classification}
 
 
