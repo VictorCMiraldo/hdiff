@@ -4,14 +4,17 @@
 % Bug because of double lines?
 % https://blog.codecentric.de/en/2014/02/curly-braces/
 
-  Software version control systems are second nature to the
-software development community in general. In their core lies a
-differencing algorithm that analizes two files and outputs their
-difference, the most common being the UNIX \texttt{diff}~\cite{McIlroy1979}.
+  Software version control systems are vastly present in the
+software development community. They are responsible to manage a
+differencing algorithm that computes the differences between two files, 
+the most common being the UNIX \texttt{diff}~\cite{McIlroy1979}.
+Line-based tools, however, are of very coarse granularity and fail
+to identify more fine grained changes in software source code. As a result,
+we have a lot of man-hours being spent in conflict resolution. 
 
-\TODO{one or two paragraphs here}
-
-  The (well-typed) differencing problem consists in finding a type |Patch|, 
+  Let us abstract the granularity on which version control takes place
+and have a look at the problem description for an arbitrary type.
+The (well-typed) differencing problem consists in finding a type |Patch|, 
 together with functions |diff| and |apply|, for some type |a|, that
 satisfy a collection of properties.
 
@@ -49,8 +52,6 @@ number of trees possible. For example:
 anything must be applicable to any element performing exactly 
 that action: not changing anything.
 
-\TODO{cite \cite{Bergroth2000} and \cite{Mimram2013} somewhere}
-
   The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing
 problem, and satisfies many of these desirable properties, for the
 special case of |a == [String]|, ie, files are seen as lists of
@@ -77,6 +78,7 @@ deletions and copying of a subtree, we cannot compare choosing to copy
 the left or the right subtree. No option is better than the other. If, however,
 we have some operation that encodes permutation of subtrees, we have not only removed
 a choice point from the algorithm but also arrived at a provably better patch
+\victor{provably according to who? Me!!! but what does it mean to be better anyway?}
 without having to resort to heuristics or arbitrary choices. And, 
 contrary to what one might expect, more is less in this scenario. By
 adding more expressive basic change operations (duplicate and permute) we
@@ -97,6 +99,10 @@ were able to remove choice points and arrive at a very efficient algorithm.
   \item A prototype implementation of our algorithm that
         is immediately applciable to a large universe of datatypes,
         namelly, any mutually recursive family.
+  \item A prorotype notion and implementation of a merging algorithm.
+        We have evaluated our implementation against unsolved conflicts
+        from a number of GitHub repositories in the Lua programming language.
+        \victor{how many?}
 \end{itemize}
 
 \section{Sketch and Background}
@@ -640,14 +646,15 @@ We call the changes were the deletion context instantiates all the necessary var
 insertion context \emph{closed changes}. The \emph{open changes} are those that contain metavariables in the
 insertion context that do not occur on the deletion context.
 
-  We can map over |txGCP prob| and classify the changes we see in either \emph{open}
+  We can map over |txGCP prob| and tag the changes we see in either \emph{open}
 or \emph{closed}. We would arrive at something like:
 \victor{shall I add the code? How about explaining |Sum|?}
 
 \begin{myhs}
 \begin{code}
-classify (txGCP prov)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
-\end{code}                       (InL (Change x           (TxHole 0)))
+txMap isClosed (txGCP prov)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
+                                       (InL (Change x           (TxHole 0)))
+\end{code} 
 \end{myhs}
 
   Finally, we traverse the result trying to eliminate all the \emph{open changes},
@@ -675,7 +682,7 @@ closure (TxPeel cx px)
 \end{code}
 \end{myhs}
 
-  The only interesting case of the |closure| function is the |TxPeel|. We
+  The interesting case of the |closure| function is the |TxPeel| pattern. We
 essentially try to compute all the closures for the fields of the constructor.
 If no more open changes are left, we are done. Otherwise, we have to bubble the changes
 up to the |TxPeel| and finally check whether we were able to \emph{close} this
