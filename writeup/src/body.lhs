@@ -4,6 +4,11 @@
 % Bug because of double lines?
 % https://blog.codecentric.de/en/2014/02/curly-braces/
 
+  Software version control systems are second nature to the
+software development community in general. In their core lies a
+differencing algorithm that analizes two files and outputs their
+difference, the most common being the UNIX \texttt{diff}~\cite{McIlroy1979}.
+
 \TODO{one or two paragraphs here}
 
   The (well-typed) differencing problem consists in finding a type |Patch|, 
@@ -46,23 +51,17 @@ that action: not changing anything.
 
 \TODO{cite \cite{Bergroth2000} and \cite{Mimram2013} somewhere}
 
-  The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing problem,
-and satisfies many of these desirable properties,
-for the special case of |a == [String]|, ie, files are seen as
-lists of lines. There has been some attempts at a more general solution.
-First by Lempsink and L\"{o}h~\cite{Loh2009}, which was later extended by
-Vassena~\cite{Vassena2016}. Their work consists largely in using the same
-algorithm as \texttt{diff} in the flattened representations of a tree.
-A prallel attempt was done by Miraldo et al.~\cite{Miraldo2017}, where
-the authors tried to define operations that work directly on trees.
-There is also a significant body of work on less formal approaches
-that suffer similar problems~\cite{Demaine2007,Klein1998,Akutsu2010}.
-All of these algorithms work in a similar way. First we compute all possible
-patches betweem two objects, then we filter out \emph{the best}. There
-two big problems being (A) the inefficiency of a non-deterministic algorithm
-with many choice points and (B) defining what is \emph{the best} patch. 
-These two problems stem from the same place: having access only to insert,
-delete and copy as base operations. 
+  The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing
+problem, and satisfies many of these desirable properties, for the
+special case of |a == [String]|, ie, files are seen as lists of
+lines. Although there has been attempts at a solution for arbitrary
+such |a|s, all of them have the same \emph{modus operandis}: compute
+all possible patches betweem two objects, then we filter out \emph{the
+best}. There two big problems being (A) the inefficiency of a
+non-deterministic algorithm with many choice points and (B) defining
+what is \emph{the best} patch.  These two problems stem from the same
+place: having access only to insert, delete and copy as base
+operations.
 
   The core of a differencing algorithm is to identify and pursue the
 copy opportunities as much as possible. Therefore the lack of a
@@ -355,7 +354,31 @@ In our case, it is |NA|, that distinguishes between representation of a recursiv
 from an opaque type. Although the \texttt{generics-mrsop} provides a way to customize the
 set of opaque types used, this is not central do the developments in this paper and
 hence we will assume a type |Opq| that interprets the necessary atom types. We refer the
-interested reader to the original paper for more information.
+interested reader to the original paper~\cite{Miraldo2018} for more information.
+
+  Naturally, |NS|, |NP| and |NA| come equipped with their elimination principles:
+
+\begin{myhs}
+\begin{code}
+elimNS :: (forall at dot f at -> a) -> NS f s -> a
+elimNS f (There s)  = elimNS f s
+elimNS f (Here x)   = f x
+\end{code}
+\end{myhs}
+\begin{myhs}
+\begin{code}
+elimNP :: (forall at dot f at -> a) -> NP f p -> [a]
+elimNP f NP0        = []
+elimNP f (x :* xs)  = f x : elimNP f xs
+\end{code}
+\end{myhs}
+\begin{myhs}
+\begin{code}
+elimNA :: (forall ix dot f x -> a) -> (forall k dot g k -> a) -> NA f g at -> a
+elimNA f g (NA_I x)  = f x
+elimNA f g (NA_K x)  = g x
+\end{code}
+\end{myhs}
 
   The last piece of our puzzle is to define a functor of kind |Nat -> Star| that we can
 pass as a parameter to |NA| to interpret the recursive positions. The indexed least fixedpoint
@@ -583,6 +606,8 @@ txGCP (TxPeel cx px) (TxPeel cy py)
 \end{code}
 \end{myhs}
 
+\victor{see \ref{comment:minimality}}
+
   Now, given a |Change codes phi at|, we can identify the exactly where the
 changes happen by pushing the |Change| as close to the leaves as possible
 by pulling out the constructors that are \emph{deleted} then \emph{inserted}.
@@ -677,7 +702,9 @@ family or a opaque type.
 
 \begin{myhs}
 \begin{code}
-diff :: Fix codes ix -> Fix codes ix -> Tx codes (Change codes MetaVarIK) (I ix)
+type Patch codes at = Tx codes (Change codes MetaVarIK) at
+
+diff :: Fix codes ix -> Fix codes ix -> Patch codes (I ix)
 diff x y = let  ics   = buildOracle x y
                 del0  = txExtract ics x
                 ins0  = txExtract ics y
@@ -700,6 +727,20 @@ txRefine :: (forall at  dot f at   -> Tx codes g at)
          -> Tx codes f at -> Tx codes g at
 \end{code}
 \end{myhs}
+
+  The center of our algorithm is the |Tx| free monad. We use said type
+in different contexts with different meanings. In summary, a value of
+type |Tx codes phi at| consists of a representation of a value indexed
+by |at| with holes of type |phi|. Recall the definition of |Patch|,
+and note it can be simplified as |Tx codes (Tx codes MetaVarIK :*: Tx codes MetaVarIK)|,
+hence, the outer |Tx| represents the copied constructors that lead to the
+changes, of type |Tx codes MetaVarIK :*: Tx codes MetaVarIK|. These,
+in turn, represent both a deletion context and an insertion context
+respectively. The deletion context contains the constructors that must 
+be \emph{pattern matched} and the metavariables that must be instantiated
+whereas the insertion context is the dual: constructors are injected and
+variables are looked up. We shall see yet another use of |Tx| when we
+come to merging, \Cref{sec:merging}.
 
   The application of a |Patch| follows very closely the implementation
 of the application presented in \Cref{sec:concrete-changes} but uses
@@ -732,26 +773,6 @@ subtrees x = x : case sop x of
   Tag _ pt -> concat (elimNP (elimNA (const []) subtrees) pt)
 \end{code}
 \end{myhs}
-
-%   where |elimNP| and |elimNA| are eliminators for their respective type,
-% defined as:
-% 
-% \begin{minipage}[t]{.45\textwidth}
-% \begin{myhs}
-% \begin{code}
-% elimNA f g (NA_I x)  = f x
-% elimNA f g (NA_K x)  = g x
-% \end{code}
-% \end{myhs}
-% \end{minipage}
-% \begin{minipage}[t]{.45\textwidth}
-% \begin{myhs}
-% \begin{code}
-% elimNP f NP0        = []
-% elimNP f (x :* xs)  = f x : elimNP f xs
-% \end{code}
-% \end{myhs}
-% \end{minipage}
 
   Next, we define a heterogeneous equality over |Fix codes| and search through the
 list of all possible subtrees. The heterogeneous equality starts by comparing the
@@ -834,9 +855,9 @@ Once we have the hashes of all subtrees we must store them in a search-efficient
 Given that a hash is just a |[Word]|, the optimal choice is a |Trie|~\cite{Brass2008} 
 from |Word| to |Int|, where the |Int| indicates what is the \emph{identifier} of that very tree. 
 
-  Let us make a small modification to our |Oracle| type and allow it
-to receive trees annotated with hashes and proceed to define the efficient |buildOracle|
-function.
+  After a small modification to our |Oracle|, allowing it to receive
+trees annotated with hashes we proceed to define the efficient
+|buildOracle| function.
 
 \begin{myhs}
 \begin{code}
@@ -852,12 +873,86 @@ buildOracle s d = let  s'  = prepare s
 \end{code}
 \end{myhs}
 
+  The resulting trie will contain only the hashes of the subtrees
+of the source and destination, and these can be efficiently looked up
+returning a unique identifier for that specific subtree. 
 
-This enables us to efficiently lookup values and compute
-intersection of |Trie|s.
+  We can easily get around hash collisions by computing an intermediate
+|Trie Word (Exists (Fix codes))| in the |mkSharingTrie| function and
+later forgetting the trees. This strucure keeps the trees associated with each hash,
+which can in turn be checked for equality when inserting a new tree. If a hash collision
+is found we can conservatively remove the entry from the map and do not consider
+such tree as a shared subtree. When using a cryptographic hash, the chance of
+collision is negligible. Hence, we ignore such step.
 
-\section{Discussion and Future Work}
+\section{Merging Patches}
+\label{sec:merging}
+
+  One of the main motivations for generic structure-aware diffing 
+is being able to merge patches that previously required human interaction. 
+We have started working on said problem and have achieved some interesting
+results shown in \Cref{sec:experiments}, yet, it is worth mentioning that
+this is very much a work in progress.
+
+  The merging problem, illustrated in \Cref{fig:merge-square}, is the problem
+of computing |q / p| given two patches |p| and |q|. The patch |q / p| is sometimes
+called the \emph{transport} of |q| over |p| or the \emph{residual}~\cite{Huet1994}
+of |p| and |q|. Regardless of the name, it represents the patch that contains
+the changes of |q| adapted to be applied on a value that has already
+been modivied by |p|.
+
+\begin{figure}[t]
+\begin{displaymath}
+\xymatrix{ & o \ar[dl]_{p} \ar[dr]^{q} & \\
+          a \ar[dr]_{|q / p|} & & b \ar[dl]^{|p / q|} \\
+            & c &}
+\end{displaymath}
+\caption{Merge square}
+\label{fig:merge-square}
+\end{figure}
+
+  Our merging operator, |/|, starts by identifying the places where the
+two patches differ, we then map a \emph{reconciliation} on those locations:
+
+\begin{myhs}
+\begin{code}
+(/) :: Patch codes at -> Patch codes at -> Tx codes (Sum (Conflict codes) (Change codes) at
+p / q = utxMap (uncurry' reconcile) $$ txGCP p q
+\end{code}
+\end{myhs}
+
+  \TODO{Describe reconcile; describe change classification}
+
+
+  
+\victor{\label{comment:minimality} we should mention this earlier. What is
+this concept?
+  -- The merging algorithm algorithm works best when we are merging
+patches with minimal changes.
+}
+
+  The actual algorithm is fairly simple and can be built moslty from
+combinators we already introduced. 
+
+
+
+\section{Experiments}
+\label{sec:experiments}
+
+\TODO{show how many conflicts of each lua repository we can solve}
+
+\section{Discussions, Future and Related Work}
 \label{sec:discussion}
+
+\victor{Make these in paragraphs}
+\subsection{Extending the Generic Universe}
+\label{sec:gadts}
+
+  Our prototype is built on top of \texttt{generics-mrsop}, a generic
+programming library for handling mutually recursive families in the
+sums of products style. With recent advances in generic programming~\cite{Serrano2018},
+we can think about go a step further and extend the library to handle
+mutually recursive families that have \texttt{GADTs} inside.
 
 \subsection{Controlling Sharing}
 \label{sec:sharing}
@@ -871,8 +966,54 @@ the easiest way to control this is by the means of a custom oracle that
 keeps track of scope and hashes occurences of the same identifer under a different
 scope differently, for instance.
 
-\section{Conclusions}
+\subsection{Related Work}
+\label{sec:related-work}
+
+  The work related to ours can be divided in the typed and untyped
+variants. The untyped tree differencing problem was introduced in 1979
+\cite{Tai1979} as a generalization of the longest common subsequence
+problem~\cite{Bergroth2000}. There has been a significant body of work
+on the untyped tree differencing
+problem~\cite{Demaine2007,Klein1998,Akutsu2010}, but these hardly transport
+to the typed variant, that is, when the transformations are
+guaranteed to produce well-typed trees.
+
+  The first attempt was done by Lempsink and L\"{o}h~\cite{Loh2009},
+which was later extended by Vassena~\cite{Vassena2016}. Their work
+consists largely in using the same algorithm as \texttt{diff} in the
+flattened representations of a tree. The main observation is that
+basic operations (insertion, deletion and copy) can be shown to be
+well-typed when operating on flattened representations. Although one
+could compute differences with reasonably fast algorithms, merging
+these changes is fairly difficult and in some cases might be
+impossible~\cite{Vassena2016}. A different attempt was done by Miraldo
+et al.~\cite{Miraldo2017}, where the authors tried to define
+operations that work directly on tree shaped data. Using this
+approach, changes become easier to merge but harder to compute.
+Both bodies of work follow the same general idea as the untyped
+variants: compute all possible patches and filter out the bad ones.
+As we have already mentioned (\Cref{sec:intro}), this is not an optimal
+strategy. The number of patches explodes and defining \emph{the best} is
+impossible without heuristics using only insertions, deletions and copies.
+
+  Although also untyped, the work of Asenov et al.~\cite{Asenov2017}
+is worth mentioning as it uses and interesting technique: it
+represents trees in an flattened fashion with some extra information,
+then uses the UNIX \texttt{diff} tool to find the differences. Finally, it
+transports the changes back to the tree shaped data using the additional
+information. The authors also identify a number of interesting situations
+that occur when merging tree differences.
+
+  From a more theoretical point of view it is also important to mention
+the work of Mimram and De Giusto~\cite{Mimram2013}, where the authors model line-based
+patches in a categorical fashion. Swierstra and L\"{o}h~\cite{Swierstra2014} propose
+an interesting meta theory for version control of structured data based on separation
+logic to model disjoint changes. Lastly, Angiuli et al.~\cite{Angiuli2014} describes a patch
+theory based on homotopical type theory.
+
+\subsection{Conclusions}
 \label{sec:conclusions}
+
 
 \TODO{\huge I'm here!}
 
