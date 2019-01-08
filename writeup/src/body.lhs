@@ -751,9 +751,44 @@ come to merging, \Cref{sec:merging}.
 
   The application of a |Patch| follows very closely the implementation
 of the application presented in \Cref{sec:concrete-changes} but uses
-some more advanced type level mechanisms. 
+some more advanced type level mechanisms. The most important one being the
+encoding of the interpretation of an atom with an existential index.
 
-\TODO{should we explain it?} 
+\begin{myhs}
+\begin{code}
+data NAE :: [[[Atom kon]]] -> * where
+  SomeFix :: Fix codes ix -> NAE codes
+  SomeOpq :: Opq k        -> NAE codes
+\end{code}
+\end{myhs}
+
+  Which allows the application function to carry a |Map Int (NAE codes)|,
+analogously to the |Map Int Tree23| in \Cref{sec:concrete-changes}. When
+looking a value in a |Map Int (NAE codes)| we must be able to cast
+it to the correct type, extracted from a |MetaVarIK|.
+
+\begin{myhs}
+\begin{code}
+naeCast  :: NAE ki codes
+         -> MetaVarIK ki at
+         -> Either String (NA ki (Fix ki codes) at)
+\end{code}
+\end{myhs}
+
+  The definition is uninteresting and can be found in the code. With these
+mechanisms in place the definition of the application function follows
+closely that of the sketched version in \Cref{sec:concrete-changes}. 
+Its type is:
+
+\begin{myhs}
+\begin{code}
+apply  :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
+\end{code}
+\end{myhs}
+
+  Whenever a patch |p| can be applied to an element |x|, that is,
+|apply p x| returns |Just y| for some |y|, we say that |p| is \emph{applicable}
+to |x|.
 
 \subsection{The Oracle}
 \label{sec:oracle}
@@ -918,41 +953,102 @@ been modivied by |p|.
 \label{fig:merge-square}
 \end{figure}
 
-  Our merging operator, |/|, starts by identifying the places where the
-two patches differ, we then map a \emph{reconciliation} on those locations:
+  Our merging operator, |(/)|, receives two patches and returns a patch
+possibly annotated with conflicts. Conflicts happen when an automatic
+merge is not possible.
 
 \begin{myhs}
 \begin{code}
-(/) :: Patch codes at -> Patch codes at -> Tx codes (Sum (Conflict codes) (Change codes) at
-p / q = utxMap (uncurry' reconcile) $$ txGCP p q
+(/) :: Patch codes at -> Patch codes at -> PatchConf codes at
 \end{code}
 \end{myhs}
 
-  Note that a merge is not always possible, for we introduce a new datatype
-called |Conflict| to mark those situations. A |Conflict| is nothing but
-a pair of irreconciliable patches.
+  A |Conflict|, here, is nothing but a pair of irreconciliable
+patches. In practice one would carry a label around to identify the
+type of conflict for easier resolution. Note that the location is
+trivially kept, since the conflicts will where the patches disagree.
 
 \begin{myhs}
 \begin{code}
 type Conflict codes = Patch codes :*: Patch codes
+
+type PatchConf codes =  Tx codes (Sum (Conflict codes) (Change codes))
 \end{code}
 \end{myhs}
 
-\victor{define the notion of applicable}
+  The definition of |p / q| is simple. First we extract the greatest common
+prefix of |p| and |q|. This is the prefix of the source tree that both
+|p| and |q| copy and can safely be kept. Once we take the |txGCP p q|,
+of type |Tx codes (Patch codes :*: Patch codes) at|, we are left with
+a treefix with a pair of patches in its holes. Moreover, we know that
+these patches will disagree on the topmost constructor. Hence, we
+try to reconcile those:
+
+\begin{myhs}
+\begin{code}
+p / q = utxMap (uncurry' reconcile) $$ txGCP p q
+\end{code}
+\end{myhs}
+
   The |reconcile| function receives two disagreeing patches and attempt
-to transport the left argument over the right argument. Here, we also assume
-that both patches are applicable to at least one common value.
+to transport the left argument over the right argument, that is, |reconcile p q|
+attempts to adapt |p| to the codomain |q|. If the patches cannot be
+reconciled, we return both patches marked as a conflict. 
 
 \begin{myhs}
 \begin{code}
 reconcile :: Patch codes at -> Patch codes at -> Sum (Conflict codes) (Change codes) at
-reconcile (TxHole p) (TxHole q) = _
-reconcile (TxHole p) q = _ 
-reconcile p (TxHole q) = _
+\end{code}
+\end{myhs}
+
+  Our first case consist in both patches being changes. We start by checking
+whether either change is a copy. If so, we return |p|. If |p| is a copy,
+then adapting a copy over a new domain is just another copy, hence
+we can return |p| itself. It |q| is a copy, adapting |p| to work on
+the \emph{same} domain is simply |p| itself. If neither change is
+a copy, but they are $\alpha$-equivalent, we return a copy. 
+Finally, when the changes are not a copy nor equivalent we must
+try a more complicated merge.
+
+\begin{myhs}
+\begin{code}
+reconcile (TxHole p) (TxHole q)
+  | isCpy p || isCpy q  = TxHole (InR p)
+  | p == q              = TxHole (InR copy)
+  | otherwise           = TxHole (mergeChange p q)
+\end{code}
+\end{myhs}
+
+  The cases where only one of the patches consist in a change
+are analogous. We must check whether that change is a copy and
+return the corresponding value. If it is not a copy we use
+the distributive law |distr :: Patch codes at -> Change codes at|
+and merge the changes.
+
+\begin{myhs}
+\begin{code}
+reconcile p (TxHole q) 
+  | isCpy q    = utxMap InR p
+  | otherwise  = TxHole (mergeChange (distr p) q)
+reconcile (TxHole p) q = ... -- analogous
+\end{code}
+\end{myhs}
+
+  Lastly, case neither patch is a change is an impossible branch.
+We assumed that both patches were applicable to at least one common
+element and |reconcile| is called \emph{after} extracting the greatest
+common prefix. 
+
+\begin{myhs}
+\begin{code}
 reconcile _ _ = error "unreachable"
 \end{code}
 \end{myhs}
 
+\TODO{I'm HERE}
+
+\victor{define the notion of applicable}
+tHere, we also assume that both patches are applicable to at least one common value.
 
   \TODO{Describe reconcile; describe change classification}
 
