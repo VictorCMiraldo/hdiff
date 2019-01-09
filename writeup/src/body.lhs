@@ -115,19 +115,18 @@ points and write a efficient deterministic differencing algorithm.
 
 \section{Sketch and Background}
 
-  Before exploring the fully generic implementation of our algorithm,
-it is very valuable to look at a simple instance first. On this
-section we will sketch our algorithm for a simple type and outline its
-basic building blocks, \Cref{sec:concrete-changes}.  Then, we will
-briefly explain some generic programming techniques,
-\Cref{sec:generic-prog}, that are necessary to translate the simple
+  Before exploring the generic implementation of our algorithm,
+let us look at a simple, concrete instance, first. On \Cref{sec:concrete-changes}
+we sketch our algorithm for a simple recursive type and outline the
+general building blocks. Later, \Cref{sec:generic-prog}, we 
+explain some generic programming techniques necessary to translate the simple
 implementation into a fully generic one.
 
-\subsection{Representing Changes, Concrete Example}
+\subsection{Representing Changes: A Concrete Example}
 \label{sec:concrete-changes}
 
-  Let us define a solution to the differencing problem for |Tree23|, the type
-of two-three-trees, defined below:
+  Throughout this section we shall instantiate a version of our
+differencing algorithm for the type of two-three-trees, defined below: 
 
 \begin{myhs}
 \begin{code}
@@ -137,12 +136,17 @@ data Tree23  = Leaf
 \end{code}
 \end{myhs}
 
-  Recall that we are interested in identifying and pursuing as many copy
-opportunities as possible. Once we copy a subtree, we need not inspect inside
-it any longer. Hence, we will represent patches as trees with \emph{holes}. The holes
-correspond to coppied subtrees whereas the tree leading to the hole corresponds to
-the deleted an inserted part. The type of changes over |Tree23| can be obtained by
-adding an extra constructor to |Tree23|:
+  The representation of a \emph{change} between two values of type
+|Tree23| is given by identifying the bits and pieces that must be
+copied from source to destination. Very much like pattern-matching, we
+match a |Tree23| against a context, instantiate some
+\emph{metavariables} and use them in another context. These are called
+the deletion and insertion contexts, respectively.
+
+  We start by annotating a value of |Tree23| with an extra
+constructor, representing these contexts with metavariables. For now,
+the metavariables will be simple |Int| but later we shall see how this
+construction is generalized.
 
 \begin{myhs}
 \begin{code}
@@ -153,12 +157,20 @@ data Tree23C = LeafC
 \end{code}
 \end{myhs}
 
-  We could now represent the patch that transforms |Node2 t u| in |Node2 u t|
-by a pair of |Tree23C|, namelly: |(Node2C (Hole 0) (Hole 1) , Node2C (Hole 1) (Hole 0))|.
-The |fst| component of the pair denotes the deleted tree with \emph{metavariables} inside,
-whereas the second component is the inserted tree. Applying a patch is modelled by 
-deleting the first component, yielding a valuation of metavariables to trees when successful,
-then substituing the metavariables in the insertion context with such valuation. 
+  The patch that transforms |Node2 t u| in |Node2 u t| could be
+represented by a pair of |Tree23C|, |(Node2C (Hole 0) (Hole
+1) , Node2C (Hole 1) (Hole 0))|.  The first component of the pair
+represents the \emph{pattern} to be matched against, whereas the
+second component is the \emph{expression} where we inject the instantiation of
+the metavariables, yielding the resulting tree. 
+
+\subsubsection{Applying Patches}
+
+  The application of a patch is straight forward. We first match a
+value against the deletion context (pattern) yielding a valuation
+of metavariables to trees whenever this process is successful.  Then
+we substitute the metavariables in the insertion context (expression)
+with such valuation.
 
 \begin{myhs}
 \begin{code}
@@ -177,12 +189,16 @@ del ctx tree = go ctx tree empty
 \end{code}
 \end{myhs}
 
-  Note that we use an auxiliar function that starts with an empty valuation
-and gradually inserts new values into it. This makes it easier to make sure
-that in case a variable already exist, its value is the same as what we are
-trying to insert.
+  Contrary to regular pattern-matching, we allow variables to appear
+more than once on both the deletion and insertion contexts. Their semantics
+are dual. Duplicate variables in the deletion context must match equal trees
+and in the insertion context will duplicate trees. We use an auxiliar function 
+within the definition of |del| to make this check easier to perform.
 
-  Inserting a |Map Int Tree23| into a |Tree23C| is the dual operation:
+  Once we have obtained a valuation from a deletion context and 
+a tree, we must substitute the variables in the insertion context
+with their correct values to obtain the tree that is supposed to
+be the destination of the patch.
 
 \begin{myhs}
 \begin{code}
@@ -194,40 +210,43 @@ ins (Hole i)        m  = lookup i m
 \end{code}
 \end{myhs}
 
-  Finally, we can define our application function by composing |ins| and
-|del|:
+  Finally, we define our application function by composing |ins| and
+|del| together:
 
 \begin{myhs}
 \begin{code}
-type Patch = (Tree23C , Tree23C)
-
-apply :: Patch -> Tree23 -> Maybe Tree23
+apply :: (Tree23C , Tree23C) -> Tree23 -> Maybe Tree23
 apply (d , i) x = del d x >>= ins i
 \end{code}
 \end{myhs}
 
-  Next, we must be able to produce a |Patch| from a source and a destination,
-essentially defining our |diff| function. Recall that the core characteristic
-of the differencing function is to exploit as many copy opportunities as possible.
-Assume we have access to a function |ics|, \emph{is common subtree},
-with type |Tree23 -> Tree23 -> Tree23 -> Maybe Int|. When calling |ics s d x|
-we shall get a |Nothing| when |x| is not a subtree of |s| and |d| or |Just i|
-when |x| is a common subtree. The |Int| inside the |Just| tells us which metavariable
-number to use. The only condition we impose is injectivty of |ics s d| on the |Just|
-subset of the image. That is, if |ics s d x == ics s d y == Just j|, then |x == y|.
-Later on we will provide an efficient implementation for |ics|, but for now, let us
-take it as an oracle. Finally, the |diff| function is defined as:
+\subsubsection{Computing Patches}
 
+  Next, we explore how to produce a |Patch| from a source and a
+destination, defining our |diff| function, that shall exploit as many
+copy opportunities as possible. For now, we shall delegate the
+decision of whether a subtree should be copied or not to an
+oracle. Assume we have access to a function |ics|, \emph{is common
+subtree}, with type |Tree23 -> Tree23 -> Tree23 -> Maybe Int|, where
+|ics s d x| returns |Nothing| when |x| is not a subtree of |s| and |d|
+or |Just i| when |x| is a common subtree. The |Int| inside the |Just|
+tells us which metavariable to use. The only condition we impose is
+injectivty of |ics s d| on the |Just| subset of the image. That is, if
+|ics s d x == ics s d y == Just j|, then |x == y|. Later on,
+\Cref{sec:oracle}, we provide an efficient generic implementation for |ics|.
+
+  With our oracle, all the differencing function has to do is extract
+the context from the source and destination trees. That is, replace
+the subtrees that should be copied by a |Hole| with the correct metavariable.
 \begin{myhs}
 \begin{code}
-diff :: Tree23 -> Tree23 -> Patch
+diff :: Tree23 -> Tree23 -> (Tree23C , Tree23C)
 diff s d = (extract (ics s d) s , extract (ics s d) d)
 \end{code}
 \end{myhs}
 
-  Where the |extract| function traverses the |Tree23| and extracts a |Tree23C|
-according to a function that assigns metavariables to trees. This assignment must be
-injective whenever it returns a |Just|.
+  This extraction is easily done by checking whether the current tree
+must be copied. If not, we simply recurse into its children:
 
 \begin{myhs}
 \begin{code}
@@ -240,9 +259,10 @@ extract o x = maybe (peel x) Hole (o x)
 \end{code}
 \end{myhs}
 
-  Assuming that |ics s d| is \emph{the best} possible such function, that is, it will
-correctly issue metavariables to \emph{all} common subtrees of |s| and |d|, we see
-that our implementation satisfy a number of the desired properties stated in \Cref{sec:intro}:
+  Assuming that |ics s d| is \emph{the best} possible such function,
+that is, it will correctly issue metavariables to \emph{all} common
+subtrees of |s| and |d|, our implementation satisfy all of the
+desired properties stated in \Cref{sec:intro}:
 
 \begin{description}
   \item[Correctness] Assuming |ics| is correct, 
@@ -250,45 +270,47 @@ that our implementation satisfy a number of the desired properties stated in \Cr
   \item[Preciseness] Assuming |ics| is correct,
     \[ |forall x y . apply (diff x x) y == Just y| \]
   \item[Time Efficiency] 
-    Assuming |ics| constant, the run-time of our algorithm 
-    is linear on the number of constructors everywhere else.
-    We will provide such constant |ics| function in \Cref{sec:oracle}.
+    The run-time of the algorithm depends mainly on the queries
+    to |ics|. We will a constant time |ics| function in \Cref{sec:oracle}.
   \item[Space Efficiency] 
-    The size of a |Patch| is, on average, smaller than 
-    storing its source and destination tree.
+    The size of a |(Tree23C , Tree23C)| is, on average, smaller than 
+    storing its source and destination tree completely.
 \end{description}
 
 \paragraph{Summary} We have provided a simple algorithm 
-to solve the differencing problem for |Tree23|. We start by creating 
-a type |Tree23C| which consists in adding a \emph{metavariable} constructor
-to |Tree23| and assume the existence of an oracle that answers whether
-an arbitrary tree is a subtree of the source and the destination. We then
-construct a value of type |Tree23C| from a |Tree23| and an oracle. That
-really is the core principle behind the algorithm.
+to solve the differencing problem for |Tree23|. We began by creating
+the type |Tree23C| of contexts, consisting in annotating a |Tree23|
+with a \emph{metavariable} constructor. Later, under the assumed
+xistence of an oracle that answers whether an arbitrary tree is a
+subtree of the source and the destination we showed how to construct a
+value of type |Tree23C| from a |Tree23|. Those steps are the core
+principles behind the algorithm.
 
-  Naturally, this illustrative version of our algorithm does have some shortcomings that
-are addressed in a later stage, \Cref{sec:representing-changes}.
-For one, we are not trying to minimize the changes after we |extract| 
-a context from the source or destination trees. This makes merging harder.
-Another shortcomming is that we are not addressing what happens when there
-exists a subtree that appears in at least two different places with one occurence
-being under a larger subtree. This can break the apply function and needs to
-be idenfied. Moreover, this example algorithm shares subtrees too eagerly.
-For instance, every occurence of |Leaf| will be shared under the same metavariable.
-This restriction does not impact the correctness of the algorithm but 
-is an important point on the design space: how do we drive this machinery,
-\Cref{sec:sharing}.
+  Naturally, this illustrative version of our algorithm does have some
+shortcomings that will be addressed in
+\Cref{sec:representing-changes}.  For one, we are not trying to
+minimize the changes after we |extract| a context from the source or
+destination trees. This makes merging harder.  Another shortcomming is
+that we are not addressing what happens when there exists a subtree
+that appears in at least two different places with one occurence being
+under a larger subtree. This can break the apply function and needs to
+be idenfied. Moreover, this example algorithm shares subtrees too
+eagerly.  For instance, every occurence of |Leaf| will be shared under
+the same metavariable.  This restriction does not impact the
+correctness of the algorithm but is an important point on the design
+space: how to \emph{drive} this algorithm, \Cref{sec:sharing}.
 
 \subsection{Background: Generic Programming}
 \label{sec:generic-prog}
 
-  Now that we have an idea of how our algorithm looks like for a specific
-type, let us briefly explain the \texttt{generics-mrsop}~\cite{Miraldo2018}
-library, which will allow us to rewrite the code in \Cref{sec:concrete-changes}
-in a fully generic setting. This library follows the \emph{sums-of-products} school of generic 
-programming~\cite{deVries2014}. Yet, since we need to handle arbitrary abstract 
-syntax trees, must encode mutually recursive families within 
-our universe. 
+  Now that we have an idea of how our algorithm works for a specific
+type, let us briefly explain the techniques of the
+\texttt{generics-mrsop}~\cite{Miraldo2018} library, which will allow
+us to rewrite the code in \Cref{sec:concrete-changes} in a 
+generic setting. This library follows the \emph{sums-of-products}
+school of generic programming~\cite{deVries2014} and enables 
+us to work with mutually recursive families. This is fairly imporant
+as most practical abstract syntax trees are mutually recursive.
 
   In the \emph{sums-of-products} approach, every datatype is assigned
 a \emph{code} that consists in two nested lists of atoms. The outer
@@ -296,7 +318,7 @@ list represents the choice of constructor, and packages the \emph{sum} part
 of the datatype whereas the inner list represents the \emph{product} of the
 fields of a given constructor. The \texttt{generics-mrsop} goes one step further
 and uses atoms to distinguish whether a field is a recursive
-position, |I n|, or a opaque type, |K k|.
+position referencing the $n$-th type in the family, |I n|, or a opaque type, |K k|.
 
 \begin{myhs}
 \begin{code}
@@ -362,13 +384,24 @@ data NA :: (Nat -> Star) -> Atom -> Star where
 \end{code}
 \end{myhs}
 
-  The |NS| type is responsible for determining the choice of constructor whereas the
-|NP| applyes a representation functor to all the fields of the selected constructor.
-In our case, it is |NA|, that distinguishes between representation of a recursive position
-from an opaque type. Although the \texttt{generics-mrsop} provides a way to customize the
-set of opaque types used, this is not central do the developments in this paper and
-hence we will assume a type |Opq| that interprets the necessary atom types. We refer the
-interested reader to the original paper~\cite{Miraldo2018} for more information.
+  The |NS| type is responsible for determining the choice of
+constructor whereas the |NP| applyes a representation functor to all
+the fields of the selected constructor.  In our case, it is |NA|, that
+distinguishes between representation of a recursive position from an
+opaque type. Although the \texttt{generics-mrsop} provides a way to
+customize the set of opaque types used, this is not central do the
+developments in this paper and hence we will assume a type |Opq| that
+interprets the necessary atom types. We refer the interested reader to
+the original paper~\cite{Miraldo2018} for more information. Nevertheless,
+we define the representation functor |Rep| as the composition of the
+interpretations of the different pieces:
+
+\begin{myhs}
+\begin{code}
+type Rep phi = NS (NP (NA phi))
+\end{code}
+\end{myhs}
+
 
   Naturally, |NS|, |NP| and |NA| come equipped with their elimination principles:
 
@@ -394,22 +427,21 @@ elimNA f g (NA_K x)  = g x
 \end{code}
 \end{myhs}
 
-  The last piece of our puzzle is to define a functor of kind |Nat -> Star| that we can
-pass as a parameter to |NA| to interpret the recursive positions. The indexed least fixedpoint
-fits perfectly:
+  Finally, we tie the recursive knot with a functor of kind |Nat -> Star| that we 
+pass as a parameter to |NA| in order to interpret the recursive positions. The
+familiar reader might recognize it as the indexed least fixedpoint:
 
 \begin{myhs}
 \begin{code}
-type Rep phi = NS (NP (NA phi))
-
 newtype Fix (codes :: P [ P [ P [ Atom ] ] ]) (ix :: Nat)
   = Fix { unFix :: Rep (Fix codes) (Lkup codes ix) }
 \end{code}
 \end{myhs}
 
-  Where |Lkup codes ix| denotes the type level lookup of the element with index |ix| within
-the list |codes|. This type family throws a type error if the index is out of bounds.
-We could then write the generic versions of the constructors of type |Zig|:
+  Where |Lkup codes ix| denotes the type level lookup of the element
+with index |ix| within the list |codes|. This type family throws a
+type error if the index is out of bounds.  The generic versions of the
+constructors of type |Zig| are given by:
 
 \begin{myhs}
 \begin{code}
@@ -421,11 +453,12 @@ gzigzag zag = Fix (There (Here (Cons (NA_I zag) Nil)))
 \end{code}
 \end{myhs}
 
-  One of the main benefits of the \emph{sums-of-products} approach to generic
-programming is that it enables us to pattern match generically. In fact,
-we can state that a value of a type consists precisely in a choice of constructor
-and a product of its fields. We start by defining the notion of \emph{constructor}
-of a generic type:
+  One of the main benefits of the \emph{sums-of-products} approach to
+generic programming is that it enables us to pattern match
+generically. In fact, we can state that a value of a type consists
+precisely in a choice of constructor and a product of its fields by
+defining a \emph{view} type. Take the \emph{constructor} of a generic
+type to be:
 
 \begin{myhs}
 \begin{code}
@@ -435,9 +468,10 @@ data Constr :: [[k]] -> Nat -> Star where
 \end{code}
 \end{myhs}
 
-  We use |Constr sum c| as a predicate indicating that |c| is a valid constructor, ie,
-it is a valid index into the type level list |sum|. Next, we define a |View| over
-a value of a sum type to be a choice of constructor and corresponding product:
+  And use |Constr sum c| as a predicate indicating that |c| is a valid
+constructor for |sum|, ie, it is a valid index into the type level
+list |sum|. Then define a |View| over a value of a sum type to be a
+choice of constructor and corresponding product:
 
 \begin{myhs}
 \begin{code}
@@ -449,7 +483,9 @@ sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
 \end{myhs}
 
   The |sop| functions converts a value in its standard representation
-to the more useful choice of constructor and associated product.
+to the more useful choice of constructor and associated product. This
+is by no means an extensive introduction to generic programming
+and we refer the interested reader to the literature for more information.
 
 \section{Representing and Computing Changes, Generically}
 \label{sec:representing-changes}
