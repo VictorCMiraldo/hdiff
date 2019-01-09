@@ -4,34 +4,35 @@
 % Bug because of double lines?
 % https://blog.codecentric.de/en/2014/02/curly-braces/
 
-  Software version control systems are vastly present in the
-software development community. They are responsible to manage a
-differencing algorithm that computes the differences between two files, 
-the most common being the UNIX \texttt{diff}~\cite{McIlroy1979}.
-Line-based tools, however, are of very coarse granularity and fail
+  Software Version Control Systems are an essential tool in the 
+belt of today's software engineer. At their core is a
+differencing algorithm that computes patches between two versions of a file, 
+the most well-known is the UNIX \texttt{diff}~\cite{McIlroy1979}.
+Being a line-based tool, ie, look at changes
+on the granularity of the \emph{line}, it fails
 to identify more fine grained changes in software source code. As a result,
-we have a lot of man-hours being spent in conflict resolution. 
+we see a significant effor being spent in conflict resolution. 
 
-  Let us abstract the granularity on which version control takes place
-and have a look at the problem description for an arbitrary type.
-The (well-typed) differencing problem consists in finding a type |Patch|, 
-together with functions |diff| and |apply|, for some type |a|, that
-satisfy a collection of properties.
+  Let us take a step back and introduce the differencing problem
+abstractly. The well-typed differencing problem consists in finding a
+type constructor, call it |Patch|, together with functions |diff| and
+|apply|, for some type |a|. Naturally, the |diff| function computes the
+differences between two trees of type |a| whereas |apply| will 
+attempt to transform one tree according to a |Patch|.
 
 \begin{myhs}
 \begin{code}
-diff   :: a -> a -> Patch a
+diff   :: a  -> a -> Patch a
 apply  :: Patch a -> a -> Maybe a 
 \end{code}
 \end{myhs}
 
-  The |diff| function computes a |Patch| for a given type whereas the
-|apply| function interprets these patches as partial functions over |a|.
-Naturally, we must impose some properties on how |diff| and |apply|
-behave for them to be of any use.
+  Intuitively, not every such triple |(Patch , diff , apply)| solves
+the differencing problem. We must impose certain properties on these
+components for them to be of any practical use. 
 
-  Among the properties one might expect from this pair of functions
-is, at least, correctness:
+  Among the properties one expects from this pair of functions
+is correctness, stating that |apply| properly follows |diff|'s instructions. 
 
 \[
 | forall x y dot apply (diff x y) x == Just y |
@@ -40,11 +41,13 @@ is, at least, correctness:
   Yet, there is a collection of other properties that might
 by desirable to enjoy. For instance, it is certainly desirable that |diff|
 is both space and time efficient. That is, it must be fast to compute
-a |Patch| and the size of the patch must be smaller than storing both trees.
+a |Patch| and the size of the patch must be smaller than storing both elements
+of type |a|. Otherwies, we could argue that |Patch a = (a,a)| is a solution,
+for instance.
 
-  Another property one might want to have is the ability to apply a patch
-to a number of trees. In fact, we want to apply a patch to the \emph{maximum}
-number of trees possible. For example:
+  Another property we want to have is the ability to apply a patch
+to a number of elements. In fact, we want to apply a patch to the \emph{maximum}
+number of elements possible. For example:
 
 \[ | forall x y dot apply (diff x x) y == Just y | \]
 
@@ -57,32 +60,37 @@ problem, and satisfies many of these desirable properties, for the
 special case of |a == [String]|, ie, files are seen as lists of
 lines. Although there has been attempts at a solution for arbitrary
 such |a|s, all of them have the same \emph{modus operandis}: compute
-all possible patches betweem two objects, then we filter out \emph{the
-best}. There two big problems being (A) the inefficiency of a
-non-deterministic algorithm with many choice points and (B) defining
-what is \emph{the best} patch.  These two problems stem from the same
-place: having access only to insert, delete and copy as base
-operations.
+all possible patches betweem two objects, then filter out \emph{the
+best} such patch. There are two big problems with this approach: (A)
+the inefficiency of a non-deterministic algorithm with many choice
+points, and, (B) defining what is \emph{the best} patch. These two
+problems stem from the same design choice of having only insert,
+delete and copy as the base operations.
 
   The core of a differencing algorithm is to identify and pursue the
 copy opportunities as much as possible. Therefore the lack of a
 representation for moving and duplicating subtrees is an inherent
 issue.  Upon finding a subtree that can be copied in two different
-ways, he algorithm must choose between one of them. Besides efficiency
+ways, the algorithm must choose between one of them. Besides efficiency
 problems, this also brings a complicated theoretical problems: it is
-impossible to order these patches in an educated fashion.
+impossible to order these patches in an educated fashion, and hence
+one cannot choose \emph{the best}.
 
-  Imagine we want to compute a patch that transforms a tree |Bin t u| 
-into |Bin u t|.  If the only operations we have at hand are insertions,
-deletions and copying of a subtree, we cannot compare choosing to copy
-the left or the right subtree. No option is better than the other. If, however,
-we have some operation that encodes permutation of subtrees, we have not only removed
-a choice point from the algorithm but also arrived at a provably better patch
-\victor{provably according to who? Me!!! but what does it mean to be better anyway?}
-without having to resort to heuristics or arbitrary choices. And, 
-contrary to what one might expect, more is less in this scenario. By
-adding more expressive basic change operations (duplicate and permute) we
-were able to remove choice points and arrive at a very efficient algorithm.
+  To illustrate this, imagine we want to compute a patch that
+transforms a tree |Bin t u| into |Bin u t|.  If the only operations we
+have at hand are insertions, deletions and copying of subtrees, we
+must choose between copying either |t| or |u|. One could choose
+to copy the bigger tree, but what if they have the same size?
+The lesson is that no option is better than the other. 
+If, however, we have some operation
+that encodes permutation of subtrees, we have not only removed a
+choice point from the algorithm but also arrived at a provably better
+patch \victor{provably according to who? Me!!! but what does it mean
+to be better anyway?}  without having to resort to heuristics or
+arbitrary choices. And, contrary to what one might expect, more is
+less in this scenario. Adding more expressive basic change
+operations, duplicate and permute, enalbles us to remove choice
+points and write a efficient deterministic differencing algorithm.
 
 \paragraph{Contributions.} 
 
@@ -90,7 +98,7 @@ were able to remove choice points and arrive at a very efficient algorithm.
   \item A solution to the well-typed differencing problem
         that does not suffer from problems (A) and (B) outline above.
         In fact, our approach supports subtree duplications and permutations
-        and satisfy a number of the desired properties listed above, including
+        and satisfy the desired properties outlined above, including
         space efficiency.
   \item An idealized algorithm capable of computing a patch that
         transforms a source tree into a target tree. We also give a practical
