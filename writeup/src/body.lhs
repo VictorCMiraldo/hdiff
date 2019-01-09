@@ -1033,17 +1033,74 @@ reconcile p (TxHole q)
 reconcile (TxHole p) q = ... -- analogous
 \end{code}
 \end{myhs}
+\victor{Why can't |p| be a copy here? Maximality of the oracle.
+If |distr p| yields a copy, then there exists a larger shared subtree
+between source and destination}
 
-  Lastly, case neither patch is a change is an impossible branch.
+  Lastly, the case where neither patch is unreachable.
 We assumed that both patches were applicable to at least one common
 element and |reconcile| is called \emph{after} extracting the greatest
-common prefix. 
+common prefix. If both patches are not a |TxHole|, they have to be a |TxPeel|
+or a |TxOpq|. Since they must be applicable to at least one common element,
+these also have to agree.
 
 \begin{myhs}
 \begin{code}
 reconcile _ _ = error "unreachable"
 \end{code}
 \end{myhs}
+
+  We have taken care of all the easy cases and are left with the definition
+of |mergeChange|, the function that merges two changes that are not equal
+nor copies. We are left with insertions, deletions or modifications. 
+It is simple to classify a change as either of these cases: if there
+is a leaf in the deletion context that is not a |TxHole|, then the
+change deletes information; if such leaf exists in the insertion
+context, it inserts information; if it exists in both, it modifies
+information.
+
+\begin{myhs}
+\begin{code}
+data ChangeType = CIns | CDel | CMod
+
+classify :: Change codes at -> ChangeType
+\end{code}
+\end{myhs}
+
+  Recall that the first argument to |mergeChange| is the change
+that must be adapted to work on the codomain of the second. In
+case we are attempting to merge two insertions or two deletions
+we return a conflict. There might be smarter ways of handling this
+case and we leave finer merge strategies as future work.
+
+ There are three cases that are trivial. Namelly adapting
+an insertion over deletion or modification; and a deletion
+over a modification. In these cases we return the change as is.
+\victor{why?}
+
+  Any other case requires a more intricate treatment. Intuitively,
+when adapting |cp| to work on top of |cq| one \emph{applies} |cq| 
+to |cp| and return the result. This application works exaclty like
+applying a change to a term, but instead we apply a change to a change. 
+\victor{we might want a drawing}
+
+\begin{myhs}
+\begin{code}
+mergeChange  :: Change codes at 
+             -> Change codes at 
+             -> Sum (Conflict codes) (Change codes) at
+mergeChange cp cq = case (classify cp , classify cq) of
+  (CIns , CIns)  -> InL (cp , cq)
+  (CDel , CDel)  -> InL (cp , cq)
+  
+  (CIns , _)     -> InR cp
+  (CDel , CMod)  -> InR cp
+  
+  _              -> adapt cp cq
+\end{code}
+\end{myhs}
+
+  
 
 \TODO{I'm HERE}
 
@@ -1068,6 +1125,28 @@ combinators we already introduced.
 \section{Experiments}
 \label{sec:experiments}
 
+  We have tested our implementation by mining through the top Lua~\cite{what}
+repositories on GitHub. We then extracted all the merge conflicts 
+from these repositories and tried using our tool to merge the changes
+instead. Upon a sucesful merge, we attempted to apply the merges
+to the respective and made sure that the merge square, \Cref{fig:merge-square},
+commutes. 
+
+  \victor{make pretty tables! show numbers!}
+
+  \victor{mention performance}
+
+\subsection{Threats to Validity} There are two main threats to the
+validity of our empirical results. Firstly, we are diffing and merging
+abstract syntax trees, hence ignoring comments and formatting. There is no
+extra effort in handling those besides writing a custom parser that
+records this information. Nevertheless, it is reasonable to expect 
+a smaller success rate since we are ignoring all formatting changes
+altogether. Secondly, a significant number of developers prefer
+to rebase their branches instead of merging them. Hence, we might have
+missed a number of important merge conflicts. There is no way of
+mining these conflicts back since rebasing erases history.
+
 \TODO{show how many conflicts of each lua repository we can solve}
 
 \section{Discussions, Future and Related Work}
@@ -1079,20 +1158,22 @@ combinators we already introduced.
 
   Our prototype is built on top of \texttt{generics-mrsop}, a generic
 programming library for handling mutually recursive families in the
-sums of products style. With recent advances in generic programming~\cite{Serrano2018},
-we can think about go a step further and extend the library to handle
-mutually recursive families that have \texttt{GADTs} inside.
+sums of products style. With recent advances in generic
+programming~\cite{Serrano2018}, we can think about go a step further
+and extend the library to handle mutually recursive families that have
+\texttt{GADTs} inside.
 
 \subsection{Controlling Sharing}
 \label{sec:sharing}
 
-  One interesting discussion point in the algorithm is how to control sharing. As
-it stands, the differencing algorithm will share anything that the oracle 
-indicates as \emph{shareable}. This can be undesired. For example, we do not
-want to share \emph{all} occurences of a variable in a program. We need to respect
-the scope of this variables. Same applies for constants. It seems like
-the easiest way to control this is by the means of a custom oracle that
-keeps track of scope and hashes occurences of the same identifer under a different
+  One interesting discussion point in the algorithm is how to control
+sharing. As it stands, the differencing algorithm will share anything
+that the oracle indicates as \emph{shareable}. This can be
+undesired. For example, we do not want to share \emph{all} occurences
+of a variable in a program. We need to respect the scope of this
+variables. Same applies for constants. It seems like the easiest way
+to control this is by the means of a custom oracle that keeps track of
+scope and hashes occurences of the same identifer under a different
 scope differently, for instance.
 
 \subsection{Related Work}
@@ -1133,12 +1214,13 @@ transports the changes back to the tree shaped data using the additional
 information. The authors also identify a number of interesting situations
 that occur when merging tree differences.
 
-  From a more theoretical point of view it is also important to mention
-the work of Mimram and De Giusto~\cite{Mimram2013}, where the authors model line-based
-patches in a categorical fashion. Swierstra and L\"{o}h~\cite{Swierstra2014} propose
-an interesting meta theory for version control of structured data based on separation
-logic to model disjoint changes. Lastly, Angiuli et al.~\cite{Angiuli2014} describes a patch
-theory based on homotopical type theory.
+  From a more theoretical point of view it is also important to
+mention the work of Mimram and De Giusto~\cite{Mimram2013}, where the
+authors model line-based patches in a categorical fashion. Swierstra
+and L\"{o}h~\cite{Swierstra2014} propose an interesting meta theory
+for version control of structured data based on separation logic to
+model disjoint changes. Lastly, Angiuli et al.~\cite{Angiuli2014}
+describes a patch theory based on homotopical type theory.
 
 \subsection{Conclusions}
 \label{sec:conclusions}
