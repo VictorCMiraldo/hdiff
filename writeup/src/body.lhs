@@ -494,11 +494,11 @@ and we refer the interested reader to the literature for more information.
 go check the repo for the actual stuff!}
 
   In \Cref{sec:concrete-changes} we gained some intuition about the
-workings of our algorithm. In \Cref{sec:generic-prog} we saw some techniques
-for writting programs over arbitrary mutually recursive families. The natural
+workings of our algorithm. In \Cref{sec:generic-prog} we discussed techniques
+for writting programs over arbitrary mutually recursive families. The 
 next step is to start writing our algorithm in a generic fashion. Throughout
 this section we will continue to assume the existence of an efficient oracle
-|ics|, for answering \emph{is |t| a subtree of |s| and |d| indexed by |n|}.
+|ics|, for answering whether \emph{|t| is a subtree of |s| and |d| indexed by |n|}.
 The type of oracles is defined below together with a function that
 builds an oracle from a source, |s|, and a destination, |d|: 
 
@@ -513,7 +513,7 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
   Recall our |Tree23C| type, from \Cref{sec:concrete-changes}. It augmented
 the |Tree23| type with an extra constructor for representing holes, by the
 means of a \emph{metavariable}. This type construction is crucial to the
-representation of our patches. In fact, it works out for an arbitrary
+representation of our patches. In fact, this construction can be done for any
 mutually recursive family:
 
 \begin{myhs}
@@ -527,17 +527,19 @@ data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
 \end{code}
 \end{myhs}
 
-  Note that our |Tx| is, in fact, the indexed free monad over the |Rep| functor.
-Essentialy, a value of type |Tx codes phi at| is nothing but a value of
-type |NA (Fix codes) at| augmented with \emph{holes} of type |phi|.
+  Note that our |Tx| is, in fact, the indexed free monad over the
+|Rep| functor.  Essentialy, a value of type |Tx codes phi at| is
+nothing but a value of type |NA (Fix codes) at| augmented with
+\emph{holes} of type |phi|.
 
-  Differently then with |Tree23C|, in |Tx| we parametrize the type of \emph{metavariables}.
-This comes in quite handy as it allows us to use the |Tx| for a number of intermediate
-steps in the algorithm. The first one being the extraction of a |Tx| from
-a |Fix codes ix| by annotating the common subtrees with their index,
-provided by the oracle. We first check whether |x| is a subtree, if so,
-we annotate it with a hole. Otherwise we extract the constructor and
-its fields from |x|. We the map |TxOpq| on the opaque fields and continue extracting
+  Differently than with |Tree23C|, in |Tx| we parametrize the type of
+\emph{metavariables}.  This comes in quite handy as it allows us to
+use the |Tx| for a number of intermediate steps in the algorithm. The
+first one being the extraction of a |Tx| from a |Fix codes ix| by
+annotating the common subtrees with their index, provided by the
+oracle. First we check whether |x| is a subtree, if so, we annotate it
+with a hole. Otherwise we extract the constructor and its fields from
+|x|. We then map |TxOpq| on the opaque fields and continue extracting
 on the fields that reference recursive positions:
 
 \begin{myhs}
@@ -553,8 +555,9 @@ txExtract ics x = case ics x of
 \end{myhs}
 
   The above code is very similar to |extract| from \Cref{sec:concrete-changes},
-but here we hace some additional types: |ForceI| is used to ensure that 
-the index is of the |I ix| form and |(:*:)| is just a indexed product.
+but with some additional nuances. The |ForceI| type is used to ensure that 
+the index is of the |I ix| form, that is, we are only \emph{sharing}
+recursive positions so far. The |(:*:)| type is the indexed product.
 
 \begin{myhs}
 \begin{code}
@@ -565,10 +568,11 @@ data (:*:) f g x = f x :*: g x
 \end{code}
 \end{myhs}
 
-  Once we extract the |Tx| from both the source and destination trees,
-we must decide which holes should be kept, and which holes whould be demoted
-to a |Tx|. In fact, we only want the holes that appear both in the source |Tx|
-and the destination |Tx|. To ilustrate the problem, magine the following two |Tree23|:
+  At this stage we keep both the metavariable and the tree it originated
+from since we must look at both the insertion and deletion contexts and
+keep only the metavariables that occur in both. The others are annotated with
+the tree they originted from enabling us to construct a |Tx| with no holes
+from such tree. To ilustrate the problem, imagine the following two |Tree23|:
 
 \begin{myhs}
 \begin{code}
@@ -577,7 +581,7 @@ b = Node2 (Node2 t k) t
 \end{code}
 \end{myhs}
 
-  Our oracle will recognize |Node2 t k| and |t| as a common subtree. Extracting
+  The oracle will recognize |Node2 t k| and |t| as common subtrees. Extracting
 the |Tree23C| will from both trees yields:
 
 \begin{myhs}
@@ -587,11 +591,10 @@ extract b = Node2C (Hole 0) (Hole 1)
 \end{code}
 \end{myhs}
 
-  Note how the metavariable |Hole 1| is appears only on one side. That happens because it
+  But now, the metavariable 1 appears only on one side. That happens because it
 occurs inside a bigger common subtree. If we were to apply this patch to |a|, we would
 get an \emph{undefined variable} error. We solve this by postprocessing the resulting
-|Tx|s and keeping only the metavariables that occur in both contexts. Lets call this
-function |txPostprocess|:
+|Tx|s and keeping only the metavariables that occur in both contexts. 
 
 \begin{myhs}
 \begin{code}
@@ -607,6 +610,8 @@ computing the intersection of the sets, then mapping over the arguments and repl
 the |Const Int :*: Fix codes| hole by either |Const Int|, if the |Int| belongs in
 the set, or by a |Tx codes (ForceI (Const Int))| with no holes, isomorphic to the 
 second component of the pair.
+
+\victor{Editing pass here!}
 
   At this point, given two trees |a, b| of type |Fix codes ix|, we have extracted both
 the deletion and insertion contexts, of type |Tx codes (ForceI (Const Int)) (I ix)|. These
