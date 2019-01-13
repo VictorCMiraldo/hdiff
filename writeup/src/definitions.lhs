@@ -79,6 +79,7 @@
 \newcommand{\HV}[1]{\ifdefined\HSVar\HSVar{#1}\else#1\fi}
 
 %%% Datatype Promotion
+%format PCons   = "\mathbin{\HS{''\!\!:}}"
 %format (P (a)) = "\HS{''}" a
 
 %%% Usefull Notation
@@ -87,6 +88,9 @@
 %format dot     = "\HS{.}"
 %format ^=      = "\HS{\bumpeq}"
 %format alpha   = "\HV{\alpha}"
+%format psi     = "\HV{\psi}"
+%format psi1    = "\HV{\psi_1}"
+%format psi2    = "\HV{\psi_2}"
 %format phi     = "\HV{\varphi}"
 %format phi1    = "\HV{\varphi_1}"
 %format phi2    = "\HV{\varphi_2}"
@@ -100,10 +104,23 @@
 %format =~=     = "\HS{\approx}"
 %format :>:     = "\HT{\triangleright}"
 %format :*      = "\HT{\times}"
-%format :*:     = "\HT{:\!*\!:}"
-%format :+:     = "\HT{:\!+\!:}"
-%format :@:     = "\HT{:\!@\!:}"
+%format :*:     = "\mathbin{\HT{:\!\!*\!\!:}}"
+%format :+:     = "\mathbin{\HT{:\!\!+\!\!:}}"
+%format :@:     = "\mathbin{\HT{:\!\!@\!\!:}}"
 %format <$$>    = "\HS{<\!\!\$\!\!>}"
-%format $$      = "\HS{\$}"
+%format $$      = "\mathbin{\HS{\$}}"
 %format <*>     = "\HS{<\!\!*\!\!>}"
 %format <->     = "\HS{\leftrightarrow}"
+
+%% Formatting type-applications
+%format (TApp iy) = "{\HS{@\!}" iy "}"
+
+%% Words with wrong kerning
+%format LeafC = "\HT{Lea\!f\!C}"
+%format Leaf  = "\HT{Lea\!f}"
+%format NAE   = "\HT{NAE}"
+%format MetaVarIK = "\HT{MetaVarIK}"
+%format Conflict = "\HT{Con\!f\!lict}"
+%format PatchConf = "\HT{PatchCon\!f}"
+%format Word = "\HT{Word}"
+%format Trie = "\HT{Trie}"

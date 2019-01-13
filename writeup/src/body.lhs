@@ -362,8 +362,8 @@ by induction on the \emph{codes} and one interpretation for atoms.
 \begin{myhs}
 \begin{code}
 data NS :: (k -> Star) -> [k] -> Star where
-  Here   :: f x      -> NS f (x (P (:)) xs)
-  There  :: NS f xs  -> NS f (x (P (:)) xs)
+  Here   :: f x      -> NS f (x PCons xs)
+  There  :: NS f xs  -> NS f (x PCons xs)
 \end{code}
 \end{myhs}
 \end{minipage} %
@@ -372,7 +372,7 @@ data NS :: (k -> Star) -> [k] -> Star where
 \begin{code}
 data NP :: (k -> Star) -> [k] -> Star where
   Nil   :: NP f (P [])
-  Cons  :: f x -> NP f xs -> NP f (x (P (:)) xs)
+  Cons  :: f x -> NP f xs -> NP f (x PCons xs)
 \end{code}
 \end{myhs}
 \end{minipage} %
@@ -463,8 +463,8 @@ type to be:
 \begin{myhs}
 \begin{code}
 data Constr :: [[k]] -> Nat -> Star where
-  CZ ::                 Constr (x (P (:)) xs)  Z
-  CS :: Constr xs c ->  Constr (x (P (:)) xs)  (S c)
+  CZ ::                 Constr (x PCons xs)  Z
+  CS :: Constr xs c ->  Constr (x PCons xs)  (S c)
 \end{code}
 \end{myhs}
 
@@ -689,15 +689,34 @@ txGCP prob = Node2C  (Change (TxHole 0)  (TxHole 0))
 \end{myhs}
 \end{minipage}
   
-  Note how the second change in |txGCP prob| has |TxHole 0| unbound. That happens because
-|TxHole 0| will be bound to the left child from the root. Hence, we cannot decouple these changes.
-We call the changes were the deletion context instantiates all the necessary variables for the
-insertion context \emph{closed changes}. The \emph{open changes} are those that contain metavariables in the
+  Note how the second change in |txGCP prob| has |TxHole 0|
+unbound. That happens because |TxHole 0| will be bound to the left
+child from the root. Hence, we cannot decouple these changes.  We call
+the changes were the deletion context instantiates all the necessary
+variables for the insertion context \emph{closed changes}. The
+\emph{open changes} are those that contain metavariables in the
 insertion context that do not occur on the deletion context.
 
-  We can map over |txGCP prob| and tag the changes we see in either \emph{open}
-or \emph{closed}. We would arrive at something like:
-\victor{shall I add the code? How about explaining |Sum|?}
+  We can define a predicate that returns whether a |Change| is open or
+closed within a |Sum| type, the indexed variant of |Either|, defined
+below with its eliminator.
+
+\begin{myhs}
+\begin{code}
+data Sum f g x = InL (f x) | InR (g x)
+
+either' :: (f x -> r x) -> (g x -> r x) -> Sum f g x -> r x
+either' a b (InL fx) = a fx
+either' a b (InR gx) = b gx
+
+isClosed :: Change codes at -> Sum (Change codes) (Change codes) at
+isClosed (Change del ins)
+  | variables ins == variables del  = InR (Change del ins)
+  | otherwise                       = InR (Change del ins)
+\end{code}
+\end{myhs}
+
+  If we now map |isClosed| over |txGCP prob| we would get something like:
 
 \begin{myhs}
 \begin{code}
@@ -743,10 +762,6 @@ a |Tx| and to eliminate a |Sum| type:
 \begin{code}
 distr :: Tx codes (Change codes phi) at -> Change codes phi at
 distr tx = Change (join (txMap chgDel tx)) (join (txMap chgIns tx))
-
-either' :: (f x -> r x) -> (g x -> r x) -> Sum f g x -> r x
-either' a b (InL fx) = a fx
-either' a b (InR gx) = b gx
 
 \end{code}
 \end{myhs}
@@ -936,7 +951,7 @@ is sketched in pseudo-Haskell below:
 authAlgebra :: Rep (Const Digest) sum -> Const Digest iy
 authAlgebra rep = case sop rep of
   Tag c [p_1 , dots , p_n]  -> Const . sha256Concat
-                            $$ [encode c , encode (getSNat @iy) , p_1 , dots , p_n]
+                            $$ [encode c , encode (getSNat (TApp iy)) , p_1 , dots , p_n]
 \end{code}
 \end{myhs} 
 
@@ -1004,7 +1019,9 @@ been modivied by |p|.
 
   Our merging operator, |(/)|, receives two patches and returns a patch
 possibly annotated with conflicts. Conflicts happen when an automatic
-merge is not possible.
+merge is not possible. This operator is very similar to the \emph{residual}
+operator, usually studied within a term-rewritting perspective. 
+\victor{write a bit about residuals, explain the slight differences}
 
 \begin{myhs}
 \begin{code}
@@ -1025,7 +1042,8 @@ type PatchConf codes =  Tx codes (Sum (Conflict codes) (Change codes))
 \end{code}
 \end{myhs}
 
-  The definition of |p / q| is simple. First we extract the greatest common
+  The definition of |p / q| is simple and borrows the laws
+of residuals~\cite{lalala} by construction. First we extract the greatest common
 prefix of |p| and |q|. This is the prefix of the source tree that both
 |p| and |q| copy and can safely be kept. Once we take the |txGCP p q|,
 of type |Tx codes (Patch codes :*: Patch codes) at|, we are left with
@@ -1101,12 +1119,12 @@ reconcile _ _ = error "unreachable"
 
   We have taken care of all the easy cases and are left with the definition
 of |mergeChange|, the function that merges two changes that are not equal
-nor copies. We are left with insertions, deletions or modifications. 
-It is simple to classify a change as either of these cases: if there
+nor copies, we are left with insertions, deletions or modifications. 
+In fact, it is simple to classify a change as one of these classes: if there
 is a leaf in the deletion context that is not a |TxHole|, then the
 change deletes information; if such leaf exists in the insertion
 context, it inserts information; if it exists in both, it modifies
-information.
+information. 
 
 \begin{myhs}
 \begin{code}
@@ -1119,19 +1137,53 @@ classify :: Change codes at -> ChangeType
   Recall that the first argument to |mergeChange| is the change
 that must be adapted to work on the codomain of the second. In
 case we are attempting to merge two insertions or two deletions
-we return a conflict. There might be smarter ways of handling this
-case and we leave finer merge strategies as future work.
+we return a conflict. It is worth mentioning that our merge algorithm
+is very primitive and is the current topic of our research. Here
+we present a preliminary \emph{underaproximation} algorithm. It is
+encouraging that such a simple approach already
+gives us decent results, \Cref{sec:experiments}. That being said,
+let us start discussing a simple merge algorithm for our
+structured patches.
 
- There are three cases that are trivial. Namelly adapting
+\victor{experiment! seems like del/mod should be a conflict, huh?}
+
+  There are three cases that are trivial. Namelly adapting
 an insertion over deletion or modification; and a deletion
-over a modification. In these cases we return the change as is.
-\victor{why?}
+over a modification. \victor{after experimentation, explain why}
+This is because the insertion will be carrying new information that
+could not have been fiddled with by the deletion or modification.
 
-  Any other case requires a more intricate treatment. Intuitively,
-when adapting |cp| to work on top of |cq| one \emph{applies} |cq| 
-to |cp| and return the result. This application works exaclty like
-applying a change to a term, but instead we apply a change to a change. 
-\victor{we might want a drawing}
+  The other cases requires a more intricate treatment. Intuitively,
+when adapting a change |cp| to work on a tree modified by |cq| one \emph{applies} |cq| 
+to |cp|. This allows us to \emph{transport} the necessary bits of the change to the location
+they must be applied. For instance, imagine we are given the two patches over |Tree23|: |pa| and |pb| with
+type |Tx Tree23Codes (Tx Tree23Codes MetaVar :*: Tx Tree23Codes MetaVar) (I Z)|, that is, a common prefix
+to be copied with \emph{changes} inside. 
+
+\begin{myhs}
+\begin{code}
+pa = Node2C (Hole (Change (Leaf 10) (Leaf 20)) (Hole (Change (Hole 0) (Hole 0)))
+pb = Hole (Change (Node2C (Hole 0) (Hole 1)) (Node2C (Hole 1) (Hole 0)))
+\end{code}
+\end{myhs}
+
+  Here, |pa| changes the value in the left children of the root and |pb| swaps the 
+root children. If we are to apply |pa| on a tree already modified by |pb|, we must transport
+the |(Leaf 10 , Leaf 20)| change to the right children. This can be easily done by \emph{applying}
+|pb| to |pa|. That is, instantiate the metavariables in the deletion context of |pb| with
+values from |pa|. In this case, 0 becomes |Hole (Leaf 10 , Leaf 20)| and 1 becomes |Hole (Hole 0, Hole 0)|.
+Now we substitute that in the insertion context of |pb|, yielding:
+
+\begin{myhs}
+\begin{code}
+pa / pb = Node2C (Hole (Hole 0 , Hole 0)) (Hole (Leaf 10 , Leaf 20))
+\end{code}
+\end{myhs}
+
+  This is analogous to applying a change to a term, but instead we apply a change to a change. 
+We call the function that performs this application |adapt|. Finally, a simple |mergeChange| 
+can be given below. Recall that we only call this function on changes |cp| and |cq| that
+are not the identity and |cp /= cq|.
 
 \begin{myhs}
 \begin{code}
@@ -1148,8 +1200,7 @@ mergeChange cp cq = case (classify cp , classify cq) of
   _              -> adapt cp cq
 \end{code}
 \end{myhs}
-
-  
+ 
 
 \TODO{I'm HERE}
 
@@ -1201,29 +1252,45 @@ mining these conflicts back since rebasing erases history.
 \section{Discussions, Future and Related Work}
 \label{sec:discussion}
 
-\victor{Make these in paragraphs}
-\subsection{Extending the Generic Universe}
-\label{sec:gadts}
+  The results from \Cref{sec:experiments} are very encouraging. 
+We see that our diffing algorithm has competitive performance 
+and our naive merging operation is already capable of merging
+a number of patches that \texttt{diff3} yields conflicts. In order to
+leave the research realm and deliver a production tool, there is
+still a number of points that must be addressed.
 
-  Our prototype is built on top of \texttt{generics-mrsop}, a generic
+\subsection{Future Work}  
+
+\paragraph{Extending the Generic Universe.}
+Our prototype is built on top of \texttt{generics-mrsop}, a generic
 programming library for handling mutually recursive families in the
 sums of products style. With recent advances in generic
 programming~\cite{Serrano2018}, we can think about go a step further
 and extend the library to handle mutually recursive families that have
-\texttt{GADTs} inside.
+\texttt{GADTs} inside. Moreover, due to a bug~\cite{our-memleak-bug} in GHC
+we are not able to compile our code for larger abstract syntax tress
+such as C, for example. 
 
-\subsection{Controlling Sharing}
-\label{sec:sharing}
-
-  One interesting discussion point in the algorithm is how to control
+\paragraph{Controlling Sharing}
+One interesting discussion point in the algorithm is how to control
 sharing. As it stands, the differencing algorithm will share anything
-that the oracle indicates as \emph{shareable}. This can be
-undesired. For example, we do not want to share \emph{all} occurences
-of a variable in a program. We need to respect the scope of this
-variables. Same applies for constants. It seems like the easiest way
-to control this is by the means of a custom oracle that keeps track of
-scope and hashes occurences of the same identifer under a different
-scope differently, for instance.
+that the oracle indicates as \emph{shareable}. This can be undesirable
+behaviour. For example, we do not want to share \emph{all} occurences
+of a variable in a program, but only those under the same scope.  That
+is, we want to respect the scope variables. Same applies for
+constants. There are a variety of options to enable this behavior. 
+The easiest seems to be changing the oracle. Making a custom oracle that keeps track of scope and hashes
+occurences of the same identifer under a different scope differently will ensure
+that the scoping is respected, for instance.
+
+\paragraph{Automatic Merge Strategies}
+As noted in \Cref{sec:merging}, our merging algorithm has room for improvement.
+Besides improving on the fully generic algorithm, though, we would like to
+have a language to specify domain specific strategies for conflict resolution.
+For instance, whenver the merging tool finds a conflict in the \texttt{build-depends}
+section of a cabal file, it tries sorting the packages alphabetically and keeping
+the ones with the higher version number. Ideally, these rules should be simple to
+write and would allow a high degree of customization.
 
 \subsection{Related Work}
 \label{sec:related-work}
@@ -1326,13 +1393,13 @@ describes a patch theory based on homotopical type theory.
 %%   E0   :: ES codes '[] '[]
 %%   Ins  :: Cof codes a c
 %%        -> ES codes i  (Tyof codes c  :++:     j)
-%%        -> ES codes i  (a             (P (:))  j)
+%%        -> ES codes i  (a            PCons  j)
 %%   Del  :: Cof codes a c
 %%        -> ES codes (Tyof codes c  :++:     i)  j
-%%        -> ES codes (a             (P (:))  i)  j
+%%        -> ES codes (a            PCons  i)  j
 %%   Cpy  :: Cof codes a c
 %%        -> ES codes (Tyof codes c :++:     i)  (Tyof codes c  :++:   j)
-%%        -> ES codes (a            (P (:))  i)  (a             (P :)  j)
+%%        -> ES codes (a           PCons  i)  (a             (P :)  j)
 %% \end{code}
 %% \end{myhs}
 %% 
