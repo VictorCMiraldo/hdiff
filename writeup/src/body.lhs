@@ -663,19 +663,22 @@ txGCP (TxPeel cx px) (TxPeel cy py)
 
 \victor{see \ref{comment:minimality}}
 
-  Now, given a |Change codes phi at|, we can identify the exactly where the
-changes happen by pushing the |Change| as close to the leaves as possible
-by pulling out the constructors that are \emph{deleted} then \emph{inserted}.
-This is not without consequences, though. Imagine the following value of
-type |Change Tree23Codes (Const Int) (I Z)|, shown here in its isomorphic
-type |(Tree23C , Tree23C)| and the resulting call to |txGCP|:
+  Now, given a |Change codes phi at|, we can identify exactly where the
+changes happen by pushing the |Change| constructor as close to the 
+leaves as possible. The constructors that are \emph{deleted} then \emph{inserted}
+are just being copied over. We call these constructors part of the
+\emph{spine} that is copied from source to destination.
+We must be careful, however, not to break scoping of variables.
+Imagine a change between |Tree23| denoted by |prob|, then suppose
+we split that into a \emph{spine} and underlying (smaller) changes
+with |txGCP|:
 
-\begin{minipage}[t]{.45\textwidth}
+\begin{minipage}[t]{.35\textwidth}
 \begin{myhs}
 \begin{code}
 prob  :: (Tree23C , Tree23C)
-prob  =  (  Node2C (Hole 0) x
-         ,  Node2C (Hole 0) (Hole 0)
+prob  =  (  Node2C (Hole 0)  (Hole 0)
+         ,  Node2C x         (Hole 0)
          )
 \end{code}
 \end{myhs}
@@ -689,17 +692,18 @@ txGCP prob = Node2C  (Change (TxHole 0)  (TxHole 0))
 \end{myhs}
 \end{minipage}
   
-  Note how the second change in |txGCP prob| has |TxHole 0|
-unbound. That happens because |TxHole 0| will be bound to the left
-child from the root. Hence, we cannot decouple these changes.  We call
-the changes were the deletion context instantiates all the necessary
-variables for the insertion context \emph{closed changes}. The
-\emph{open changes} are those that contain metavariables in the
-insertion context that do not occur on the deletion context.
+  Note how the second change in |txGCP prob| has |TxHole 0| unbound in
+its insertion context. That happens because |TxHole 0| will be bound
+to the left child from the root. Hence, we cannot decouple these
+changes.  We call the changes were the deletion context instantiates
+all the necessary variables for the insertion context \emph{closed
+changes}. The \emph{open changes} are those that contain metavariables
+in the insertion context that do not occur on the deletion context.
 
-  We can define a predicate that returns whether a |Change| is open or
-closed within a |Sum| type, the indexed variant of |Either|, defined
-below with its eliminator.
+  Before we explain the machinery necessary to identify and eliminate
+the open changes inside a spine we must find a way of tagging them as
+such.  The most convenient way is the |Sum| type, ie, indexed variant
+of |Either|, defined below with its eliminator.
 
 \begin{myhs}
 \begin{code}
@@ -708,26 +712,39 @@ data Sum f g x = InL (f x) | InR (g x)
 either' :: (f x -> r x) -> (g x -> r x) -> Sum f g x -> r x
 either' a b (InL fx) = a fx
 either' a b (InR gx) = b gx
-
-isClosed :: Change codes at -> Sum (Change codes) (Change codes) at
-isClosed (Change del ins)
-  | variables ins == variables del  = InR (Change del ins)
-  | otherwise                       = InR (Change del ins)
 \end{code}
 \end{myhs}
-
-  If we now map |isClosed| over |txGCP prob| we would get something like:
+ 
+  Which in turn allow us to define a predicate that returns whether
+a change is closed or not by tagging it with |InR| or |InL|
 
 \begin{myhs}
 \begin{code}
-txMap isClosed (txGCP prov)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
+isClosed :: Change codes at -> Sum (Change codes) (Change codes) at
+isClosed (Change del ins)
+  | variables ins == variables del  = InR (Change del ins)
+  | otherwise                       = InL (Change del ins)
+\end{code}
+\end{myhs}
+
+  The |Sum| comes in handy for it can be passed as an argument to
+|Tx|, of kind |Atom -> Star|. This enables us to map our
+predicate over a patch, as shown in \Cref{fig:closure-problem}.
+
+\begin{figure}
+\begin{myhs}
+\begin{code}
+txMap isClosed (txGCP prob)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
                                        (InL (Change x           (TxHole 0)))
 \end{code} 
 \end{myhs}
+\caption{Example patch with scoping problems}
+\label{fig:closure-problem}
+\end{figure}
 
-  Finally, we traverse the result trying to eliminate all the \emph{open changes},
-tagged by |InL|. We do so by finding the closest closed change that binds the required
-variables:
+  Finally, we traverse the result trying to eliminate all the
+\emph{open changes}, tagged by |InL|. We do so by finding the smallest
+closed change that binds the required variables:
 
 \begin{myhs}
 \begin{code}
@@ -750,14 +767,31 @@ closure (TxPeel cx px)
 \end{code}
 \end{myhs}
 
-  The interesting case of the |closure| function is the |TxPeel| pattern. We
-essentially try to compute all the closures for the fields of the constructor.
-If no more open changes are left, we are done. Otherwise, we have to bubble the changes
-up to the |TxPeel| and finally check whether we were able to \emph{close} this
-change or not. We use two simple auxiliar functions to distribute a |Change| over
-a |Tx| and to eliminate a |Sum| type:
+  The interesting case of the |closure| function is the |TxPeel|
+pattern, where we first try to compute the closures for the fields of
+the constructor and check whether all these fields contain only closed
+changes. If that is the case, we are done. If some fields contain open
+changes, however, the |mapNPM fromInR| fails with a |Nothing| and
+we must massage some data. The |inss| and |dels| are the projections
+of the insertion contexts and deletion contexts of \emph{all} changes
+inside the fields of the product |px|, regardless of whether these are 
+open or closed. We then assemble a new change by \emph{pushing} the |TxPeel cx|
+and checking whether this suffices to bind all variables. That is,
+if this closs the change. Comming back to the motivating example
+in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
+|Node2C| from the \emph{spine} to the changes.
 
-\TODO{move |either'| out of here}
+\begin{myhs}
+\begin{code}
+closure (txMap isClosed (txGCP prob))  
+  ==  closure (Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
+                       (InL (Change x           (TxHole 0))))
+  ==  InR (Change  (Node2C (TxHole 0)  (TxHole 0))
+                   (Node2C x           (TxHole 0)))
+\end{code}         
+\end{myhs}
+
+\victor{distr is not being used}
 \begin{myhs}
 \begin{code}
 distr :: Tx codes (Change codes phi) at -> Change codes phi at
