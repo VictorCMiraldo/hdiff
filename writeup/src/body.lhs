@@ -159,10 +159,22 @@ data Tree23C = LeafC
 
   The patch that transforms |Node2 t u| in |Node2 u t| could be
 represented by a pair of |Tree23C|, |(Node2C (Hole 0) (Hole
-1) , Node2C (Hole 1) (Hole 0))|.  The first component of the pair
+1) , Node2C (Hole 1) (Hole 0))|, \Cref{fig:first-patch}.  The first component of the pair
 represents the \emph{pattern} to be matched against, whereas the
 second component is the \emph{expression} where we inject the instantiation of
 the metavariables, yielding the resulting tree. 
+
+  Also in \Cref{fig:first-patch}, we see that the constructor |Node2| is being
+deleted then inserted again. Although we will not concern oursleves with this
+in this first presentation, this is addressed in \Cref{sec:representing-changes}.
+Much like the work of Miraldo et al.~\cite{Miraldo2016}, we will identify a \emph{spine}
+that is copied and leads to smaller changes within the tree.
+
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/patch-01.pdf}
+\caption{Visualization of a |diff (Node2 t u) (Node2 u t)|}
+\label{fig:first-patch}
+\end{figure}
 
 \subsubsection{Applying Patches}
 
@@ -671,7 +683,8 @@ are just being copied over. We call these constructors part of the
 We must be careful, however, not to break scoping of variables.
 Imagine a change between |Tree23| denoted by |prob|, then suppose
 we split that into a \emph{spine} and underlying (smaller) changes
-with |txGCP|:
+with |txGCP|, visualized in \Cref{fig:patch-scoping-problem}. Note how
+the \emph{spine} is represented with no shading and.
 
 \begin{minipage}[t]{.35\textwidth}
 \begin{myhs}
@@ -691,6 +704,12 @@ txGCP prob = Node2C  (Change (TxHole 0)  (TxHole 0))
 \end{code}
 \end{myhs}
 \end{minipage}
+
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/patch-02.pdf}
+\caption{|txGCP prob|}
+\label{fig:patch-scoping-problem}
+\end{figure}
   
   Note how the second change in |txGCP prob| has |TxHole 0| unbound in
 its insertion context. That happens because |TxHole 0| will be bound
@@ -777,7 +796,7 @@ of the insertion contexts and deletion contexts of \emph{all} changes
 inside the fields of the product |px|, regardless of whether these are 
 open or closed. We then assemble a new change by \emph{pushing} the |TxPeel cx|
 and checking whether this suffices to bind all variables. That is,
-if this closs the change. Comming back to the motivating example
+if this closs the change. Comming back to the example
 in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
 |Node2C| from the \emph{spine} to the changes.
 
@@ -791,14 +810,21 @@ closure (txMap isClosed (txGCP prob))
 \end{code}         
 \end{myhs}
 
-\victor{distr is not being used}
-\begin{myhs}
-\begin{code}
-distr :: Tx codes (Change codes phi) at -> Change codes phi at
-distr tx = Change (join (txMap chgDel tx)) (join (txMap chgIns tx))
+  This can be visuzlized in \Cref{fig:closure-patch-scoping-problem}.
 
-\end{code}
-\end{myhs}
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/patch-03.pdf}
+\caption{The closure of |txGCP prob|, shown in \Cref{fig:patch-scoping-problem}}
+\label{fig:closure-patch-scoping-problem}
+\end{figure}
+
+%% \victor{distr is not being used}
+%% \begin{myhs}
+%% \begin{code}
+%% distr :: Tx codes (Change codes phi) at -> Change codes phi at
+%% distr tx = Change (join (txMap chgDel tx)) (join (txMap chgIns tx))
+%% \end{code}
+%% \end{myhs}
 
   We finalize by assembling all of these pieces in a single |diff| function.
 Where |MetaVarIK| is defined by |NA (Const Int) (Const Int)|, essentially distinguishing
@@ -903,21 +929,25 @@ oracle would check every single subtree of the source and destination
 for equality against |x|.  Upon finding a match, it would return the
 index of such subtree in the list of all subtrees. The implementation
 of this oracle is quite straightforwar. First, we enumerate all
-possible subtrees:
+possible subtrees. Since these subtrees might be indexed by different
+|Atom|s, we need an existential type to put all of these in the same list.
 
 \victor{Does this typecheck? I think I need a |Exists|}
 \begin{myhs}
 \begin{code}
-subtrees :: Fix codes i -> [ forall j dot Fix codes j ]
-subtrees x = x : case sop x of
+data Exists :: (Atom n -> Star) -> Star where
+  Ex :: f at -> Exists f
+
+subtrees :: Fix codes i -> [ Exists (Fix codes) ]
+subtrees x = Ex x : case sop x of
   Tag _ pt -> concat (elimNP (elimNA (const []) subtrees) pt)
 \end{code}
 \end{myhs}
 
   Next, we define a heterogeneous equality over |Fix codes| and search through the
 list of all possible subtrees. The heterogeneous equality starts by comparing the
-indexes of the |Fix codes| values. If they agree, we proceed to compare them for
-propositional equality.
+indexes of the |Fix codes| values wrapped within |Ex|. 
+If they agree, we proceed to compare them for propositional equality.
 
 \begin{myhs}
 \begin{code}
@@ -925,10 +955,10 @@ idx :: (a -> Bool) -> [a] -> Maybe Int
 idx f  []     = Nothing
 idx f  (x:xs) = if f x then Just 0 else (1+) <$$> idx f xs
 
-heqFix :: Fix codes i -> Fix codes j -> Bool
-heqFix x y = case testEquality x y of
-               Nothing    -> False
-               Just Refl  -> eqFix x y
+heqFix :: Exists (Fix codes) -> Exists (Fix codes) -> Bool
+heqFix (Ex x) (Ex y) = case testEquality x y of
+                         Nothing    -> False
+                         Just Refl  -> eqFix x y
 \end{code}
 \end{myhs}
 
@@ -950,19 +980,22 @@ buildOracle x y t = do
 \end{code}
 \end{myhs}
 
-  There are two points of inefficiency in the naive |buildOracle| above. First,
+  There are two points of inefficiency this naive |buildOracle|. First,
 we build the |subtrees| list twice, once for the source and once for the destination.
 We then proceed to compare a third tree, |t|, for equality with every subtree in
 the prepared lists. That is an extremely expensive computation that can be avoided
 by precomputing some values and storing them in the correct structure.
 
-  In order to compare trees for equality in constant time we can annotate them
-with cryptographic hashes~\cite{Menezes1997} and compare those instead. This technique 
-transforms our trees into \emph{merkle trees}~\cite{Merkle1988} and is more commonly
-seen in the security and authentication context~\cite{Miller2014,Miraldo2018HAMM}.
-Nevertheless, we can use the generic programming machinery that is already at our
-disposal. The \texttt{generics-mrsop} provide some attribute grammar~\cite{Knuth1990} mechanisms,
-in particular synthetization of attributes:
+  In order to compare trees for equality in constant time we must
+annotate them with cryptographic hashes~\cite{Menezes1997} and compare
+these hashes instead. This technique transforms our trees into
+\emph{merkle trees}~\cite{Merkle1988} and is more commonly seen in the
+security and authentication context~\cite{Miller2014,Miraldo2018HAMM}.
+Our generic programming machinery that is already at our disposal
+enables us to create \emph{merkle trees} generically quite easily.
+The \texttt{generics-mrsop} provide some attribute
+grammar~\cite{Knuth1990} mechanisms, in particular synthetization of
+attributes:
 
 \begin{myhs}
 \begin{code}
@@ -973,11 +1006,11 @@ prepare = synthesize authAlgebra
 \end{code}
 \end{myhs}
 
-  Here, |AnnFix| is a cofree comonad to add a label to each recursive branch
+  Here, |AnnFix| is a cofree comonad used to add a label to each recursive branch
 of our generic trees. In our case, this label will be the cryptographic hash of the
 concatenation of its subtree's hashes.
 The |synthesize| generic combinator annotates each node of the tree with
-the result of the catamorphism called at that point. Our algebra
+the result of the catamorphism called at that point with the given algebra. Our algebra
 is sketched in pseudo-Haskell below:
 
 \begin{myhs}
