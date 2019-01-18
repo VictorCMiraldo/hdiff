@@ -508,25 +508,13 @@ go check the repo for the actual stuff!}
   In \Cref{sec:concrete-changes} we gained some intuition about the
 workings of our algorithm. In \Cref{sec:generic-prog} we discussed techniques
 for writting programs over arbitrary mutually recursive families. The 
-next step is to start writing our algorithm in a generic fashion. Throughout
-this section we will continue to assume the existence of an efficient oracle
-|ics|, for answering whether \emph{|t| is a subtree of |s| and |d| indexed by |n|}.
-The type of oracles is defined below together with a function that
-builds an oracle from a source, |s|, and a destination, |d|: 
+next step is to start writing our algorithm in a generic fashion. 
 
-\begin{myhs}
-\begin{code}
-type Oracle codes = forall j dot Fix codes j -> Maybe Int
-
-buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
-\end{code}
-\end{myhs}
-
-  Recall our |Tree23C| type, from \Cref{sec:concrete-changes}. It augmented
+  Recall the |Tree23C| type, from \Cref{sec:concrete-changes}, It augmented
 the |Tree23| type with an extra constructor for representing holes, by the
 means of a \emph{metavariable}. This type construction is crucial to the
 representation of our patches. In fact, this construction can be done for any
-mutually recursive family:
+mutually recursive family and any type of \emph{metavariable functor}:
 
 \begin{myhs}
 \begin{code}
@@ -539,20 +527,88 @@ data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
 \end{code}
 \end{myhs}
 
-  Note that our |Tx| is, in fact, the indexed free monad over the
+  The |Tx| type is, in fact, the indexed free monad over the
 |Rep| functor.  Essentialy, a value of type |Tx codes phi at| is
 nothing but a value of type |NA (Fix codes) at| augmented with
 \emph{holes} of type |phi|.
 
   Differently than with |Tree23C|, in |Tx| we parametrize the type of
 \emph{metavariables}.  This comes in quite handy as it allows us to
-use the |Tx| for a number of intermediate steps in the algorithm. The
-first one being the extraction of a |Tx| from a |Fix codes ix| by
-annotating the common subtrees with their index, provided by the
-oracle. First we check whether |x| is a subtree, if so, we annotate it
-with a hole. Otherwise we extract the constructor and its fields from
-|x|. We then map |TxOpq| on the opaque fields and continue extracting
-on the fields that reference recursive positions:
+use the |Tx| differently for a number of intermediate steps in the algorithm
+and the representation. 
+
+\paragraph{Representation of Patches}
+
+  A patch is characterized by a |Tx|, called the \emph{spine},
+containing \emph{changes} inside. The spine that represents a prefix
+of constructors to be copied from source to destination. This is much
+better than having a single \emph{change} that transforms the source
+into the destination.  For starters, a good number of the constructors
+of our trees will be repeated on both the insertion and deletion
+contexts. Moreover, when we try to merge these changes together, it is
+much easier to have a number of small changes throughout the tree than
+a single big change.
+
+\begin{myhs}
+\begin{code}
+type Patch codes at = Tx codes (Change codes MetaVarIK) at
+\end{code}
+\end{myhs}
+
+  The |Change|s are defined by a pair of |Tx|, with the same semantics
+as in \Cref{sec:concrete-changes}. This time we need to define a new datatype
+since we want to pass it as an argument to the spine.
+
+\begin{myhs}
+\begin{code}
+data Change codes phi at = Change (Tx codes phi at) (Tx codes phi at)
+\end{code}
+\end{myhs}
+
+  The |MetaVarIK| identifies whether a metavariable is supposed to be instantiated 
+by a recursive member of the family or a opaque type. This is important since
+we must know the types of the values supposed to be matched against a metavariable
+to ensure we will produce well-typed trees. 
+
+\begin{myhs}
+\begin{code}
+type MetaVarIK = NA (Const Int) (Const Int)
+\end{code}
+\end{myhs}
+
+  In \Cref{fig:patch-example} we show an illustration of the type of |Patch| that
+transforms |Node3 t (Node2 u v) (Node2 w x)| into |Node3 t (Node2 v u) (Node2 w' x)|.
+The changes are shown with a shade in the background, placed always in the leaves
+of the spine.  
+
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/patch-example.pdf}
+\caption{Example of the patch that transforms |Node3 t (Node2 u v) (Node2 w x)| 
+  into |Node3 t (Node2 v u) (Node2 w' x)|}
+\label{fig:patch-example}
+\end{figure}
+
+\paragraph{Computing Patches} Going from a source and a destination
+directly to a |Patch| is fairly hard. In fact, our full algorithm performs
+a number of intermediate steps. Firstly we extract the insertion and deletion
+contexts, then we potprocess those replacing undefined metavariables. Next we
+extract the greatest common prefix of constructors from them, yielding the spine.
+Finally, we fix any bindings that have been broken by this last step.
+It is worth mentioning we will continue to assume the
+existence of an efficient oracle |ics|, for answering whether
+\emph{|t| is a subtree of a fixed |s| and |d| indexed by |n|}.
+
+\begin{myhs}
+\begin{code}
+type Oracle codes = forall j dot Fix codes j -> Maybe Int
+\end{code}
+\end{myhs}
+
+  The |txExtract| function will check whether a given |x| is a subtree of
+our fixed source and destinations by calling an orcale, if so, we annotate it
+with the corresponding hole. Otherwise we extract the topmost constructor and its fields from
+|x|. We then map |TxOpq| on the opaque fields and continue extracting a |Tx|
+on the fields that reference recursive positions.
 
 \begin{myhs}
 \begin{code}
@@ -580,11 +636,13 @@ data (:*:) f g x = f x :*: g x
 \end{code}
 \end{myhs}
 
-  At this stage we keep both the metavariable and the tree it originated
-from since we must look at both the insertion and deletion contexts and
-keep only the metavariables that occur in both. The others are annotated with
-the tree they originted from enabling us to construct a |Tx| with no holes
-from such tree. To ilustrate the problem, imagine the following two |Tree23|:
+  At this stage we keep both the metavariable and the tree it
+originated from since we must look at both the insertion and deletion
+contexts and keep only the metavariables that occur in both
+contexts. If we find a |TxHole| containing an undefined metavariable
+we construct a |Tx| with no holes from the second component of the
+indexed product.  To ilustrate the problem, imagine the following two
+|Tree23|:
 
 \begin{myhs}
 \begin{code}
@@ -604,7 +662,7 @@ extract b = Node2C (Hole 0) (Hole 1)
 \end{myhs}
 
   But now, the metavariable 1 appears only on one side. That happens because it
-occurs inside a bigger common subtree. If we were to apply this patch to |a|, we would
+occurs inside a bigger common subtree. If we were to apply this change to |a|, we would
 get an \emph{undefined variable} error. We solve this by postprocessing the resulting
 |Tx|s and keeping only the metavariables that occur in both contexts. 
 
@@ -623,21 +681,22 @@ the |Const Int :*: Fix codes| hole by either |Const Int|, if the |Int| belongs i
 the set, or by a |Tx codes (ForceI (Const Int))| with no holes, isomorphic to the 
 second component of the pair.
 
-\victor{Editing pass here!}
-
   At this point, given two trees |a, b| of type |Fix codes ix|, we have extracted both
 the deletion and insertion contexts, of type |Tx codes (ForceI (Const Int)) (I ix)|. These
 are just like a value of type |Fix codes ix| with possible holes in some recursive positions,
 called \emph{metavariables}. In fact, one such deletion and one such insertion context
 make up a \emph{change}.
 
+  Now, assuming we have a function that builds an efficient oracle
+at hand,
+
 \begin{myhs}
 \begin{code}
-data Change codes phi at = Change (Tx codes phi at) (Tx codes phi at)
+buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 \end{code}
 \end{myhs}
 
-  We could then write a prelimanry |diff| function using the |txExtract| and |txPostprocess|
+  We could write a prelimanry |diff| function using the |txExtract| and |txPostprocess|
 described above:
 
 \begin{myhs}
@@ -650,13 +709,11 @@ diff0 x y = let  ics = buildOracle x y
 \end{code}
 \end{myhs}
 
-  This function will output \emph{one} single change that transforms |x| into |y|. This is not
-very ideal. For starters, a good number of the constructors of our trees will be repeated on both
-the insertion and deletion contexts. Moreover, when we try to merge these changes together, it is 
-much easier to have a number of small changes throughout the tree than a single big change. Hence,
-we want to chop that big change comming out of |diff0| into a tree with holes, where these holes
-contain smaller changes. That is, we will divide that change into the \emph{greatest common prefix}
-of the insertion and deletion context with smaller changes inside:
+  This function will output \emph{one} single change that transforms
+|x| into |y|. We must now extract the \emph{spine} and divide this
+change into smaller ones.  That is, we will divide that change into
+the \emph{greatest common prefix} of the insertion and deletion
+context with smaller changes inside:
 
 \begin{myhs}
 \begin{code}
@@ -827,14 +884,10 @@ closure (txMap isClosed (txGCP prob))
 %% \end{myhs}
 
   We finalize by assembling all of these pieces in a single |diff| function.
-Where |MetaVarIK| is defined by |NA (Const Int) (Const Int)|, essentially distinguishing
-between a metavariable that is suppused to be instantiated by a recursive member of the
-family or a opaque type. 
+
 
 \begin{myhs}
 \begin{code}
-type Patch codes at = Tx codes (Change codes MetaVarIK) at
-
 diff :: Fix codes ix -> Fix codes ix -> Patch codes (I ix)
 diff x y = let  ics   = buildOracle x y
                 del0  = txExtract ics x
@@ -853,9 +906,9 @@ by a new \emph{copy} change. We use the |txRefine| function, declared below.
 
 \begin{myhs}
 \begin{code}
-txRefine :: (forall at  dot f at   -> Tx codes g at) 
-         -> (forall k   dot Opq k  -> Tx codes g (K k)) 
-         -> Tx codes f at -> Tx codes g at
+txRefine  :: (forall at  dot f at   -> Tx codes g at) 
+          -> (forall k   dot Opq k  -> Tx codes g (K k)) 
+          -> Tx codes f at -> Tx codes g at
 \end{code}
 \end{myhs}
 
