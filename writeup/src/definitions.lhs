@@ -63,6 +63,10 @@
 
 \newenvironment{myhs}{\par\vspace{0.15cm}\begin{minipage}{\textwidth}}{\end{minipage}\vspace{0.15cm}}
 
+%% Repository
+%%   https://github.com/VictorCMiraldo/hs-digems
+\newcommand{\hsdigemsgit}[0]{Address has been ommited to preserve double-blindness. Code has been submitted as suplementary material}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %% lhs2TeX Formatting Rules
@@ -100,6 +104,7 @@
 %format eta     = "\HV{\eta}"
 %format eta1    = "\HV{\eta_1}"
 %format eta2    = "\HV{\eta_2}"
+%format join    = "\HV{\mu}"
 %format fSq     = "\HV{f}"
 %format =~=     = "\HS{\approx}"
 %format :>:     = "\HT{\triangleright}"
