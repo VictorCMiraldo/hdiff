@@ -1024,25 +1024,28 @@ apply  :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
 |apply p x| returns |Just y| for some |y|, we say that |p| is \emph{applicable}
 to |x|.
 
-\subsection{The Oracle}
+\subsection{Defining the Oracle}
 \label{sec:oracle}
 
-  The oracle used to decide which subtrees to share between source and
-destination is a central part of the algorithm. The overall efficiency
-of the algorithm depends exclusively on this oracle being
-efficient. In this section we shall provide two implementations for
-the oracle. One inefficient but intuitive, and another that is more
-involved but satisfies the efficiency constraints.
+  We have been assuming the existence of an \emph{oracle} to answer
+whether a tree was a subtree of the source and destination of a patch.
+We have seen that the efficiency with which we can answer this query is 
+fundamental to the overall efficiency of our algorithm: we perform one such
+query per constructor in the source and destination. It is time for us to
+finally define this efficient lookup function. Yet, it is worthwhile
+to define the inefficient, naive version, first. Besides providing
+important intuition to what this function is doing it is an interesting
+generic programming exercise in its own. 
 
-  When deciding whether a given subtree |x| should be shared, s naive
-oracle would check every single subtree of the source and destination
-for equality against |x|.  Upon finding a match, it would return the
-index of such subtree in the list of all subtrees. The implementation
-of this oracle is quite straightforwar. First, we enumerate all
-possible subtrees. Since these subtrees might be indexed by different
-|Atom|s, we need an existential type to put all of these in the same list.
+  When deciding whether a given tree |x| is a subtree of both |s| and
+|d|, for |s| and |d| fixed trees, a naive oracle would check every
+single subtree of |s| and |d| for equality against |x|.  Upon finding
+a match, it would return the index of such subtree in the list of all
+subtrees. Lets try to write this very function. First, we enumerate
+all possible subtrees. Since these subtrees might be indexed by
+different |Atom|s, we need an existential type to put all of these in
+the same list.
 
-\victor{Does this typecheck? I think I need a |Exists|}
 \begin{myhs}
 \begin{code}
 data Exists :: (Atom n -> Star) -> Star where
@@ -1054,10 +1057,11 @@ subtrees x = Ex x : case sop x of
 \end{code}
 \end{myhs}
 
-  Next, we define a heterogeneous equality over |Fix codes| and search through the
-list of all possible subtrees. The heterogeneous equality starts by comparing the
-indexes of the |Fix codes| values wrapped within |Ex|. 
-If they agree, we proceed to compare them for propositional equality.
+  Next, we define an equality over |Exist (Fix codes)| and search
+through the list of all possible subtrees. The comparison function
+starts by comparing the indexes of the |Fix codes| values wrapped
+within |Ex|. If they agree, we pattern match on |Refl|, which
+in turn allows us to compare the values for propositional equality.
 
 \begin{myhs}
 \begin{code}
@@ -1072,7 +1076,7 @@ heqFix (Ex x) (Ex y) = case testEquality x y of
 \end{code}
 \end{myhs}
 
-  Finally, we can put together our inefficient |buildOracle|: start
+  Finally, we put it all together in |buildOracle|: start
 by looking for our target, |t|, in the subtrees of |x|. Upon finding something,
 we proceed to check whether |t| also belongs in the subtrees of |y|. Since
 we are in the |Maybe| monad, if either of those steps fail, the entire function
@@ -1090,13 +1094,14 @@ buildOracle x y t = do
 \end{code}
 \end{myhs}
 
-  There are two points of inefficiency this naive |buildOracle|. First,
-we build the |subtrees| list twice, once for the source and once for the destination.
-We then proceed to compare a third tree, |t|, for equality with every subtree in
-the prepared lists. That is an extremely expensive computation that can be avoided
-by precomputing some values and storing them in the correct structure.
+  There are two points of inefficiency this naive
+|buildOracle|. First, we build the |subtrees| list twice, once for the
+source and once for the destination. This is inherent to this
+approach and cannot be surpassed. We then proceed to compare a
+third tree, |t|, for equality with every subtree in the prepared
+lists. This, on the other hand, can be made fast.
 
-  In order to compare trees for equality in constant time we must
+  In order to compare trees for equality in constant time we can
 annotate them with cryptographic hashes~\cite{Menezes1997} and compare
 these hashes instead. This technique transforms our trees into
 \emph{merkle trees}~\cite{Merkle1988} and is more commonly seen in the
@@ -1116,12 +1121,22 @@ prepare = synthesize authAlgebra
 \end{code}
 \end{myhs}
 
-  Here, |AnnFix| is a cofree comonad used to add a label to each recursive branch
-of our generic trees. In our case, this label will be the cryptographic hash of the
-concatenation of its subtree's hashes.
-The |synthesize| generic combinator annotates each node of the tree with
-the result of the catamorphism called at that point with the given algebra. Our algebra
-is sketched in pseudo-Haskell below:
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/merkle-tree.pdf}
+\caption{Example of a merkelized |Tree23|, where |n_2| is some
+identifer}
+\label{fig:merkelized-tree}
+\end{figure}
+
+
+  Here, |AnnFix| is a cofree comonad used to add a label to each
+recursive branch of our generic trees. In our case, this label will be
+the cryptographic hash of the concatenation of its subtree's hashes.
+\Cref{fig:merkelized-tree} shows an example of an input and corresponding
+output of the |prepare| function, producing a merkelized |Tree23|.
+The |synthesize| generic combinator annotates each node of the tree
+with the result of the catamorphism called at that point with the
+given algebra. Our algebra is sketched in pseudo-Haskell below:
 
 \begin{myhs}
 \begin{code}
@@ -1132,11 +1147,13 @@ authAlgebra rep = case sop rep of
 \end{code}
 \end{myhs} 
 
-  Note that we must append the index of the type in question to our hash computation
-to differentiate constructors of different types in the family represented by the same number.
-Once we have the hashes of all subtrees we must store them in a search-efficient structure.
-Given that a hash is just a |[Word]|, the optimal choice is a |Trie|~\cite{Brass2008} 
-from |Word| to |Int|, where the |Int| indicates what is the \emph{identifier} of that very tree. 
+  Note that we must append the index of the type in question to our
+hash computation to differentiate constructors of different types in
+the family represented by the same number.  Once we have the hashes of
+all subtrees we must store them in a search-efficient structure.
+Given that a hash is just a |[Word]|, the optimal choice is a
+|Trie|~\cite{Brass2008} from |Word| to |Int|, where the |Int|
+indicates what is the \emph{identifier} of that very tree.
 
   After a small modification to our |Oracle|, allowing it to receive
 trees annotated with hashes we proceed to define the efficient
