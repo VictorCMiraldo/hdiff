@@ -566,9 +566,9 @@ a |Tx| into an |NA| when the |Tx| has no \emph{holes}:
 \begin{myhs}
 \begin{code}
 tx2na :: Tx codes phi at -> Maybe (NA (Fix codes) at)
-tx2na (TxHole _)     = Nothing
-tx2na (TxOpq k)      = NA_K k
-tx2na (TxPeel c txs) = inj c <$$> mapNPM tx2na txs
+tx2na (TxHole _)      = Nothing
+tx2na (TxOpq k)       = NA_K k
+tx2na (TxPeel c txs)  = inj c <$$> mapNPM tx2na txs
 \end{code}
 \end{myhs}
 
@@ -1201,8 +1201,8 @@ its argument. At every node it will insert an entry with that node's hash and
 the counter value. It then increases the counter and recurses over the children.
 The same subtree might appear in different places in |s| and |d|, for the
 |Int| associated with it will differ from |mkSharingTrie s'| and |mkSharingTrie d'|.
-This is not an issue since we can make |intersect| with type |Trie k v -> Trie k t -> Trie k v|,
-keeping only the assignments from the first trie such that the key is
+This is not an issue since our |intersect| has type |Trie k v -> Trie k t -> Trie k v|,
+hence, keeping only the assignments from the first trie such that the key is
 also an element of the second.
 
   We can easily get around hash collisions by computing an intermediate
