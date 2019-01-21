@@ -12,6 +12,7 @@ import Data.Functor.Const
 import Data.Functor.Sum
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.List (nub)
 
 import Control.Monad
 import Control.Monad.State
@@ -109,7 +110,7 @@ reconcile (UTxHole cp) cq
 reconcile cp cq = error "unreachable"
 
 data ChangeClass
-  = CMod | CIns | CDel
+  = CPerm | CMod | CIns | CDel
   deriving (Eq , Show)
 
 type ConflictClass = (ChangeClass , ChangeClass)
@@ -147,18 +148,18 @@ changeClassify c =
         -- Don't forget we assume that all bindings that are defined
         -- are used and vice-versa
         (UTxHole var1 :*: UTxHole var2) 
-          | metavarGet var1 /= metavarGet var2 -> CMod
+          | metavarGet var1 /= metavarGet var2 -> classify' (nub (CPerm : cs)) holes
           | otherwise -> classify' cs holes
         -- If we see a variable and a term, but the variable occurs
         -- within the term, this could be an insertion
         (UTxHole var1 :*: term2) ->
           if metavarGet var1 `elem` utxGetHolesWith metavarGet term2
-          then classify' (CIns : cs) holes
+          then classify' (nub (CIns : cs)) holes
           else classify' cs holes
         -- Dually, this could be a deletion
         (term1 :*: UTxHole var2) ->
           if metavarGet var2 `elem` utxGetHolesWith metavarGet term1
-          then classify' (CDel : cs) holes
+          then classify' (nub (CDel : cs)) holes
           else classify' cs holes
         -- If we see two terms, it's a modification
         (_ :*: _) -> CMod
@@ -193,23 +194,29 @@ mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
               -> CChange ki codes at -- ^ @cq@
               -> Sum (Conflict ki codes) (CChange ki codes) at
 mergeCChange cp cq =
-  let cclass = t (changeClassify cp , changeClassify cq)
+  let cclass = (changeClassify cp , changeClassify cq)
    in case cclass of
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
-        -- (CDel , CIns) -> inj cclass $ adapt cp cq
         (CIns , CDel) -> inj cclass $ adapt cp cq
         (CMod , CIns) -> inj cclass $ adapt cp cq
 
-        -- (CIns , CDel) -> InR cp
+        (CPerm , CMod)  -> InR cp
+        (CPerm , CIns)  -> inj cclass $ adapt cp cq
+        (CPerm , CDel)  -> inj cclass $ adapt cp cq
+        (CMod  , CPerm) -> inj cclass $ adapt cp cq
+        (CIns  , CPerm) -> InR cp
+        (CDel  , CPerm) -> InR cp
+        (CPerm , CPerm) -> inj cclass $ adapt cp cq
+
         (CDel , CIns) -> InR cp
         (CIns , CMod) -> InR cp
 
         (CMod , CMod) -> inj cclass $ adapt cp cq
 
-        (CDel , CMod) -> InR cp
-        (CMod , CDel) -> inj cclass $ adapt cp cq
+        (CDel  , CMod) -> InR cp
+        (CMod  , CDel) -> inj cclass $ adapt cp cq
   where
     inj confclass = either (const $ InL $ Conflict confclass cp cq) InR
     
