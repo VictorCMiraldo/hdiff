@@ -18,6 +18,7 @@ import Control.Monad
 import Control.Monad.Writer
 import Control.Monad.Except
 import Control.Monad.State
+import Control.Arrow (first, second)
 
 import Data.Digems.Diff.MetaVar
 
@@ -63,7 +64,7 @@ utxe f (UTxE x) = UTxE (f x)
 type Subst ki codes = M.Map Int (UTxE ki codes (MetaVarIK ki))
 type Term  ki codes = UTx ki codes (MetaVarIK ki)
 
-type UnifyM ki codes = StateT (Subst ki codes)
+type UnifyM ki codes = StateT (Int , Subst ki codes)
                               (Except (UnificationErr ki codes))
 
 type Unifiable ki codes = (Show1 ki , Eq1 ki , TestEquality ki)
@@ -81,23 +82,28 @@ utxUnify :: (Unifiable ki codes)
          -> Either (UnificationErr ki codes) (Term ki codes ix)
 utxUnify pa ea x   
   = let x' = uniquenessNaming pa x
-     in runExcept $ evalStateT (pmatch pa x >> dbg >> transport1 ea) M.empty
+        maxX' = varmax x'
+     in runExcept $ evalStateT (pmatch pa x >> dbg >> transport1 ea) (maxX' , M.empty)
   where
+    varmax :: Term ki codes ix -> Int
+    varmax = (1+) . maybe 0 id . S.lookupMax . utxGetHolesWith metavarGet
+    
     uniquenessNaming :: Term ki codes iy -> Term ki codes ix -> Term ki codes ix
-    uniquenessNaming x = let varsx  = utxGetHolesWith metavarGet x
-                             varmax = (1+) . maybe 0 id $ S.lookupMax varsx
-                          in utxRefine (UTxHole . metavarAdd varmax) UTxOpq
+    uniquenessNaming x = utxRefine (UTxHole . metavarAdd (varmax x)) UTxOpq
 
 dbg :: (Unifiable ki codes)
     => UnifyM ki code ()
 dbg = return () -- get >>= \m -> trace (show m) (return ())
+
+freshName :: (Unifiable ki codes) => UnifyM ki code Int
+freshName = modify (first (+1)) >> (fst <$> get)
 
 -- |@pmatch pa x@ traverses @pa@ and @x@ instantiating the variables of @pa@.
 pmatch :: (Unifiable ki codes)
        => Term ki codes ix
        -> Term ki codes ix
        -> UnifyM ki codes ()
-pmatch (UTxHole var) x  = modify (M.insert (metavarGet var) (UTxE x))
+pmatch (UTxHole var) x  = modify (second $ M.insert (metavarGet var) (UTxE x))
 pmatch pa (UTxHole var)
   | utxArity pa == 0 = return () -- modify (M.insert (metavarGet var) (UTxE pa)) 
   -- if pa still has variables, this is a problem. Because their occurence
@@ -145,7 +151,7 @@ lookupVar :: forall ki codes ix
           => MetaVarIK ki ix
           -> UnifyM ki codes (Maybe (Term ki codes ix))
 lookupVar var = do
-  substs <- get
+  substs <- snd <$> get
   case M.lookup (metavarGet var) substs of
     Nothing -> return Nothing
     Just r  -> Just <$> cast r

@@ -96,12 +96,12 @@ reconcile (UTxHole cp) (UTxHole cq)
 -- (ii) We are transporting a spine over a change
 reconcile cp           (UTxHole cq) 
   | isCpy cq  = utxMap InR cp
-  | otherwise = UTxHole $ mergeCChange (closedChangeDistr cp) cq
+  | otherwise = UTxHole $ mergeCChange (closedChangeDistr (specialize cp (cchangeDomain cq))) cq
 
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq
   | isCpy cp  = UTxHole $ InR cp
-  | otherwise = UTxHole $ mergeCChange cp (closedChangeDistr cq)
+  | otherwise = UTxHole $ mergeCChange cp (closedChangeDistr (specialize cq (cchangeDomain cp)))
 
 -- (iv) Anything else is a conflict; this should be technically
 --      unreachable since both patches were applicable to at least
@@ -109,6 +109,40 @@ reconcile (UTxHole cp) cq
 --      on the placement of the holes.
 reconcile cp cq = error "unreachable"
 
+type Domain ki codes = UTx ki codes (MetaVarIK ki)
+
+cchangeDomain :: CChange ki codes at -> Domain ki codes at
+cchangeDomain = cCtxDel
+
+maxVar :: RawPatch ki codes at -> Int
+maxVar = flip execState 0 . utxMapM localMax
+  where
+    localMax r@(CMatch vars _ _)
+      = let m = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
+         in modify (max m) >> return r
+
+-- |Specializing will attempt to adjust a spine with changes to be properly
+-- adapted by a change.
+specialize :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+             , UTxTestEqualityCnstr ki (CChange ki codes))
+           => RawPatch ki codes at
+           -> Domain   ki codes at
+           -> RawPatch ki codes at
+specialize spine cc
+  = utxRefine (uncurry' go) UTxOpq $ utxLCP spine cc
+  where
+    vmax = maxVar spine
+
+    go :: (Eq1 ki)
+       => UTx ki codes (CChange ki codes) at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (CChange ki codes) at
+    go (UTxHole c1) c2
+      | isCpy c1  = utxMap (changeCopy . metavarAdd vmax) c2
+      | otherwise = UTxHole c1
+    go sp _ = sp
+
+    
 data ChangeClass
   = CPerm | CMod | CIns | CDel
   deriving (Eq , Show)
@@ -216,6 +250,7 @@ mergeCChange cp cq =
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
         (CDel , _)     -> InR cp
+        (CPerm , CMod) -> InR cp
 
         (CIns , CDel)  -> inj cclass $ adapt cp cq
         (CIns , _)     -> InR cp

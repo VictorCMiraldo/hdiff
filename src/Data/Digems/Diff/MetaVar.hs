@@ -83,6 +83,9 @@ data Exists (f :: k -> *) :: * where
 exMap :: (forall x . f x -> g x) -> Exists f -> Exists g
 exMap f (Exists x) = Exists (f x)
 
+exElim :: (forall x . f x -> a) -> Exists f -> a
+exElim f (Exists x) = f x
+
 -- |Retrieves the int inside a existential 'MetaVarIK'
 metavarIK2Int :: Exists (MetaVarIK ki) -> Int
 metavarIK2Int (Exists (NA_I (Const i))) = i

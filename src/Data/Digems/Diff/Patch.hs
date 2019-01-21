@@ -266,16 +266,36 @@ extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
     toEx :: S.Set (Exists MetaVarI) -> S.Set (Exists (MetaVarIK ki))
     toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
 
+
+{-
+-- |Renames all changes within a 'UTx' so that their
+--  variable names will not clash.
+alphaRenameChanges :: UTx ki codes (CChange ki codes) at
+                   -> UTx ki codes (CChange ki codes) at
+alphaRenameChanges = flip evalState 0 . utxMapM rename1                   
+  where
+    rename1 :: CChange ki codes at -> State Int (CChange ki codes at)
+    rename1 (CMatch vars del ins) =
+      let localMax = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
+       in do globalMax <- get
+             put (globalMax + localMax)
+             return (CMatch (S.map (exMap (metavarAdd localMax)) vars)
+                            (utxMap (metavarAdd localMax) del)
+                            (utxMap (metavarAdd localMax) ins))
+-}
+
 -- |A Utx with closed changes distributes over a closed change
 --
---  TODO: renames!!
 closedChangeDistr :: UTx ki codes (CChange ki codes) at
                   -> CChange ki codes at
-closedChangeDistr utx = let vars = S.foldl' S.union S.empty
-                                 $ utxGetHolesWith cCtxVars utx
-                            del  = utxJoin $ utxMap cCtxDel utx
-                            ins  = utxJoin $ utxMap cCtxIns utx
-                         in CMatch vars del ins
+closedChangeDistr = naiveDistr -- . alphaRenameChanges    
+  where
+    naiveDistr utx =
+      let vars = S.foldl' S.union S.empty
+               $ utxGetHolesWith cCtxVars utx
+          del  = utxJoin $ utxMap cCtxDel utx
+          ins  = utxJoin $ utxMap cCtxIns utx
+       in CMatch vars del ins
 
 -- |Combines changes until they are closed
 closure :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
