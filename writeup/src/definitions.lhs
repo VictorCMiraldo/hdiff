@@ -67,6 +67,8 @@
 %%   https://github.com/VictorCMiraldo/hs-digems
 \newcommand{\hsdigemsgit}[0]{Address has been ommited to preserve double-blindness. Code has been submitted as suplementary material}
 
+\newcommand{\bigO}[1]{\mathcal{O}(#1)}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %% lhs2TeX Formatting Rules
@@ -104,6 +106,7 @@
 %format eta     = "\HV{\eta}"
 %format eta1    = "\HV{\eta_1}"
 %format eta2    = "\HV{\eta_2}"
+%format Delta   = "\HV{\Delta}"
 %format join    = "\HV{\mu}"
 %format fSq     = "\HV{f}"
 %format =~=     = "\HS{\approx}"

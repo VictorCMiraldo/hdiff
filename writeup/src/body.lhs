@@ -824,7 +824,7 @@ example is sohwn in \Cref{fig:patch-scoping-problem}. The \emph{greatest
 common prefix} is too permissive and must be later refined.
 
 \begin{figure}
-\begin{minipage}[t]{.45\textwidth}
+\begin{minipage}[t]{.55\textwidth}
 \begin{myhs}
 \begin{code}
 prob  :: Change Tree23Codes (Const Int) (I Z)
@@ -832,12 +832,14 @@ prob  =  Change  (Node2C (Hole 0)  (Hole 0))
                  (Node2C x         (Hole 0))
 \end{code}
 \end{myhs}
-\end{minipage}
-\begin{minipage}[t]{.45\textwidth}
+\end{minipage} %
+\begin{minipage}[t]{.35\textwidth}
+\[ |txGCP prob ==| \hspace{6em} \]
 \includegraphics[scale=0.3]{src/img/patch-02.pdf}
 \end{minipage}
 
-\caption{Situation where the greatest common prefix breaks binding.}
+\caption{Situation where the greatest common prefix breaks binding and graphical
+representation of |txGCP prob|.}
 \label{fig:patch-scoping-problem}
 \end{figure}
   
@@ -899,7 +901,8 @@ txMap isClosed (txGCP prob)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
 and traverse the it trying to eliminate all the \emph{open changes},
 tagged by |InL|. We do so by finding the smallest closed change that
 binds the required variables. If we cannot find such change, we translate
-pose patch as an \emph{open change} altogether.
+pose patch as an \emph{open change} altogether. The first three cases 
+are trivial:
 
 \begin{myhs}
 \begin{code}
@@ -908,6 +911,23 @@ closure  :: Tx codes (Sum (Change codes phi) (Change codes phi)) at
 closure (TxOpq x) = InR (TxOpq x)
 closure (TxHole (InL oc)) = InL oc
 closure (TxHole (InR cc)) = InR cc
+\end{code}
+\end{myhs}
+
+  The interesting case of the |closure| function is the |TxPeel|
+pattern, where we first try to compute the closures for the fields of
+the constructor and check whether all these fields contain only closed
+changes. If that is the case, we are done. If some fields contain open
+changes, however, the |mapNPM fromInR| fails with a |Nothing| and
+we must massage some data. The |inss| and |dels| are the projections
+of the insertion contexts and deletion contexts of \emph{all} changes
+inside the fields of the product |px|, regardless of whether these are 
+open or closed. We then assemble a new change by \emph{pushing} the |TxPeel cx|
+and checking whether this suffices to bind all variables. That is,
+if this closes the change. 
+
+\begin{myhs}
+\begin{code}
 closure (TxPeel cx px) 
   = let aux = mapNP closure px
      in case mapNPM fromInR aux of
@@ -922,17 +942,7 @@ closure (TxPeel cx px)
 \end{code}
 \end{myhs}
 
-  The interesting case of the |closure| function is the |TxPeel|
-pattern, where we first try to compute the closures for the fields of
-the constructor and check whether all these fields contain only closed
-changes. If that is the case, we are done. If some fields contain open
-changes, however, the |mapNPM fromInR| fails with a |Nothing| and
-we must massage some data. The |inss| and |dels| are the projections
-of the insertion contexts and deletion contexts of \emph{all} changes
-inside the fields of the product |px|, regardless of whether these are 
-open or closed. We then assemble a new change by \emph{pushing} the |TxPeel cx|
-and checking whether this suffices to bind all variables. That is,
-if this closs the change. Comming back to the example
+Comming back to the example
 in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
 |Node2C| from the \emph{spine} to the changes.
 
@@ -1123,17 +1133,17 @@ prepare = synthesize authAlgebra
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/merkle-tree.pdf}
-\caption{Example of a merkelized |Tree23|, where |n_2| is some
-identifer}
+\caption{Example of a merkelized |Tree23|, where |n_2| is some fixed
+identifer and |h| is a hash function.}
 \label{fig:merkelized-tree}
 \end{figure}
 
 
-  Here, |AnnFix| is a cofree comonad used to add a label to each
+  Here, |AnnFix| is the cofree comonad, used to add a label to each
 recursive branch of our generic trees. In our case, this label will be
 the cryptographic hash of the concatenation of its subtree's hashes.
 \Cref{fig:merkelized-tree} shows an example of an input and corresponding
-output of the |prepare| function, producing a merkelized |Tree23|.
+output of the |prepare| function, producing a \emph{merkelized} |Tree23|.
 The |synthesize| generic combinator annotates each node of the tree
 with the result of the catamorphism called at that point with the
 given algebra. Our algebra is sketched in pseudo-Haskell below:
@@ -1147,13 +1157,26 @@ authAlgebra rep = case sop rep of
 \end{code}
 \end{myhs} 
 
-  Note that we must append the index of the type in question to our
+  We must append the index of the type in question, in this case |iy|, to our
 hash computation to differentiate constructors of different types in
 the family represented by the same number.  Once we have the hashes of
 all subtrees we must store them in a search-efficient structure.
 Given that a hash is just a |[Word]|, the optimal choice is a
 |Trie|~\cite{Brass2008} from |Word| to |Int|, where the |Int|
 indicates what is the \emph{identifier} of that very tree.
+
+  Looking up whether a tree |x| is a subtree of two fixed trees |s| and |d|
+is then merely looking up |x|'s topmost hash, also called the \emph{merkle root},
+against the intersection of the tries of the hashes in |s| and |d|.
+The depth of our trie is always |4| or |8| for a |sha256| hash can be
+be put in that number of machine words, depending on the architecture. 
+Assume we have a 32-bit |Word|, this means that the complexity of the 
+overall lookup is $\bigO{ \log{} n_1 \times \cdots \times \log{} n_8 }$, 
+where $n_i$ indicates how many elements are in each level. Take $m = max(n_1 , \cdots, n_8)$
+and we have that the complexity of our lookup is $\bigO{ \log{} m }$. Since we can have at most
+256 elements per layer, the complexity of the lookup is bound by $ \bigO{ \log{} 256 } \equiv \bigO{ 1 } $. Naturally, this only holds if we precompute all the hashes,
+which is why we have to start handling annotated fixpoints instead
+of regular |Fix codes|.
 
   After a small modification to our |Oracle|, allowing it to receive
 trees annotated with hashes we proceed to define the efficient
@@ -1173,16 +1196,20 @@ buildOracle s d = let  s'  = prepare s
 \end{code}
 \end{myhs}
 
-  The resulting trie will contain only the hashes of the subtrees
-of the source and destination, and these can be efficiently looked up
-returning a unique identifier for that specific subtree. 
+  Where the |mkSharingTrie| function will maintain a counter and traverse
+its argument. At every node it will insert an entry with that node's hash and
+the counter value. It then increases the counter and recurses over the children.
+The same subtree might appear in different places in |s| and |d|, for the
+|Int| associated with it will differ from |mkSharingTrie s'| and |mkSharingTrie d'|.
+This is not an issue since we can make |intersect| with type |Trie k v -> Trie k t -> Trie k v|,
+keeping only the assignments from the first trie such that the key is
+also an element of the second.
 
   We can easily get around hash collisions by computing an intermediate
-|Trie Word (Exists (Fix codes))| in the |mkSharingTrie| function and
-later forgetting the trees. This strucure keeps the trees associated with each hash,
-which can in turn be checked for equality when inserting a new tree. If a hash collision
-is found we can conservatively remove the entry from the map and do not consider
-such tree as a shared subtree. When using a cryptographic hash, the chance of
+|Trie Word (Exists (Fix codes))| in the |mkSharingTrie| function and every time
+we find a potential collision we check the trees for equality.
+If equality check fails, a hash collision is found and the entry would be
+removed from the map. When using a cryptographic hash, the chance of
 collision is negligible. Hence, we ignore such step.
 
 \section{Merging Patches}
