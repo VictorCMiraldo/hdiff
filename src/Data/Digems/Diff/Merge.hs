@@ -124,6 +124,11 @@ type ConflictClass = (ChangeClass , ChangeClass)
 --  Multiplicity on the left is 0, on the right is 1 but
 --  there is a structural change.
 --
+-- I can get around that by taking the @txGCP (cCtxDel c) (cCtxIns c)@ and
+-- getting the list of holes, which contains a pair of |Tx|. If I have something other than
+-- holes on the left, it means we delete data. If I have something other than holes
+-- on the right I insert data.
+--
 changeClassify :: CChange ki codes at -> ChangeClass
 changeClassify c =
   let mi = utxMultiplicity 0 (cCtxIns c)
