@@ -131,6 +131,7 @@ type ConflictClass = (ChangeClass , ChangeClass)
 -- on the right I insert data.
 --
 
+{-
 changeClassify :: (Eq1 ki) => CChange ki codes at -> ChangeClass
 changeClassify c =
   let holes    = utxGetHolesWith' Exists (utxLCP (cCtxDel c) (cCtxIns c))
@@ -163,7 +164,7 @@ changeClassify c =
           else classify' cs holes
         -- If we see two terms, it's a modification
         (_ :*: _) -> CMod
-
+-}
 
 {-
 changeClassify :: CChange ki codes at -> ChangeClass
@@ -177,6 +178,21 @@ changeClassify c =
     (_ , _) -> CMod
 -}
 
+changeClassify :: (Show1 ki , Eq1 ki) => CChange ki codes at -> ChangeClass
+changeClassify c =
+  let mi = utxMultiplicity 0 (cCtxIns c)
+      md = utxMultiplicity 0 (cCtxDel c)
+      vi = utxGetHolesWith' metavarGet (cCtxIns c)
+      vd = utxGetHolesWith' metavarGet (cCtxDel c)
+      permutes = nub vi /= nub vd
+      nodups   = vi == nub vi && vd == nub vd
+   in if permutes 
+      then CPerm
+      else case (mi , md) of
+             (0 , 0) -> error "should be unreachable" -- CPerm
+             (0 , _) -> CDel
+             (_ , 0) -> CIns
+             (_ , _) -> CMod
 
 t :: Show a => a -> a
 t a = trace (show a) a
@@ -199,6 +215,30 @@ mergeCChange cp cq =
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
+        (CDel , _)     -> InR cp
+
+        (CIns , CDel)  -> inj cclass $ adapt cp cq
+        (CIns , _)     -> InR cp
+
+        _              -> inj cclass $ adapt cp cq
+
+{-
+        (CPerm , CPerm) -> inj cclass $ adapt cp cq
+        (CMod   , CMod) -> inj cclass $ adapt cp cq
+
+        (CMod  , CPerm) -> inj cclass $ adapt cp cq
+        (CPerm , CMod)  -> inj cclass $ adapt cp cq -- InR cp
+
+        (CPerm , CIns)  -> inj cclass $ adapt cp cq
+        (CPerm , CDel)  -> inj cclass $ adapt cp cq
+        (CMod  , CIns)  -> inj cclass $ adapt cp cq
+        (CMod  , CDel)  -> inj cclass $ adapt cp cq
+-}
+{-
+
+        (CIns , CIns) -> InL (Conflict cclass cp cq)
+        (CDel , CDel) -> InL (Conflict cclass cp cq)
+
         (CIns , CDel) -> inj cclass $ adapt cp cq
         (CMod , CIns) -> inj cclass $ adapt cp cq
 
@@ -217,6 +257,7 @@ mergeCChange cp cq =
 
         (CDel  , CMod) -> InR cp
         (CMod  , CDel) -> inj cclass $ adapt cp cq
+-}
   where
     inj confclass = either (const $ InL $ Conflict confclass cp cq) InR
     
@@ -228,7 +269,7 @@ mergeCChange cp cq =
     adapt cp cq = 
       let resD = metaApply cq (cCtxDel cp)
           resI = metaApply cq (cCtxIns cp)
-       in either Left
+       in either (\err -> trace (show err) (Left err))
                  -- FIXME: compute variables!
                  (\(d, i) -> Right $ CMatch S.empty d i)
         $ codelta resD resI
