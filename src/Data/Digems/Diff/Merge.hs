@@ -129,6 +129,42 @@ type ConflictClass = (ChangeClass , ChangeClass)
 -- holes on the left, it means we delete data. If I have something other than holes
 -- on the right I insert data.
 --
+
+changeClassify :: (Eq1 ki) => CChange ki codes at -> ChangeClass
+changeClassify c =
+  let holes    = utxGetHolesWith' Exists (utxLCP (cCtxDel c) (cCtxIns c))
+   in classify' [] holes
+  where
+    classify' :: [ChangeClass] -- possible classes so far 
+              -> [Exists (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki))]
+              -> ChangeClass
+    -- We are done seeing the holes, there's only one possible classification
+    classify' [x] [] = x
+    classify' _   [] = CMod
+    classify' cs (Exists hole : holes) =
+      case hole of
+        -- if the two vars are different, there's a permutation.
+        -- Don't forget we assume that all bindings that are defined
+        -- are used and vice-versa
+        (UTxHole var1 :*: UTxHole var2) 
+          | metavarGet var1 /= metavarGet var2 -> CMod
+          | otherwise -> classify' cs holes
+        -- If we see a variable and a term, but the variable occurs
+        -- within the term, this could be an insertion
+        (UTxHole var1 :*: term2) ->
+          if metavarGet var1 `elem` utxGetHolesWith metavarGet term2
+          then classify' (CIns : cs) holes
+          else classify' cs holes
+        -- Dually, this could be a deletion
+        (term1 :*: UTxHole var2) ->
+          if metavarGet var2 `elem` utxGetHolesWith metavarGet term1
+          then classify' (CDel : cs) holes
+          else classify' cs holes
+        -- If we see two terms, it's a modification
+        (_ :*: _) -> CMod
+
+
+{-
 changeClassify :: CChange ki codes at -> ChangeClass
 changeClassify c =
   let mi = utxMultiplicity 0 (cCtxIns c)
@@ -138,17 +174,11 @@ changeClassify c =
     (0 , _) -> CIns
     (_ , 0) -> CDel
     (_ , _) -> CMod
-{-
-  classifying changes just by pattern matching is a bad idea,
-  we should instead count how many subtrees ot arity 0 we see
-  in each context. If we see no subtree of arity zero in eith
-
-  case (cCtxDel c , cCtxIns c) of
-    (UTxHole _ , UTxHole _) -> CCpy
-    (UTxHole _ , _)         -> CIns
-    (_         , UTxHole _) -> CDel
-    (_         , _)         -> DMod
 -}
+
+
+t :: Show a => a -> a
+t a = trace (show a) a
 
 -- |If we are transporting @cp@ over @cq@, we need to adapt
 --  both the pattern and expression of @cp@. Also known as the
@@ -163,15 +193,17 @@ mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
               -> CChange ki codes at -- ^ @cq@
               -> Sum (Conflict ki codes) (CChange ki codes) at
 mergeCChange cp cq =
-  let cclass = (changeClassify cp , changeClassify cq)
+  let cclass = t (changeClassify cp , changeClassify cq)
    in case cclass of
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
-        (CDel , CIns) -> inj cclass $ adapt cp cq
+        -- (CDel , CIns) -> inj cclass $ adapt cp cq
+        (CIns , CDel) -> inj cclass $ adapt cp cq
         (CMod , CIns) -> inj cclass $ adapt cp cq
 
-        (CIns , CDel) -> InR cp
+        -- (CIns , CDel) -> InR cp
+        (CDel , CIns) -> InR cp
         (CIns , CMod) -> InR cp
 
         (CMod , CMod) -> inj cclass $ adapt cp cq
