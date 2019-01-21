@@ -137,6 +137,7 @@ specialize spine cc
        => UTx ki codes (CChange ki codes) at
        -> UTx ki codes (MetaVarIK ki) at
        -> UTx ki codes (CChange ki codes) at
+    go (UTxHole c1) (UTxHole _) = UTxHole c1
     go (UTxHole c1) c2
       | isCpy c1  = utxMap (changeCopy . metavarAdd vmax) c2
       | otherwise = UTxHole c1
