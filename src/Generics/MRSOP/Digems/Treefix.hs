@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -245,6 +246,12 @@ utxPretty pfam sty sx utx@(UTxPeel c rest)
 class HasIKProjInj (ki :: kon -> *) (f :: Atom kon -> *) where
   konInj  :: ki k -> f (K k)
   varProj :: Proxy ki -> f x -> Maybe (IsI x)
+
+instance (HasIKProjInj ki phi) => HasIKProjInj ki (UTx ki codes phi) where
+  konInj                   = UTxOpq
+  varProj pr (UTxHole h)   = varProj pr h
+  varProj pr (UTxPeel _ _) = Just IsI
+  varProj pr (UTxOpq _)    = Nothing
 
 data IsI :: Atom kon -> * where
   IsI :: (IsNat i) => IsI (I i)

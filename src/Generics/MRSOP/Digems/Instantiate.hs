@@ -8,8 +8,9 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-module Generics.MRSOP.Digems.Unify where
+module Generics.MRSOP.Digems.Instantiate where
 
+import Data.Proxy
 import Data.Type.Equality
 import Data.Functor.Const
 import qualified Data.Map as M
@@ -21,6 +22,7 @@ import Control.Monad.State
 import Control.Arrow (first, second)
 
 import Data.Digems.Diff.MetaVar
+import Data.Digems.Diff.Patch hiding (apply)
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -28,10 +30,11 @@ import Generics.MRSOP.Digems.Treefix
 
 import Debug.Trace
 
-data UnificationErr :: (kon -> *) -> [[[Atom kon]]] -> * where
-  UndefinedVar      :: Int -> UnificationErr ki codes
-  IncompatibleTerms :: String -> Term ki codes ix -> Term ki codes ix -> UnificationErr ki codes
-  IncompatibleTypes :: UnificationErr ki codes
+data UnificationErr :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
+  UndefinedVar      :: Int -> UnificationErr ki codes phi
+  IncompatibleTerms :: String -> Term ki codes ix -> UTx ki codes phi ix
+                    -> UnificationErr ki codes phi
+  IncompatibleTypes :: UnificationErr ki codes phi
 
 {-
 instance (Show1 ki) => Show (UnificationErr ki codes) where
@@ -46,10 +49,10 @@ instance (Show1 ki) => Show (UnificationErr ki codes) where
   showsPrec n IncompatibleTypes
     = shows "IncompatibleTypes"
 -}
-instance Show (UnificationErr ki codes) where
-  show (UndefinedVar i) = "(UndefinedVar " ++ show i ++ ")"
+instance Show (UnificationErr ki codes phi) where
+  show (UndefinedVar i)          = "(UndefinedVar " ++ show i ++ ")"
   show (IncompatibleTerms n _ _) = "IncompatibleTerms " ++ n
-  show (IncompatibleTypes)     = "IncompatibleTypes"
+  show (IncompatibleTypes)       = "IncompatibleTypes"
 
 data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
   UTxE :: UTx ki codes f at -> UTxE ki codes f
@@ -61,13 +64,14 @@ utxe :: (forall at . UTx ki codes f at -> UTx ki codes f at)
      -> UTxE ki codes f -> UTxE ki codes f
 utxe f (UTxE x) = UTxE (f x)
 
-type Subst ki codes = M.Map Int (UTxE ki codes (MetaVarIK ki))
-type Term  ki codes = UTx ki codes (MetaVarIK ki)
+type Subst ki codes phi = M.Map Int (UTxE ki codes phi)
+type Term  ki codes     = UTx ki codes (MetaVarIK ki)
 
-type UnifyM ki codes = StateT (Int , Subst ki codes)
-                              (Except (UnificationErr ki codes))
+type UnifyM ki codes phi = StateT (Subst ki codes phi)
+                                  (Except (UnificationErr ki codes phi))
 
-type Unifiable ki codes = (Show1 ki , Eq1 ki , TestEquality ki)
+type Unifiable ki codes phi = (Show1 ki , Eq1 ki , TestEquality ki , TestEquality phi
+                              , HasIKProjInj ki phi)
 
 -- |We try to unify @pa@ and @pq@ onto @ea@. The idea is that
 --  we instantiate the variables of @pa@ with their corresponding expression
@@ -75,12 +79,14 @@ type Unifiable ki codes = (Show1 ki , Eq1 ki , TestEquality ki)
 --  we ignore whatever was on @ea@ and give that variable instead.
 --
 --  We are essentially applying 
-utxUnify :: (Unifiable ki codes)
-         => Term ki codes ix
-         -> Term ki codes ix
-         -> Term ki codes ix
-         -> Either (UnificationErr ki codes) (Term ki codes ix)
-utxUnify pa ea x   
+utxTransport :: (Unifiable ki codes phi)
+             => CChange ki codes ix
+             -> UTx ki codes phi ix
+             -> Either (UnificationErr ki codes phi) (UTx ki codes phi ix)
+utxTransport chg x
+  = runExcept $ evalStateT (pmatch (cCtxDel chg) x >> transport1 (cCtxIns chg)) M.empty
+
+{-
   = let x' = uniquenessNaming pa x
         maxX' = varmax x'
      in runExcept $ evalStateT (pmatch pa x >> dbg >> transport1 ea) (maxX' , M.empty)
@@ -90,26 +96,15 @@ utxUnify pa ea x
     
     uniquenessNaming :: Term ki codes iy -> Term ki codes ix -> Term ki codes ix
     uniquenessNaming x = utxRefine (UTxHole . metavarAdd (varmax x)) UTxOpq
-
-dbg :: (Unifiable ki codes)
-    => UnifyM ki code ()
-dbg = return () -- get >>= \m -> trace (show m) (return ())
-
-freshName :: (Unifiable ki codes) => UnifyM ki code Int
-freshName = modify (first (+1)) >> (fst <$> get)
+-}
 
 -- |@pmatch pa x@ traverses @pa@ and @x@ instantiating the variables of @pa@.
-pmatch :: (Unifiable ki codes)
+pmatch :: (Unifiable ki codes phi)
        => Term ki codes ix
-       -> Term ki codes ix
-       -> UnifyM ki codes ()
-pmatch (UTxHole var) x  = modify (second $ M.insert (metavarGet var) (UTxE x))
-pmatch pa (UTxHole var)
-  | utxArity pa == 0 = return () -- modify (M.insert (metavarGet var) (UTxE pa)) 
-  -- if pa still has variables, this is a problem. Because their occurence
-  -- in ea will be undefined... why not carry a map from 'Utx' to var saying
-  -- that we shall abstract pa by 'var'?
-  | otherwise        = return () -- throwError (IncompatibleTerms "4" pa (UTxHole var))
+       -> UTx ki codes phi ix
+       -> UnifyM ki codes phi ()
+pmatch (UTxHole var) x  = modify (M.insert (metavarGet var) (UTxE x))
+pmatch pa (UTxHole var) = return ()
 pmatch pa@(UTxOpq oa) x@(UTxOpq ox)
   | eq1 oa ox = return ()
   | otherwise = throwError (IncompatibleTerms (show1 oa ++ ";" ++ show1 ox) pa x)
@@ -118,58 +113,58 @@ pmatch pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
     Nothing   -> throwError (IncompatibleTerms "2" pa x)
     Just Refl -> void $ elimNPM (uncurry' pmatch) (zipNP ppa px)
 
--- |The second step is @transport x ea@, where we substitue the variables
---  in @ea@ for the values they were instantiated for in @pa@,
---  but using the variables in @x@ to take precedence.
-transport :: (Unifiable ki codes)
-       => Term ki codes ix
-       -> Term ki codes ix
-       -> UnifyM ki codes (Term ki codes ix)
-transport x (UTxHole var) = lookupVar var
-                        >>= return . maybe x id
-                        -- >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
-transport (UTxHole var) y
-  | utxArity y == 0 = return (UTxHole var)
-  | otherwise       = transport1 y
-transport _ (UTxOpq oy)   = return $ UTxOpq oy
-transport x@(UTxPeel cx px) y@(UTxPeel cy py) =
-  case testEquality cx cy of
-    Nothing   -> throwError (IncompatibleTerms "3" x y)
-    Just Refl -> UTxPeel cy <$> mapNPM (uncurry' transport) (zipNP px py)
+-- |Instantiates the metavariables in the given term
+-- using the substitution in the state
+transport1 :: (Unifiable ki codes phi)
+           => Term ki codes ix
+           -> UnifyM ki codes phi (UTx ki codes phi ix)
+transport1 (UTxHole var)     = lookupVar var
+                           >>= maybe (throwError $ UndefinedVar $ metavarGet var)
+                                     return
+transport1 (UTxOpq oy)       = return $ UTxOpq oy
+transport1 y@(UTxPeel cy py) = UTxPeel cy <$> mapNPM transport1 py
 
-transport1 :: (Unifiable ki codes)
-       => Term ki codes ix
-       -> UnifyM ki codes (Term ki codes ix)
-transport1 (UTxHole var) = lookupVar var
-                       >>= maybe (throwError $ UndefinedVar $ metavarGet var) return
-transport1 (UTxOpq oy)   = return $ UTxOpq oy
-transport1 y@(UTxPeel cy py) =
-  UTxPeel cy <$> mapNPM transport1 py
-
-lookupVar :: forall ki codes ix
-           . (Unifiable ki codes)
+-- |Looks for the value of a @MetaVarIK ki ix@ in the substitution
+-- in our state. Returns @Nothing@ when the variables is not found
+-- or throws 'IncompatibleTypes' when the value registered in the
+-- substitution is of type @iy@ with @ix /= iy@.
+lookupVar :: forall ki codes phi ix
+           . (Unifiable ki codes phi)
           => MetaVarIK ki ix
-          -> UnifyM ki codes (Maybe (Term ki codes ix))
+          -> UnifyM ki codes phi (Maybe (UTx ki codes phi ix))
 lookupVar var = do
-  substs <- snd <$> get
+  substs <- get
   case M.lookup (metavarGet var) substs of
     Nothing -> return Nothing
     Just r  -> Just <$> cast r
   where
-    cast :: UTxE ki codes (MetaVarIK ki)
-         -> UnifyM ki codes (Term ki codes ix)
-    cast (UTxE res) = case testEquality res (UTxHole var) of
+    idxCheck :: forall at . UTx ki codes phi at
+             -> MetaVarIK ki ix
+             -> Maybe (at :~: ix)
+    idxCheck utx (NA_K (Annotate _ k)) = testEquality utx (konInj k)
+    idxCheck utx i@(NA_I _)
+      = case varProj (Proxy :: Proxy ki) utx of
+          Nothing      -> Nothing
+          Just prf@IsI -> apply (Refl :: I :~: I)
+                      <$> testEquality (getIsISNat prf) (getSNatI i)
+    
+    getSNatI :: MetaVarIK ki (I i) -> SNat i
+    getSNatI (NA_I _) = getSNat (Proxy :: Proxy i)
+ 
+    cast :: UTxE ki codes phi
+         -> UnifyM ki codes phi (UTx ki codes phi ix)
+    cast (UTxE res) = case idxCheck res var of -- (UTxHole var) of
       Nothing   -> throwError IncompatibleTypes
       Just Refl -> return res
 
 {-
-unifyPure :: (Unifiable ki codes)
+unifyPure :: (Unifiable ki codes phi)
           => Term ki codes ix
           -> Term ki codes ix
           -> Except (UnificationErr ki codes) (Subst ki codes)
 unifyPure x y = go M.empty x y
   where
-    attemptBind :: (Unifiable ki codes)
+    attemptBind :: (Unifiable ki codes phi)
       => Subst ki codes
       -> Int
       -> UTxE ki codes (MetaVarIK ki)
@@ -178,7 +173,7 @@ unifyPure x y = go M.empty x y
       Nothing -> return $ M.insert var new s
       Just rs -> error "what?"
     
-    go :: (Unifiable ki codes)
+    go :: (Unifiable ki codes phi)
         => Subst ki codes
         -> Term ki codes ix
         -> Term ki codes ix

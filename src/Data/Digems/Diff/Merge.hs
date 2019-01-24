@@ -23,7 +23,7 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Treefix
 import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Unify
+import Generics.MRSOP.Digems.Instantiate
 
 import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
@@ -301,10 +301,10 @@ mergeCChange cp cq =
              , UTxTestEqualityCnstr ki (CChange ki codes))
           => CChange ki codes at -- ^ @cp@
           -> CChange ki codes at -- ^ @cq@
-          -> Either (UnificationErr ki codes) (CChange ki codes at)
+          -> Either (UnificationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
     adapt cp cq = 
-      let resD = metaApply cq (cCtxDel cp)
-          resI = metaApply cq (cCtxIns cp)
+      let resD = utxTransport cq (cCtxDel cp)
+          resI = utxTransport cq (cCtxIns cp)
        in either (\err -> trace (show err) (Left err))
                  -- FIXME: compute variables!
                  (\(d, i) -> Right $ CMatch S.empty d i)
@@ -314,6 +314,7 @@ mergeCChange cp cq =
         codelta _ (Left e) = Left e
         codelta (Right a) (Right b) = Right (a , b)
 
+{-
 -- |Applies a change to a term containing metavariables.
 metaApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
              , UTxTestEqualityCnstr ki (CChange ki codes))
@@ -321,3 +322,4 @@ metaApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> Term ki codes at    -- ^ @p@
           -> Either (UnificationErr ki codes) (Term ki codes at)
 metaApply cq = utxUnify (cCtxDel cq) (cCtxIns cq) 
+-}
