@@ -187,8 +187,11 @@ o9 = "x" :>: [ "u" :>: []  , "k" :>: []]
 b9 = "x" :>: [ "u'" :>: [] , "k" :>: []]
 
 
-oa = digemRTree o8 a8
-ob = digemRTree o8 b8
+oa7 = digemRTree o7 a7
+ob7 = digemRTree o7 b7
+
+oa8 = digemRTree o8 a8
+ob8 = digemRTree o8 b8
 
 spec :: Spec
 spec = do

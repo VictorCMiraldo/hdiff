@@ -96,18 +96,36 @@ reconcile (UTxHole cp) (UTxHole cq)
 -- (ii) We are transporting a spine over a change
 reconcile cp           (UTxHole cq) 
   | isCpy cq  = utxMap InR cp
+{-
+  | otherwise = either (\err -> trace (show err) (UTxHole $ InL $ Conflict (CIns,CIns) cq cq))
+                       (UTxHole . InR)
+              $ utxTransport cq _ -- (closedChangeDistr (specialize cp (cchangeDomain cq)))
+-}
   | otherwise = UTxHole $ mergeCChange (closedChangeDistr (specialize cp (cchangeDomain cq))) cq
 
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq
   | isCpy cp  = UTxHole $ InR cp
-  | otherwise = UTxHole $ mergeCChange cp (closedChangeDistr (specialize cq (cchangeDomain cp)))
+  | otherwise = UTxHole $ mergeCChange cp (closedChangeDistr cq)
 
 -- (iv) Anything else is a conflict; this should be technically
 --      unreachable since both patches were applicable to at least
 --      one common element; hence the spines can't disagree other than
 --      on the placement of the holes.
 reconcile cp cq = error "unreachable"
+
+isIns :: CChange ki codes ix -> Bool
+isIns chg =
+  let vd = utxGetHolesWith' metavarGet (cCtxDel chg)
+      vi = utxGetHolesWith' metavarGet (cCtxIns chg)
+   in length vd == 1 && vd == vi && isHole (cCtxDel chg)
+  where
+    isHole (UTxHole _) = True
+    ishole _           = False
+
+spineIsInsertion :: (Eq1 ki) => UTx ki codes (CChange ki codes) ix -> Bool
+spineIsInsertion = all (exElim (\c -> isCpy c || isIns c))
+                 . utxGetHolesWith' Exists
 
 type Domain ki codes = UTx ki codes (MetaVarIK ki)
 
@@ -133,13 +151,23 @@ specialize spine cc
   where
     vmax = maxVar spine
 
-    go :: (Eq1 ki)
+    go :: (Eq1 ki , Show1 ki , TestEquality ki)
        => UTx ki codes (CChange ki codes) at
        -> UTx ki codes (MetaVarIK ki) at
        -> UTx ki codes (CChange ki codes) at
     go (UTxHole c1) (UTxHole _) = UTxHole c1
     go (UTxHole c1) c2
-      | isCpy c1  = utxMap (changeCopy . metavarAdd vmax) c2
+      | isCpy c1 || isIns c1 =
+        -- lemma: transporting over insertions or copies never fails
+        let Right res = utxTransport c1 c2
+            del = utxMap (metavarAdd vmax) c2
+            ins = utxMap (metavarAdd vmax) res
+         -- problem: we should be either returning the GCP of del ins
+         -- or modify the transport function to allow it to match
+         -- Just using:  UTxHole $ CMatch S.empty del ins
+         -- does not cut it
+         in utxMap (uncurry' (CMatch S.empty)) $ utxLCP del ins
+          -- UTxHole $ _ $ utxTransport c1 c2 -- _ -- utxMap (changeCopy . metavarAdd vmax) c2
       | otherwise = UTxHole c1
     go sp _ = sp
 
@@ -246,7 +274,10 @@ mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
               -> Sum (Conflict ki codes) (CChange ki codes) at
 mergeCChange cp cq =
   let cclass = (changeClassify cp , changeClassify cq)
-   in case cclass of
+   in inj cclass $ adapt cp cq
+
+{-
+      case cclass of
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
@@ -258,6 +289,7 @@ mergeCChange cp cq =
 
         _              -> inj cclass $ adapt cp cq
 
+-}
 {-
         (CPerm , CPerm) -> inj cclass $ adapt cp cq
         (CMod   , CMod) -> inj cclass $ adapt cp cq
