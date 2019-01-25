@@ -114,14 +114,18 @@ reconcile (UTxHole cp) cq
 --      on the placement of the holes.
 reconcile cp cq = error "unreachable"
 
-isIns :: CChange ki codes ix -> Bool
+isIns :: (Eq1 ki) => CChange ki codes ix -> Bool
 isIns chg =
   let vd = utxGetHolesWith' metavarGet (cCtxDel chg)
       vi = utxGetHolesWith' metavarGet (cCtxIns chg)
    in length vd == 1 && vd == vi && isHole (cCtxDel chg)
+      && not (isCpy chg)
   where
     isHole (UTxHole _) = True
-    ishole _           = False
+    isHole _           = False
+
+isDel :: (Eq1 ki) => CChange ki codes ix -> Bool
+isDel (CMatch vars del ins) = isIns (CMatch vars ins del)
 
 spineIsInsertion :: (Eq1 ki) => UTx ki codes (CChange ki codes) ix -> Bool
 spineIsInsertion = all (exElim (\c -> isCpy c || isIns c))
@@ -166,7 +170,7 @@ specialize spine cc
          -- or modify the transport function to allow it to match
          -- Just using:  UTxHole $ CMatch S.empty del ins
          -- does not cut it
-         in utxMap (uncurry' (CMatch S.empty)) $ utxLCP del ins
+         in UTxHole (CMatch S.empty del ins) --  utxMap (uncurry' (CMatch S.empty)) $ utxLCP del ins
           -- UTxHole $ _ $ utxTransport c1 c2 -- _ -- utxMap (changeCopy . metavarAdd vmax) c2
       | otherwise = UTxHole c1
     go sp _ = sp
@@ -274,9 +278,12 @@ mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
               -> Sum (Conflict ki codes) (CChange ki codes) at
 mergeCChange cp cq =
   let cclass = (changeClassify cp , changeClassify cq)
-   in inj cclass $ adapt cp cq
+   in case (isIns cp , isDel cq) of
+      (True  , True)  -> inj cclass $ adapt cp cq
+      (True  , False) -> InR cp
+      (False , _)     -> inj cclass $ adapt cp cq
 
-{-
+    {-
       case cclass of
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
@@ -288,7 +295,6 @@ mergeCChange cp cq =
         (CIns , _)     -> InR cp
 
         _              -> inj cclass $ adapt cp cq
-
 -}
 {-
         (CPerm , CPerm) -> inj cclass $ adapt cp cq
