@@ -24,7 +24,7 @@ import Test.Hspec
 type PatchRTree = Patch W CodesRTree Z
 
 digemRTree :: RTree -> RTree -> PatchRTree
-digemRTree a b = digems 1 (dfrom $ into @FamRTree a)
+digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
                           (dfrom $ into @FamRTree b)
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree
@@ -76,8 +76,8 @@ mustMerge lbl a o b
   = let a' = dfrom $ into @FamRTree a
         b' = dfrom $ into @FamRTree b
         o' = dfrom $ into @FamRTree o
-        oa = digems 1 o' a'
-        ob = digems 1 o' b'
+        oa = diff 1 o' a'
+        ob = diff 1 o' b'
         oaob = (oa // ob)
         oboa = (ob // oa)
      in do it (lbl ++ ": merge square commutes") $ do
