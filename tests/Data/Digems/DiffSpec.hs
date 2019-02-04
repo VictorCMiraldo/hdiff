@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
-module Data.Digems.Diff.PatchSpec (spec) where
+module Data.Digems.DiffSpec (spec) where
 
 import qualified Data.Set as S
 
@@ -7,8 +7,9 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Treefix
 
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.MetaVar
+import Data.Digems.Diff
+import Data.Digems.MetaVar
+import Data.Digems.Change
 import Languages.RTree
 
 import Test.QuickCheck

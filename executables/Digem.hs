@@ -42,8 +42,9 @@ import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
-import qualified Data.Digems.Diff.Patch as D
+import qualified Data.Digems.Diff       as D
 import qualified Data.Digems.Diff.Merge as D
+import qualified Data.Digems.Change     as D
 import           Data.Digems.Diff.Show
 
 import           Languages.Interface
@@ -163,7 +164,7 @@ mainAST opts = withParsed1 mainParsers (optFileA opts)
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
-tryApply :: (Eq1 ki , TestEquality ki , IsNat ix, Renderer1 ki
+tryApply :: (Eq1 ki , Show1 ki , TestEquality ki , IsNat ix, Renderer1 ki
             ,HasDatatypeInfo ki fam codes)
          => D.Patch ki codes ix
          -> Fix ki codes ix

@@ -25,10 +25,9 @@ import Generics.MRSOP.TH
 
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix
-import Generics.MRSOP.Digems.Unify
--- import Generics.MRSOP.Digems.Renderer
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.MetaVar
+import Data.Digems.Diff
+import Data.Digems.MetaVar
+import Data.Digems.Change
 
 instance Digestible1 Singl where
   digest1 (SString s) = hashStr s

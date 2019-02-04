@@ -23,12 +23,13 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Treefix
 import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Instantiate
 
 import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.MetaVar
+import Data.Digems.Diff
+import Data.Digems.Change
+import Data.Digems.Change.Apply
+import Data.Digems.MetaVar
 
 import Debug.Trace
 
@@ -101,12 +102,12 @@ reconcile cp           (UTxHole cq)
                        (UTxHole . InR)
               $ utxTransport cq _ -- (closedChangeDistr (specialize cp (cchangeDomain cq)))
 -}
-  | otherwise = UTxHole $ mergeCChange (closedChangeDistr (specialize cp (cchangeDomain cq))) cq
+  | otherwise = UTxHole $ mergeCChange (distrCChange (specialize cp (cchangeDomain cq))) cq
 
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq
   | isCpy cp  = UTxHole $ InR cp
-  | otherwise = UTxHole $ mergeCChange cp (closedChangeDistr cq)
+  | otherwise = UTxHole $ mergeCChange cp (distrCChange cq)
 
 -- (iv) Anything else is a conflict; this should be technically
 --      unreachable since both patches were applicable to at least
@@ -163,7 +164,7 @@ specialize spine cc
     go (UTxHole c1) c2
       | isCpy c1 || isIns c1 =
         -- lemma: transporting over insertions or copies never fails
-        let Right res = utxTransport c1 c2
+        let Right res = genericApply c1 c2
             del = utxMap (metavarAdd vmax) c2
             ins = utxMap (metavarAdd vmax) res
          -- problem: we should be either returning the GCP of del ins
@@ -176,10 +177,6 @@ specialize spine cc
     go sp _ = sp
 
     
-data ChangeClass
-  = CPerm | CMod | CIns | CDel
-  deriving (Eq , Show)
-
 type ConflictClass = (ChangeClass , ChangeClass)
 
 -- FIXME:
@@ -244,7 +241,7 @@ changeClassify c =
     (_ , 0) -> CDel
     (_ , _) -> CMod
 -}
-
+{-
 changeClassify :: (Show1 ki , Eq1 ki) => CChange ki codes at -> ChangeClass
 changeClassify c =
   let mi = utxMultiplicity 0 (cCtxIns c)
@@ -261,6 +258,7 @@ changeClassify c =
              (_ , 0) -> CIns
              (_ , _) -> CMod
 
+-}
 t :: Show a => a -> a
 t a = trace (show a) a
 
@@ -339,10 +337,10 @@ mergeCChange cp cq =
              , UTxTestEqualityCnstr ki (CChange ki codes))
           => CChange ki codes at -- ^ @cp@
           -> CChange ki codes at -- ^ @cq@
-          -> Either (UnificationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
+          -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
     adapt cp cq = 
-      let resD = utxTransport cq (cCtxDel cp)
-          resI = utxTransport cq (cCtxIns cp)
+      let resD = genericApply cq (cCtxDel cp)
+          resI = genericApply cq (cCtxIns cp)
        in either (\err -> trace (show err) (Left err))
                  -- FIXME: compute variables!
                  (\(d, i) -> Right $ CMatch S.empty d i)

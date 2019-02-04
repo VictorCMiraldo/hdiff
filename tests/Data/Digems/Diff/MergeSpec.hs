@@ -9,10 +9,10 @@ import qualified Data.Set as S
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Treefix
-import Generics.MRSOP.Digems.Instantiate
 
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.MetaVar
+import Data.Digems.Diff
+import Data.Digems.MetaVar
+import Data.Digems.Change
 import Data.Digems.Diff.Merge
 import Data.Digems.Diff.Show
 import Languages.RTree

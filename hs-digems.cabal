@@ -16,11 +16,12 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Generics.MRSOP.Digems.Digest
                  ,     Generics.MRSOP.Digems.Treefix
-                 ,     Generics.MRSOP.Digems.Instantiate
                  ,     Generics.MRSOP.Digems.Renderer
-                 ,     Data.Digems.Diff.Patch
+                 ,     Data.Digems.MetaVar
+                 ,     Data.Digems.Change
+                 ,     Data.Digems.Change.Apply
+                 ,     Data.Digems.Diff
                  ,     Data.Digems.Diff.Merge
-                 ,     Data.Digems.Diff.MetaVar
                  ,     Data.Digems.Diff.Preprocess
                  ,     Data.Digems.Diff.Show
                  ,     Data.Digems.Example
@@ -71,7 +72,7 @@ test-suite tests
   type: exitcode-stdio-1.0
   hs-source-dirs: tests
   main-is:       Spec.hs
-  other-modules: Data.Digems.Diff.PatchSpec
+  other-modules: Data.Digems.DiffSpec
                , Data.Digems.Diff.MergeSpec
   build-depends: base >= 4.10 && <5
                , hs-digems

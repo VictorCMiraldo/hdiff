@@ -7,7 +7,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Data.Digems.Diff.Patch where
+module Data.Digems.Diff where
 
 import Data.Proxy
 import Data.Type.Equality
@@ -29,7 +29,9 @@ import Generics.MRSOP.Digems.Digest
 
 import qualified Data.WordTrie as T
 import Data.Digems.Diff.Preprocess
-import Data.Digems.Diff.MetaVar
+import Data.Digems.MetaVar
+import Data.Digems.Change
+import Data.Digems.Change.Apply
 import Unsafe.Coerce
 
 -- * Utils
@@ -56,105 +58,6 @@ getFixSNat _ = getSNat (Proxy :: Proxy ix)
 --
 --  Where @forget@ returns the values in the holes.
 --
-
--- |A 'CChange', or, closed change, consists in a declaration of metavariables
---  and two contexts. The precondition is that every variable declared
---  occurs at least once in ctxDel and that every variable that occurs in ctxIns
---  is declared.
---  
-data CChange ki codes at where
-  CMatch :: { cCtxVars :: S.Set (Exists (MetaVarIK ki))
-            , cCtxDel  :: UTx ki codes (MetaVarIK ki) at 
-            , cCtxIns  :: UTx ki codes (MetaVarIK ki) at }
-         -> CChange ki codes at
-
--- |Alpha-equality for 'CChange'
-changeEq :: (Eq1 ki) => CChange ki codes at -> CChange ki codes at -> Bool
-changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
-  = S.size v1 == S.size v2 && aux d1 d2 i1 i2
- where
-   aux :: (Eq1 ki)
-       => UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> Bool
-   aux d1 d2 i1 i2 = (`runCont` id) $
-     callCC $ \exit -> flip evalStateT M.empty $ do
-       utxMapM (uncurry' (reg (cast exit))) (utxLCP d1 d2)
-       utxMapM (uncurry' (chk (cast exit))) (utxLCP i1 i2)
-       return True
-   
-   cast :: (Bool -> Cont Bool b)
-        -> Bool -> Cont Bool (Const () a)
-   cast f b = (const (Const ())) <$> f b
-
-   reg :: (Bool -> Cont Bool (Const () at))
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   reg _ (UTxHole m1) (UTxHole m2) 
-     = modify (M.insert (metavarGet m1) (metavarGet m2))
-     >> return (Const ())
-   reg exit _ _ 
-     = lift $ exit False
-
-   chk :: (Bool -> Cont Bool (Const () at))
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   chk exit (UTxHole m1) (UTxHole m2) 
-     = do st <- get
-          case M.lookup (metavarGet m1) st of
-            Nothing -> lift $ exit False
-            Just r  -> if r == metavarGet m2
-                       then return (Const ())
-                       else lift $ exit False
-   chk exit _ _ = lift (exit False)
-
--- |Issues a copy, this is a closed change analogous to
---  > \x -> x
-changeCopy :: MetaVarIK ki at -> CChange ki codes at
-changeCopy vik = CMatch (S.singleton (Exists vik)) (UTxHole vik) (UTxHole vik)
-
--- |Checks whetehr a change is a copy.
-isCpy :: (Eq1 ki) => CChange ki codes at -> Bool
-isCpy (CMatch _ (UTxHole v1) (UTxHole v2))
-  -- arguably, we don't even need that since changes are closed.
-  = metavarGet v1 == metavarGet v2
-isCpy _ = False
-
-makeCopyFrom :: CChange ki codes at -> CChange ki codes at
-makeCopyFrom chg = case cCtxDel chg of
-  UTxHole var -> changeCopy var
-  UTxPeel _ _ -> changeCopy (NA_I (Const 0))
-  UTxOpq k    -> changeCopy (NA_K (Annotate 0 k))
-  
-
-
--- |A 'OChange', or, open change, is analogous to a 'CChange',
---  but has a list of free variables. These are the ones that appear
---  in 'oCtxIns' but not in 'oCtxDel'
-data OChange ki codes at where
-  OMatch :: { oCtxVars :: S.Set (Exists (MetaVarIK ki))
-            , oCtxFree :: S.Set (Exists (MetaVarIK ki))
-            , oCtxDel  :: UTx ki codes (MetaVarIK ki) at 
-            , oCtxIns  :: UTx ki codes (MetaVarIK ki) at }
-         -> OChange ki codes at
-
-instance (Show1 ki) => Show (CChange ki codes at) where
-  show (CMatch _ del ins)
-    = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
-
-instance HasIKProjInj ki (CChange ki codes) where
-  konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
-  varProj pk (CMatch _ (UTxHole h) _)   = varProj pk h
-  varProj pk (CMatch _ (UTxPeel _ _) _) = Just IsI
-  varProj pk (CMatch _ _ _)             = Nothing
-
-instance (TestEquality ki) => TestEquality (CChange ki codes) where
-  testEquality (CMatch _ x _) (CMatch _ y _)
-    = testEquality x y
 
 -- |Instead of keeping unecessary information, a 'RawPatch' will
 --  factor out the common prefix before the actual changes.
@@ -267,36 +170,6 @@ extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
     toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
 
 
-{-
--- |Renames all changes within a 'UTx' so that their
---  variable names will not clash.
-alphaRenameChanges :: UTx ki codes (CChange ki codes) at
-                   -> UTx ki codes (CChange ki codes) at
-alphaRenameChanges = flip evalState 0 . utxMapM rename1                   
-  where
-    rename1 :: CChange ki codes at -> State Int (CChange ki codes at)
-    rename1 (CMatch vars del ins) =
-      let localMax = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
-       in do globalMax <- get
-             put (globalMax + localMax)
-             return (CMatch (S.map (exMap (metavarAdd localMax)) vars)
-                            (utxMap (metavarAdd localMax) del)
-                            (utxMap (metavarAdd localMax) ins))
--}
-
--- |A Utx with closed changes distributes over a closed change
---
-closedChangeDistr :: UTx ki codes (CChange ki codes) at
-                  -> CChange ki codes at
-closedChangeDistr = naiveDistr -- . alphaRenameChanges    
-  where
-    naiveDistr utx =
-      let vars = S.foldl' S.union S.empty
-               $ utxGetHolesWith cCtxVars utx
-          del  = utxJoin $ utxMap cCtxDel utx
-          ins  = utxJoin $ utxMap cCtxIns utx
-       in CMatch vars del ins
-
 -- |Combines changes until they are closed
 closure :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
         -> Sum (OChange ki codes) (UTx ki codes (CChange ki codes)) at
@@ -311,7 +184,7 @@ closure (UTxPeel cx dx)
   = let aux = mapNP closure dx
      in case mapNPM fromInR aux of
           Just np -> InR $ UTxPeel cx np
-          Nothing -> let chgs = mapNP (either' InL (InR . closedChangeDistr)) aux
+          Nothing -> let chgs = mapNP (either' InL (InR . distrCChange)) aux
                          dels = mapNP (either' oCtxDel cCtxDel) chgs
                          inss = mapNP (either' oCtxIns cCtxIns) chgs
                          fvs  = S.unions $ elimNP (either'' oCtxFree (const $ S.empty)) chgs 
@@ -386,7 +259,7 @@ digems mh x y
                -> UTx ki codes MetaVarI ix
     refineHole s (ForceI (Const i :*: f))
       | i `S.member` s = UTxHole (ForceI $ Const i)
-      | otherwise      = utxStiff f
+      | otherwise      = utxStiff (NA_I f)
 
 -- ** Applying a Patch
 --
@@ -403,124 +276,9 @@ digems mh x y
 -- The only slight trick is that we need to
 -- wrap our trees in existentials inside our valuation.
 
--- TODO: write NAE in terms of Exists from MetaVar module
-
--- |We start by wrapping the index of an atom that is, in fact,
---  a metavariable, into an existential.
-data NAE :: (kon -> *) -> [[[Atom kon]]] -> * where
-  SomeFix :: (IsNat ix) => Fix ki codes ix -> NAE ki codes
-  SomeOpq ::               ki k            -> NAE ki codes
-
--- |A call to @naeMatch fe f@ returns true when @fe == Somefix (NA_I f)@
---  or @fe == SomeOpq (NA_K f)@. We essentially perform an heterogeneous
---  equality check.
-naeMatch :: (TestEquality ki , Eq1 ki)
-          => NAE ki codes
-          -> NA ki (Fix ki codes) v
-          -> Bool
-naeMatch (SomeOpq x) (NA_K y)
-  = case testEquality x y of
-      Nothing   -> False
-      Just Refl -> eq1 x y
-naeMatch (SomeFix x) (NA_I y)
-  = case heqFixIx x y of
-      Nothing   -> False
-      Just Refl -> eqFix eq1 x y
-naeMatch _ _
-  = False
-
--- |Injects an 'NA' into an existential, 'NAE'
-naeInj :: NA ki (Fix ki codes) ix -> NAE ki codes
-naeInj (NA_I i) = SomeFix i
-naeInj (NA_K k) = SomeOpq k
-
--- |Casts an existential NAE to an expected one, from a metavariable.
-naeCast :: NAE ki codes
-        -> MetaVarIK ki at
-        -> Either String (NA ki (Fix ki codes) at)
--- TODO: remove this unsafeCoerce
---       The 'IsOpq' will fix this too
-naeCast (SomeOpq x) (NA_K _) = return $ NA_K (unsafeCoerce x)
-naeCast (SomeFix i) (NA_I v)
-  = case testEquality (getFixSNat i) (getSNat $ getConstIx v) of
-      Nothing   -> Left "naeCast: testEquality fail"
-      Just Refl -> return (NA_I i)
-  where getConstIx :: Const k a -> Proxy a
-        getConstIx _ = Proxy
-naeCast _           _        = Left "naeCast mismatch"
-
--- |And have our valuation be an assignment from
---  hole-id's to trees.
-type Valuation ki codes
-  = M.Map Int (NAE ki codes)
-
-guard' :: String -> Bool -> Either String ()
-guard' str False = Left str
-guard' str _     = Right ()
-
--- |Projects an assignment out of a treefix. This
---  function is inherently partial because the constructors
---  specified on a treefix might be different than
---  those present in the value we are using.
-utxProj :: (TestEquality ki , Eq1 ki)
-        => UTx ki codes (MetaVarIK ki) at
-        -> NA ki (Fix ki codes) at
-        -> Either String (Valuation ki codes)
-utxProj utx = go M.empty utx
-  where    
-    go :: (TestEquality ki , Eq1 ki)
-       => Valuation ki codes
-       -> UTx ki codes (MetaVarIK ki) ix
-       -> NA ki (Fix ki codes) ix
-       -> Either String (Valuation ki codes)
-    go m (UTxHole var)   t
-      -- We have already seen this hole; we need to make
-      -- sure the tree's match. We are performing the
-      -- 'contraction' step here.
-      | Just nae <- M.lookup (metavarGet var) m
-      = guard' "naeMatch" (naeMatch nae t) >> return m
-      -- Otherwise, its the first time we see this
-      -- metavariable. We will just insert a new tree here
-      | otherwise
-      = return (M.insert (metavarGet var) (naeInj t) m)
-    go m (UTxOpq k) (NA_K tk)
-      = guard' "OpqMatch" (eq1 k tk) >> return m
-    go m (UTxPeel c gutxnp) (NA_I (Fix t))
-      | Tag ct pt <- sop t
-      = case testEquality c ct of
-          Nothing   -> Left "proj UTxPeel c ct"
-          Just Refl -> do
-           getConst <$> cataNPM (\x (Const val) -> fmap Const (uncurry' (go val) x))
-                                (return $ Const m)
-                                (zipNP gutxnp pt)
-
--- |Injects a valuation into a treefix producing a value,
---  when possible.
-utxInj :: UTx ki codes (MetaVarIK ki) at
-       -> Valuation ki codes
-       -> Either String (NA ki (Fix ki codes) at)
-utxInj (UTxHole var)  m
-  = do nae <- lookup (metavarGet var) m
-       naeCast nae var
-  where
-    lookup i m = case M.lookup i m of
-      Nothing -> Left "utxInj: undefined var"
-      Just r  -> return r
-utxInj (UTxOpq  k)   m
-  = return (NA_K k)
-utxInj (UTxPeel c p) m
-  = (NA_I . Fix . inj c) <$> mapNPM (flip utxInj m) p
-
-
-applyCChange :: (TestEquality ki , Eq1 ki)
-             => CChange ki codes at
-             -> NA ki (Fix ki codes) at
-             -> Either String (NA ki (Fix ki codes) at)
-applyCChange (CMatch _ del ins) x = utxProj del x >>= utxInj ins
-
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
-apply :: (TestEquality ki , Eq1 ki , IsNat ix)
+apply :: (TestEquality ki , Eq1 ki , Show1 ki, IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
       -> Either String (Fix ki codes ix)
@@ -528,7 +286,7 @@ apply patch x
     -- since all our changes are closed, we can apply them locally
     -- over the spine.
     =   utxZipRep patch (NA_I x)
-    >>= utxMapM (uncurry' applyCChange)
+    >>= utxMapM (uncurry' termApply)
     >>= return . unNA_I . utxForget
   where
     unNA_I :: NA f g (I i) -> g i

@@ -22,9 +22,10 @@ import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
-import qualified Data.Digems.Diff.Patch   as D
+import qualified Data.Digems.Diff         as D
+import qualified Data.Digems.Change       as D
 import qualified Data.Digems.Diff.Merge   as D
-import qualified Data.Digems.Diff.MetaVar as D
+import qualified Data.Digems.MetaVar      as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
 spliced :: Doc ann -> Doc ann -> Doc ann

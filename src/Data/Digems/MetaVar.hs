@@ -8,7 +8,7 @@
 -- |Exports a bunch of functionality for handling metavariables
 --  both over recursive positions only, with 'MetaVarI' and over
 --  recursive positions and constants, 'MetaVarIK'.
-module Data.Digems.Diff.MetaVar where
+module Data.Digems.MetaVar where
 
 import Data.Function (on)
 import Data.Functor.Const
@@ -33,6 +33,12 @@ data Annotate (x :: *) (f :: k -> *) :: k -> * where
 instance (Show1 f , Show x) => Show1 (Annotate x f) where
   show1 (Annotate i f)
     = show1 f ++ "[" ++ show i ++ "]"
+
+instance (Eq1 f , Eq x) => Eq1 (Annotate x f) where
+  eq1 (Annotate x1 f1) (Annotate x2 f2) = x1 == x2 && eq1 f1 f2
+
+instance (Eq x) => Eq1 (Const x) where
+  eq1 (Const x) (Const y) = x == y
 
 instance (TestEquality ki) => TestEquality (Annotate x ki) where
   testEquality (Annotate _ x) (Annotate _ y)

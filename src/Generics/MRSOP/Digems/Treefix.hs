@@ -12,8 +12,8 @@ module Generics.MRSOP.Digems.Treefix where
 
 import Data.Proxy
 import Data.Functor.Const
+import Data.Void
 import Data.Type.Equality
-import Data.List (foldl')
 import qualified Data.Set as S (insert , empty , Set)
 
 import Control.Monad.Identity
@@ -51,6 +51,14 @@ data UTx :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> Atom kon -> *  wh
           -> NP (UTx ki codes phi) (Lkup n (Lkup i codes))
           -> UTx ki codes phi (I i)
 
+instance (Eq1 phi , Eq1 ki) => Eq (UTx ki codes phi ix) where
+  utx == uty = and $ utxGetHolesWith' (uncurry' cmp) $ utxLCP utx uty
+    where
+      cmp :: UTx ki codes phi at -> UTx ki codes phi at -> Bool
+      cmp (UTxHole x) (UTxHole y) = eq1 x y
+      cmp (UTxOpq  x) (UTxOpq  y) = eq1 x y
+      cmp _           _           = False
+
 -- |Returns the index of the UTx as a singleton.
 getUTxSNat :: (IsNat ix) => UTx ki codes f (I ix) -> SNat ix
 getUTxSNat _ = getSNat (Proxy :: Proxy ix)
@@ -61,7 +69,7 @@ utxMapM :: (Monad m)
         -> UTx ki codes f at
         -> m (UTx ki codes g at)
 utxMapM f (UTxHole x)       = UTxHole   <$> f x
-utxMapM f (UTxOpq k)        = return $ UTxOpq k
+utxMapM _ (UTxOpq k)        = return $ UTxOpq k
 utxMapM f (UTxPeel c utxnp) = UTxPeel c <$> mapNPM (utxMapM f) utxnp
 
 -- |Non-monadic version
@@ -100,18 +108,18 @@ utxLCP x y
 -- |Similar to 'gtxMap', but allows to refine the structure of
 --  a treefix if need be
 utxRefineM :: (Monad m)
-           => (forall at . f at -> m (UTx ki codes g at))
-           -> (forall k  . ki k -> m (UTx ki codes g (K k)))
-           -> UTx ki codes f at 
+           => (forall ix . f ix -> m (UTx ki codes g ix))
+           -> (forall k  . ki k -> m (UTx ki codes g ('K k)))
+           -> UTx ki codes f at
            -> m (UTx ki codes g at)
-utxRefineM f g (UTxHole x) = f x
-utxRefineM f g (UTxOpq k)  = g k
+utxRefineM f _ (UTxHole x) = f x
+utxRefineM _ g (UTxOpq k)  = g k
 utxRefineM f g (UTxPeel c utxnp)
   = UTxPeel c <$> mapNPM (utxRefineM f g) utxnp
 
 -- |Pure version of 'utxRefineM'
-utxRefine :: (forall at . f at -> UTx ki codes g at)
-          -> (forall k  . ki k -> UTx ki codes g (K k))
+utxRefine :: (forall ix . f ix -> UTx ki codes g ix)
+          -> (forall k  . ki k -> UTx ki codes g ('K k))
           -> UTx ki codes f at 
           -> UTx ki codes g at
 utxRefine f g = runIdentity . utxRefineM (return . f) (return . g)
@@ -123,8 +131,8 @@ utxZipRep :: (MonadPlus m)
           -> m (UTx ki codes (f :*: NA ki (Fix ki codes)) at)
 utxZipRep (UTxHole i) x = return $ UTxHole (i :*: x)
 utxZipRep (UTxOpq k)  _ = return $ UTxOpq k
-utxZipRep (UTxPeel c d) (NA_I (Fix x))
-  | Tag cx dx <- sop x
+utxZipRep (UTxPeel c d) (NA_I x)
+  | Tag cx dx <- sop (unFix x)
   = case testEquality c cx of
       Nothing   -> mzero
       Just Refl -> UTxPeel cx <$> mapNPM (uncurry' utxZipRep) (zipNP d dx)
@@ -136,7 +144,7 @@ utxForget (UTxOpq k)    = NA_K k
 utxForget (UTxPeel c d) = NA_I . Fix . inj c $ mapNP utxForget d
           
 -- |Returns the metavariables in a UTx
-utxGetHolesWith :: (Ord r) => (forall at . f at -> r) -> UTx ki codes f at -> S.Set r
+utxGetHolesWith :: (Ord r) => (forall ix . f ix -> r) -> UTx ki codes f at -> S.Set r
 utxGetHolesWith tr = flip execState S.empty . utxMapM (getHole tr)
   where
     -- Gets all holes from a treefix.
@@ -146,7 +154,7 @@ utxGetHolesWith tr = flip execState S.empty . utxMapM (getHole tr)
             -> State (S.Set r) (f ix)
     getHole f x = modify (S.insert $ f x) >> return x
 
-utxGetHolesWith' :: (forall at . f at -> r) -> UTx ki codes f at -> [r]
+utxGetHolesWith' :: (forall ix . f ix -> r) -> UTx ki codes f at -> [r]
 utxGetHolesWith' tr = flip execState [] . utxMapM (getHole tr)
   where
     -- Gets all holes from a treefix.
@@ -168,30 +176,6 @@ utxMultiplicity k utx
       _           -> 0
 
 
-{-
--- |Reduces a treefix back to a tree
-utxReduceM :: (Monad m)
-           => (forall at . f at -> m (NA ki (Fix ki codes) at))
-           -> UTx ki codes f at
-           -> m (NA ki (Fix ki codes) at)
-utxReduceM red (UTxHole x) = red x
-utxReduceM red (UTxOpq  k) = return (NA_K k)
-utxReduceM red (UTxPeel c p)
-  = (NA_I . Fix . inj c) <$> mapNPM (utxReduceM red) p
-
--- |Walks over a 'UTx' performing a monadic action
-utxWalkM :: (Monad m)
-         => (a -> a -> a)
-         -> a
-         -> (forall at . f at -> m a)
-         -> UTx ki codes f at
-         -> m a
-utxWalkM cat e act (UTxHole x) = act x
-utxWalkM cat e act (UTxOpq _)  = return e
-utxWalkM cat e act (UTxPeel _ d)
-  = foldl' cat e <$> elimNPM (utxWalkM cat e act) d
--}
-
 -- * Show instances
 
 instance (Show1 ki , Show1 phi) => Show1 (NA ki phi) where
@@ -209,13 +193,19 @@ instance (Show1 ki , Show1 f) => Show1 (UTx ki codes f) where
   show1 (UTxPeel c rest) = "(" ++ show c ++ "| " ++ show1 rest ++ ")"
 
 -- |A stiff treefix is one with no holes anywhere.
-utxStiff :: (IsNat ix) => Fix ki codes ix -> UTx ki codes f (I ix)
-utxStiff (Fix x) | Tag cx px <- sop x
-  = UTxPeel cx (mapNP stiff px)
-  where
-    stiff :: NA ki (Fix ki codes) at -> UTx ki codes f at
-    stiff (NA_K k) = UTxOpq k
-    stiff (NA_I i) = utxStiff i
+utxStiff :: NA ki (Fix ki codes) at -> UTx ki codes f at
+utxStiff (NA_I x) = case sop (unFix x) of
+  Tag cx px -> UTxPeel cx (mapNP utxStiff px)
+utxStiff (NA_K k) = UTxOpq k
+
+-- |Reduces a treefix back to a tree
+utxUnstiffM :: (Monad m)
+           => (forall ix . f ix -> m (NA ki (Fix ki codes) ix))
+           -> UTx ki codes f at
+           -> m (NA ki (Fix ki codes) at)
+utxUnstiffM red (UTxHole x)   = red x
+utxUnstiffM _   (UTxOpq  k)   = return (NA_K k)
+utxUnstiffM red (UTxPeel c p) = (NA_I . Fix . inj c) <$> mapNPM (utxUnstiffM red) p
 
 -- |Pretty-prints a treefix using a specific function to
 --  print holes.
