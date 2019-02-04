@@ -7,11 +7,10 @@
   Software Version Control Systems are an essential tool in the 
 belt of today's software engineer. At their core is a
 differencing algorithm that computes patches between two versions of a file, 
-the most well-known is the UNIX \texttt{diff}~\cite{McIlroy1976}.
-Being a line-based tool, ie, look at changes
-on the granularity of the \emph{line}, it fails
-to identify more fine grained changes in software source code. As a result,
-we see a significant effor being spent in conflict resolution. 
+the most well-known being the UNIX \texttt{diff}~\cite{McIlroy1976}.
+It is a line-based tool, ie, look at changes
+on the level of the \emph{lines} of a file, hence, it fails
+to identify more fine grained changes in software source code. 
 
   Let us take a step back and introduce the differencing problem
 abstractly. The well-typed differencing problem consists in finding a
