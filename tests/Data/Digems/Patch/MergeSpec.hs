@@ -1,8 +1,8 @@
-{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-module Data.Digems.Diff.MergeSpec (spec) where
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE GADTs            #-}
+module Data.Digems.Patch.MergeSpec (spec) where
 
 import qualified Data.Set as S
 
@@ -10,11 +10,12 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Treefix
 
-import Data.Digems.Diff
+import Data.Digems.Patch
+import Data.Digems.Patch.Diff
+import Data.Digems.Patch.Show
+import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
 import Data.Digems.Change
-import Data.Digems.Diff.Merge
-import Data.Digems.Diff.Show
 import Languages.RTree
 
 import Test.QuickCheck

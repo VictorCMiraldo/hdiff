@@ -4,7 +4,7 @@
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE PolyKinds     #-}
 {-# LANGUAGE GADTs         #-}
-module Data.Digems.Diff.Merge where
+module Data.Digems.Patch.Merge where
 
 import Data.Proxy
 import Data.Type.Equality
@@ -25,8 +25,8 @@ import Generics.MRSOP.Digems.Treefix
 import Generics.MRSOP.Digems.Digest
 
 import qualified Data.WordTrie as T
-import Data.Digems.Diff.Preprocess
-import Data.Digems.Diff
+import Data.Digems.Patch.Preprocess
+import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Change.Apply
 import Data.Digems.MetaVar

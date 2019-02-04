@@ -28,9 +28,9 @@ import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Renderer
 
 import qualified Data.WordTrie as T
-import Data.Digems.Diff.Preprocess
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.Show
+import Data.Digems.Patch.Preprocess
+import Data.Digems.Patch.Diff
+import Data.Digems.Patch.Show
 
 import Languages.While
 
