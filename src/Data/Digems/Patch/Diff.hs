@@ -114,52 +114,76 @@ extractSpine :: forall ki codes ix
              -> UTx ki codes MetaVarI (I ix)
              -> UTx ki codes MetaVarI (I ix)
              -> UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) (I ix)
-extractSpine i dx dy = utxMap (uncurry' go) $ utxLCP dx dy
+extractSpine i dx dy
+  = utxMap (uncurry' go)
+  $ flip evalState i . utxRefineM (return . UTxHole . tr) opqCopy
+  $ utxLCP dx dy
   where
-    go :: UTx ki codes MetaVarI at
-       -> UTx ki codes MetaVarI at
+    go :: UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (MetaVarIK ki) at
        -> Sum (OChange ki codes) (CChange ki codes) at
     -- precond utx and uty are different
     go utx uty = let vx = utxGetHolesWith Exists utx
                      vy = utxGetHolesWith Exists uty
-                     evx = toEx vx
-                     evy = toEx vy
-                  in if vy `S.isSubsetOf` vx
-                     then InR $ CMatch evx (tr utx) (tr uty)
-                     else InL $ OMatch evx (toEx $ S.difference vy vx) (tr utx) (tr uty)
+                  in if vx == vy
+                     then InR $ CMatch vx utx uty
+                     else InL $ OMatch vx vy utx uty
     
-    tr :: UTx ki codes MetaVarI at
-       -> UTx ki codes (MetaVarIK ki) at
-    tr = utxMap (\(ForceI x) -> NA_I x)
+    compl a b = S.union (S.difference a b) (S.difference b a)
+
+    tr1 :: UTx ki codes MetaVarI  at
+        -> UTx ki codes (MetaVarIK ki) at
+    tr1 = utxMap (\(ForceI x) -> NA_I x)
+
+    opqCopy :: ki k
+            -> State Int (UTx ki codes (UTx ki codes (MetaVarIK ki)
+                                    :*: UTx ki codes (MetaVarIK ki))
+                         (K k))
+    opqCopy ki = do
+      i <- get
+      put (i+1)
+      let ann = NA_K . Annotate i $ ki
+      return $ UTxHole (UTxHole ann :*: UTxHole ann)
+
+    tr :: (UTx ki codes MetaVarI       :*: UTx ki codes MetaVarI)       at
+       -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
+    tr (x :*: y) = (tr1 x :*: tr1 y)
 
     toEx :: S.Set (Exists MetaVarI) -> S.Set (Exists (MetaVarIK ki))
     toEx = S.map (\(Exists (ForceI x)) -> Exists $ NA_I x)
 
 
+
 -- |Combines changes until they are closed
-closure :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
-        -> Sum (OChange ki codes) (UTx ki codes (CChange ki codes)) at
-closure (UTxOpq k)         = InR $ UTxOpq k
-closure (UTxHole (InL oc)) = InL oc
-closure (UTxHole (InR cc)) = InR $ UTxHole cc
--- There is some magic going on here. First we compute
--- the recursive closures and check whether any of them is open.
--- If not, we are done.
--- Otherwise, we apply a bunch of "monad distributive properties" around.
-closure (UTxPeel cx dx)
-  = let aux = mapNP closure dx
-     in case mapNPM fromInR aux of
-          Just np -> InR $ UTxPeel cx np
-          Nothing -> let chgs = mapNP (either' InL (InR . distrCChange)) aux
-                         dels = mapNP (either' oCtxDel cCtxDel) chgs
-                         inss = mapNP (either' oCtxIns cCtxIns) chgs
-                         fvs  = S.unions $ elimNP (either'' oCtxFree (const $ S.empty)) chgs 
-                         bvs  = S.unions $ elimNP (either'' oCtxVars cCtxVars) chgs
-                         fvs' = S.difference fvs bvs
-                      in if S.null fvs'
-                         then InR (UTxHole $ CMatch bvs (UTxPeel cx dels) (UTxPeel cx inss))
-                         else InL (OMatch bvs fvs' (UTxPeel cx dels) (UTxPeel cx inss))
+close :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
+      -> UTx ki codes (CChange ki codes) at
+close utx = case closure utx of
+              InR cc -> cc
+              InL (OMatch used unused del ins)
+                -> UTxHole $ CMatch (S.union used unused) del ins
   where
+    closure :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
+            -> Sum (OChange ki codes) (UTx ki codes (CChange ki codes)) at
+    closure (UTxOpq k)         = InR $ UTxOpq k
+    closure (UTxHole (InL oc)) = InL oc
+    closure (UTxHole (InR cc)) = InR $ UTxHole cc
+    -- There is some magic going on here. First we compute
+    -- the recursive closures and check whether any of them is open.
+    -- If not, we are done.
+    -- Otherwise, we apply a bunch of "monad distributive properties" around.
+    closure (UTxPeel cx dx)
+      = let aux = mapNP closure dx
+         in case mapNPM fromInR aux of
+              Just np -> InR $ UTxPeel cx np
+              Nothing -> let chgs = mapNP (either' InL (InR . distrCChange)) aux
+                             dels = mapNP (either' oCtxDel cCtxDel) chgs
+                             inss = mapNP (either' oCtxIns cCtxIns) chgs
+                             vx   = S.unions $ elimNP (either'' oCtxVDel cCtxVars) chgs 
+                             vy   = S.unions $ elimNP (either'' oCtxVIns cCtxVars) chgs
+                          in if vx == vy
+                             then InR (UTxHole $ CMatch vx (UTxPeel cx dels) (UTxPeel cx inss))
+                             else InL (OMatch vx vy (UTxPeel cx dels) (UTxPeel cx inss))
+
     -- TODO: refactor this to Util
     either' :: (f x -> a x) -> (g x -> a x) -> Sum f g x -> a x
     either' l r (InL x) = l x
@@ -171,8 +195,6 @@ closure (UTxPeel cx dx)
     fromInR :: Sum f g x -> Maybe (g x)
     fromInR (InL _) = Nothing
     fromInR (InR x) = Just x
-    
-
 
 -- |Diffs two generic merkelized structures.
 --  The outline of the process is:
@@ -200,21 +222,10 @@ diff mh x y
                   utxGetHolesWith unForceI' ins'
         ins     = utxRefine (refineHole holes) UTxOpq ins'
         del     = utxRefine (refineHole holes) UTxOpq del'
-     in case closure (extractSpine i del ins) of
-          -- TODO: prove in agda this is unreachable
-          InL oc -> error "There are open changes"
-          InR cc -> flip evalState i
-                  $ utxRefineM (return . UTxHole) opqCopy cc
+     in close (extractSpine i del ins)
   where
     unForceI' :: ForceI (Const Int :*: x) at -> Int
     unForceI' (ForceI (Const i :*: _)) = i
-
-    opqCopy :: ki k
-            -> State Int (UTx ki codes (CChange ki codes) (K k))
-    opqCopy ki = do
-      i <- get
-      put (i+1)
-      return . UTxHole . changeCopy . NA_K . Annotate i $ ki
 
     -- Given a set of holes that show up in both the insertion
     -- and deletion treefixes, we traverse a treefix and keep only

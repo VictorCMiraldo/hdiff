@@ -31,7 +31,7 @@ diff_wellscoped_changes = forAll genSimilarTrees' $ \(t1 , t2)
       = let vd = utxGetHolesWith metavarGet del
             vi = utxGetHolesWith metavarGet ins
             v  = S.map metavarIK2Int vars
-         in v === vd .&&. property (vi `S.isSubsetOf` v)
+         in v === vd .&&. vi === v
 
 apply_correctness :: Property
 apply_correctness = forAll genSimilarTrees' $ \(t1 , t2)

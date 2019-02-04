@@ -118,12 +118,15 @@ distrCChange = naiveDistr -- . alphaRenameChanges
        in CMatch vars del ins
 
 data ChangeClass
-  = CPerm | CMod | CIns | CDel
+  = CPerm | CMod | CId | CIns | CDel
   deriving (Eq , Show)
 
+{-
 -- |Change classification
 changeClassify :: (Eq1 ki) => CChange ki codes at -> ChangeClass
-changeClassify c =
+changeClassify c
+  | isCpy c   = CId
+  | otherwise =
   let holes    = utxGetHolesWith' Exists (utxLCP (cCtxDel c) (cCtxIns c))
    in classify' [] holes
   where
@@ -154,14 +157,34 @@ changeClassify c =
           else classify' cs holes
         -- If we see two terms, it's a modification
         (_ :*: _) -> CMod
+-}
+
+changeClassify :: (Show1 ki , Eq1 ki) => CChange ki codes at -> ChangeClass
+changeClassify c
+  | isCpy c   = CId
+  | otherwise =
+  let mi = utxMultiplicity 0 (cCtxIns c)
+      md = utxMultiplicity 0 (cCtxDel c)
+      vi = utxGetHolesWith' metavarGet (cCtxIns c)
+      vd = utxGetHolesWith' metavarGet (cCtxDel c)
+      permutes = nub vi /= nub vd
+      nodups   = vi == nub vi && vd == nub vd
+   in if permutes 
+      then CPerm
+      else case (mi , md) of
+             (0 , 0) -> error "should be unreachable" -- CPerm
+             (0 , _) -> CDel
+             (_ , 0) -> CIns
+             (_ , _) -> CMod
+
 
 
 -- |A 'OChange', or, open change, is analogous to a 'CChange',
 --  but has a list of free variables. These are the ones that appear
 --  in 'oCtxIns' but not in 'oCtxDel'
 data OChange ki codes at where
-  OMatch :: { oCtxVars :: S.Set (Exists (MetaVarIK ki))
-            , oCtxFree :: S.Set (Exists (MetaVarIK ki))
+  OMatch :: { oCtxVDel :: S.Set (Exists (MetaVarIK ki))
+            , oCtxVIns :: S.Set (Exists (MetaVarIK ki))
             , oCtxDel  :: UTx ki codes (MetaVarIK ki) at 
             , oCtxIns  :: UTx ki codes (MetaVarIK ki) at }
          -> OChange ki codes at
