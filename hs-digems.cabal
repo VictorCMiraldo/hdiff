@@ -75,6 +75,7 @@ test-suite tests
   main-is:       Spec.hs
   other-modules: Data.Digems.Patch.DiffSpec
                , Data.Digems.Patch.MergeSpec
+               , Data.Digems.ChangeSpec
   build-depends: base >= 4.10 && <5
                , hs-digems
                , generics-mrsop
