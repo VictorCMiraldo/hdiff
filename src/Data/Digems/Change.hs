@@ -11,12 +11,13 @@ import           Control.Monad.State
 import           Data.Functor.Const
 import qualified Data.Map as M
 import qualified Data.Set as S
-import           Data.List (nub)
+import           Data.List (nub, sortBy)
 import           Data.Type.Equality
 ----------------------------------------
 import           Generics.MRSOP.Util
 import           Generics.MRSOP.Base
 ----------------------------------------
+import           Data.Exists
 import           Data.Digems.MetaVar
 import           Generics.MRSOP.Digems.Treefix
 
@@ -116,68 +117,6 @@ distrCChange = naiveDistr -- . alphaRenameChanges
           del  = utxJoin $ utxMap cCtxDel utx
           ins  = utxJoin $ utxMap cCtxIns utx
        in CMatch vars del ins
-
-data ChangeClass
-  = CPerm | CMod | CId | CIns | CDel
-  deriving (Eq , Show)
-
-{-
--- |Change classification
-changeClassify :: (Eq1 ki) => CChange ki codes at -> ChangeClass
-changeClassify c
-  | isCpy c   = CId
-  | otherwise =
-  let holes    = utxGetHolesWith' Exists (utxLCP (cCtxDel c) (cCtxIns c))
-   in classify' [] holes
-  where
-    classify' :: [ChangeClass] -- possible classes so far 
-              -> [Exists (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki))]
-              -> ChangeClass
-    -- We are done seeing the holes, there's only one possible classification
-    classify' [x] [] = x
-    classify' _   [] = CMod
-    classify' cs (Exists hole : holes) =
-      case hole of
-        -- if the two vars are different, there's a permutation.
-        -- Don't forget we assume that all bindings that are defined
-        -- are used and vice-versa
-        (UTxHole var1 :*: UTxHole var2) 
-          | metavarGet var1 /= metavarGet var2 -> classify' (nub (CPerm : cs)) holes
-          | otherwise -> classify' cs holes
-        -- If we see a variable and a term, but the variable occurs
-        -- within the term, this could be an insertion
-        (UTxHole var1 :*: term2) ->
-          if metavarGet var1 `elem` utxGetHolesWith metavarGet term2
-          then classify' (nub (CIns : cs)) holes
-          else classify' cs holes
-        -- Dually, this could be a deletion
-        (term1 :*: UTxHole var2) ->
-          if metavarGet var2 `elem` utxGetHolesWith metavarGet term1
-          then classify' (nub (CDel : cs)) holes
-          else classify' cs holes
-        -- If we see two terms, it's a modification
-        (_ :*: _) -> CMod
--}
-
-changeClassify :: (Show1 ki , Eq1 ki) => CChange ki codes at -> ChangeClass
-changeClassify c
-  | isCpy c   = CId
-  | otherwise =
-  let mi = utxMultiplicity 0 (cCtxIns c)
-      md = utxMultiplicity 0 (cCtxDel c)
-      vi = utxGetHolesWith' metavarGet (cCtxIns c)
-      vd = utxGetHolesWith' metavarGet (cCtxDel c)
-      permutes = nub vi /= nub vd
-      nodups   = vi == nub vi && vd == nub vd
-   in if permutes 
-      then CPerm
-      else case (mi , md) of
-             (0 , 0) -> error "should be unreachable" -- CPerm
-             (0 , _) -> CDel
-             (_ , 0) -> CIns
-             (_ , _) -> CMod
-
-
 
 -- |A 'OChange', or, open change, is analogous to a 'CChange',
 --  but has a list of free variables. These are the ones that appear

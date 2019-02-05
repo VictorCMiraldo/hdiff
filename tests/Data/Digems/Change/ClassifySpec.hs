@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
-module Data.Digems.ChangeSpec (spec) where
+module Data.Digems.Change.ClassifySpec (spec) where
 
 import qualified Data.Set as S
 
@@ -10,11 +10,13 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Treefix
 
+import Data.Exists
 import Data.Digems.Patch
 import Data.Digems.Patch.Diff
 import Data.Digems.Patch.Show
 import Data.Digems.MetaVar
 import Data.Digems.Change
+import Data.Digems.Change.Classify
 import Languages.RTree
 
 import Test.QuickCheck

@@ -20,9 +20,11 @@ import Control.Monad.Identity
 import Control.Monad.State
 
 import qualified Data.Text.Prettyprint.Doc as PP
-
+--------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+--------------------------------
+import Data.Exists
 import Generics.MRSOP.Digems.Renderer
 
 -- * Generic Treefixes
@@ -273,3 +275,4 @@ instance (UTxTestEqualityCnstr ki f)
   testEquality x@(UTxPeel _ _) y@(UTxPeel _ _)
     = do Refl <- testEquality (getUTxSNat x) (getUTxSNat y)
          return Refl
+

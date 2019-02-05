@@ -17,6 +17,7 @@ import           Generics.MRSOP.Base
 import           Generics.MRSOP.Digems.Treefix
 import           Generics.MRSOP.Digems.Digest
 
+import           Data.Exists
 import qualified Data.WordTrie as T
 import           Data.Digems.Patch
 import           Data.Digems.Patch.Preprocess

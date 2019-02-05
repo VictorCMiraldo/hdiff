@@ -24,11 +24,13 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Treefix
 import Generics.MRSOP.Digems.Digest
 
+import Data.Exists
 import qualified Data.WordTrie as T
 import Data.Digems.Patch.Preprocess
 import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Change.Apply
+import Data.Digems.Change.Classify
 import Data.Digems.MetaVar
 
 import Debug.Trace
@@ -70,7 +72,7 @@ getConflicts = snd . runWriter . utxMapM go
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
-(//) :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+(//) :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes , Ord1 ki
         , UTxTestEqualityCnstr ki (CChange ki codes))
      => Patch ki codes ix
      -> Patch ki codes ix
@@ -82,7 +84,7 @@ p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 --
 --  Precondition: before calling @reconcile p q@, make sure
 --                @p@ and @q@ are different.
-reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes , Ord1 ki
              , UTxTestEqualityCnstr ki (CChange ki codes))
           => RawPatch ki codes at
           -> RawPatch ki codes at
@@ -269,7 +271,7 @@ t a = trace (show a) a
 --  We do so by /"applying"/ @cq@ on both of those. This application
 --  is done by instantiating the variables of the pattern of @cq@
 --  and substituting in the expression of @cq@.
-mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes , Ord1 ki
                  , UTxTestEqualityCnstr ki (CChange ki codes))
               => CChange ki codes at -- ^ @cp@
               -> CChange ki codes at -- ^ @cq@

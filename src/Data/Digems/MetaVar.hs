@@ -13,9 +13,11 @@ module Data.Digems.MetaVar where
 import Data.Function (on)
 import Data.Functor.Const
 import Data.Type.Equality
-
+--------------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+--------------------------------------
+import Data.Exists
 import Generics.MRSOP.Digems.Treefix
 
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
@@ -82,15 +84,6 @@ instance HasIKProjInj ki (MetaVarIK ki) where
   varProj _ _        = Nothing
 
 -- * Existential MetaVars
-
-data Exists (f :: k -> *) :: * where
-  Exists :: f x -> Exists f
-
-exMap :: (forall x . f x -> g x) -> Exists f -> Exists g
-exMap f (Exists x) = Exists (f x)
-
-exElim :: (forall x . f x -> a) -> Exists f -> a
-exElim f (Exists x) = f x
 
 -- |Retrieves the int inside a existential 'MetaVarIK'
 metavarIK2Int :: Exists (MetaVarIK ki) -> Int

@@ -20,6 +20,7 @@ library
                  ,     Data.Digems.MetaVar
                  ,     Data.Digems.Change
                  ,     Data.Digems.Change.Apply
+                 ,     Data.Digems.Change.Classify
                  ,     Data.Digems.Patch
                  ,     Data.Digems.Patch.Diff
                  ,     Data.Digems.Patch.Merge
@@ -75,7 +76,7 @@ test-suite tests
   main-is:       Spec.hs
   other-modules: Data.Digems.Patch.DiffSpec
                , Data.Digems.Patch.MergeSpec
-               , Data.Digems.ChangeSpec
+               , Data.Digems.Change.ClassifySpec
   build-depends: base >= 4.10 && <5
                , hs-digems
                , generics-mrsop
