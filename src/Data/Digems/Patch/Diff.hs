@@ -111,12 +111,15 @@ extractUTx minHeight tr (AnnFix (Const prep) rep)
     extractAtom (NA_K k) = UTxOpq k
 
 -- |Copy every 'UTxOpq' value in the outermost 'UTx', aka, the spine
-issueOpqCopies :: Int
-               -> PrePatch ki codes MetaVarI ix
-               -> PrePatch ki codes (MetaVarIK ki) ix
-issueOpqCopies i = flip evalState i
-                 . utxRefineM (return . UTxHole . tr)
-                              opqCopy
+issueOpqCopies :: forall ki codes phi at
+                . (forall ix . phi ix -> MetaVarIK ki ix)
+               -> Int
+               -> PrePatch ki codes phi at
+               -> PrePatch ki codes (MetaVarIK ki) at
+issueOpqCopies meta i
+  = flip evalState i
+  . utxRefineM (\(x :*: y) -> return $ UTxHole $ utxMap meta x :*: utxMap meta y)
+               opqCopy
   where
     opqCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) (K k))
     opqCopy ki = do
@@ -125,27 +128,21 @@ issueOpqCopies i = flip evalState i
       let ann = NA_K . Annotate i $ ki
       return $ UTxHole (UTxHole ann :*: UTxHole ann)
 
-    tr1 :: UTx ki codes MetaVarI  at
-        -> UTx ki codes (MetaVarIK ki) at
-    tr1 = utxMap (\(ForceI x) -> NA_I x)
-
-    tr (x :*: y) = (tr1 x :*: tr1 y)
-
-
 -- |Given two treefixes, we will compute the longest path from
 --  the root that they overlap and will factor it out.
 --  This is somehow analogous to a @zipWith@. Moreover, however,
 --  we also copy the opaque values present in the spine by issuing
 --  /"copy"/ changes
-extractSpine :: forall ki codes ix
+extractSpine :: forall ki codes phi at
               . (Eq1 ki)
-             => Int
-             -> UTx ki codes MetaVarI ix
-             -> UTx ki codes MetaVarI ix
-             -> UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) ix
-extractSpine i dx dy
+             => (forall ix . phi ix -> MetaVarIK ki ix)
+             -> Int
+             -> UTx ki codes phi at
+             -> UTx ki codes phi at
+             -> UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
+extractSpine meta i dx dy
   = utxMap (uncurry' go)
-  $ issueOpqCopies i
+  $ issueOpqCopies meta i
   $ utxLCP dx dy
   where
     go :: UTx ki codes (MetaVarIK ki) at
@@ -157,8 +154,6 @@ extractSpine i dx dy
                   in if vx == vy
                      then InR $ CMatch vx utx uty
                      else InL $ OMatch vx vy utx uty
-
-
 
 -- |Combines changes until they are closed
 close :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
@@ -228,7 +223,7 @@ diff mh x y
                   utxGetHolesWith unForceI' ins'
         ins     = utxRefine (refineHole holes) UTxOpq ins'
         del     = utxRefine (refineHole holes) UTxOpq del'
-     in close (extractSpine i del ins)
+     in close (extractSpine metavarI2IK i del ins)
   where
     unForceI' :: ForceI (Const Int :*: x) at -> Int
     unForceI' (ForceI (Const i :*: _)) = i

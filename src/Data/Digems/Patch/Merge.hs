@@ -27,6 +27,7 @@ import Generics.MRSOP.Digems.Digest
 import Data.Exists
 import qualified Data.WordTrie as T
 import Data.Digems.Patch.Preprocess
+import Data.Digems.Patch.Specialize
 import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Change.Apply
@@ -104,12 +105,12 @@ reconcile cp           (UTxHole cq)
                        (UTxHole . InR)
               $ utxTransport cq _ -- (closedChangeDistr (specialize cp (cchangeDomain cq)))
 -}
-  | otherwise = UTxHole $ mergeCChange (distrCChange (specialize cp (cCtxDel cq))) cq
+  | otherwise = UTxHole $ mergeCChange (distrCChange cp) cq
 
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq
   | isCpy cp  = UTxHole $ InR cp
-  | otherwise = UTxHole $ mergeCChange cp (distrCChange (specialize cq (cCtxDel cp)))
+  | otherwise = UTxHole $ mergeCChange cp (distrCChange cq)
 
 -- (iv) Anything else is a conflict; this should be technically
 --      unreachable since both patches were applicable to at least

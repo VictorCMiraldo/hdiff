@@ -94,6 +94,11 @@ metavarIK2Int (Exists (NA_K (Annotate i _))) = i
 metavarI2Int :: Exists MetaVarI -> Int
 metavarI2Int (Exists (ForceI (Const i))) = i
 
+-- |Injects a metavar over recursive positions
+-- into one over opaque types and recursive positions
+metavarI2IK :: MetaVarI ix -> MetaVarIK ki ix
+metavarI2IK (ForceI x) = NA_I x
+
 -- ** Instances over 'Exists'
 
 instance Eq (Exists MetaVarI) where
