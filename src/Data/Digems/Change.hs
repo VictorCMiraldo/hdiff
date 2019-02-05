@@ -32,6 +32,20 @@ data CChange ki codes at where
             , cCtxIns  :: UTx ki codes (MetaVarIK ki) at }
          -> CChange ki codes at
 
+instance (Show1 ki) => Show (CChange ki codes at) where
+  show (CMatch _ del ins)
+    = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
+
+instance HasIKProjInj ki (CChange ki codes) where
+  konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
+  varProj pk (CMatch _ (UTxHole h) _)   = varProj pk h
+  varProj _  (CMatch _ (UTxPeel _ _) _) = Just IsI
+  varProj _  (CMatch _ _ _)             = Nothing
+
+instance (TestEquality ki) => TestEquality (CChange ki codes) where
+  testEquality (CMatch _ x _) (CMatch _ y _)
+    = testEquality x y
+
 -- |Alpha-equality for 'CChange'
 changeEq :: (Eq1 ki) => CChange ki codes at -> CChange ki codes at -> Bool
 changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
@@ -127,18 +141,3 @@ data OChange ki codes at where
             , oCtxDel  :: UTx ki codes (MetaVarIK ki) at 
             , oCtxIns  :: UTx ki codes (MetaVarIK ki) at }
          -> OChange ki codes at
-
-instance (Show1 ki) => Show (CChange ki codes at) where
-  show (CMatch _ del ins)
-    = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
-
-instance HasIKProjInj ki (CChange ki codes) where
-  konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
-  varProj pk (CMatch _ (UTxHole h) _)   = varProj pk h
-  varProj _  (CMatch _ (UTxPeel _ _) _) = Just IsI
-  varProj _  (CMatch _ _ _)             = Nothing
-
-instance (TestEquality ki) => TestEquality (CChange ki codes) where
-  testEquality (CMatch _ x _) (CMatch _ y _)
-    = testEquality x y
-

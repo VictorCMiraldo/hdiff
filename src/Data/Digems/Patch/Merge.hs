@@ -104,7 +104,7 @@ reconcile cp           (UTxHole cq)
                        (UTxHole . InR)
               $ utxTransport cq _ -- (closedChangeDistr (specialize cp (cchangeDomain cq)))
 -}
-  | otherwise = UTxHole $ mergeCChange (distrCChange (specialize cp (cchangeDomain cq))) cq
+  | otherwise = UTxHole $ mergeCChange (distrCChange (specialize cp (cCtxDel cq))) cq
 
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq
@@ -116,69 +116,7 @@ reconcile (UTxHole cp) cq
 --      one common element; hence the spines can't disagree other than
 --      on the placement of the holes.
 reconcile cp cq = error "unreachable"
-
-isIns :: (Eq1 ki) => CChange ki codes ix -> Bool
-isIns chg =
-  let vd = utxGetHolesWith' metavarGet (cCtxDel chg)
-      vi = utxGetHolesWith' metavarGet (cCtxIns chg)
-   in length vd == 1 && vd == vi && isHole (cCtxDel chg)
-      && not (isCpy chg)
-  where
-    isHole (UTxHole _) = True
-    isHole _           = False
-
-isDel :: (Eq1 ki) => CChange ki codes ix -> Bool
-isDel (CMatch vars del ins) = isIns (CMatch vars ins del)
-
-spineIsInsertion :: (Eq1 ki) => UTx ki codes (CChange ki codes) ix -> Bool
-spineIsInsertion = all (exElim (\c -> isCpy c || isIns c))
-                 . utxGetHolesWith' Exists
-
-type Domain ki codes = UTx ki codes (MetaVarIK ki)
-
-cchangeDomain :: CChange ki codes at -> Domain ki codes at
-cchangeDomain = cCtxDel
-
-maxVar :: RawPatch ki codes at -> Int
-maxVar = flip execState 0 . utxMapM localMax
-  where
-    localMax r@(CMatch vars _ _)
-      = let m = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
-         in modify (max m) >> return r
-
--- |Specializing will attempt to adjust a spine with changes to be properly
--- adapted by a change.
-specialize :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-             , UTxTestEqualityCnstr ki (CChange ki codes))
-           => RawPatch ki codes at
-           -> Domain   ki codes at
-           -> RawPatch ki codes at
-specialize spine cc
-  = utxRefine (uncurry' go) UTxOpq $ utxLCP spine cc
-  where
-    vmax = maxVar spine
-
-    go :: (Eq1 ki , Show1 ki , TestEquality ki)
-       => UTx ki codes (CChange ki codes) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (CChange ki codes) at
-    go (UTxHole c1) (UTxHole _) = UTxHole c1
-    go (UTxHole c1) c2
-      | isCpy c1 || isIns c1 =
-        -- lemma: transporting over insertions or copies never fails
-        let Right res = genericApply c1 c2
-            del = utxMap (metavarAdd vmax) c2
-            ins = utxMap (metavarAdd vmax) res
-         -- problem: we should be either returning the GCP of del ins
-         -- or modify the transport function to allow it to match
-         -- Just using:  UTxHole $ CMatch S.empty del ins
-         -- does not cut it
-         in UTxHole (CMatch S.empty del ins) --  utxMap (uncurry' (CMatch S.empty)) $ utxLCP del ins
-          -- UTxHole $ _ $ utxTransport c1 c2 -- _ -- utxMap (changeCopy . metavarAdd vmax) c2
-      | otherwise = UTxHole c1
-    go sp _ = sp
-
-    
+   
 type ConflictClass = (ChangeClass , ChangeClass)
 
 -- FIXME:

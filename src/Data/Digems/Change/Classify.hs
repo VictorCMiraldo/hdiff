@@ -78,33 +78,49 @@ data ChangeClass
   = CPerm | CMod | CId | CIns | CDel
   deriving (Eq , Show)
 
-changeClassify :: (Show1 ki , Eq1 ki , Ord1 ki, TestEquality ki)
+changeClassify :: (Eq1 ki , TestEquality ki)
                => CChange ki codes at -> ChangeClass
 changeClassify c
   | isCpy c   = CId
   | otherwise =
-  let -- mi = utxMultiplicity 0 (cCtxIns c)
-      -- md = utxMultiplicity 0 (cCtxDel c)
-      mis  = utxGetMultiplicities 0 (cCtxIns c)
-      mds  = utxGetMultiplicities 0 (cCtxDel c)
-      vi   = utxGetHolesWith' metavarGet (cCtxIns c)
-      vd   = utxGetHolesWith' metavarGet (cCtxDel c)
-      dups = vi /= nub vi || vd /= nub vd
-      perm = mis /= mds && sort mis == sort mds
+  let mis = utxGetMultiplicities 0 (cCtxIns c)
+      mds = utxGetMultiplicities 0 (cCtxDel c)
+      vi = utxGetHolesWith' metavarGet (cCtxIns c)
+      vd = utxGetHolesWith' metavarGet (cCtxDel c)
+      permutes = vi == vd
+      dups     = vi /= nub vi || vd /= nub vd
    in case (length mis , length mds) of
-        (0 , 0) -> CPerm -- could it be a duplication? 
-        (0 , _) -> if dups then CMod else CDel
-        (_ , 0) -> if dups then CMod else CIns
-        (_ , _) -> if perm then CPerm else CMod
+        (0 , 0) -> CPerm -- can't duplicate as one variable on one side would
+                         -- be left unused; Can't have that so a tree with
+                         -- multiplicity 0 would be there
+        (0 , _) -> if dups       then CMod else CDel
+        (_ , 0) -> if dups       then CMod else CIns
+        (_ , _) -> if mis == mds then CPerm else CMod
+
+isIns , isDel :: (TestEquality ki , Eq1 ki) => CChange ki codes ix -> Bool
+isIns c = changeClassify c == CIns
+isDel c = changeClassify c == CDel
+
+-- OLD COLD CODE BELOW HERE!! READ AT OWN RISK
 
 {-
-   in if permutes 
-      then CPerm
-      else case (mi , md) of
-             (0 , 0) -> error "should be unreachable" -- CPerm
-             (0 , _) -> CDel
-             (_ , 0) -> CIns
-             (_ , _) -> CMod
+isIns chg =
+  let vd = utxGetHolesWith' metavarGet (cCtxDel chg)
+      vi = utxGetHolesWith' metavarGet (cCtxIns chg)
+   in length vd == 1 && vd == vi && isHole (cCtxDel chg)
+      && not (isCpy chg)
+  where
+    isHole (UTxHole _) = True
+    isHole _           = False
+
+isDel :: (Eq1 ki) => CChange ki codes ix -> Bool
+isDel (CMatch vars del ins) = isIns (CMatch vars ins del)
+
+spineIsInsertion :: (Eq1 ki) => UTx ki codes (CChange ki codes) ix -> Bool
+spineIsInsertion = all (exElim (\c -> isCpy c || isIns c))
+                 . utxGetHolesWith' Exists
+
+
 -}
 {-
 changeClassify :: (Eq1 ki) => CChange ki codes at -> ChangeClass

@@ -275,4 +275,6 @@ instance (UTxTestEqualityCnstr ki f)
   testEquality x@(UTxPeel _ _) y@(UTxPeel _ _)
     = do Refl <- testEquality (getUTxSNat x) (getUTxSNat y)
          return Refl
+  testEquality (UTxOpq _) (UTxPeel _ _) = Nothing
+  testEquality (UTxPeel _ _) (UTxOpq _) = Nothing
 
