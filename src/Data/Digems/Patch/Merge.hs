@@ -109,7 +109,7 @@ reconcile cp           (UTxHole cq)
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq
   | isCpy cp  = UTxHole $ InR cp
-  | otherwise = UTxHole $ mergeCChange cp (distrCChange cq)
+  | otherwise = UTxHole $ mergeCChange cp (distrCChange (specialize cq (cCtxDel cp)))
 
 -- (iv) Anything else is a conflict; this should be technically
 --      unreachable since both patches were applicable to at least
@@ -119,86 +119,6 @@ reconcile cp cq = error "unreachable"
    
 type ConflictClass = (ChangeClass , ChangeClass)
 
--- FIXME:
---
--- I can make this functions' life a nightmare with a patch
--- such as:
---
---  (\ (Bin (Bin x y) z -> Bin (Bin y x) (Bin Leaf z))
---
---  Multiplicity on the left is 0, on the right is 1 but
---  there is a structural change.
---
--- I can get around that by taking the @txGCP (cCtxDel c) (cCtxIns c)@ and
--- getting the list of holes, which contains a pair of |Tx|. If I have something other than
--- holes on the left, it means we delete data. If I have something other than holes
--- on the right I insert data.
---
-
-{-
-changeClassify :: (Eq1 ki) => CChange ki codes at -> ChangeClass
-changeClassify c =
-  let holes    = utxGetHolesWith' Exists (utxLCP (cCtxDel c) (cCtxIns c))
-   in classify' [] holes
-  where
-    classify' :: [ChangeClass] -- possible classes so far 
-              -> [Exists (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki))]
-              -> ChangeClass
-    -- We are done seeing the holes, there's only one possible classification
-    classify' [x] [] = x
-    classify' _   [] = CMod
-    classify' cs (Exists hole : holes) =
-      case hole of
-        -- if the two vars are different, there's a permutation.
-        -- Don't forget we assume that all bindings that are defined
-        -- are used and vice-versa
-        (UTxHole var1 :*: UTxHole var2) 
-          | metavarGet var1 /= metavarGet var2 -> classify' (nub (CPerm : cs)) holes
-          | otherwise -> classify' cs holes
-        -- If we see a variable and a term, but the variable occurs
-        -- within the term, this could be an insertion
-        (UTxHole var1 :*: term2) ->
-          if metavarGet var1 `elem` utxGetHolesWith metavarGet term2
-          then classify' (nub (CIns : cs)) holes
-          else classify' cs holes
-        -- Dually, this could be a deletion
-        (term1 :*: UTxHole var2) ->
-          if metavarGet var2 `elem` utxGetHolesWith metavarGet term1
-          then classify' (nub (CDel : cs)) holes
-          else classify' cs holes
-        -- If we see two terms, it's a modification
-        (_ :*: _) -> CMod
--}
-
-{-
-changeClassify :: CChange ki codes at -> ChangeClass
-changeClassify c =
-  let mi = utxMultiplicity 0 (cCtxIns c)
-      md = utxMultiplicity 0 (cCtxDel c)
-   in case (mi , md) of
-    (0 , 0) -> CMod
-    (0 , _) -> CIns
-    (_ , 0) -> CDel
-    (_ , _) -> CMod
--}
-{-
-changeClassify :: (Show1 ki , Eq1 ki) => CChange ki codes at -> ChangeClass
-changeClassify c =
-  let mi = utxMultiplicity 0 (cCtxIns c)
-      md = utxMultiplicity 0 (cCtxDel c)
-      vi = utxGetHolesWith' metavarGet (cCtxIns c)
-      vd = utxGetHolesWith' metavarGet (cCtxDel c)
-      permutes = nub vi /= nub vd
-      nodups   = vi == nub vi && vd == nub vd
-   in if permutes 
-      then CPerm
-      else case (mi , md) of
-             (0 , 0) -> error "should be unreachable" -- CPerm
-             (0 , _) -> CDel
-             (_ , 0) -> CIns
-             (_ , _) -> CMod
-
--}
 t :: Show a => a -> a
 t a = trace (show a) a
 
@@ -216,13 +136,7 @@ mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes , Ord1 ki
               -> Sum (Conflict ki codes) (CChange ki codes) at
 mergeCChange cp cq =
   let cclass = (changeClassify cp , changeClassify cq)
-   in case (isIns cp , isDel cq) of
-      (True  , True)  -> inj cclass $ adapt cp cq
-      (True  , False) -> InR cp
-      (False , _)     -> inj cclass $ adapt cp cq
-
-    {-
-      case cclass of
+   in case cclass of
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
@@ -233,7 +147,6 @@ mergeCChange cp cq =
         (CIns , _)     -> InR cp
 
         _              -> inj cclass $ adapt cp cq
--}
 {-
         (CPerm , CPerm) -> inj cclass $ adapt cp cq
         (CMod   , CMod) -> inj cclass $ adapt cp cq
@@ -247,7 +160,6 @@ mergeCChange cp cq =
         (CMod  , CDel)  -> inj cclass $ adapt cp cq
 -}
 {-
-
         (CIns , CIns) -> InL (Conflict cclass cp cq)
         (CDel , CDel) -> InL (Conflict cclass cp cq)
 
