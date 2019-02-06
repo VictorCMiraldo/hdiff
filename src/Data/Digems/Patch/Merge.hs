@@ -28,10 +28,11 @@ import Generics.MRSOP.Digems.Digest
 import Data.Exists
 import qualified Data.WordTrie as T
 import Data.Digems.Patch
+import Data.Digems.Patch.Specialize
 import Data.Digems.Change
 import Data.Digems.Change.Apply
 import Data.Digems.Change.Classify
-import Data.Digems.Change.Specialize
+-- import Data.Digems.Change.Specialize
 import Data.Digems.MetaVar
 
 import Debug.Trace
@@ -93,8 +94,8 @@ reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
 reconcile p q
   | encompases p q = utxMap InR p
   | otherwise      =
-    let cp = distrCChange p
-        cq = distrCChange q
+    let cq = distrCChange q
+        cp = distrCChange (specialize p (cCtxDel cq))
      in UTxHole
       $ if changeEq cp cq
         then InR (makeCopyFrom cp)
@@ -147,19 +148,40 @@ encompases :: (Show1 ki , Eq1 ki , TestEquality ki)
            -> Bool
 encompases p q = and $ utxGetHolesWith' getConst
                $ utxMap (uncurry' go) $ utxLCP p q
-  where
-    go :: (Show1 ki , Eq1 ki , TestEquality ki)
-       => RawPatch ki codes at
-       -> RawPatch ki codes at
-       -> Const Bool at
+
+applicableTo :: (Show1 ki , Eq1 ki , TestEquality ki)
+             => CChange ki codes at
+             -> UTx ki codes (MetaVarIK ki) at
+             -> Const Bool at
+applicableTo cp qI
+   = either (const $ trace "3" $ Const False) (const $ Const True)
+   $ genericApply cp qI
+
+go :: (Show1 ki , Eq1 ki , TestEquality ki)
+   => RawPatch ki codes at
+   -> RawPatch ki codes at
+   -> Const Bool at
+go p q
+  | and (utxGetHolesWith' isCpy q)
+  = trace (show $ distrCChange q) $ Const True
+  | otherwise =
+    let cp = distrCChange p
+        q' = specialize q (cCtxDel cp)
+     in applicableTo cp (cCtxIns (distrCChange q'))
+{-
+    go (UTxHole cp) (UTxHole cq)
+      | isCpy cq      = Const True
+      | otherwise     = applicableTo cp (cCtxIns cq)
+    -- todo: specialize q's spine!
+    go (UTxHole cp) q
+      = let q' = specialize q (cCtxDel cp)
+         in applicableTo cp (cCtxIns (distrCChange q'))
     go p (UTxHole cq)
       | isCpy cq  = Const True
-      | otherwise = Const False
-    go (UTxHole cp) q =
-      let qI = cCtxIns (distrCChange q)
-       in either (const $ Const False) (const $ Const True)
-        $ genericApply cp qI
-    go _ _ = Const False
+      | otherwise = trace (show (distrCChange p) ++ ";;;" ++ show cq)
+                  $ Const False
+    go _ _ = trace "5" $ Const False
+-}
 
 specializeAndApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
                       , UTxTestEqualityCnstr ki (CChange ki codes))
@@ -170,7 +192,7 @@ specializeAndApply cp' cq = do
     -- cp'  <- specialize cp (domain cq) 
     resD <- genericApply cq (cCtxDel cp')
     resI <- genericApply cq (cCtxIns cp')
-    return $ cmatch resD resI
+    return $ CMatch S.empty resD resI
 
 {-
 
