@@ -18,6 +18,7 @@ import Control.Monad
 import Control.Monad.State
 import Control.Monad.Writer hiding (Sum)
 import Control.Monad.Identity
+import Control.Monad.Except
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -26,12 +27,11 @@ import Generics.MRSOP.Digems.Digest
 
 import Data.Exists
 import qualified Data.WordTrie as T
-import Data.Digems.Patch.Preprocess
-import Data.Digems.Patch.Specialize
 import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Change.Apply
 import Data.Digems.Change.Classify
+import Data.Digems.Change.Specialize
 import Data.Digems.MetaVar
 
 import Debug.Trace
@@ -73,7 +73,7 @@ getConflicts = snd . runWriter . utxMapM go
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
-(//) :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes , Ord1 ki
+(//) :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes 
         , UTxTestEqualityCnstr ki (CChange ki codes))
      => Patch ki codes ix
      -> Patch ki codes ix
@@ -85,11 +85,23 @@ p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 --
 --  Precondition: before calling @reconcile p q@, make sure
 --                @p@ and @q@ are different.
-reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes , Ord1 ki
+reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes 
              , UTxTestEqualityCnstr ki (CChange ki codes))
           => RawPatch ki codes at
           -> RawPatch ki codes at
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
+reconcile p q
+  | encompases p q = utxMap InR p
+  | otherwise      =
+    let cp = distrCChange p
+        cq = distrCChange q
+     in UTxHole
+      $ if changeEq cp cq
+        then InR (makeCopyFrom cp)
+        else case specializeAndApply cp cq of
+                    Left  err -> InL (Conflict (show err) cp cq)
+                    Right res -> InR res
+{-
 -- (i) both different patches consist in changes
 reconcile (UTxHole cp) (UTxHole cq)
   | isCpy cp       = UTxHole (InR cp)
@@ -105,7 +117,9 @@ reconcile cp           (UTxHole cq)
                        (UTxHole . InR)
               $ utxTransport cq _ -- (closedChangeDistr (specialize cp (cchangeDomain cq)))
 -}
+{-
   | otherwise = UTxHole $ mergeCChange (distrCChange cp) cq
+-}
 
 -- (iii) We are transporting a change over a spine
 reconcile (UTxHole cp) cq
@@ -117,11 +131,48 @@ reconcile (UTxHole cp) cq
 --      one common element; hence the spines can't disagree other than
 --      on the placement of the holes.
 reconcile cp cq = error "unreachable"
+-}
    
-type ConflictClass = (ChangeClass , ChangeClass)
+type ConflictClass = String
 
 t :: Show a => a -> a
 t a = trace (show a) a
+
+-- lemma: cpy encompasses everything
+-- |The predicate @encompases p q@ checks whether p is immediatly applicable
+-- to the codomain of @q@.
+encompases :: (Show1 ki , Eq1 ki , TestEquality ki)
+           => RawPatch ki codes at
+           -> RawPatch ki codes at
+           -> Bool
+encompases p q = and $ utxGetHolesWith' getConst
+               $ utxMap (uncurry' go) $ utxLCP p q
+  where
+    go :: (Show1 ki , Eq1 ki , TestEquality ki)
+       => RawPatch ki codes at
+       -> RawPatch ki codes at
+       -> Const Bool at
+    go p (UTxHole cq)
+      | isCpy cq  = Const True
+      | otherwise = Const False
+    go (UTxHole cp) q =
+      let qI = cCtxIns (distrCChange q)
+       in either (const $ Const False) (const $ Const True)
+        $ genericApply cp qI
+    go _ _ = Const False
+
+specializeAndApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+                      , UTxTestEqualityCnstr ki (CChange ki codes))
+                   => CChange ki codes at -- ^ @cp@
+                   -> CChange ki codes at -- ^ @cq@
+                   -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
+specializeAndApply cp' cq = do
+    -- cp'  <- specialize cp (domain cq) 
+    resD <- genericApply cq (cCtxDel cp')
+    resI <- genericApply cq (cCtxIns cp')
+    return $ cmatch resD resI
+
+{-
 
 -- |If we are transporting @cp@ over @cq@, we need to adapt
 --  both the pattern and expression of @cp@. Also known as the
@@ -130,7 +181,7 @@ t a = trace (show a) a
 --  We do so by /"applying"/ @cq@ on both of those. This application
 --  is done by instantiating the variables of the pattern of @cq@
 --  and substituting in the expression of @cq@.
-mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes , Ord1 ki
+mergeCChange :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes 
                  , UTxTestEqualityCnstr ki (CChange ki codes))
               => CChange ki codes at -- ^ @cp@
               -> CChange ki codes at -- ^ @cq@
@@ -186,22 +237,37 @@ mergeCChange cp cq =
   where
     inj confclass = either (const $ InL $ Conflict confclass cp cq) InR
     
+    adapt1 :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+              , UTxTestEqualityCnstr ki (CChange ki codes))
+           => CChange ki codes at -- ^ @cp@
+           -> CChange ki codes at -- ^ @cq@
+           -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
+    adapt1 cp cq = do
+        resD <- genericApply cq (cCtxDel cp)
+        resI <- genericApply cq (cCtxIns cp)
+        return $ cmatch resD resI
+
     adapt :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
              , UTxTestEqualityCnstr ki (CChange ki codes))
           => CChange ki codes at -- ^ @cp@
           -> CChange ki codes at -- ^ @cq@
           -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
-    adapt cp cq = 
+    adapt cp cq = adapt1 cp cq
+      `catchError` (\e -> case e of
+        IncompatibleHole _ _ -> specialize cp (domain cq) >>= flip adapt1 cq
+        _                    -> trace (show e) $ throwError e)
+
+      {-
       let resD = genericApply cq (cCtxDel cp)
           resI = genericApply cq (cCtxIns cp)
        in either (\err -> trace (show err) (Left err))
-                 -- FIXME: compute variables!
-                 (\(d, i) -> Right $ CMatch S.empty d i)
+                 (\(d, i) -> Right $ cmatch d i)
         $ codelta resD resI
       where
         codelta (Left e) _ = Left e
         codelta _ (Left e) = Left e
         codelta (Right a) (Right b) = Right (a , b)
+-}
 
 {-
 -- |Applies a change to a term containing metavariables.
@@ -211,4 +277,5 @@ metaApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> Term ki codes at    -- ^ @p@
           -> Either (UnificationErr ki codes) (Term ki codes at)
 metaApply cq = utxUnify (cCtxDel cq) (cCtxIns cq) 
+-}
 -}

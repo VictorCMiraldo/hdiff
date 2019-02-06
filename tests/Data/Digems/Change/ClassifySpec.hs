@@ -46,11 +46,11 @@ changeClassDual CDel = CIns
 changeClassDual CIns = CDel
 changeClassDual x    = x
 
-mustClassifyAs :: String ->  RTree -> RTree -> [ChangeClass] -> SpecWith (Arg Property)
+mustClassifyAs :: String ->  RTree -> RTree -> [ChangeClass] -> SpecWith (Arg Bool)
 mustClassifyAs lbl a b cls = do
   it (lbl ++ ": change class") $ do
-    let patch  = digemRTree a b
-     in cls === utxGetHolesWith' changeClassify patch
+    let patch = digemRTree a b
+     in cls == utxGetHolesWith' changeClassify patch
      
   
 ----------------

@@ -32,6 +32,20 @@ data CChange ki codes at where
             , cCtxIns  :: UTx ki codes (MetaVarIK ki) at }
          -> CChange ki codes at
 
+-- |smart constructor for 'CChange'. Enforces the invariant
+cmatch :: UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at
+       -> CChange ki codes at
+cmatch del ins =
+  let vi = utxGetHolesWith Exists ins
+      vd = utxGetHolesWith Exists del
+   in if vi == vd
+      then CMatch vi del ins
+      else error "Data.Digems.Change.cmatch: invariant failure"
+
+-- |Returns the maximum variable in a change
+cMaxVar :: CChange ki codes at -> Int
+cMaxVar = maybe 0 id . S.lookupMax . S.map (exElim metavarGet) . cCtxVars
+
 instance (Show1 ki) => Show (CChange ki codes at) where
   show (CMatch _ del ins)
     = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"

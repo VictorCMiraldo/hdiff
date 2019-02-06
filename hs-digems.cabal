@@ -22,12 +22,14 @@ library
                  ,     Data.Digems.Change.Apply
                  ,     Data.Digems.Change.Classify
                  ,     Data.Digems.Patch
+                 ,     Data.Digems.Patch.Specialize
                  ,     Data.Digems.Patch.Diff
                  ,     Data.Digems.Patch.Merge
                  ,     Data.Digems.Patch.Preprocess
                  ,     Data.Digems.Patch.Show
                  ,     Data.Digems.Example
                  ,     Data.WordTrie
+                 ,     Data.Exists
                  ,     Languages.RTree
   -- other-modules:       
   -- other-extensions:    

@@ -45,6 +45,7 @@ type Patch ki codes ix = UTx ki codes (CChange ki codes) (I ix)
 
 -- ** Functionality over a 'Patch'
 
+{-# DEPRECATED patchMaxVar "don't use this!" #-}
 patchMaxVar :: RawPatch ki codes at -> Int
 patchMaxVar = flip execState 0 . utxMapM localMax
   where

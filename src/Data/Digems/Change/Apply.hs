@@ -17,6 +17,7 @@ import           Data.Functor.Const
 import qualified Data.Map as M
 import           Control.Monad.Except
 
+import Data.Exists
 import Data.Digems.MetaVar
 import Data.Digems.Change
 
@@ -58,20 +59,8 @@ instance Show (ApplicationErr ki codes phi) where
   show (IncompatibleHole _ _)    = "IncompatibleHole"
   show (IncompatibleTypes)       = "IncompatibleTypes"
 
--- |Encapsulates a 'UTx' in an existential type hiding the index of
--- kind 'Atom'. This is essential to store the substitutions.
-data UTxE :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
-  UTxE :: UTx ki codes f at -> UTxE ki codes f
-
-instance (Show1 ki) => Show (UTxE ki codes (MetaVarIK ki)) where
-  show (UTxE utx) = show1 utx
-
-utxe :: (forall at . UTx ki codes f at -> UTx ki codes f at)
-     -> UTxE ki codes f -> UTxE ki codes f
-utxe f (UTxE x) = UTxE (f x)
-
 -- |A substitution from metavariable numbers to some treefix
-type Subst ki codes phi = M.Map Int (UTxE ki codes phi)
+type Subst ki codes phi = M.Map Int (Exists (UTx ki codes phi))
 
 type Applicable ki codes phi = (Show1 ki , Eq1 ki , TestEquality ki , TestEquality phi
                               , HasIKProjInj ki phi , Eq1 phi)
@@ -122,7 +111,13 @@ pmatch pat = go M.empty pat
        -> UTx ki codes phi ix
        -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
     go s (UTxHole var) x  = substInsert s var x
-    go _ pa (UTxHole var) = throwError (IncompatibleHole pa var)
+    go s pa (UTxHole var)
+      -- When we are trying to match a pattern @pa@ against a hole
+      -- we must make some occurs check over this pattern and make
+      -- sure @pa@ does not bind any variable. Otherwise, we'll
+      -- end up with an 'UndefinedVariable' in the transport phase.
+      | utxArity pa == 0 = return s
+      | otherwise        = throwError (IncompatibleHole pa var)
     go s (UTxOpq oa) (UTxOpq ox)
       | eq1 oa ox = return s
       | otherwise = throwError (IncompatibleOpqs oa ox)
@@ -159,8 +154,8 @@ substInsert :: (Applicable ki codees phi)
             -> UTx ki codes phi ix
             -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 substInsert s var new = case M.lookup (metavarGet var) s of
-  Nothing         -> return $ M.insert (metavarGet var) (UTxE new) s
-  Just (UTxE old) -> case testEquality old new of
+  Nothing           -> return $ M.insert (metavarGet var) (Exists new) s
+  Just (Exists old) -> case testEquality old new of
     Nothing   -> throwError IncompatibleTypes
     Just Refl -> if old == new
                  then return s
@@ -192,9 +187,9 @@ lookupVar var subst = do
     Nothing -> return Nothing
     Just r  -> Just <$> cast r
   where
-    cast :: UTxE ki codes phi
+    cast :: Exists (UTx ki codes phi)
          -> Except (ApplicationErr ki codes phi) (UTx ki codes phi ix)
-    cast (UTxE res) = case idxDecEq res var of
+    cast (Exists res) = case idxDecEq res var of
       Nothing   -> throwError IncompatibleTypes
       Just Refl -> return res
 
