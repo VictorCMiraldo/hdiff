@@ -88,9 +88,13 @@ genInsHere t = do
 
 genSimilarTrees :: Int -> Gen (RTree , RTree)
 genSimilarTrees h = do
+  [t1 , t2] <- genSimilarTreesN 2 h
+  return (t1 , t2)
+
+genSimilarTreesN :: Int -> Int -> Gen [RTree]
+genSimilarTreesN n h = do
   t  <- genTree h
-  t' <- go (height t) 1 t 
-  return (t , t')
+  (t:) <$> replicateM (n-1) (go (height t) 1 t)
   where
     go :: Int -> Int -> RTree -> Gen RTree
     go ht ch (n :>: ns) = do

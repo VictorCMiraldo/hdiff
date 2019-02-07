@@ -92,7 +92,7 @@ reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> RawPatch ki codes at
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 reconcile p q
-  | encompases p q = utxMap InR p
+  | composes p q = utxMap InR p
   | otherwise      =
     let cq = distrCChange q
         cp = distrCChange (specialize p (cCtxDel cq))
@@ -138,36 +138,6 @@ type ConflictClass = String
 
 t :: Show a => a -> a
 t a = trace (show a) a
-
--- lemma: cpy encompasses everything
--- |The predicate @encompases p q@ checks whether p is immediatly applicable
--- to the codomain of @q@.
-encompases :: (Show1 ki , Eq1 ki , TestEquality ki)
-           => RawPatch ki codes at
-           -> RawPatch ki codes at
-           -> Bool
-encompases p q = and $ utxGetHolesWith' getConst
-               $ utxMap (uncurry' go) $ utxLCP p q
-
-applicableTo :: (Show1 ki , Eq1 ki , TestEquality ki)
-             => CChange ki codes at
-             -> UTx ki codes (MetaVarIK ki) at
-             -> Const Bool at
-applicableTo cp qI
-   = either (const $ trace "3" $ Const False) (const $ Const True)
-   $ genericApply cp qI
-
-go :: (Show1 ki , Eq1 ki , TestEquality ki)
-   => RawPatch ki codes at
-   -> RawPatch ki codes at
-   -> Const Bool at
-go p q
-  | and (utxGetHolesWith' isCpy q)
-  = trace (show $ distrCChange q) $ Const True
-  | otherwise =
-    let cp = distrCChange p
-        q' = specialize q (cCtxDel cp)
-     in applicableTo cp (cCtxIns (distrCChange q'))
 {-
     go (UTxHole cp) (UTxHole cq)
       | isCpy cq      = Const True
