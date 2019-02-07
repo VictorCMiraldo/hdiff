@@ -8,7 +8,6 @@
 %%
 %% Our packages
 \usepackage{xcolor}
-\usepackage{booktabs}
 \usepackage{tikz}
 \usetikzlibrary{shapes}
 \usepackage[all]{xy}

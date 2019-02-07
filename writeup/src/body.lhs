@@ -30,7 +30,7 @@ apply  :: Patch a -> a -> Maybe a
 the differencing problem. We must impose certain properties on these
 components for them to be of any practical use. 
 
-  Among the properties one expects from this pair of functions
+  The first property one expects from this pair of functions
 is correctness, stating that |apply| properly follows |diff|'s instructions. 
 
 \[
@@ -44,15 +44,16 @@ a |Patch| and the size of the patch must be smaller than storing both elements
 of type |a|. Otherwies, we could argue that |Patch a = (a,a)| is a solution,
 for instance.
 
-  Another property we want to have is the ability to apply a patch
+  Another interesting property we want to have is the ability to apply a patch
 to a number of elements. In fact, we want to apply a patch to the \emph{maximum}
-number of elements possible. For example:
+number of elements possible. For example\footnote{We show display this property in 
+its $\eta$-reduced form to highlight the difference with correctness}:
 
-\[ | forall x y dot apply (diff x x) y == Just y | \]
+\[ | forall x dot apply (diff x x) == Just | \]
 
   Capturing the idea that a patch that comes from not changing
 anything must be applicable to any element performing exactly 
-that action: not changing anything.
+that action: not changing anything. 
 
   The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing
 problem, and satisfies many of these desirable properties, for the
@@ -69,18 +70,28 @@ delete and copy as the base operations.
   The core of a differencing algorithm is to identify and pursue the
 copy opportunities as much as possible. Therefore the lack of a
 representation for moving and duplicating subtrees is an inherent
-issue.  Upon finding a subtree that can be copied in two different
-ways, the algorithm must choose between one of them. Besides efficiency
-problems, this also brings a complicated theoretical problems: it is
-impossible to order these patches in an educated fashion, and hence
-one cannot choose \emph{the best}.
+issue in a structured setting: upon finding a subtree that can be
+copied in two different ways, the algorithm must choose between one of
+them. Besides efficiency problems, this also brings a complicated
+theoretical problems: it is impossible to order these patches in an
+educated fashion, and hence one cannot choose \emph{the best}.
+
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/patch-00.pdf}
+\caption{Visualization of a |diff (Bin t u) (Bin u t)| using insertions, deletions and copies only}
+\label{fig:linear-patch}
+\end{figure}
 
   To illustrate this, imagine we want to compute a patch that
-transforms a tree |Bin t u| into |Bin u t|.  If the only operations we
-have at hand are insertions, deletions and copying of subtrees, we
-must choose between copying either |t| or |u|. One could choose
-to copy the bigger tree, but what if they have the same size?
-The lesson is that no option is better than the other. 
+transforms a tree |Bin t u| into |Bin u t|, shown in \Cref{fig:linear-patch}.  
+If the only operations we
+have at hand are insertions, deletions and copying of subtrees we
+end up essentially computing a patch between the preorder traversals
+of the trees. The options are shown in the right of \Cref{fig:linear-patch}.
+Note that we must choose between copying either |t| or |u|, but cannot copy both. 
+One could choose to copy the bigger tree, but what if they have the same size?
+
+  The lesson is that no option is better than the other. 
 If, however, we have some operation
 that encodes permutation of subtrees, we have not only removed a
 choice point from the algorithm but also arrived at a provably better
@@ -89,7 +100,8 @@ to be better anyway?}  without having to resort to heuristics or
 arbitrary choices. And, contrary to what one might expect, more is
 less in this scenario. Adding more expressive basic change
 operations, duplicate and permute, enalbles us to remove choice
-points and write a efficient deterministic differencing algorithm.
+points and write a efficient deterministic structure-aware differencing 
+algorithm.
 
 \paragraph{Contributions.} 
 
@@ -103,10 +115,11 @@ points and write a efficient deterministic differencing algorithm.
         transforms a source tree into a target tree. We also give a practical
         instantiation of this algorithm that is correct modulo cryptographic hash
         collisions and runs in linear time.
-  \item A prototype implementation of our algorithm that
+  \item An implementation of our algorithm that
         is immediately applciable to a large universe of datatypes,
         namelly, any mutually recursive family.
-  \item A prorotype notion and implementation of a merging algorithm.
+         
+  \item \victor{don't promisse too much!} A prorotype notion and implementation of a merging algorithm.
         We have evaluated our implementation against unsolved conflicts
         from a number of GitHub repositories in the Lua programming language.
         \victor{how many?}
@@ -150,10 +163,12 @@ but later we shall see how this construction is generalized.
 
 \begin{myhs}
 \begin{code}
+type MetaVar = Int
+
 data Tree23C = LeafC
              | Node2C Tree23C Tree23C
              | Node3C Tree23C Tree23C Tree23C
-             | Hole Int
+             | Hole MetaVar
 \end{code}
 \end{myhs}
 
@@ -171,19 +186,43 @@ Node2C (Hole 1) (Hole 0))|, as seen in \Cref{fig:first-patch}.
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-01.pdf}
-\caption{Visualization of a |diff (Node2 t u) (Node2 u t)|}
+\caption{Visualization of a |diff (Node2 t u) (Node2 u t)|, metavariables are shown in red}
 \label{fig:first-patch}
 \end{figure}
 
-\subsubsection{Applying Patches}
+\subsubsection{Applying Change}
 
-  Let us now look at the machinery necessary to match a |Tree23|
-against a deletion context, retrieving a substitution of metavariables
-into terms. Then instantiating the metavariables within the insertion
-context under the obtained substitution. Naturally, if the term and
-the deletion context are \emph{incompatible}, this operation will
-fail.  Application also fails if the insertion context refers a
-variable that has not been instantiated while in the matching phase.
+  As mentioned before, a \emph{change} is defined by a pattern that
+binds some metavariables, called the deletion context, and an expression
+where we are supposed to instantiate its metavariables, called the insertion
+context.
+
+\begin{myhs}
+\begin{code}
+type Change = (Tree23C , Tree23C)
+\end{code}
+\end{myhs}
+
+  Applying a change, therefore, is done exactly the way we have described:
+instantiate variables against the deletion context and instantiate them
+in the insertion context:
+
+\begin{myhs}
+\begin{code}
+apply :: (Tree23C , Tree23C) -> Tree23 -> Maybe Tree23
+apply (d , i) x = del d x >>= ins i
+\end{code}
+\end{myhs}
+
+Naturally, if the term |x| and
+the deletion context |d| are \emph{incompatible}, this operation will
+fail, as we can see in the definition of |del|, below.
+Contrary to regular pattern-matching, however, we allow variables to
+appear more than once on both the deletion and insertion
+contexts. Their semantics are dual: duplicate variables in the
+deletion context must match equal trees whereas when in the insertion
+context will duplicate trees. We use an auxiliar function within the
+definition of |del| to make this check easier to perform.
 
 \begin{myhs}
 \begin{code}
@@ -201,17 +240,11 @@ del ctx tree = go ctx tree empty
     go _               _              m = Nothing
 \end{code}
 \end{myhs}
-
-  Contrary to regular pattern-matching, however, we allow variables to
-appear more than once on both the deletion and insertion
-contexts. Their semantics are dual: duplicate variables in the
-deletion context must match equal trees whereas when in the insertion
-context will duplicate trees. We use an auxiliar function within the
-definition of |del| to make this check easier to perform.
-
+  
   Once we have obtained a valuation from a deletion context and 
 a tree, we substitute the variables in the insertion context
 with their respective values obtaining the resulting tree.
+This phase can also fail if the change contains unbound variables.
 
 \begin{myhs}
 \begin{code}
@@ -220,15 +253,6 @@ ins LeafC           m  = return Leaf
 ins (Node2C x y)    m  = Node2 <$$> ins x m <*> ins y m
 ins (Node3C x y z)  m  = Node3 <$$> ins x m <*> ins y m <*> ins z m
 ins (Hole i)        m  = lookup i m
-\end{code}
-\end{myhs}
-
-  Finally, we define the application function by composing |ins| and |del|:
-
-\begin{myhs}
-\begin{code}
-apply :: (Tree23C , Tree23C) -> Tree23 -> Maybe Tree23
-apply (d , i) x = del d x >>= ins i
 \end{code}
 \end{myhs}
 
@@ -334,18 +358,34 @@ type, let us briefly explain the techniques of the
 \texttt{generics-mrsop}~\cite{Miraldo2018} library, which will allow
 us to rewrite the code in \Cref{sec:concrete-changes} in a 
 generic setting. This library follows the \emph{sums-of-products}
-school of generic programming~\cite{deVries2014} and enables 
+school of generic programming~\cite{deVries2014} and, additionaly, enables 
 us to work with mutually recursive families. This is fairly imporant
 as most practical abstract syntax trees are mutually recursive.
 
-  In the \emph{sums-of-products} approach, every datatype is assigned
-a \emph{code} that consists in two nested lists of atoms. The outer
+  For example, take the |Tree23| type from \Cref{sec:concrete-changes}.
+Its structure can be seen in a \emph{sum-of-products} fashion
+through the |CodesTree23| type, where |I 0| flags a recursive position.
+The numeric argument supplied to |I| indicates the index of the recursive
+type within the family. For |Tree23| we only have one recursive type.
+
+\begin{myhs}
+\begin{code}
+type CodesTree23 = P  ([  P [] 
+                      ,   P ([ I 0 , I 0 ]) 
+                      ,   P ([ I 0 , I 0 , I 0 ]) ])
+\end{code}
+\end{myhs}
+
+  Just like the |CodesTree23| represents the shape in which every
+|Tree23| will come, every type will have an associated code consisting
+in two nested lists of \emph{atoms}. The outer
 list represents the choice of constructor, and packages the \emph{sum}
 part of the datatype whereas the inner list represents the
 \emph{product} of the fields of a given constructor. The
-\texttt{generics-mrsop} goes one step further and uses atoms to
+\texttt{generics-mrsop} goes one step further and uses |Atom|s to
 distinguish whether a field is a recursive position referencing the
-$n$-th type in the family, |I n|, or a opaque type, |K k|.
+$n$-th type in the family, |I n|, or a opaque type, for example,
+|Int| or |Bool|, which are represented by |K KInt|, |K KBool|.
 
 \begin{myhs}
 \begin{code}
@@ -353,9 +393,9 @@ type family Code (a :: Star) :: P ([ (P [Atom]) ])
 \end{code}
 \end{myhs}
 
-  The codes for a mutually recursive family, then, are defined as a 
-list of codes for sums-of-products. Consider the following mutually 
-recursive family: 
+  Let us look at a slightly more involved example than |CodesTree23|. 
+The mutually recursive family containing types |Zig| and |Zag| has
+its codes defined as a list of codes, one for each member of the family:
 
 \begin{minipage}[t]{.45\textwidth}
 \begin{myhs}
@@ -1452,9 +1492,33 @@ instead. Upon a sucesful merge, we attempted to apply the merges
 to the respective and made sure that the merge square, \Cref{fig:merge-square},
 commutes. 
 
-  \victor{make pretty tables! show numbers!}
 
-  \victor{mention performance}
+\begin{figure}\centering
+\ra{1.2} % better spacing
+\begin{tabular}{@@{}lll@@{}}
+\toprule
+Repository         & Commits & Contributors \\ 
+\midrule
+awesome            & 9289    & 250 \\
+busted             & 936     & 39 \\
+CorsixTH           & 3207    & 64 \\
+hawkthorne-journey & 5538    & 61 \\
+kong               & 4669    & 142 \\
+koreader           & 6418    & 89 \\
+luakit             & 4160    & 62 \\
+luarocks           & 2131    & 51 \\
+luvit              & 2862    & 68 \\
+nn                 & 1839    & 177 \\
+Penlight           & 730     & 46 \\
+rnn                & 622     & 42 \\
+snabb              & 8075    & 63 \\
+tarantool          & 12299   & 82 \\
+telegram-bot       & 729     & 50 \\
+\bottomrule
+\end{tabular}
+\caption{Lua repositories mined from \emph{GitHub}}
+\label{fig:repositoriesmined}
+\end{figure}
 
 \subsection{Threats to Validity} There are two main threats to the
 validity of our empirical results. Firstly, we are diffing and merging
