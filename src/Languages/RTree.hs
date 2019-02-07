@@ -83,9 +83,13 @@ genInsHere t = do
 
 genSimilarTrees :: Int -> Gen (RTree , RTree)
 genSimilarTrees h = do
+  [t1 , t2] <- genSimilarTreesN 2 h
+  return (t1 , t2)
+
+genSimilarTreesN :: Int -> Int -> Gen [RTree]
+genSimilarTreesN n h = do
   t  <- genTree h
-  t' <- go (height t) 1 t 
-  return (t , t')
+  (t:) <$> replicateM (n-1) (go (height t) 1 t)
   where
     go :: Int -> Int -> RTree -> Gen RTree
     go ht ch (n :>: ns) = do
@@ -101,28 +105,8 @@ genSimilarTrees h = do
 instance Arbitrary RTree where
   arbitrary = sized $ \n -> choose (1 , n `div` 2) >>= genTree
 
-{-
-genTree' :: Int -> Gen RTree
-genTree' h
-  | h >= 3    = choose (h - 3 , h + 3) >>= genTree
-  | otherwise = genTree h
-
-genPartition :: [a] -> Gen [Either a a]
-genPartition = mapM coinflip
-  where
-    coinflip x = choose (True , False) >>= \c
-      -> return $ if c then Left x else Right x
-
-genDisjTrees :: RTree -> Gen (RTree , RTree)
-genDisjTrees rt = oneof [ ins rt , del rt , mod rt ]
-  where
-    -- Generates an insertion
-    ins :: RTree -> Gen (RTree , RTree)
-    ins t = do
-      n  <- genConName
-      k  <- choose (1 , 3)
-      ts <- vectorOf k (genTree' (height t))
--}
-       
+genSimilarTrees' :: Gen (RTree , RTree)
+genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
+ 
 
 

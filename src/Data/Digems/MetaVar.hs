@@ -8,14 +8,16 @@
 -- |Exports a bunch of functionality for handling metavariables
 --  both over recursive positions only, with 'MetaVarI' and over
 --  recursive positions and constants, 'MetaVarIK'.
-module Data.Digems.Diff.MetaVar where
+module Data.Digems.MetaVar where
 
 import Data.Function (on)
 import Data.Functor.Const
 import Data.Type.Equality
-
+--------------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+--------------------------------------
+import Data.Exists
 import Generics.MRSOP.Digems.Treefix
 
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
@@ -33,6 +35,12 @@ data Annotate (x :: *) (f :: k -> *) :: k -> * where
 instance (Show1 f , Show x) => Show1 (Annotate x f) where
   show1 (Annotate i f)
     = show1 f ++ "[" ++ show i ++ "]"
+
+instance (Eq1 f , Eq x) => Eq1 (Annotate x f) where
+  eq1 (Annotate x1 f1) (Annotate x2 f2) = x1 == x2 && eq1 f1 f2
+
+instance (Eq x) => Eq1 (Const x) where
+  eq1 (Const x) (Const y) = x == y
 
 instance (TestEquality ki) => TestEquality (Annotate x ki) where
   testEquality (Annotate _ x) (Annotate _ y)
@@ -77,12 +85,6 @@ instance HasIKProjInj ki (MetaVarIK ki) where
 
 -- * Existential MetaVars
 
-data Exists (f :: k -> *) :: * where
-  Exists :: f x -> Exists f
-
-exMap :: (forall x . f x -> g x) -> Exists f -> Exists g
-exMap f (Exists x) = Exists (f x)
-
 -- |Retrieves the int inside a existential 'MetaVarIK'
 metavarIK2Int :: Exists (MetaVarIK ki) -> Int
 metavarIK2Int (Exists (NA_I (Const i))) = i
@@ -91,6 +93,11 @@ metavarIK2Int (Exists (NA_K (Annotate i _))) = i
 -- |Retrieves the int inside a existential 'MetaVarI'
 metavarI2Int :: Exists MetaVarI -> Int
 metavarI2Int (Exists (ForceI (Const i))) = i
+
+-- |Injects a metavar over recursive positions
+-- into one over opaque types and recursive positions
+metavarI2IK :: MetaVarI ix -> MetaVarIK ki ix
+metavarI2IK (ForceI x) = NA_I x
 
 -- ** Instances over 'Exists'
 

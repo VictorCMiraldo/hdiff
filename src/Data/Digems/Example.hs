@@ -25,10 +25,10 @@ import Generics.MRSOP.TH
 
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix
-import Generics.MRSOP.Digems.Unify
--- import Generics.MRSOP.Digems.Renderer
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.MetaVar
+import Data.Digems.Patch
+import Data.Digems.Patch.Diff
+import Data.Digems.MetaVar
+import Data.Digems.Change
 
 instance Digestible1 Singl where
   digest1 (SString s) = hashStr s
@@ -79,7 +79,7 @@ tr :: Tree23 -> Fix Singl CodesTree23 'Z
 tr = dfrom . into
 
 dgms :: Tree23 -> Tree23 -> Patch Singl CodesTree23 'Z
-dgms x y = digems 1 (dfrom $ into x) (dfrom $ into y)
+dgms x y = diff 1 (dfrom $ into x) (dfrom $ into y)
 
 o , p , q :: Tree23
 o = Node2 10 (Node3 100 Leaf Leaf Leaf) (Node2 1000 Leaf Leaf)

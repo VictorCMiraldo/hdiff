@@ -1,43 +1,29 @@
-{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-module Data.Digems.Diff.MergeSpec (spec) where
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE GADTs            #-}
+module Data.Digems.Patch.MergeSpec (spec) where
 
 import qualified Data.Set as S
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Treefix
-import Generics.MRSOP.Digems.Unify
 
-import Data.Digems.Diff.Patch
-import Data.Digems.Diff.MetaVar
-import Data.Digems.Diff.Merge
-import Data.Digems.Diff.Show
+import Data.Digems.Patch
+import Data.Digems.Patch.Diff
+import Data.Digems.Patch.Show
+import Data.Digems.Patch.Merge
+import Data.Digems.MetaVar
+import Data.Digems.Change
 import Languages.RTree
+import Languages.RTree.Diff
 
 import Test.QuickCheck
 import Test.Hspec
 
-type PatchRTree = Patch W CodesRTree Z
-
-digemRTree :: RTree -> RTree -> PatchRTree
-digemRTree a b = digems 1 (dfrom $ into @FamRTree a)
-                          (dfrom $ into @FamRTree b)
-
-applyRTree :: PatchRTree -> RTree -> Either String RTree
-applyRTree p x = either Left (Right . unEl . dto @Z . unFix)
-               $ apply p (dfrom $ into @FamRTree x)
-
-applyRTree' :: PatchRTree -> RTree -> Maybe RTree
-applyRTree' p = either (const Nothing) Just . applyRTree p
-
 --------------------------------------------
 -- ** Merge Properties
-
-genSimilarTrees' :: Gen (RTree , RTree)
-genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
 
 merge_id :: Property
 merge_id = forAll genSimilarTrees' $ \(t1 , t2)
@@ -75,8 +61,8 @@ mustMerge lbl a o b
   = let a' = dfrom $ into @FamRTree a
         b' = dfrom $ into @FamRTree b
         o' = dfrom $ into @FamRTree o
-        oa = digems 1 o' a'
-        ob = digems 1 o' b'
+        oa = diff 1 o' a'
+        ob = diff 1 o' b'
         oaob = (oa // ob)
         oboa = (ob // oa)
      in do it (lbl ++ ": merge square commutes") $ do
@@ -163,17 +149,38 @@ b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ]
 
 
 ---------------------------------
--- Example 6
+-- Example 7
 
 a7 , o7 , b7 :: RTree
 a7 = "x" :>: [ "u" :>: [ "b" :>: [] ] , "l" :>: [] ]
 o7 = "x" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "l" :>: []]
 b7 = "y" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "new" :>: [] , "l" :>: []]
 
+---------------------------------
+-- Example 8
+
+a8 , o8 , b8 :: RTree
+a8 = "x" :>: [ "k" :>: [] , "u" :>: []]
+o8 = "x" :>: [ "u" :>: [] , "k" :>: []]
+b8 = "x" :>: [ "u" :>: [] , "a" :>: [] , "k" :>: []]
+
+---------------------------------
+-- Example 9
+
+a9 , o9 , b9 :: RTree
+a9 = "x" :>: [ "k" :>: []  , "u" :>: []]
+o9 = "x" :>: [ "u" :>: []  , "k" :>: []]
+b9 = "x" :>: [ "u'" :>: [] , "k" :>: []]
 
 
-oa = digemRTree o7 a7
-ob = digemRTree o7 b7
+oa9 = digemRTree o9 a9
+ob9 = digemRTree o9 b9
+
+oa8 = digemRTree o8 a8
+ob8 = digemRTree o8 b8
+
+oa2 = digemRTree o2 a2
+ob2 = digemRTree o2 b2
 
 spec :: Spec
 spec = do
@@ -181,7 +188,7 @@ spec = do
   --   it "p // id == p && id // p == id" $ merge_id
   --   it "p // p  == id"                 $ merge_diag
   
-  describe "manual examples" $ do
+  describe "merge: manual examples" $ do
     mustMerge "1" a1 o1 b1
     mustMerge "2" a2 o2 b2
     mustMerge "3" a3 o3 b3
@@ -189,3 +196,5 @@ spec = do
     mustMerge "5" a5 o5 b5
     mustMerge "6" a6 o6 b6
     mustMerge "7" a7 o7 b7
+    mustMerge "8" a8 o8 b8
+    mustMerge "9" a9 o9 b9

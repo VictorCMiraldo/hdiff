@@ -42,9 +42,11 @@ import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
-import qualified Data.Digems.Diff.Patch as D
-import qualified Data.Digems.Diff.Merge as D
-import           Data.Digems.Diff.Show
+import qualified Data.Digems.Patch       as D
+import qualified Data.Digems.Patch.Diff  as D
+import qualified Data.Digems.Patch.Merge as D
+import           Data.Digems.Patch.Show
+import qualified Data.Digems.Change      as D
 
 import           Languages.Interface
 import qualified Languages.While   as While
@@ -163,7 +165,7 @@ mainAST opts = withParsed1 mainParsers (optFileA opts)
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
-tryApply :: (Eq1 ki , TestEquality ki , IsNat ix, Renderer1 ki
+tryApply :: (Eq1 ki , Show1 ki , TestEquality ki , IsNat ix, Renderer1 ki
             ,HasDatatypeInfo ki fam codes)
          => D.Patch ki codes ix
          -> Fix ki codes ix
@@ -181,7 +183,7 @@ tryApply patch fa fb
 mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
-    let patch = D.digems (minHeight opts) fa fb
+    let patch = D.diff (minHeight opts) fa fb
     displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
     return ExitSuccess
@@ -193,8 +195,8 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
       putStrLnErr $ "O: " ++ optFileO opts
       putStrLnErr $ "A: " ++ optFileA opts
       putStrLnErr $ "B: " ++ optFileB opts
-    let patchOA = D.digems (minHeight opts) fo fa
-    let patchOB = D.digems (minHeight opts) fo fb
+    let patchOA = D.diff (minHeight opts) fo fa
+    let patchOB = D.diff (minHeight opts) fo fb
     let resAB = patchOA D.// patchOB
     let resBA = patchOB D.// patchOA
     when (optDisplay opts) $ do
