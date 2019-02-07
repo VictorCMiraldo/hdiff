@@ -49,6 +49,18 @@ type RawPatch ki codes = UTx ki codes (CChange ki codes)
 -- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
 type Patch ki codes ix = UTx ki codes (CChange ki codes) (I ix)
 
+
+-- ** Patch Alpha Equivalence
+
+patchEq :: (Eq1 ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
+patchEq p q = and $ utxGetHolesWith' (uncurry' go) $ utxLCP p q
+  where
+    go :: (Eq1 ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
+    go c d = changeEq (distrCChange c) (distrCChange d)
+
+patchIsCpy :: (Eq1 ki) => RawPatch ki codes at -> Bool
+patchIsCpy = and . utxGetHolesWith' isCpy
+
 -- ** Functionality over a 'Patch'
 
 {-# DEPRECATED patchMaxVar "don't use this!" #-}
@@ -156,7 +168,7 @@ applicableTo :: (Show1 ki , Eq1 ki , TestEquality ki)
        => UTx ki codes (MetaVarIK ki) ix
        -> UTx ki codes (MetaVarIK ki) ix
        -> Bool
-applicableTo pat = either (\err -> trace (show err) False) (const True)
+applicableTo pat = either (const False) (const True)
                  . runExcept
                  . go M.empty M.empty pat
   where
@@ -194,8 +206,7 @@ substInsert' lbl s var new = case M.lookup (metavarGet var) s of
     Nothing   -> throwError IncompatibleTypes
     Just Refl -> case old `specializesTo` new of
                    Just res -> return $ M.insert (metavarGet var) (Exists $ res) s
-                   Nothing -> trace (lbl ++ "had: " ++ show1 old ++ "; got: " ++ show1 new)
-                    $ throwError (FailedContraction (metavarGet var) old new)
+                   Nothing  -> throwError (FailedContraction (metavarGet var) old new)
   where
     specializesTo :: (Eq1 ki)
                   => UTx ki codes (MetaVarIK ki) ix

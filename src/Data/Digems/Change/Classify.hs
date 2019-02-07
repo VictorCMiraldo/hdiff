@@ -40,7 +40,7 @@ utxGetMultiplicities k utx
 
 data ChangeClass
   = CPerm | CMod | CId | CIns | CDel
-  deriving (Eq , Show)
+  deriving (Eq , Show , Ord)
 
 changeClassify :: (Eq1 ki , TestEquality ki)
                => CChange ki codes at -> ChangeClass

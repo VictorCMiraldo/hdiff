@@ -32,7 +32,7 @@ import Data.Digems.Patch.Specialize
 import Data.Digems.Change
 import Data.Digems.Change.Apply
 import Data.Digems.Change.Classify
--- import Data.Digems.Change.Specialize
+import qualified Data.Digems.Change.Specialize as CS
 import Data.Digems.MetaVar
 
 import Debug.Trace
@@ -92,16 +92,47 @@ reconcile :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> RawPatch ki codes at
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 reconcile p q
-  | composes p q = utxMap InR p
+  | patchIsCpy p = utxMap InR p
+  | patchIsCpy q = utxMap InR p
+  | patchEq p q  = UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  | nonStrut q   = utxMap InR p
+  -- | composes p q && nonStrut q = utxMap InR p
   | otherwise      =
     let cq = distrCChange q
-        cp = distrCChange (specialize p (cCtxDel cq))
+        cp = distrCChange p
+     in UTxHole
+      $ case specializeAndApply cp cq of
+          Left  err -> InL (Conflict (show err) cp cq)
+          Right res -> InR res
+{-
+  | otherwise      =
+    let cp = distrCChange p
+        cq = distrCChange q
      in UTxHole
       $ if changeEq cp cq
         then InR (makeCopyFrom cp)
         else case specializeAndApply cp cq of
                     Left  err -> InL (Conflict (show err) cp cq)
                     Right res -> InR res
+-}
+
+
+specializeAndApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+                      , UTxTestEqualityCnstr ki (CChange ki codes))
+                   => CChange ki codes at -- ^ @cp@
+                   -> CChange ki codes at -- ^ @cq@
+                   -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
+specializeAndApply cp cq = do
+    cp'  <- CS.specialize cp (CS.domain cq) 
+    resD <- genericApply cq (cCtxDel cp')
+    resI <- genericApply cq (cCtxIns cp')
+    return $ CMatch S.empty resD resI
+
+
+nonStrut :: (TestEquality ki, Eq1 ki , Show1 ki) => RawPatch ki codes at -> Bool
+nonStrut = nonstrut . utxGetHolesWith changeClassify
+  where
+    nonstrut s = or $ [ x `S.member` s | x <- [CPerm , CMod , CIns] ]
 {-
 -- (i) both different patches consist in changes
 reconcile (UTxHole cp) (UTxHole cq)
@@ -152,18 +183,6 @@ t a = trace (show a) a
                   $ Const False
     go _ _ = trace "5" $ Const False
 -}
-
-specializeAndApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-                      , UTxTestEqualityCnstr ki (CChange ki codes))
-                   => CChange ki codes at -- ^ @cp@
-                   -> CChange ki codes at -- ^ @cq@
-                   -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
-specializeAndApply cp' cq = do
-    -- cp'  <- specialize cp (domain cq) 
-    resD <- genericApply cq (cCtxDel cp')
-    resI <- genericApply cq (cCtxIns cp')
-    return $ CMatch S.empty resD resI
-
 {-
 
 -- |If we are transporting @cp@ over @cq@, we need to adapt

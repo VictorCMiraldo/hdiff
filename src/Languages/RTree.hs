@@ -41,9 +41,6 @@ data W :: WKon -> * where
 instance Eq1 W where
   eq1 (W_String s)  (W_String ss) = s == ss
 
-instance Ord1 W where
-  compare1 (W_String s) (W_String t) = compare s t
-
 instance Digestible1 W where
   digest1 (W_String s)  = hashStr s
 
