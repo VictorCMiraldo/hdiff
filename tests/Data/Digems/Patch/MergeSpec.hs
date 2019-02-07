@@ -17,28 +17,13 @@ import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
 import Data.Digems.Change
 import Languages.RTree
+import Languages.RTree.Diff
 
 import Test.QuickCheck
 import Test.Hspec
 
-type PatchRTree = Patch W CodesRTree Z
-
-digemRTree :: RTree -> RTree -> PatchRTree
-digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
-                          (dfrom $ into @FamRTree b)
-
-applyRTree :: PatchRTree -> RTree -> Either String RTree
-applyRTree p x = either Left (Right . unEl . dto @Z . unFix)
-               $ apply p (dfrom $ into @FamRTree x)
-
-applyRTree' :: PatchRTree -> RTree -> Maybe RTree
-applyRTree' p = either (const Nothing) Just . applyRTree p
-
 --------------------------------------------
 -- ** Merge Properties
-
-genSimilarTrees' :: Gen (RTree , RTree)
-genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
 
 merge_id :: Property
 merge_id = forAll genSimilarTrees' $ \(t1 , t2)

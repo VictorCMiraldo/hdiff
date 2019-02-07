@@ -14,23 +14,25 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Generics.MRSOP.Digems.Digest
-                 ,     Generics.MRSOP.Digems.Treefix
-                 ,     Generics.MRSOP.Digems.Renderer
-                 ,     Data.Digems.MetaVar
-                 ,     Data.Digems.Change
-                 ,     Data.Digems.Change.Apply
-                 ,     Data.Digems.Change.Classify
-                 ,     Data.Digems.Patch
-                 ,     Data.Digems.Patch.Specialize
-                 ,     Data.Digems.Patch.Diff
-                 ,     Data.Digems.Patch.Merge
-                 ,     Data.Digems.Patch.Preprocess
-                 ,     Data.Digems.Patch.Show
-                 ,     Data.Digems.Example
-                 ,     Data.WordTrie
-                 ,     Data.Exists
-                 ,     Languages.RTree
+  exposed-modules: Data.Digems.Change
+                 , Data.Digems.Change.Apply
+                 , Data.Digems.Change.Classify
+                 , Data.Digems.Change.Specialize
+                 , Data.Digems.Example
+                 , Data.Digems.MetaVar
+                 , Data.Digems.Patch
+                 , Data.Digems.Patch.Diff
+                 , Data.Digems.Patch.Merge
+                 , Data.Digems.Patch.Preprocess
+                 , Data.Digems.Patch.Show
+                 , Data.Digems.Patch.Specialize
+                 , Data.Exists
+                 , Data.WordTrie
+                 , Generics.MRSOP.Digems.Digest
+                 , Generics.MRSOP.Digems.Renderer
+                 , Generics.MRSOP.Digems.Treefix
+                 , Languages.RTree
+                 , Languages.RTree.Diff
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.10 && <5
@@ -76,7 +78,8 @@ test-suite tests
   type: exitcode-stdio-1.0
   hs-source-dirs: tests
   main-is:       Spec.hs
-  other-modules: Data.Digems.Patch.DiffSpec
+  other-modules: Data.Digems.PatchSpec
+               , Data.Digems.Patch.DiffSpec
                , Data.Digems.Patch.MergeSpec
                , Data.Digems.Change.ClassifySpec
   build-depends: base >= 4.10 && <5

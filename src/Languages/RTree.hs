@@ -21,8 +21,6 @@ import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Renderer
 
-import Data.Digems.Change.Classify (Ord1(..))
-
 import Data.Text.Prettyprint.Doc (pretty)
 
 import Control.Monad
@@ -110,28 +108,8 @@ genSimilarTreesN n h = do
 instance Arbitrary RTree where
   arbitrary = sized $ \n -> choose (1 , n `div` 2) >>= genTree
 
-{-
-genTree' :: Int -> Gen RTree
-genTree' h
-  | h >= 3    = choose (h - 3 , h + 3) >>= genTree
-  | otherwise = genTree h
-
-genPartition :: [a] -> Gen [Either a a]
-genPartition = mapM coinflip
-  where
-    coinflip x = choose (True , False) >>= \c
-      -> return $ if c then Left x else Right x
-
-genDisjTrees :: RTree -> Gen (RTree , RTree)
-genDisjTrees rt = oneof [ ins rt , del rt , mod rt ]
-  where
-    -- Generates an insertion
-    ins :: RTree -> Gen (RTree , RTree)
-    ins t = do
-      n  <- genConName
-      k  <- choose (1 , 3)
-      ts <- vectorOf k (genTree' (height t))
--}
-       
+genSimilarTrees' :: Gen (RTree , RTree)
+genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
+ 
 
 

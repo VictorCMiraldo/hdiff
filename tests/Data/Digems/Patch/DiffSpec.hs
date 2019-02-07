@@ -12,18 +12,15 @@ import Data.Digems.Patch.Diff
 import Data.Digems.MetaVar
 import Data.Digems.Change
 import Languages.RTree
+import Languages.RTree.Diff
 
 import Test.QuickCheck
 import Test.Hspec
 
-genSimilarTrees' :: Gen (RTree , RTree)
-genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
 
 diff_wellscoped_changes :: Property
 diff_wellscoped_changes = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let gt1   = dfrom (into @FamRTree t1)
-         gt2   = dfrom (into @FamRTree t2)
-         patch = diff 1 gt1 gt2
+  -> let patch = digemRTree t1 t2
       in conjoin $ utxGetHolesWith' go patch
   where
     go :: CChange W CodesRTree ix -> Property
@@ -35,12 +32,10 @@ diff_wellscoped_changes = forAll genSimilarTrees' $ \(t1 , t2)
 
 apply_correctness :: Property
 apply_correctness = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let gt1   = dfrom (into @FamRTree t1)
-         gt2   = dfrom (into @FamRTree t2)
-         patch = diff 1 gt1 gt2
-      in case apply patch gt1 of
+  -> let patch = digemRTree t1 t2
+      in case applyRTree patch t1 of
            Left err -> counterexample ("Apply failed with: " ++ err) False
-           Right r  -> property $ eqFix eq1 gt2 r
+           Right r  -> property $ t2 == r
            
 spec :: Spec
 spec = do
