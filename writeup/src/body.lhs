@@ -636,7 +636,7 @@ into the destination. Firstly because a good number of the constructors
 of our trees will be repeated on both the insertion and deletion
 contexts. Moreover, when trying to merge these changes together, it is
 simpler to have a number of small changes that can be independently
-classified and reasone over instead of a big, complex, change working
+classified and understood instead of a big, complex, change working
 on the whole tree.
 
 \begin{myhs}
@@ -749,9 +749,11 @@ type Oracle codes = forall j dot Fix codes j -> Maybe Int
   The |txExtract| function will check whether a given |x| is a subtree
 of the fixed source and destinations by calling the provided orcale,
 if so, we return a hole with the corresponding metavariable
-identifier.  Otherwise we extract the topmost constructor and its
-fields from |x|. We then map |TxOpq| on the opaque fields and continue
-extracting a |Tx| on the fields that reference recursive positions.
+identifiying the subtree, but we do not forget the subtree itself. The
+reason for this is apparent in \Cref{fig:problematic-ics}.
+If |x| is not a common subtree we extract the topmost constructor and its
+fields then map |TxOpq| on the opaque fields and continue
+extracting the context on the fields that reference recursive positions.
 
 \begin{myhs}
 \begin{code}
@@ -779,17 +781,14 @@ data ForceI :: (Nat -> Star) -> Atom -> Star where
 
   The definition of |txExtract| is similar to |extract| from
 \Cref{sec:concrete-changes}, except for more involved types for
-keeping the \emph{extracted} subtrees inplace. The reason for this
-will is that we might need to keep some subtrees that the oracle
-indicated as common subtrees instead of keeping the metavariable.
-
-  This situation can happen when there is a tree that is
-both a subtree of the source and destination but occurs,
-additionally, as the subtree of another common subtree.
-In \Cref{fig:problematic-ics} we see the subtree |t| as one
-such case. Since the oracle recognizes |Node2 t k| and |t| as
-common subtrees, and |t| additionally occurs by itself one
-of the extracted contexts will contain an undefined metavariable.
+keeping the \emph{extracted} subtrees inplace. This is necessary since
+the oracle might identify some subtrees that too eagerly. 
+This happens when a tree is both a subtree of the source and destination
+but occurs, additionally, as the subtree of another common subtree.
+In \Cref{fig:problematic-ics} we see the subtree |t| as one such
+case. Since the oracle recognizes |Node2 t k| and |t| as common
+subtrees, and |t| additionally occurs by itself one of the extracted
+contexts will contain an undefined metavariable.
 
 \begin{figure}
 \begin{minipage}[t]{.4\textwidth}
@@ -812,15 +811,14 @@ extract (ics a b) b  = Node2C (Hole 0) (Hole 1)
 \label{fig:problematic-ics}
 \end{figure}
 
-  A simple way of solving this issue is to postprocess the extracted
-contexts. This is the reason for |txExtract| returning a subtree
-with its metavariable. We now can traverse these contexts and chose
-which of these holes should be converted to a |Tx| with |na2tx| or
-be kept as an actual metavariable. We want to keep only the metavariables
-that occur in both the insertion and deletion contexts to prevent
-any \texttt{undefined variable} when applying our patches. In
-\Cref{fig:problematic-ics}, metavariable |1| would trigger
-an \texttt{undefined variable} error.
+  The simplest way of addressing this issue is to postprocess the
+extracted contexts and decide whether to forget the first or second
+component of the pairs left by |txExtract|.  In case we need to keep
+the tree and forget that it was shared we convert the tree with
+|na2tx|.  We want to keep only the metavariables that occur in both
+the insertion and deletion contexts to prevent any \texttt{undefined
+variable} when applying our patches. In \Cref{fig:problematic-ics},
+metavariable |1| would trigger an \texttt{undefined variable} error.
 
 \begin{myhs}
 \begin{code}
@@ -858,18 +856,18 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 \begin{myhs}
 \begin{code}
 diff0 :: Fix codes ix -> Fix codes ix -> Change codes (ForceI (Const Int)) (I ix)
-diff0 x y = let  ics = buildOracle x y
-                del = txExtract ics x
-                ins = txExtract ics y
-            in uncurry Change $$ txPostprocess del ins
+diff0 x y =  let  ics = buildOracle x y
+                  del = txExtract ics x
+                  ins = txExtract ics y
+             in uncurry Change $$ txPostprocess del ins
 \end{code}
 \end{myhs}
 
   This function will output \emph{one} single change that transforms
-|x| into |y|. In order to get a |Patch| out of it we must now compute the \emph{spine} and divide this
-change into smaller ones.  That is, we will split this change into
-the \emph{greatest common prefix} of the insertion and deletion
-contexts and the smaller changes inside:
+|x| into |y|. In order to get a |Patch| out of it we must now compute
+the \emph{spine} and divide this change into smaller ones.  That is,
+we will split this change into the \emph{greatest common prefix} of
+the insertion and deletion contexts and the smaller changes inside:
 
 \begin{myhs}
 \begin{code}
@@ -886,13 +884,11 @@ txGCP (TxPeel cx px) (TxPeel cy py)
 \end{code}
 \end{myhs}
 
-\victor{see \ref{comment:minimality}; I've added a bit of text below,
-is it sufficient?}
   The |txGCP| can be seen as a generalized |zip| function that instead
 of stopping whenever one of its arguments has been consumed, it stores
 the rest of the other argument. It is \emph{greatest} in the sense
 that it eagerly consumes as many constructors as possible and
-leaves in the |TxHole|s just the different parts. We can write
+places in the |TxHole|s just the different parts. We can write
 this as the following property, with |Delta a = (a :*: a)|:
 
 \[ |forall x dot txGCP x x == txMap (\h -> Delta . TxHole) x| \]
@@ -915,13 +911,14 @@ common prefix, ie, these constructors are part of the \emph{spine}.
 We must be careful, however, not to break scoping of variables.
 This can happen when subtrees are being duplicated or transported
 accros different parts of the source and destination. One such
-example is sohwn in \Cref{fig:patch-scoping-problem}. The \emph{greatest
+example is shown in \Cref{fig:patch-scoping-problem}. The \emph{greatest
 common prefix} is too permissive and must be later refined.
 
 \begin{figure}
 \begin{minipage}[t]{.55\textwidth}
 \begin{myhs}
 \begin{code}
+-- prob = diff0 (Node2 t t) (Node2 x t)
 prob  :: Change Tree23Codes (Const Int) (I Z)
 prob  =  Change  (Node2C (Hole 0)  (Hole 0))
                  (Node2C x         (Hole 0))
@@ -1001,15 +998,15 @@ are trivial:
 
 \begin{myhs}
 \begin{code}
-closure  :: Tx codes (Sum (Change codes phi) (Change codes phi)) at
-         -> Sum (Change codes phi) (Tx codes (Change codes phi)) at
-closure (TxOpq x) = InR (TxOpq x)
-closure (TxHole (InL oc)) = InL oc
-closure (TxHole (InR cc)) = InR cc
+closure'  :: Tx codes (Sum (Change codes) (Change codes)) at
+          -> Sum (Change codes) (Tx codes (Change codes)) at
+closure' (TxOpq x) = InR (TxOpq x)
+closure' (TxHole (InL oc)) = InL oc
+closure' (TxHole (InR cc)) = InR cc
 \end{code}
 \end{myhs}
 
-  The interesting case of the |closure| function is the |TxPeel|
+  The interesting case of the |closure'| function is the |TxPeel|
 pattern, where we first try to compute the closures for the fields of
 the constructor and check whether all these fields contain only closed
 changes. If that is the case, we are done. If some fields contain open
@@ -1023,8 +1020,8 @@ if this closes the change.
 
 \begin{myhs}
 \begin{code}
-closure (TxPeel cx px) 
-  = let aux = mapNP closure px
+closure' (TxPeel cx px) 
+  = let aux = mapNP closure' px
      in case mapNPM fromInR aux of
        Just np  -> InR (TxPeel cx np)
        Nothing  -> let  chgs = mapNP (either' InL (InR . distr)) aux
@@ -1037,21 +1034,38 @@ closure (TxPeel cx px)
 \end{code}
 \end{myhs}
 
-Comming back to the example
-in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
-|Node2C| from the \emph{spine} to the changes.
+  We then wrap |closure'| within a larger function that always returns
+a |Tx codes (Change codes) ix| with all changes being \emph{closed}.
+The necessary observation is that if the argument to |closure'| comes
+from an |txExtract del ins| where |isClosed (Change del ins)|, then
+there always exists a change that binds and uses all variables,
+namelly, |(Change del ins)|. In our case, at worst, |closure'| will
+always return |InR (Change del ins)|. 
 
 \begin{myhs}
 \begin{code}
-closure (txMap isClosed (txGCP prob))  
-  ==  closure (Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
-                       (InL (Change x           (TxHole 0))))
-  ==  InR (Change  (Node2C (TxHole 0)  (TxHole 0))
-                   (Node2C x           (TxHole 0)))
-\end{code}         
+closure  :: Tx codes (Sum (Change codes) (Change codes)) at
+         -> Tx codes (Change codes) at
+closure tx = case closure' tx of
+               InL _ -> error "there exists no closure"
+               InR r -> r
+\end{code}
 \end{myhs}
 
-  This can be visuzlized in \Cref{fig:closure-patch-scoping-problem}.
+Comming back to the example
+in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
+|Node2C| from the \emph{spine} to the changes. 
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% closure (txMap isClosed (txGCP prob))  
+%%   ==  closure (Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
+%%                        (InL (Change x           (TxHole 0))))
+%%   ==  Change  (Node2C (TxHole 0)  (TxHole 0))
+%%               (Node2C x           (TxHole 0))
+%% \end{code}         
+%% \end{myhs}
+This can be visuzlized in \Cref{fig:closure-patch-scoping-problem}.
 We finalize by assembling all of the pieces in our final |diff| function.
 
 \begin{figure}
@@ -1063,17 +1077,16 @@ We finalize by assembling all of the pieces in our final |diff| function.
 \begin{myhs}
 \begin{code}
 diff :: Fix codes ix -> Fix codes ix -> Patch codes (I ix)
-diff x y = let  ics   = buildOracle x y
-                del0  = txExtract ics x
-                ins0  = txExtract ics y
-                (del1 , ins1) = txPostprocess del ins
-            in case closure (txMap isClosed $$ txGCP del1 ins1) of
-              InL _ -> error "unreachable"
-              InR r -> txRefine TxHole mkCpy r
+diff x y =  let  ics   = buildOracle x y
+                 del0  = txExtract ics x
+                 ins0  = txExtract ics y
+                 (del1 , ins1) = txPostprocess del ins
+            in  closure  $$  txRefine TxHole mkCpy 
+                         $$  txMap isClosed (txGCP del1 ins1) 
 \end{code}
 \end{myhs}
 
-  The last step in the |diff| function is identifying the opaque
+  The |txRefine| step in the |diff| function is identifying the opaque
 values that should be copied.  This is easy to do since the |txGCP|
 already put those opaque values in the \emph{copied} part of the
 patch. Hence, we simply need to traverse the patch and replace the
@@ -1088,7 +1101,19 @@ txRefine  :: (forall at  dot f at   -> Tx codes g at)
 \end{code}
 \end{myhs}
 
-  The application of a |Patch| follows very closely the implementation
+\paragraph{Applying Patches} Recall the definition of the
+application function.
+
+\begin{myhs}
+\begin{code}
+apply :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
+apply patch el  =    txZip patch (na2tx el) 
+                >>=  txMapM (uncurry' applyChange') 
+                >>=  return . tx2na
+\end{code}
+\end{myhs}
+
+  Where |applyChange'| very closely the implementation
 of the application presented in \Cref{sec:concrete-changes} but uses
 some more advanced type level mechanisms. The most important detail is the
 encoding of the interpretation of an atom with an existential index:

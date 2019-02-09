@@ -161,7 +161,7 @@ close :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
 close utx = case closure utx of
               InR cc -> cc
               InL (OMatch used unused del ins)
-                -> UTxHole $ CMatch (S.union used unused) del ins
+                -> error "lol" -- UTxHole $ CMatch (S.union used unused) del ins
   where
     closure :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
             -> Sum (OChange ki codes) (UTx ki codes (CChange ki codes)) at

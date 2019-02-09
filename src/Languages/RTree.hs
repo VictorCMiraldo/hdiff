@@ -106,7 +106,7 @@ instance Arbitrary RTree where
   arbitrary = sized $ \n -> choose (1 , n `div` 2) >>= genTree
 
 genSimilarTrees' :: Gen (RTree , RTree)
-genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
+genSimilarTrees' = choose (0 , 6) >>= genSimilarTrees
  
 
 
