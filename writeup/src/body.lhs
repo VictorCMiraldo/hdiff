@@ -13,15 +13,20 @@ on the level of the \emph{lines} of a file, hence, it fails
 to identify more fine grained changes in software source code. 
 
   Let us take a step back and introduce the differencing problem
-abstractly. The well-typed differencing problem consists in finding a
-type constructor, call it |Patch|, together with functions |diff| and
-|apply|, for some type |a|. Naturally, the |diff| function computes the
-differences between two trees of type |a| whereas |apply| will 
-attempt to transform one tree according to a |Patch|.
+abstractly. The well-typed differencing problem for some type |a|
+consists in finding a type constructor, call it |Patch|, together with
+functions |diff| and |apply|. Naturally, the |diff| function computes
+the differences between two trees of type |a| whereas |apply| will
+attempt to transform one tree according to a |Patch|. The
+\emph{well-typed} refers to the fact that a |Patch| is guaranteed, by
+construction, to generate well-typed elements once its applied. This
+is not the case for the approaches~\cite{Asenov2017,Falleri2014} using
+\texttt{xml} or \texttt{json} to represent their abstract syntax
+trees.
 
 \begin{myhs}
 \begin{code}
-diff   :: a  -> a -> Patch a
+diff   :: a -> a -> Patch a
 apply  :: Patch a -> a -> Maybe a 
 \end{code}
 \end{myhs}
@@ -41,17 +46,19 @@ is correctness, stating that |apply| properly follows |diff|'s instructions.
 by desirable to enjoy. For instance, it is certainly desirable that |diff|
 is both space and time efficient. That is, it must be fast to compute
 a |Patch| and the size of the patch must be smaller than storing both elements
-of type |a|. Otherwies, we could argue that |Patch a = (a,a)| is a solution,
-for instance.
+of type |a|. Otherwise, one could argue that |Patch a = (a,a)| is a perfectly
+fine solution, for example. Yet, storing all revisions of every file under
+vesion control is not really an acceptable solution.
 
-  Another interesting property we want to have is the ability to apply a patch
-to a number of elements. In fact, we want to apply a patch to the \emph{maximum}
-number of elements possible. For example\footnote{We show display this property in 
-its $\eta$-reduced form to highlight the difference with correctness}:
+  Another interesting property we want to have is the ability to apply
+a patch to biggest amount of elements possible. In fact, we want to
+apply a patch to the \emph{maximum} number of elements possible. One way
+of saying this is that |diff| will be identity when there are no changes.
+Note that this is \emph{a different property} than correctness:
 
-\[ | forall x dot apply (diff x x) == Just | \]
+\[ | forall x y dot apply (diff x x) y == Just y | \]
 
-  Capturing the idea that a patch that comes from not changing
+  This captures the idea that a patch that comes from not changing
 anything must be applicable to any element performing exactly 
 that action: not changing anything. 
 
@@ -64,17 +71,24 @@ all possible patches betweem two objects, then filter out \emph{the
 best} such patch. There are two big problems with this approach: (A)
 the inefficiency of a non-deterministic algorithm with many choice
 points, and, (B) defining what is \emph{the best} patch. These two
-problems stem from the same design choice of having only insert,
+problems stem from the same design choice: having only insert,
 delete and copy as the base operations.
 
-  The core of a differencing algorithm is to identify and pursue the
-copy opportunities as much as possible. Therefore the lack of a
-representation for moving and duplicating subtrees is an inherent
-issue in a structured setting: upon finding a subtree that can be
-copied in two different ways, the algorithm must choose between one of
-them. Besides efficiency problems, this also brings a complicated
-theoretical problems: it is impossible to order these patches in an
-educated fashion, and hence one cannot choose \emph{the best}.
+  We expect that the core of a differencing algorithm is to identify
+and pursue the copy opportunities as much as possible. Therefore the
+lack of a representation for moving and duplicating subtrees is an
+inherent issue in a structured setting: upon finding a subtree that
+can be copied in two different ways, the algorithm must choose between
+one of them. Besides efficiency problems, this also brings a
+complicated theoretical problems: it is impossible to order these
+patches in an educated fashion, and hence one cannot choose \emph{the
+best}. We illustrate this in \Cref{fig:linear-patch}. The tools
+dealing with insertions, deletions and copies all work on the preorder
+flattening of the tree as shown in the right side of
+\Cref{fig:linear-patch}. Hence, if we want to transform |Bin t u| into
+|Bin u t| using these tools, we will have to choose between copying
+|t| or |u|, but never both. One could choose to copy the bigger tree,
+but what if they have the same size?
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-00.pdf}
@@ -82,21 +96,11 @@ educated fashion, and hence one cannot choose \emph{the best}.
 \label{fig:linear-patch}
 \end{figure}
 
-  To illustrate this, imagine we want to compute a patch that
-transforms a tree |Bin t u| into |Bin u t|, shown in \Cref{fig:linear-patch}.  
-If the only operations we
-have at hand are insertions, deletions and copying of subtrees we
-end up essentially computing a patch between the preorder traversals
-of the trees. The options are shown in the right of \Cref{fig:linear-patch}.
-Note that we must choose between copying either |t| or |u|, but cannot copy both. 
-One could choose to copy the bigger tree, but what if they have the same size?
-
-  The lesson is that no option is better than the other. 
+  The lesson here that no option is better than the other. 
 If, however, we have some operation
 that encodes permutation of subtrees, we have not only removed a
-choice point from the algorithm but also arrived at a provably better
-patch \victor{provably according to who? Me!!! but what does it mean
-to be better anyway?}  without having to resort to heuristics or
+choice point from the algorithm but also constructed a patch that
+pursues all copy opportunities without having to resort to heuristics or
 arbitrary choices. And, contrary to what one might expect, more is
 less in this scenario. Adding more expressive basic change
 operations, duplicate and permute, enalbles us to remove choice
@@ -114,31 +118,26 @@ algorithm.
   \item An idealized algorithm capable of computing a patch that
         transforms a source tree into a target tree. We also give a practical
         instantiation of this algorithm that is correct modulo cryptographic hash
-        collisions and runs in linear time.
-  \item An implementation of our algorithm that
-        is immediately applciable to a large universe of datatypes,
+        collisions and runs in linear time, offering competitive performance.
+  \item An implementation of our algorithm that exploits generic programming
+        techniques making it readily applciable to a large universe of datatypes,
         namelly, any mutually recursive family.
-         
-  \item \victor{don't promisse too much!} A prorotype notion and implementation of a merging algorithm.
-        We have evaluated our implementation against unsolved conflicts
-        from a number of GitHub repositories in the Lua programming language.
-        \victor{how many?}
+  \item We sketch the skeleton of a \emph{merging} algorithm and outline
+        the important aspects to consider when merging changes that
+        are encoded with our representation.
+        \victor{I'm not sure I should say anything about merging here, though.}
 \end{itemize}
 
-\section{Sketch and Background}
-
-  Before exploring the generic implementation of our algorithm,
-let us look at a simple, concrete instance, first. On \Cref{sec:concrete-changes}
-we sketch our algorithm for a simple recursive type and outline the
-general building blocks. Later, \Cref{sec:generic-prog}, we 
-explain some generic programming techniques necessary to translate the simple
-implementation into a fully generic one.
-
-\subsection{Representing Changes: A Concrete Example}
+\section{Tree Diffing: A Concrete Example}
 \label{sec:concrete-changes}
 
-  Throughout this section we shall instantiate a version of our
-differencing algorithm for the type of two-three-trees, defined below: 
+  Before exploring the generic implementation of our algorithm, let us
+look at a simple, concrete instance, first. This sets the stage and
+introduces the intuition behind the building blocks used throughout
+the generic implementation,
+\Cref{sec:representing-changes}. Throughout this section we will
+explore the central ideas from our algorithm instantiated for a
+specific type, namelly, two-three-threes, defined below.
 
 \begin{myhs}
 \begin{code}
@@ -148,17 +147,31 @@ data Tree23  = Leaf
 \end{code}
 \end{myhs}
 
+  The most central concept of our work is the encoding of
+\emph{change}.  Unlike the previous
+work~\cite{Loh2009,Miraldo2017,Klein1998} based on
+tree-edit-distance~\cite{Bille2005} which uses only insertions,
+deletions and copies and consider the preorder traversal
+of a tree, as shown in \Cref{fig:linear-patch}, we go a step
+further. We explicitly model duplications and contractions of subtrees
+within our notion of \emph{change}. Later on, \Cref{sec:representing-changes},
+we will see that a \emph{patch} consists in prefix that is copied from
+the origin tree to the destination tree containing \emph{changes} in its
+leaves. For this simpler introduction, we shall look only at representing,
+applying and computing a single such change.
+
   The representation of a \emph{change} between two values of type
 |Tree23| is given by identifying the bits and pieces that must be
 copied from source to destination. Very much like pattern-matching, we
-match a |Tree23| against a pattern, instantiate some
+want to match a |Tree23| against a pattern, instantiate some
 \emph{metavariables} and use substitute them in an \emph{expression},
 \Cref{fig:first-patch}. These are called the deletion and insertion
 contexts, respectively.
 
-  We create a new datatype, |Tree23C|, that enables us to annotate a value of
-|Tree23| with holes, representing the metavariable
-within a context. For now, the metavariables will be a simple |Int|
+  A new datatype, |Tree23C|, enables us to annotate a value of
+|Tree23| with holes, representing metavariables
+within a |Tree23|. We refer to a value of |Tree23C| as a \emph{context}. 
+For now, the metavariables will be a simple |Int|
 but later we shall see how this construction is generalized.
 
 \begin{myhs}
@@ -172,30 +185,10 @@ data Tree23C = LeafC
 \end{code}
 \end{myhs}
 
-  The change that transforms |Node2 t u| in |Node2 u t| is then
-represented by a pair of |Tree23C|, |(Node2C (Hole 0) (Hole 1) ,
-Node2C (Hole 1) (Hole 0))|, as seen in \Cref{fig:first-patch}.
-
-%% VCM: It's too early to talk about spines 
-%%
-%%   Also in \Cref{fig:first-patch}, we see that the constructor |Node2| is being
-%% deleted then inserted again. Although we will not concern oursleves with this
-%% in this first presentation, this is addressed in \Cref{sec:representing-changes}.
-%% Much like the work of Miraldo et al.~\cite{Miraldo2016}, we will identify a \emph{spine}
-%% that is copied and leads to smaller changes within the tree.
-
-\begin{figure}
-\includegraphics[scale=0.3]{src/img/patch-01.pdf}
-\caption{Visualization of a |diff (Node2 t u) (Node2 u t)|, metavariables are shown in red}
-\label{fig:first-patch}
-\end{figure}
-
-\subsubsection{Applying Change}
-
-  As mentioned before, a \emph{change} is defined by a pattern that
+  A \emph{change}, then, is defined by a pattern that
 binds some metavariables, called the deletion context, and an expression
 where we are supposed to instantiate its metavariables, called the insertion
-context.
+context:
 
 \begin{myhs}
 \begin{code}
@@ -203,14 +196,26 @@ type Change = (Tree23C , Tree23C)
 \end{code}
 \end{myhs}
 
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/patch-01.pdf}
+\caption{Visualization of a |diff (Node2 t u) (Node2 u t)|, metavariables are shown in red}
+\label{fig:first-patch}
+\end{figure}
+
+  The change that transforms |Node2 t u| in |Node2 u t| is then
+represented by a pair of |Tree23C|, |(Node2C (Hole 0) (Hole 1) ,
+Node2C (Hole 1) (Hole 0))|, as seen in \Cref{fig:first-patch}.
+
+\subsubsection{Applying Changes}
+
   Applying a change, therefore, is done exactly the way we have described:
 instantiate variables against the deletion context and instantiate them
 in the insertion context:
 
 \begin{myhs}
 \begin{code}
-apply :: (Tree23C , Tree23C) -> Tree23 -> Maybe Tree23
-apply (d , i) x = del d x >>= ins i
+applyChange :: Change -> Tree23 -> Maybe Tree23
+applyChange (d , i) x = del d x >>= ins i
 \end{code}
 \end{myhs}
 
@@ -263,8 +268,8 @@ destination, defining our simplified |diff| function. This function
 will exploit as many
 copy opportunities as possible. For now, we delegate the
 decision of whether a subtree should be copied or not to an
-oracle. Assume we have access to a function |ics|, \emph{is common
-subtree}, with type |Tree23 -> Tree23 -> Tree23 -> Maybe Int|, where
+oracle. Assume we have access to a function |ics|, \emph{``is common
+subtree''}, with type |Tree23 -> Tree23 -> Tree23 -> Maybe Int|, where
 |ics s d x| returns |Nothing| when |x| is not a subtree of |s| and |d|
 or |Just i| when |x| is a common subtree. The |Int| inside the |Just|
 tells us which metavariable to use. The only condition we impose is
@@ -280,7 +285,7 @@ from its second argument.
 
 \begin{myhs}
 \begin{code}
-diff :: Tree23 -> Tree23 -> (Tree23C , Tree23C)
+diff :: Tree23 -> Tree23 -> Change
 diff s d = (extract (ics s d) s , extract (ics s d) d)
 \end{code}
 \end{myhs}
@@ -306,13 +311,13 @@ extract o x = maybe (peel x) Hole (o x)
   Assuming that |ics s d| is \emph{the best} possible such function,
 that is, it will correctly issue metavariables to \emph{all} common
 subtrees of |s| and |d|, it is not hard to see that our implementation 
-satisfy the properties enumerated in \Cref{sec:introduction}:
+satisfies the properties enumerated in \Cref{sec:introduction}, namelly:
 
 \begin{description}
   \item[Correctness] Assuming |ics| is correct, 
     \[ |forall x y dot apply (diff x y) x == Just y| \]
   \item[Preciseness] Assuming |ics| is correct,
-    \[ |forall x y . apply (diff x x) y == Just y| \]
+    \[ |forall x y dot apply (diff x x) y == Just y| \]
   \item[Time Efficiency] 
     On the worst case, we perform one query to the oracle per
     constructor in our trees. Assuming |ics| to be a constant time
@@ -350,7 +355,10 @@ will be shared under the same metavariable. This restriction does not
 impact the correctness of the algorithm but is an important point on
 the design space: how to \emph{drive} this algorithm, \Cref{sec:sharing}.
 
-\subsection{Background: Generic Programming}
+\section{Tree Diffing Generically}
+\label{sec:generic-diff}
+
+\subsection{Background on Generic Programming}
 \label{sec:generic-prog}
 
   Now that we have an idea of how our algorithm works for a specific
@@ -552,26 +560,28 @@ sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
   The |sop| functions converts a value in its standard representation
 to the more useful choice of constructor and associated product. This
 is by no means an extensive introduction to generic programming
-and we refer the interested reader to the literature for more information.
+and we refer the interested reader to the literature~\cite{deVries2014,Miraldo2018} for more information.
 
-\section{Representing and Computing Changes, Generically}
+\subsection{Representing and Computing Changes, Generically}
 \label{sec:representing-changes}
+
   
   In \Cref{sec:concrete-changes} we gained some intuition about the
 workings of our algorithm whereas in \Cref{sec:generic-prog} we
 discussed techniques for writting programs over arbitrary mutually
 recursive families. The next step is to start writing our algorithm in
 a generic fashion. On this section we present our generic algorithm
-and address the shortommings discussed in \Cref{sec:concrete-changes}.
+and address the shortcomings discussed in \Cref{sec:concrete-changes}.
 We shall ommit some type variables that are not relevant to our domain
-for clairty. The full code can be found in our
+for clarity. The full code can be found in our
 repository\footnote{\hsdigemsgit}.
 
   Recall the |Tree23C| type, from \Cref{sec:concrete-changes}, it augmented
 the |Tree23| type with an extra constructor for representing holes, by the
 means of a \emph{metavariable}. This type construction is crucial to the
 representation of patches. In fact, this construction can be done for any
-mutually recursive family and any type of \emph{metavariable functor}:
+mutually recursive family and any representation of \emph{metavariable},
+hence we parametrize by a functor:
 
 \begin{myhs}
 \begin{code}
@@ -660,27 +670,75 @@ data MetaVarIK at = MetaVarIK Int (NA (Const Unit) at)
 \end{code}
 \end{myhs}
 
-  In \Cref{fig:patch-example} we show an illustration of the type of |Patch| that
-transforms |Node3 t (Node2 u v) (Node2 w x)| into |Node3 t (Node2 v u) (Node2 w' x)|.
-The changes are shown with a shade in the background, placed always in the leaves
-of the spine.  
-
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-example.pdf}
-\caption{Example of the patch that transforms |Node3 t (Node2 u v) (Node2 w x)| 
-  into |Node3 t (Node2 v u) (Node2 w' x)|}
-\label{fig:patch-example}
+\vspace{.4em}
+\begin{myhs}
+\begin{code}
+TxPeel  (CS (CS CZ))  (Cons (TxHole (Change  (TxHole (NA_I 0)) 
+                                             (TxHole (NA_I 0))))
+                      (Cons (TxHole (Change  (TxPeel  (CS CZ)  (Cons (TxHole (NA_I 1))
+                                                               (Cons (TxHole (NA_I 2))
+                                                               Nil)))
+                                             (TxPeel  (CS CZ)  (Cons (TxHole (NA_I 2))
+                                                               (Cons (TxHole (NA_I 1))
+                                                               Nil)))))
+                      (Cons (TxPeel  (CS CZ)  (Cons (TxHole (Change  (na2tx w)
+                                                                     (na2tx w')))
+                                              (Cons (TxHole (Change  (TxHole (NA_I 3))
+                                                                     (TxHole (NA_I 3))))
+                                              Nil)))
+                      Nil)))
+\end{code}
+\end{myhs}
+\caption{Graphical and textual representation of the patch that transforms the value %
+|Node3 t (Node2 u v) (Node2 w x)| into the value |Node3 t (Node2 v u) (Node2 w' x)|.}
+ \label{fig:patch-example}
 \end{figure}
 
+  In \Cref{fig:patch-example} we show an illustration of the value of
+type |Patch| that transforms |Node3 t (Node2 u v) (Node2 w x)| into
+|Node3 t (Node2 v u) (Node2 w' x)|.  The changes are shown with a
+shade in the background, placed always in the leaves of the
+spine. Note that the changes encompas only the minimum number of
+constructor to bind and use all metavariables. This keeps changes
+small and isolated. This is convenient for applying patches and
+merging them. Application, for insance, is given by:
+
+\begin{myhs}
+\begin{code}
+apply :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
+apply patch el  =    txZip patch (na2tx el) 
+                >>=  txMapM (uncurry' applyChange') 
+                >>=  return . tx2na
+  where
+    txZip :: Tx codes phi ix -> Tx codes psi ix -> Maybe (Tx codes (phi :*: psi) ix)
+\end{code}
+\end{myhs}
+
+  Where |(:*:)| the indexed product and |uncurry'| the indexed
+variant of |uncurry| made to work over |(:*:)|.
+
+\begin{myhs}
+\begin{code}
+data (:*:) f g x = f x :*: g x
+\end{code}
+\end{myhs}
+
 \paragraph{Computing Patches} Going from a source and a destination
-trees directly to a |Patch| is hard. Instead, we perform a number of
-intermediate steps. First we extract the insertion and deletion
-contexts by using the oracle. Then we potprocess those contexts
-replacing undefined metavariables. Next we extract the greatest common
-prefix, yielding the spine.  Finally, we fix any bindings that have
-been broken by the previous step.  Recall that we are still assuming
-an efficient oracle |ics :: Oracle codes|, for answering whether
-\emph{|t| is a subtree of a fixed |s| and |d| indexed by |n|}, where:
+trees directly to a |Patch| is hard. As seen in
+\Cref{fig:patch-example}, one has to identify the copy oportunities
+and isolate the largest possible spine that still respects the
+independent bindings of the changes.  These will be done with the help
+a number of intermediate steps.  First we extract the insertion and
+deletion contexts by using the oracle, much like we did in
+\Cref{sec:concrete-changes}.  We must, however, postprocess those
+contexts replacing undefined metavariables since the oracle might copy
+\emph{too eagerly}.  Next we extract the greatest common prefix,
+yielding the spine and fix any bindings that have been broken by a too
+large spine.  Recall that we are still assuming an efficient oracle
+|ics :: Oracle codes|, for answering whether \emph{|t| is a subtree of
+a fixed |s| and |d| indexed by |n|}, where:
 
 \begin{myhs}
 \begin{code}
@@ -715,8 +773,6 @@ far. The |(:*:)| type is the indexed product.
 \begin{code}
 data ForceI :: (Nat -> Star) -> Atom -> Star where
   ForceI :: f i -> ForceI f (I i)
-
-data (:*:) f g x = f x :*: g x
 \end{code}
 \end{myhs}
 
