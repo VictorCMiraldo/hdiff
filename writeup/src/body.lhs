@@ -1582,7 +1582,8 @@ telegram-bot       & 729     & 50 \\
 \end{figure}
 
 \begin{figure}
-\includegraphics[scale=0.5]{src/img/smallplotdata.pdf}
+\includegraphics[scale=0.5]{src/img/runtimes-less-than-10000.pdf}
+\includegraphics[scale=0.5]{src/img/runtimes-all.pdf}
 \caption{Plot of the time for diffing two lua files over the total AST nodes}
 \label{fig:performance-plot}
 \end{figure}
