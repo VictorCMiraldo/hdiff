@@ -34,6 +34,10 @@ import           Data.Type.Equality
 import           Data.Text.Prettyprint.Doc hiding (Doc)
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
+import           Data.String (fromString)
+import           Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified Data.ByteString as BS
+import           Data.Serialize.Put (putWord8, runPut, putByteString, Putter)
 
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.Util
@@ -42,6 +46,7 @@ import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
+import qualified Data.Digems.MetaVar     as D
 import qualified Data.Digems.Patch       as D
 import qualified Data.Digems.Patch.Diff  as D
 import qualified Data.Digems.Patch.Merge as D
@@ -80,6 +85,7 @@ data Options
           , optFileB     :: FilePath
           , minHeight    :: Int
           , testApply    :: Bool
+          , showStats    :: Bool
           }
   | Merge { optFileA     :: FilePath
           , optFileO     :: FilePath
@@ -88,12 +94,6 @@ data Options
           , optDisplay   :: Bool
           }
   deriving (Data, Typeable, Eq , Show)
-
-minHeightFlags :: Int
-minHeightFlags = 1
-  &= typ "INT"
-  &= help "Specify the minimum height a tree must have to be shared"
-  &= explicit &= name "h" &= name "height"
 
 merge = Merge
   { optFileA = def &= argPos 0 &= typ "MYFILE"
@@ -126,6 +126,12 @@ diff = Diff
       &= typ "BOOL"
       &= help "Attempts applying the patch and checks the result for equality"
       &= explicit &= name "a" &= name "apply"
+  , showStats = False
+      &= typ "BOOL"
+      &= help ("Shows statistics about the computed patch, stats are read as"
+           ++  "ast size OLDFILE; ast size NEWFILE; size patch (bytes);"
+           ++  "time to compute and serialize (secs)")
+      &= explicit &= name "s" &= name "stats"
   } 
   &= help "Computes the diff between two programs. The resulting diff is displayed"
 
@@ -141,7 +147,7 @@ data OptionMode
 
 optionMode :: Options -> OptionMode
 optionMode (AST _) = OptAST
-optionMode (Diff _ _ _ _) = OptDiff
+optionMode (Diff _ _ _ _ _) = OptDiff
 optionMode (Merge _ _ _ _ _) = OptMerge
 
 main :: IO ()
@@ -183,10 +189,47 @@ tryApply patch fa fb
 mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
-    let patch = D.diff (minHeight opts) fa fb
-    displayRawPatch stdout patch
+    let sa = constrsOf fa
+    let sb = constrsOf fb
+    -- putStrLn "size a; size b; size patch (bytes); time to compute and serialize (secs)"
+    putStr   (show sa ++ " " ++ show sb ++ " ")
+    (t,patch) <- time $ do
+      let patch = D.diff (minHeight opts) fa fb
+      let psize = patchPutter patch
+      putStr (show (BS.length psize) ++ " ")
+      return patch
+    putStrLn (show t)
+    when (not $ showStats opts) $ displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
     return ExitSuccess
+
+-------- HACK: statistics!
+
+patchPutter :: (Show1 ki) => D.RawPatch ki codes at -> BS.ByteString
+patchPutter = runPut
+            . utxPutter changePutter (putByteString . fromString . show1)
+
+changePutter :: (Show1 ki) => Putter (D.CChange ki codes ix)
+changePutter c = let f = utxPutter (putWord8 . fromIntegral . D.metavarGet)
+                                   (putByteString . fromString . show1)
+                  in f (D.cCtxDel c) >> f (D.cCtxIns c)
+
+            
+-- count how many constructors are in a tree
+constrsOf :: (IsNat ix) => Fix ki codes ix -> Int
+constrsOf = getConst . cata (\r -> case sop r of
+   Tag _ p -> Const $ 1 + sum (elimNP (elimNA (const 0) getConst) p))
+
+time :: IO a -> IO (Double, a)
+time act = do
+  start <- getTime
+  result <- act
+  end <- getTime
+  let !delta = end - start
+  return (delta, result)
+
+getTime :: IO Double
+getTime = realToFrac `fmap` getPOSIXTime
 
 mainMerge :: Options -> IO ExitCode
 mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)

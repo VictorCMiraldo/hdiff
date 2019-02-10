@@ -38,6 +38,7 @@ library
   build-depends:       base >=4.10 && <5
                ,       generics-mrsop >= 1.2.2
                ,       bytestring
+               ,       cereal
                ,       cryptonite
                ,       memory
                ,       containers
@@ -63,13 +64,16 @@ executable digem
                ,       Languages.Clojure.Parser
                ,       Languages.Lines
   build-depends:       base >=4.10 && <5
+               ,       bytestring
                ,       generics-mrsop
                ,       hs-digems
                ,       parsec
+               ,       cereal
                ,       cmdargs
                ,       gitrev
                ,       prettyprinter
                ,       text 
+               ,       time
                ,       language-lua
                ,       mtl
                ,       QuickCheck

@@ -15,6 +15,10 @@ import Data.Functor.Const
 import Data.Void
 import Data.Type.Equality
 import qualified Data.Set as S (insert , empty , Set)
+import Data.Serialize.Put
+import Data.Serialize.Get
+import Data.ByteString (ByteString)
+import Data.Word (Word8)
 
 import Control.Monad.Identity
 import Control.Monad.State
@@ -60,6 +64,24 @@ instance (Eq1 phi , Eq1 ki) => Eq (UTx ki codes phi ix) where
       cmp (UTxHole x) (UTxHole y) = eq1 x y
       cmp (UTxOpq  x) (UTxOpq  y) = eq1 x y
       cmp _           _           = False
+
+utxPutter :: (forall ix . Putter (phi ix))
+          -> (forall k  . Putter  (ki k))
+          -> Putter (UTx ki codes phi at)
+utxPutter putPhi putKi (UTxHole phi) = putWord8 0 >> putPhi phi
+utxPutter putPhi putKi (UTxOpq k)    = putWord8 1 >> putKi k
+utxPutter putPhi putKi utx@(UTxPeel c d)
+  = do putWord8 2
+       let ty = fromIntegral $ snat2int $ getUTxSNat utx
+       let cc = constr2W8 c
+       putWord8 ty
+       putWord8 cc
+       elimNPM (utxPutter putPhi putKi) d
+       return ()
+  where 
+    constr2W8 :: Constr sum' n -> Word8
+    constr2W8 CZ     = 0
+    constr2W8 (CS c) = 1 + constr2W8 c
 
 -- |Returns the index of the UTx as a singleton.
 getUTxSNat :: (IsNat ix) => UTx ki codes f (I ix) -> SNat ix

@@ -49,7 +49,6 @@ type RawPatch ki codes = UTx ki codes (CChange ki codes)
 -- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
 type Patch ki codes ix = UTx ki codes (CChange ki codes) (I ix)
 
-
 -- ** Patch Alpha Equivalence
 
 patchEq :: (Eq1 ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
