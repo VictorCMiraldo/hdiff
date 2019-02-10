@@ -69,21 +69,36 @@ echo "Running $difftool at $ver for statistics"
 echo "directory; filesize O; filesize A; astsize O; astsize A; digem patch size; time; diff patch size;" | tee -a $logfile
 
 for d in ${dir}/*; do
-  if [[ ! -f "${d}/A.$lang" ]] || [[ ! -f "${d}/O.$lang" ]]; then
-    echo "${d} $difftool file-not-found" | tee -a $logfile 
+  if [[ ! -f "${d}/A.$lang" ]] || [[ ! -f "${d}/B.$lang" ]] || [[ ! -f "${d}/O.$lang" ]]; then
+    echo "${d} $difftool file-not-found"
     continue
   fi
 
   line=$(${difftool} diff -s "${d}/O.$lang" "${d}/A.$lang")
   res=$?
   if [[ $res == "0" ]]; then
-    sizeo=$(stat --printf="%s" "${d}/O.$lang") 
-    sizea=$(stat --printf="%s" "${d}/A.$lang") 
-    diff "${d}/O.$lang" "${d}/A.$lang" > tmpdifffile
-    sizediff=$(stat --printf="%s" tmpdifffile)
-    echo "$d $sizeo $sizea $line $sizediff" | tee -a $logfile
+    # sizeo=$(stat --printf="%s" "${d}/O.$lang") 
+    # sizea=$(stat --printf="%s" "${d}/A.$lang") 
+    # diff "${d}/O.$lang" "${d}/A.$lang" > tmpdifffile
+    # sizediff=$(stat --printf="%s" tmpdifffile)
+    # echo "$d $sizeo $sizea $line $sizediff" | tee -a $logfile
+    echo "$d OA $line" | tee -a $logfile
   else
-    echo "${d} error"
+    echo "${d} OA error"
   fi
+
+  line=$(${difftool} diff -s "${d}/O.$lang" "${d}/B.$lang")
+  res=$?
+  if [[ $res == "0" ]]; then
+    # sizeo=$(stat --printf="%s" "${d}/O.$lang") 
+    # sizea=$(stat --printf="%s" "${d}/A.$lang") 
+    # diff "${d}/O.$lang" "${d}/A.$lang" > tmpdifffile
+    # sizediff=$(stat --printf="%s" tmpdifffile)
+    # echo "$d $sizeo $sizea $line $sizediff" | tee -a $logfile
+    echo "$d OB $line" | tee -a $logfile
+  else
+    echo "${d} OB error"
+  fi
+
 done
 

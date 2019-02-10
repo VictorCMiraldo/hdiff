@@ -192,11 +192,11 @@ mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     let sa = constrsOf fa
     let sb = constrsOf fb
     -- putStrLn "size a; size b; size patch (bytes); time to compute and serialize (secs)"
-    putStr   (show sa ++ " " ++ show sb ++ " ")
+    putStr   (show (sa + sb) ++ " ")
     (t,patch) <- time $ do
       let patch = D.diff (minHeight opts) fa fb
       let psize = patchPutter patch
-      putStr (show (BS.length psize) ++ " ")
+      putStr (show (BS.length psize) ++ "b ")
       return patch
     putStrLn (show t)
     when (not $ showStats opts) $ displayRawPatch stdout patch
