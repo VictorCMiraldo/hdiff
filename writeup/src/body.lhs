@@ -1337,36 +1337,36 @@ collision is negligible. Hence, we ignore such step.
 
   One of the main motivations for generic structure-aware diffing 
 is being able to merge patches that previously required human interaction. 
-We have started working on said problem and have achieved some interesting
-results shown in \Cref{sec:experiments}, yet, it is worth mentioning that
-this is very much a work in progress.
+We have started working on a preliminary algorithm for merging two
+|Patch|es but this is still very much a work in progress. It is
+worthwhile, nevertheless, to go over how one can solve the easy cases
+and document the difficulties of the hard cases.
 
-  The merging problem, illustrated in \Cref{fig:merge-square}, is the problem
-of computing |q / p| given two patches |p| and |q|. The patch |q / p| is sometimes
-called the \emph{transport} of |q| over |p| or the \emph{residual}~\cite{Huet1994}
-of |p| and |q|. Regardless of the name, it represents the patch that contains
-the changes of |q| adapted to be applied on a value that has already
-been modivied by |p|.
+  The merging problem, illustrated in \Cref{fig:merge-square}, is the
+problem of computing |q // p| given two patches |p| and |q|. The patch
+|q // p| is sometimes called the \emph{transport} of |q| over |p| or
+the \emph{residual}~\cite{Huet1994} of |p| and |q|. Regardless of the
+name, it represents the patch that contains the changes of |q| adapted
+to be applied on a value that has already been modivied by |p|.
 
 \begin{figure}[t]
 \begin{displaymath}
 \xymatrix{ & o \ar[dl]_{p} \ar[dr]^{q} & \\
-          a \ar[dr]_{|q / p|} & & b \ar[dl]^{|p / q|} \\
+          a \ar[dr]_{|q // p|} & & b \ar[dl]^{|p // q|} \\
             & c &}
 \end{displaymath}
 \caption{Merge square}
 \label{fig:merge-square}
 \end{figure}
 
-  Our merging operator, |(/)|, receives two patches and returns a patch
+  Our merging operator, |(//)|, receives two patches and returns a patch
 possibly annotated with conflicts. Conflicts happen when an automatic
 merge is not possible. This operator is very similar to the \emph{residual}
 operator, usually studied within a term-rewritting perspective. 
-\victor{write a bit about residuals, explain the slight differences}
 
 \begin{myhs}
 \begin{code}
-(/) :: Patch codes at -> Patch codes at -> PatchConf codes at
+(//) :: Patch codes at -> Patch codes at -> PatchConf codes at
 \end{code}
 \end{myhs}
 
@@ -1383,14 +1383,12 @@ type PatchConf codes =  Tx codes (Sum (Conflict codes) (Change codes))
 \end{code}
 \end{myhs}
 
-  The definition of |p / q| is simple and borrows the laws
-of residuals~\cite{lalala} by construction. First we extract the greatest common
-prefix of |p| and |q|. This is the prefix of the source tree that both
-|p| and |q| copy and can safely be kept. Once we take the |txGCP p q|,
-of type |Tx codes (Patch codes :*: Patch codes) at|, we are left with
-a treefix with a pair of patches in its holes. Moreover, we know that
-these patches will disagree on the topmost constructor. Hence, we
-try to reconcile those:
+ The intuition is that |p // q| must preserve the intersection of the
+spines of |p| and |q| and reconcile the differences whenever one of
+the patches has a change. Note that it is impossible to have
+disagreeing spines since |p| and |q| are applicable to at least one
+common element.  This is yet another job for the \emph{greatest common
+prefix} operator:
 
 \begin{myhs}
 \begin{code}
@@ -1401,155 +1399,123 @@ p / q = utxMap (uncurry' reconcile) $$ txGCP p q
   The |reconcile| function receives two disagreeing patches and attempt
 to transport the left argument over the right argument, that is, |reconcile p q|
 attempts to adapt |p| to the codomain |q|. If the patches cannot be
-reconciled, we return both patches marked as a conflict. 
+reconciled, we return both patches marked as a conflict. This is 
+where we borrow from residual theory~\cite{Huet1994} to discharge 
+trivial cases for us. Let us look at the definition of
+|reconvile|:
 
 \begin{myhs}
 \begin{code}
-reconcile :: Patch codes at -> Patch codes at -> Sum (Conflict codes) (Change codes) at
+reconcile  :: Patch codes at -> Patch codes at -> Sum (Conflict codes) (Change codes) at
+reconcile p q
+  | patchIden p || patchIden q  = InR $$ distr p
+  | patchEquiv p q              = InR $$ copy
+  | otherwise                   = difficultCases p q
 \end{code}
 \end{myhs}
 
-  Our first case consist in both patches being changes. We start by checking
-whether either change is a copy. If so, we return |p|. If |p| is a copy,
-then adapting a copy over a new domain is just another copy, hence
-we can return |p| itself. It |q| is a copy, adapting |p| to work on
-the \emph{same} domain is simply |p| itself. If neither change is
-a copy, but they are $\alpha$-equivalent, we return a copy. 
-Finally, when the changes are not a copy nor equivalent we must
-try a more complicated merge.
+  The first branch borrows from the two identity laws from residual
+theory that state that |p // id == p| and |id // p == id|. This is
+fairly intuitive when spoken out loud. Take the first law as an
+example, |p / id|: we are adapting a change |p| to work over an object
+has been changed by |id|, but this means the object is the same and we
+can apply |p| itself. The second law is also captured by the first
+conditional clause of |reconcile|. The third residual law on the
+other hand, needs its very own clause. It states that |p // p == id|,
+meaning that applying a patch over something that has been modified by
+this very patch amounts to not changing anything. The |patchIden| functions
+checks whether all changes in that patch are copies and |patchEquiv|
+checks if two patches are $\alpha$-equivalent.
 
-\begin{myhs}
-\begin{code}
-reconcile (TxHole p) (TxHole q)
-  | isCpy p || isCpy q  = TxHole (InR p)
-  | p == q              = TxHole (InR copy)
-  | otherwise           = TxHole (mergeChange p q)
-\end{code}
-\end{myhs}
+  We are now left to handle the difficult cases, when the patches are
+not equivalent and none is equivalent to the identity patch.
 
-  The cases where only one of the patches consist in a change
-are analogous. We must check whether that change is a copy and
-return the corresponding value. If it is not a copy we use
-the distributive law |distr :: Patch codes at -> Change codes at|
-and merge the changes.
-
-\begin{myhs}
-\begin{code}
-reconcile p (TxHole q) 
-  | isCpy q    = utxMap InR p
-  | otherwise  = TxHole (mergeChange (distr p) q)
-reconcile (TxHole p) q = ... -- analogous
-\end{code}
-\end{myhs}
-\victor{Why can't |p| be a copy here? Maximality of the oracle.
-If |distr p| yields a copy, then there exists a larger shared subtree
-between source and destination}
-
-  Lastly, the case where neither patch is unreachable.
-We assumed that both patches were applicable to at least one common
-element and |reconcile| is called \emph{after} extracting the greatest
-common prefix. If both patches are not a |TxHole|, they have to be a |TxPeel|
-or a |TxOpq|. Since they must be applicable to at least one common element,
-these also have to agree.
-
-\begin{myhs}
-\begin{code}
-reconcile _ _ = error "unreachable"
-\end{code}
-\end{myhs}
-
-  We have taken care of all the easy cases and are left with the definition
-of |mergeChange|, the function that merges two changes that are not equal
-nor copies, we are left with insertions, deletions or modifications. 
-In fact, it is simple to classify a change as one of these classes: if there
-is a leaf in the deletion context that is not a |TxHole|, then the
-change deletes information; if such leaf exists in the insertion
-context, it inserts information; if it exists in both, it modifies
-information. 
-
-\begin{myhs}
-\begin{code}
-data ChangeType = CIns | CDel | CMod
-
-classify :: Change codes at -> ChangeType
-\end{code}
-\end{myhs}
-
-  Recall that the first argument to |mergeChange| is the change
-that must be adapted to work on the codomain of the second. In
-case we are attempting to merge two insertions or two deletions
-we return a conflict. It is worth mentioning that our merge algorithm
-is very primitive and is the current topic of our research. Here
-we present a preliminary \emph{underaproximation} algorithm. It is
-encouraging that such a simple approach already
-gives us decent results, \Cref{sec:experiments}. That being said,
-let us start discussing a simple merge algorithm for our
-structured patches.
-
-\victor{experiment! seems like del/mod should be a conflict, huh?}
-
-  There are three cases that are trivial. Namelly adapting
-an insertion over deletion or modification; and a deletion
-over a modification. \victor{after experimentation, explain why}
-This is because the insertion will be carrying new information that
-could not have been fiddled with by the deletion or modification.
-
-  The other cases requires a more intricate treatment. Intuitively,
-when adapting a change |cp| to work on a tree modified by |cq| one \emph{applies} |cq| 
-to |cp|. This allows us to \emph{transport} the necessary bits of the change to the location
-they must be applied. For instance, imagine we are given the two patches over |Tree23|: |pa| and |pb| with
-type |Tx Tree23Codes (Tx Tree23Codes MetaVar :*: Tx Tree23Codes MetaVar) (I Z)|, that is, a common prefix
-to be copied with \emph{changes} inside. 
-
-\begin{myhs}
-\begin{code}
-pa = Node2C (Hole (Change (Leaf 10) (Leaf 20)) (Hole (Change (Hole 0) (Hole 0)))
-pb = Hole (Change (Node2C (Hole 0) (Hole 1)) (Node2C (Hole 1) (Hole 0)))
-\end{code}
-\end{myhs}
-
-  Here, |pa| changes the value in the left children of the root and |pb| swaps the 
-root children. If we are to apply |pa| on a tree already modified by |pb|, we must transport
-the |(Leaf 10 , Leaf 20)| change to the right children. This can be easily done by \emph{applying}
-|pb| to |pa|. That is, instantiate the metavariables in the deletion context of |pb| with
-values from |pa|. In this case, 0 becomes |Hole (Leaf 10 , Leaf 20)| and 1 becomes |Hole (Hole 0, Hole 0)|.
-Now we substitute that in the insertion context of |pb|, yielding:
-
-\begin{myhs}
-\begin{code}
-pa / pb = Node2C (Hole (Hole 0 , Hole 0)) (Hole (Leaf 10 , Leaf 20))
-\end{code}
-\end{myhs}
-
-  This is analogous to applying a change to a term, but instead we apply a change to a change. 
-We call the function that performs this application |adapt|. Finally, a simple |mergeChange| 
-can be given below. Recall that we only call this function on changes |cp| and |cq| that
-are not the identity and |cp /= cq|.
-
-\begin{myhs}
-\begin{code}
-mergeChange  :: Change codes at 
-             -> Change codes at 
-             -> Sum (Conflict codes) (Change codes) at
-mergeChange cp cq = case (classify cp , classify cq) of
-  (CIns , CIns)  -> InL (cp , cq)
-  (CDel , CDel)  -> InL (cp , cq)
-  
-  (CIns , _)     -> InR cp
-  (CDel , CMod)  -> InR cp
-  
-  _              -> adapt cp cq
-\end{code}
-\end{myhs}
- 
+%%  We have taken care of all the easy cases and are left with the definition
+%% of |mergeChange|, the function that merges two changes that are not equal
+%% nor copies, we are left with insertions, deletions or modifications. 
+%% In fact, it is simple to classify a change as one of these classes: if there
+%% is a leaf in the deletion context that is not a |TxHole|, then the
+%% change deletes information; if such leaf exists in the insertion
+%% context, it inserts information; if it exists in both, it modifies
+%% information. 
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% data ChangeType = CIns | CDel | CMod
+%% 
+%% classify :: Change codes at -> ChangeType
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   Recall that the first argument to |mergeChange| is the change
+%% that must be adapted to work on the codomain of the second. In
+%% case we are attempting to merge two insertions or two deletions
+%% we return a conflict. It is worth mentioning that our merge algorithm
+%% is very primitive and is the current topic of our research. Here
+%% we present a preliminary \emph{underaproximation} algorithm. It is
+%% encouraging that such a simple approach already
+%% gives us decent results, \Cref{sec:experiments}. That being said,
+%% let us start discussing a simple merge algorithm for our
+%% structured patches.
+%% 
+%% \victor{experiment! seems like del/mod should be a conflict, huh?}
+%% 
+%%   There are three cases that are trivial. Namelly adapting
+%% an insertion over deletion or modification; and a deletion
+%% over a modification. \victor{after experimentation, explain why}
+%% This is because the insertion will be carrying new information that
+%% could not have been fiddled with by the deletion or modification.
+%% 
+%%   The other cases requires a more intricate treatment. Intuitively,
+%% when adapting a change |cp| to work on a tree modified by |cq| one \emph{applies} |cq| 
+%% to |cp|. This allows us to \emph{transport} the necessary bits of the change to the location
+%% they must be applied. For instance, imagine we are given the two patches over |Tree23|: |pa| and |pb| with
+%% type |Tx Tree23Codes (Tx Tree23Codes MetaVar :*: Tx Tree23Codes MetaVar) (I Z)|, that is, a common prefix
+%% to be copied with \emph{changes} inside. 
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% pa = Node2C (Hole (Change (Leaf 10) (Leaf 20)) (Hole (Change (Hole 0) (Hole 0)))
+%% pb = Hole (Change (Node2C (Hole 0) (Hole 1)) (Node2C (Hole 1) (Hole 0)))
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   Here, |pa| changes the value in the left children of the root and |pb| swaps the 
+%% root children. If we are to apply |pa| on a tree already modified by |pb|, we must transport
+%% the |(Leaf 10 , Leaf 20)| change to the right children. This can be easily done by \emph{applying}
+%% |pb| to |pa|. That is, instantiate the metavariables in the deletion context of |pb| with
+%% values from |pa|. In this case, 0 becomes |Hole (Leaf 10 , Leaf 20)| and 1 becomes |Hole (Hole 0, Hole 0)|.
+%% Now we substitute that in the insertion context of |pb|, yielding:
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% pa / pb = Node2C (Hole (Hole 0 , Hole 0)) (Hole (Leaf 10 , Leaf 20))
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   This is analogous to applying a change to a term, but instead we apply a change to a change. 
+%% We call the function that performs this application |adapt|. Finally, a simple |mergeChange| 
+%% can be given below. Recall that we only call this function on changes |cp| and |cq| that
+%% are not the identity and |cp /= cq|.
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% mergeChange  :: Change codes at 
+%%              -> Change codes at 
+%%              -> Sum (Conflict codes) (Change codes) at
+%% mergeChange cp cq = case (classify cp , classify cq) of
+%%   (CIns , CIns)  -> InL (cp , cq)
+%%   (CDel , CDel)  -> InL (cp , cq)
+%%   
+%%   (CIns , _)     -> InR cp
+%%   (CDel , CMod)  -> InR cp
+%%   
+%%   _              -> adapt cp cq
+%% \end{code}
+%% \end{myhs}
+%%  
 
 \TODO{I'm HERE}
-
-\victor{define the notion of applicable}
-tHere, we also assume that both patches are applicable to at least one common value.
-
-  \TODO{Describe reconcile; describe change classification}
-
 
   
 \victor{\label{comment:minimality} we should mention this earlier. What is
@@ -1558,21 +1524,35 @@ this concept?
 patches with minimal changes.
 }
 
-  The actual algorithm is fairly simple and can be built moslty from
-combinators we already introduced. 
-
-
-
 \section{Experiments}
 \label{sec:experiments}
 
-  We have tested our implementation by mining through the top Lua~\cite{what}
-repositories on GitHub. We then extracted all the merge conflicts 
-from these repositories and tried using our tool to merge the changes
-instead. Upon a sucesful merge, we attempted to apply the merges
-to the respective and made sure that the merge square, \Cref{fig:merge-square},
-commutes. 
+  We have conducted two experiments over a number of real
+Lua~\cite{what} source files. We obtained the data by mining the top
+Lua repositories on GitHub and extracting all the merge conflicts from
+them. We then proceeded to run two experiments over this data:
+a performance test and a merging test.
 
+\paragraph{Performance Evaluation} In order to evaluate the
+performance of our implementation we have timed the computation of
+the two diffs, |diff o a| and |diff o b| using our algorithm. 
+In order to ensure that the numbers we obtained are valid we
+timed the execution of |length . encode . uncurry diff|,
+where |encode| comes from |Data.Serialize|. Besides ensuring that the
+patch is fully evaluated, the serialization also mimicks what would
+happen in a real version control system since the patch would
+have to saved to disk. We have plotted this data over the total number
+of constructors for each source-destination pair, \Cref{fig:performance-plot}.
+The results are what we would expect given that |diff o a| runs in
+$\bigO{n + m}$ where |n| and |m| are the number of constructors of |o|
+and |a|, respectively.
+
+\paragraph{Merging Evaluation} While writing our trivial merging
+algorithm we wanted to analize whether we could solve any of the 
+conflicts that the \texttt{UNIX} diff failed over. Upon a sucesful
+merge from our tool we attempted to apply the merges to the respective
+files and made sure that the merge square (\Cref{fig:merge-square})
+was cummuting. \victor{finish}
 
 \begin{figure}\centering
 \ra{1.2} % better spacing
@@ -1599,6 +1579,12 @@ telegram-bot       & 729     & 50 \\
 \end{tabular}
 \caption{Lua repositories mined from \emph{GitHub}}
 \label{fig:repositoriesmined}
+\end{figure}
+
+\begin{figure}
+\includegraphics[scale=0.5]{src/img/smallplotdata.pdf}
+\caption{Plot of the time for diffing two lua files over the total AST nodes}
+\label{fig:performance-plot}
 \end{figure}
 
 \subsection{Threats to Validity} There are two main threats to the
