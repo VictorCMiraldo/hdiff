@@ -1,4 +1,4 @@
-\documentclass[acmsmall,10pt]{acmart}%
+\documentclass[acmsmall,10pt,review=true]{acmart}%
 \settopmatter{printfolios=true,printccs=false,printacmref=false}
 
 %%%%%%%%%%%%%%
