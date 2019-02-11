@@ -48,7 +48,7 @@ is both space and time efficient. That is, it must be fast to compute
 a |Patch| and the size of the patch must be smaller than storing both elements
 of type |a|. Otherwise, one could argue that |Patch a = (a,a)| is a perfectly
 fine solution, for example. Yet, storing all revisions of every file under
-vesion control is not really an acceptable solution.
+version control is not really an acceptable solution.
 
   Another interesting property we want to have is the ability to apply
 a patch to biggest amount of elements possible. In fact, we want to
@@ -62,12 +62,12 @@ Note that this is \emph{a different property} than correctness:
 anything must be applicable to any element performing exactly 
 that action: not changing anything. 
 
-  The unix \texttt{diff}~\cite{McIlroy1979} solves the differencing
+  The UNIX \texttt{diff}~\cite{McIlroy1979} solves the differencing
 problem, and satisfies many of these desirable properties, for the
 special case of |a == [String]|, ie, files are seen as lists of
 lines. Although there has been attempts at a solution for arbitrary
 such |a|s, all of them have the same \emph{modus operandis}: compute
-all possible patches betweem two objects, then filter out \emph{the
+all possible patches between two objects, then filter out \emph{the
 best} such patch. There are two big problems with this approach: (A)
 the inefficiency of a non-deterministic algorithm with many choice
 points, and, (B) defining what is \emph{the best} patch. These two
@@ -103,7 +103,7 @@ choice point from the algorithm but also constructed a patch that
 pursues all copy opportunities without having to resort to heuristics or
 arbitrary choices. And, contrary to what one might expect, more is
 less in this scenario. Adding more expressive basic change
-operations, duplicate and permute, enalbles us to remove choice
+operations, duplicate and permute, enables us to remove choice
 points and write a efficient deterministic structure-aware differencing 
 algorithm.
 
@@ -112,7 +112,7 @@ algorithm.
 \begin{itemize}
   \item A solution to the well-typed differencing problem
         that does not suffer from problems (A) and (B) outline above.
-        In fact, our approach supports subtree duplications and permutations
+        In fact, our approach supports subtree duplication and permutations
         and satisfy the desired properties outlined above, including
         space efficiency.
   \item An idealized algorithm capable of computing a patch that
@@ -120,8 +120,8 @@ algorithm.
         instantiation of this algorithm that is correct modulo cryptographic hash
         collisions and runs in linear time, offering competitive performance.
   \item An implementation of our algorithm that exploits generic programming
-        techniques making it readily applciable to a large universe of datatypes,
-        namelly, any mutually recursive family.
+        techniques making it readily applicable to a large universe of datatypes,
+        namely, any mutually recursive family.
   \item We sketch the skeleton of a \emph{merging} algorithm and outline
         the important aspects to consider when merging changes that
         are encoded with our representation.
@@ -137,7 +137,7 @@ introduces the intuition behind the building blocks used throughout
 the generic implementation,
 \Cref{sec:representing-changes}. Throughout this section we will
 explore the central ideas from our algorithm instantiated for a
-specific type, namelly, two-three-threes, defined below.
+specific type, namely, two-three-threes, defined below.
 
 \begin{myhs}
 \begin{code}
@@ -226,7 +226,7 @@ Contrary to regular pattern-matching, however, we allow variables to
 appear more than once on both the deletion and insertion
 contexts. Their semantics are dual: duplicate variables in the
 deletion context must match equal trees whereas when in the insertion
-context will duplicate trees. We use an auxiliar function within the
+context will duplicate trees. We use an auxiliary function within the
 definition of |del| to make this check easier to perform.
 
 \begin{myhs}
@@ -273,7 +273,7 @@ subtree''}, with type |Tree23 -> Tree23 -> Tree23 -> Maybe Int|, where
 |ics s d x| returns |Nothing| when |x| is not a subtree of |s| and |d|
 or |Just i| when |x| is a common subtree. The |Int| inside the |Just|
 tells us which metavariable to use. The only condition we impose is
-injectivty of |ics s d| on the |Just| subset of the image. That is, if
+injectivity of |ics s d| on the |Just| subset of the image. That is, if
 |ics s d x == ics s d y == Just j|, then |x == y|. Later on,
 in \Cref{sec:oracle}, we provide an efficient generic implementation for |ics|.
   
@@ -311,7 +311,7 @@ extract o x = maybe (peel x) Hole (o x)
   Assuming that |ics s d| is \emph{the best} possible such function,
 that is, it will correctly issue metavariables to \emph{all} common
 subtrees of |s| and |d|, it is not hard to see that our implementation 
-satisfies the properties enumerated in \Cref{sec:introduction}, namelly:
+satisfies the properties enumerated in \Cref{sec:introduction}, namely:
 
 \begin{description}
   \item[Correctness] Assuming |ics| is correct, 
@@ -348,9 +348,9 @@ minimize the changes after we |extract| a context from the source or
 destination trees. This makes merging significantly harder.  Another
 problem is that we are not addressing what happens when there
 exists a subtree that appears in at least two different places with
-one occurence being under a larger subtree. This can break the apply
-function and needs to be idenfied and handled. Moreover, this example algorithm
-shares subtrees too eagerly. For instance, every occurence of |Leaf|
+one occurrence being under a larger subtree. This can break the apply
+function and needs to be identified and handled. Moreover, this example algorithm
+shares subtrees too eagerly. For instance, every occurrence of |Leaf|
 will be shared under the same metavariable. This restriction does not
 impact the correctness of the algorithm but is an important point on
 the design space: how to \emph{drive} this algorithm, \Cref{sec:sharing}.
@@ -366,8 +366,8 @@ type, let us briefly explain the techniques of the
 \texttt{generics-mrsop}~\cite{Miraldo2018} library, which will allow
 us to rewrite the code in \Cref{sec:concrete-changes} in a 
 generic setting. This library follows the \emph{sums-of-products}
-school of generic programming~\cite{deVries2014} and, additionaly, enables 
-us to work with mutually recursive families. This is fairly imporant
+school of generic programming~\cite{deVries2014} and, additionally, enables 
+us to work with mutually recursive families. This is fairly important
 as most practical abstract syntax trees are mutually recursive.
 
   For example, take the |Tree23| type from \Cref{sec:concrete-changes}.
@@ -460,7 +460,7 @@ data NA :: (Nat -> Star) -> Atom -> Star where
 \end{myhs}
 
   The |NS| type is responsible for determining the choice of
-constructor whereas the |NP| applyes a representation functor to all
+constructor whereas the |NP| applies a representation functor to all
 the fields of the selected constructor.  In our case, it is |NA|, that
 distinguishes between representation of a recursive position from an
 opaque type. Although the \texttt{generics-mrsop} provides a way to
@@ -568,11 +568,11 @@ and we refer the interested reader to the literature~\cite{deVries2014,Miraldo20
   
   In \Cref{sec:concrete-changes} we gained some intuition about the
 workings of our algorithm whereas in \Cref{sec:generic-prog} we
-discussed techniques for writting programs over arbitrary mutually
+discussed techniques for writing programs over arbitrary mutually
 recursive families. The next step is to start writing our algorithm in
 a generic fashion. On this section we present our generic algorithm
 and address the shortcomings discussed in \Cref{sec:concrete-changes}.
-We shall ommit some type variables that are not relevant to our domain
+We shall omit some type variables that are not relevant to our domain
 for clarity. The full code can be found in our
 repository\footnote{\hsdigemsgit}.
 
@@ -595,7 +595,7 @@ data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
 \end{myhs}
 
   The |Tx| type is, in fact, the indexed free monad over the
-|Rep| functor.  Essentialy, a value of type |Tx codes phi at| is
+|Rep| functor.  Essentially, a value of type |Tx codes phi at| is
 a value of type |NA (Fix codes) at| augmented with
 \emph{holes} of type |phi|. To illustrate this, let us define
 the injection of a |NA| into a |Tx|:
@@ -711,14 +711,14 @@ diff (Node3 t (Node 2 u v) (Node2 w x)) (Node3 t (Node2 v u) (Node2 w' x))
 \end{myhs}
 
   Note that in \Cref{fig:patch-example} we borrow notation from
-\Cref{sec:concrete-changes} for conciceness, but bear in mind that
+\Cref{sec:concrete-changes} for conciseness, but bear in mind that
 |Node2C a b|, for example, stands for |TxPeel (CS CZ) (Cons a (Cons b
 Nil))|. For the graphical representation, the changes are shown with a
 shade in the background, placed always in the leaves of the
-spine. Note that the changes encompas only the minimum number of
+spine. Note that the changes encompass only the minimum number of
 constructor necessary to bind and use all metavariables. This keeps
 changes small and isolated. This is convenient for applying patches
-and merging them. Application, for insance, is given by:
+and merging them. Application, for instance, is given by:
 
 \begin{myhs}
 \begin{code}
@@ -744,12 +744,12 @@ txZip :: Tx codes phi ix -> Tx codes psi ix -> Maybe (Tx codes (phi :*: psi) ix)
 
 \paragraph{Computing Patches} Going from a source and a destination
 trees directly to a |Patch| is hard. As seen in
-\Cref{fig:patch-example}, one has to identify the copy oportunities
+\Cref{fig:patch-example}, one has to identify the copy opportunities
 and isolate the largest possible spine that still respects the
 independent bindings of the changes.  These will be done with the help
 a number of intermediate steps.  First we extract the insertion and
 deletion contexts by using the oracle, much like we did in
-\Cref{sec:concrete-changes}.  We must, however, postprocess those
+\Cref{sec:concrete-changes}.  We must, however, post-process those
 contexts replacing undefined metavariables since the oracle might copy
 \emph{too eagerly}.  Next we extract the greatest common prefix,
 yielding the spine and fix any bindings that have been broken by a too
@@ -764,9 +764,9 @@ type Oracle codes = forall j dot Fix codes j -> Maybe Int
 \end{myhs}
 
   The |txExtract| function will check whether a given |x| is a subtree
-of the fixed source and destinations by calling the provided orcale,
+of the fixed source and destinations by calling the provided oracle,
 if so, we return a hole with the corresponding metavariable
-identifiying the subtree, but we do not forget the subtree itself. The
+identifying the subtree, but we do not forget the subtree itself. The
 reason for this is apparent in \Cref{fig:problematic-ics}.
 If |x| is not a common subtree we extract the topmost constructor and its
 fields then map |TxOpq| on the opaque fields and continue
@@ -828,7 +828,7 @@ extract (ics a b) b  = Node2C (Hole 0) (Hole 1)
 \label{fig:problematic-ics}
 \end{figure}
 
-  The simplest way of addressing this issue is to postprocess the
+  The simplest way of addressing this issue is to post-process the
 extracted contexts and decide whether to forget the first or second
 component of the pairs left by |txExtract|.  In case we need to keep
 the tree and forget that it was shared we convert the tree with
@@ -846,19 +846,19 @@ txPostprocess  ::  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
 \end{code}
 \end{myhs}
 
-  The definition is uninteresting and is ommited. The function
-proceeds by grouping every metariable in a set, computing the
+  The definition is uninteresting and is omitted. The function
+proceeds by grouping every metavariable in a set, computing the
 intersection of the sets, then mapping over its arguments and
 replacing the |Const Int :*: Fix codes| hole by either |Const Int|, if
 the |Int| belongs in the set, or by translating the |Fix codes| with
 |na2tx . NA_I|.
 
   At this point, given two trees |a, b| of type |Fix codes ix|, we
-have extracted and postprocessed both the deletion and insertion
+have extracted and post-processed both the deletion and insertion
 contexts, of type |Tx codes (ForceI (Const Int)) (I ix)|. These are
 just like a value of type |Fix codes ix| with possible holes in some
 recursive positions only.  This is enforced by the |ForceI| type. In
-fact, we have just computed a very lage |Change| over trees that
+fact, we have just computed a very large |Change| over trees that
 transforms, in particular, |a| into |b|.  Assume we have a function
 that builds an efficient oracle at hand,
 
@@ -868,7 +868,7 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 \end{code}
 \end{myhs}
 
-  We can assemple these pieces into a prelimanry |diff| function:
+  We can assemble these pieces into a preliminary |diff| function:
 
 \begin{myhs}
 \begin{code}
@@ -927,7 +927,7 @@ the leaves as possible. The constructors that are \emph{deleted} then
 common prefix, ie, these constructors are part of the \emph{spine}.
 We must be careful, however, not to break scoping of variables.
 This can happen when subtrees are being duplicated or transported
-accros different parts of the source and destination. One such
+across different parts of the source and destination. One such
 example is shown in \Cref{fig:patch-scoping-problem}. The \emph{greatest
 common prefix} is too permissive and must be later refined.
 
@@ -967,7 +967,7 @@ The process of translating a patch with open changes into
 one with closed changes is called \emph{closure}.
 
   Before we explain the machinery necessary to identify and eliminate
-the open changes inside a spine let us itroduce some auxiliary definitions:
+the open changes inside a spine let us introduce some auxiliary definitions:
 
 \begin{myhs}
 \begin{code}
@@ -1006,7 +1006,7 @@ txMap isClosed (txGCP prob)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
 \label{fig:closure-problem}
 \end{figure}
 
-  We wish to reveice a patch with identified open and closed changes
+  We wish to receive a patch with identified open and closed changes
 and traverse the it trying to eliminate all the \emph{open changes},
 tagged by |InL|. We do so by finding the smallest closed change that
 binds the required variables. If we cannot find such change, we translate
@@ -1056,7 +1056,7 @@ a |Tx codes (Change codes) ix| with all changes being \emph{closed}.
 The necessary observation is that if the argument to |closure'| comes
 from an |txExtract del ins| where |isClosed (Change del ins)|, then
 there always exists a change that binds and uses all variables,
-namelly, |(Change del ins)|. In our case, at worst, |closure'| will
+namely, |(Change del ins)|. In our case, at worst, |closure'| will
 always return |InR (Change del ins)|. 
 
 \begin{myhs}
@@ -1067,7 +1067,7 @@ closure  = either' (const $$ error "no closure exists") id
 \end{code}
 \end{myhs}
 
-Comming back to the example
+Coming back to the example
 in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
 |Node2C| from the \emph{spine} to the changes. 
 %% 
@@ -1080,7 +1080,7 @@ in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
 %%               (Node2C x           (TxHole 0))
 %% \end{code}         
 %% \end{myhs}
-This can be visuzlized in \Cref{fig:closure-patch-scoping-problem}.
+This can be visualized in \Cref{fig:closure-patch-scoping-problem}.
 We finalize by assembling all of the pieces in our final |diff| function.
 
 \begin{figure}
@@ -1105,7 +1105,7 @@ diff x y =  let  ics   = buildOracle x y
 values that should be copied.  This is easy to do since the |txGCP|
 already put those opaque values in the \emph{copied} part of the
 patch. Hence, we simply need to traverse the patch and replace the
-occurences of |TxOpq| by a new \emph{copy} change. We use the
+occurrences of |TxOpq| by a new \emph{copy} change. We use the
 |txRefine| function, declared below.
 
 \begin{myhs}
@@ -1269,7 +1269,7 @@ prepare = synthesize authAlgebra
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/merkle-tree.pdf}
 \caption{Example of a merkelized |Tree23|, where |n_2| is some fixed
-identifer and |h| is a hash function.}
+identifier and |h| is a hash function.}
 \label{fig:merkelized-tree}
 \end{figure}
 
@@ -1362,7 +1362,7 @@ problem of computing |q // p| given two patches |p| and |q|. The patch
 |q // p| is sometimes called the \emph{transport} of |q| over |p| or
 the \emph{residual}~\cite{Huet1994} of |p| and |q|. Regardless of the
 name, it represents the patch that contains the changes of |q| adapted
-to be applied on a value that has already been modivied by |p|.
+to be applied on a value that has already been modified by |p|.
 
 \begin{figure}[t]
 \begin{displaymath}
@@ -1377,7 +1377,7 @@ to be applied on a value that has already been modivied by |p|.
   Our merging operator, |(//)|, receives two patches and returns a patch
 possibly annotated with conflicts. Conflicts happen when an automatic
 merge is not possible. This operator is very similar to the \emph{residual}
-operator, usually studied within a term-rewritting perspective. 
+operator, usually studied within a term-rewriting perspective. 
 
 \begin{myhs}
 \begin{code}
@@ -1385,7 +1385,7 @@ operator, usually studied within a term-rewritting perspective.
 \end{code}
 \end{myhs}
 
-  A |Conflict|, here, is nothing but a pair of irreconciliable
+  A |Conflict|, here, is nothing but a pair of irreconcilable
 patches. In practice one would carry a label around to identify the
 type of conflict for easier resolution. Note that the location is
 trivially kept, since the conflicts will where the patches disagree.
@@ -1417,7 +1417,7 @@ attempts to adapt |p| to the codomain |q|. If the patches cannot be
 reconciled, we return both patches marked as a conflict. This is 
 where we borrow from residual theory~\cite{Huet1994} to discharge 
 trivial cases for us. Let us look at the definition of
-|reconvile|:
+|reconcile|:
 
 \begin{myhs}
 \begin{code}
@@ -1445,7 +1445,7 @@ checks if two patches are $\alpha$-equivalent.
   We are now left to handle the difficult cases, when the patches are
 not equivalent and none is equivalent to the identity patch. As noted
 before, our work in understanding these cases and handling them
-sucessfuly is still in progress. We have, however, found that there
+successfully is still in progress. We have, however, found that there
 are two main situations that can happen: (A) no action needed and (B)
 transport of pieces of a patch to different locations in the three.
 In \Cref{fig:merging-AB} we illustrate situations (A) and (B) in the
@@ -1469,7 +1469,7 @@ ob // oa = apply oa ob
 \end{minipage}
 
   In order to apply a patch to another patch we use the same machinery
-used to apply a patch to an element. We ommit the actual definition of these
+used to apply a patch to an element. We omit the actual definition of these
 functions here as they are verbose and perhaps not final. That is,
 this is still a work in progress and our merging approach still has room
 for improvement and requires further study. For the interested 
@@ -1589,7 +1589,7 @@ are valid and representative of a real execution trace we timed the
 execution time of parsing the files and running of |length . encode
 . uncurry diff|, where |encode| comes from |Data.Serialize|. Besides
 ensuring that the patch is fully evaluated, the serialization also
-mimicks what would happen in a real version control system since the
+mimics what would happen in a real version control system since the
 patch would have to be saved to disk.  After timing approximately 1200
 executions from real examples we have plotted the data over the total
 number of constructors for each source-destination pair in
@@ -1599,13 +1599,13 @@ given that |diff x y| runs in $\bigO{n + m}$ where |n| and |m| are the
 number of constructors in |x| and |y| abstract syntax trees, respectively.
 
 \paragraph{Merging Evaluation} While working on our merging
-algorithm we wanted to analize whether we could solve any of the 
-conflicts that the \texttt{UNIX} diff failed over. Upon a sucesful
+algorithm we wanted to analyze whether we could solve any of the 
+conflicts that the \texttt{UNIX} diff failed over. Upon a successful
 merge from our tool we attempted to apply the merges to the respective
 files and made sure that the merge square (\Cref{fig:merge-square})
-was cummuting. At commit \texttt{53967e7}\footnote{\hsdigemsgit} we
+was commuting. At commit \texttt{53967e7}\footnote{\hsdigemsgit} we
 were able to solve a total of 140 conflicts, amounting to 24\% of
-the analized conflicts.
+the analyzed conflicts.
 
 \begin{figure}\centering
 \ra{1.1} % better spacing
@@ -1685,12 +1685,12 @@ such as C, for example.
 One interesting discussion point in the algorithm is how to control
 sharing. As it stands, the differencing algorithm will share anything
 that the oracle indicates as \emph{shareable}. This can be undesirable
-behaviour. For example, we do not want to share \emph{all} occurences
+behavior. For example, we do not want to share \emph{all} occurrences
 of a variable in a program, but only those under the same scope.  That
 is, we want to respect the scope variables. Same applies for
 constants. There are a variety of options to enable this behavior.
 The easiest seems to be changing the oracle. Making a custom oracle
-that keeps track of scope and hashes occurences of the same identifer
+that keeps track of scope and hashes occurrences of the same identifier
 under a different scope differently will ensure that the scoping is
 respected, for instance.
 
@@ -1698,25 +1698,25 @@ respected, for instance.
 As noted in \Cref{sec:merging}, our merging algorithm is a topic of current study
 at the time of writing this paper. We wish to better understand the operation
 of merging patches. It seems to share a number of properties from unification theory,
-residual systems, rewritting systems and we would like to look into this 
+residual systems, rewriting systems and we would like to look into this 
 in more detail. This would enable us to better pinpoint the role
-that merging plays within our metatheory, ie, one would hope that it would
+that merging plays within our meta-theory, ie, one would hope that it would
 have some resemblance to a pushout as in \cite{Mimram2013}. 
 
 
 \paragraph{Automatic Merge Strategies}
 Besides improving on the fully generic algorithm, though, we would like to
 have a language to specify domain specific strategies for conflict resolution.
-For instance, whenver the merging tool finds a conflict in the \texttt{build-depends}
+For instance, whenever the merging tool finds a conflict in the \texttt{build-depends}
 section of a cabal file, it tries sorting the packages alphabetically and keeping
 the ones with the higher version number. Ideally, these rules should be simple to
 write and would allow a high degree of customization.
 
 \paragraph{Formalization and Meta-theory}
 We would be happy to engage in a formal verification of our work. This could
-be achieved by rewritting our code in Agda~\cite{agda} whilst proving
+be achieved by rewriting our code in Agda~\cite{agda} whilst proving
 the correctness properties we desire. This process would provide
-invaluable insight into developping the meta-theory of our system.
+invaluable insight into developing the meta-theory of our system.
 
 \subsection{Related Work}
 \label{sec:related-work}
@@ -1776,7 +1776,7 @@ describes a patch theory based on homotopical type theory.
 differences over generic, well-typed, abstract syntax trees that supports
 additional operations in comparison with the standard approaches.
 We have also presented an efficient algorithm to compute
-these differences. Our implementation was validaded in practice by
+these differences. Our implementation was validated in practice by
 computing diffs over real Lua source files. Moreover, we sketch
 the start of a merging algorithm and show some partial results 
 obtained with it.
