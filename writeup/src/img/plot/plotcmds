@@ -1,13 +1,17 @@
 # http://triclinic.org/2015/04/publication-quality-plots-with-gnuplot/
 set terminal svg enhanced size 400,400
-set output '../runtimes-less-than-10000.svg'
 set encoding iso_8859_1
 set xlabel 'n + m'
 set ylabel 'time (s)'
+set nokey
+set grid
 # set xrange [0:10]
-# set xtics 0,2,10   # set an increment of 2
 # set yrange [0:1000]
-plot 'runtimes-less-than-10000' w p
+set xtics 2500
+set output '../runtimes-less-than-10000.svg'
+plot 'runtimes-less-than-10000' w p lc 3
 
+set xtics 100000
+set format x "%2.0t{/Symbol \327}10^{%L}"
 set output '../runtimes-all.svg'
-plot 'runtimes-all' w p
+plot 'runtimes-all' w p lc 6
