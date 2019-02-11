@@ -675,53 +675,70 @@ data MetaVarIK at = MetaVarIK Int (NA (Const Unit) at)
 \vspace{.4em}
 \begin{myhs}
 \begin{code}
-TxPeel  (CS (CS CZ))  (Cons (TxHole (Change  (TxHole (NA_I 0)) 
-                                             (TxHole (NA_I 0))))
-                      (Cons (TxHole (Change  (TxPeel  (CS CZ)  (Cons (TxHole (NA_I 1))
-                                                               (Cons (TxHole (NA_I 2))
-                                                               Nil)))
-                                             (TxPeel  (CS CZ)  (Cons (TxHole (NA_I 2))
-                                                               (Cons (TxHole (NA_I 1))
-                                                               Nil)))))
-                      (Cons (TxPeel  (CS CZ)  (Cons (TxHole (Change  (na2tx w)
-                                                                     (na2tx w')))
-                                              (Cons (TxHole (Change  (TxHole (NA_I 3))
-                                                                     (TxHole (NA_I 3))))
-                                              Nil)))
-                      Nil)))
+Node3C  (Change (Hole 0) (Hole 0))
+        (Change (Node2C (Hole 0) (Hole 1)) (Node2C (Hole 1) (Hole 0))
+        (Node2C (Change (na2tx w) (na2tx w'))
+                (Change (Hole 3)  (Hole 3)))
 \end{code}
 \end{myhs}
+%% TxPeel  (CS (CS CZ))  (Cons (TxHole (Change  (TxHole (NA_I 0)) 
+%%                                              (TxHole (NA_I 0))))
+%%                       (Cons (TxHole (Change  (TxPeel  (CS CZ)  (Cons (TxHole (NA_I 1))
+%%                                                                (Cons (TxHole (NA_I 2))
+%%                                                                Nil)))
+%%                                              (TxPeel  (CS CZ)  (Cons (TxHole (NA_I 2))
+%%                                                                (Cons (TxHole (NA_I 1))
+%%                                                                Nil)))))
+%%                       (Cons (TxPeel  (CS CZ)  (Cons (TxHole (Change  (na2tx w)
+%%                                                                      (na2tx w')))
+%%                                               (Cons (TxHole (Change  (TxHole (NA_I 3))
+%%                                                                      (TxHole (NA_I 3))))
+%%                                               Nil)))
+%%                       Nil)))
 \caption{Graphical and textual representation of the patch that transforms the value %
 |Node3 t (Node2 u v) (Node2 w x)| into the value |Node3 t (Node2 v u) (Node2 w' x)|.}
  \label{fig:patch-example}
 \end{figure}
 
   In \Cref{fig:patch-example} we show an illustration of the value of
-type |Patch| that transforms |Node3 t (Node2 u v) (Node2 w x)| into
-|Node3 t (Node2 v u) (Node2 w' x)|.  The changes are shown with a
+type |Patch| we expect from calling our diff function with the
+below parameters:
+
+\begin{myhs}
+\begin{code}
+diff (Node3 t (Node 2 u v) (Node2 w x)) (Node3 t (Node2 v u) (Node2 w' x))
+\end{code}
+\end{myhs}
+
+  Note that in \Cref{fig:patch-example} we borrow notation from
+\Cref{sec:concrete-changes} for conciceness, but bear in mind that
+|Node2C a b|, for example, stands for |TxPeel (CS CZ) (Cons a (Cons b
+Nil))|. For the graphical representation, the changes are shown with a
 shade in the background, placed always in the leaves of the
 spine. Note that the changes encompas only the minimum number of
-constructor to bind and use all metavariables. This keeps changes
-small and isolated. This is convenient for applying patches and
-merging them. Application, for insance, is given by:
+constructor necessary to bind and use all metavariables. This keeps
+changes small and isolated. This is convenient for applying patches
+and merging them. Application, for insance, is given by:
 
 \begin{myhs}
 \begin{code}
 apply :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
-apply patch el  =    txZip patch (na2tx el) 
-                >>=  txMapM (uncurry' applyChange') 
-                >>=  return . tx2na
-  where
-    txZip :: Tx codes phi ix -> Tx codes psi ix -> Maybe (Tx codes (phi :*: psi) ix)
+apply patch el = txZip patch (na2tx el)  >>=  txMapM (uncurry' applyChange') 
+                                         >>=  return . tx2na
 \end{code}
 \end{myhs}
 
-  Where |(:*:)| the indexed product and |uncurry'| the indexed
-variant of |uncurry| made to work over |(:*:)|.
+  Where |(:*:)| the indexed product, |uncurry'| the indexed
+variant of |uncurry| made to work over the indexed product 
+and |txZip| is the function that zips together two treefixes.
+Note that the function fails if the structure disagrees at any point,
+unlike |zip| for lists, for example.
 
 \begin{myhs}
 \begin{code}
 data (:*:) f g x = f x :*: g x
+
+txZip :: Tx codes phi ix -> Tx codes psi ix -> Maybe (Tx codes (phi :*: psi) ix)
 \end{code}
 \end{myhs}
 
@@ -1046,9 +1063,7 @@ always return |InR (Change del ins)|.
 \begin{code}
 closure  :: Tx codes (Sum (Change codes) (Change codes)) at
          -> Tx codes (Change codes) at
-closure tx = case closure' tx of
-               InL _ -> error "there exists no closure"
-               InR r -> r
+closure  = either' (const $$ error "no closure exists") id
 \end{code}
 \end{myhs}
 
@@ -1392,7 +1407,7 @@ prefix} operator:
 
 \begin{myhs}
 \begin{code}
-p / q = utxMap (uncurry' reconcile) $$ txGCP p q
+p // q = utxMap (uncurry' reconcile) $$ txGCP p q
 \end{code}
 \end{myhs}
 
@@ -1428,7 +1443,49 @@ checks whether all changes in that patch are copies and |patchEquiv|
 checks if two patches are $\alpha$-equivalent.
 
   We are now left to handle the difficult cases, when the patches are
-not equivalent and none is equivalent to the identity patch.
+not equivalent and none is equivalent to the identity patch. As noted
+before, our work in understanding these cases and handling them
+sucessfuly is still in progress. We have, however, found that there
+are two main situations that can happen: (A) no action needed and (B)
+transport of pieces of a patch to different locations in the three.
+In \Cref{fig:merging-AB} we illustrate situations (A) and (B) in the
+merge square for the patches below:
+
+\begin{minipage}[t]{.45\textwidth}
+\begin{myhs}
+\begin{code}
+oa = diff (Node2 t u) (Node2 u t)
+ob = diff (Node2 y x) (Node2 y w)
+\end{code}
+\end{myhs}
+\end{minipage}%
+\begin{minipage}[t]{.45\textwidth}
+\begin{myhs}
+\begin{code}
+oa // ob = oa
+ob // oa = apply oa ob
+\end{code}
+\end{myhs}
+\end{minipage}
+
+  In order to apply a patch to another patch we use the same machinery
+used to apply a patch to an element. We ommit the actual definition of these
+functions here as they are verbose and perhaps not final. That is,
+this is still a work in progress and our merging approach still has room
+for improvement and requires further study. For the interested 
+reader, the experiments in \Cref{sec:experiments} were performed
+with the code in commit \texttt{53967e7} of our repository\footnote{\hsdigemsgit}.
+
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/merge-01.pdf}
+\includegraphics[scale=0.3]{src/img/merge-02.pdf}
+\caption{Example of a merge square where the first residual is obtained by
+not changing the patch and the second is computed by applying a patch
+to another patch, transporting the changes.}
+\label{fig:merging-AB}
+\end{figure}
+
+
 
 %%  We have taken care of all the easy cases and are left with the definition
 %% of |mergeChange|, the function that merges two changes that are not equal
@@ -1515,66 +1572,64 @@ not equivalent and none is equivalent to the identity patch.
 %% \end{myhs}
 %%  
 
-\TODO{I'm HERE}
-
-  
-\victor{\label{comment:minimality} we should mention this earlier. What is
-this concept?
-  -- The merging algorithm algorithm works best when we are merging
-patches with minimal changes.
-}
-
 \section{Experiments}
 \label{sec:experiments}
 
   We have conducted two experiments over a number of real
 Lua~\cite{what} source files. We obtained the data by mining the top
-Lua repositories on GitHub and extracting all the merge conflicts from
-them. We then proceeded to run two experiments over this data:
+Lua repositories on GitHub and extracting all the merge conflicts recorded
+in their history. We then proceeded to run two experiments over this data:
 a performance test and a merging test.
 
 \paragraph{Performance Evaluation} In order to evaluate the
-performance of our implementation we have timed the computation of
-the two diffs, |diff o a| and |diff o b| using our algorithm. 
-In order to ensure that the numbers we obtained are valid we
-timed the execution of |length . encode . uncurry diff|,
-where |encode| comes from |Data.Serialize|. Besides ensuring that the
-patch is fully evaluated, the serialization also mimicks what would
-happen in a real version control system since the patch would
-have to saved to disk. We have plotted this data over the total number
-of constructors for each source-destination pair, \Cref{fig:performance-plot}.
-The results are what we would expect given that |diff o a| runs in
-$\bigO{n + m}$ where |n| and |m| are the number of constructors of |o|
-and |a|, respectively.
+performance of our implementation we have timed the computation of the
+two diffs, |diff o a| and |diff o b|, for each merge conflict |a,o,b|
+using our algorithm.  In order to ensure that the numbers we obtained
+are valid and representative of a real execution trace we timed the
+execution time of parsing the files and running of |length . encode
+. uncurry diff|, where |encode| comes from |Data.Serialize|. Besides
+ensuring that the patch is fully evaluated, the serialization also
+mimicks what would happen in a real version control system since the
+patch would have to be saved to disk.  After timing approximately 1200
+executions from real examples we have plotted the data over the total
+number of constructors for each source-destination pair in
+\Cref{fig:performance-plot}. To the left we see a section of the
+bigger plot in greater detail. The results are what we would expect
+given that |diff x y| runs in $\bigO{n + m}$ where |n| and |m| are the
+number of constructors in |x| and |y| abstract syntax trees, respectively.
 
-\paragraph{Merging Evaluation} While writing our trivial merging
+\paragraph{Merging Evaluation} While working on our merging
 algorithm we wanted to analize whether we could solve any of the 
 conflicts that the \texttt{UNIX} diff failed over. Upon a sucesful
 merge from our tool we attempted to apply the merges to the respective
 files and made sure that the merge square (\Cref{fig:merge-square})
-was cummuting. \victor{finish}
+was cummuting. At commit \texttt{53967e7}\footnote{\hsdigemsgit} we
+were able to solve a total of 140 conflicts, amounting to 24\% of
+the analized conflicts.
 
 \begin{figure}\centering
-\ra{1.2} % better spacing
-\begin{tabular}{@@{}lll@@{}}
+\ra{1.1} % better spacing
+\begin{tabular}{@@{}lllll@@{}}
 \toprule
-Repository         & Commits & Contributors \\ 
+Repository         & Commits & Contributors  & Total Conflicts & Solved \\ 
 \midrule
-awesome            & 9289    & 250 \\
-busted             & 936     & 39 \\
-CorsixTH           & 3207    & 64 \\
-hawkthorne-journey & 5538    & 61 \\
-kong               & 4669    & 142 \\
-koreader           & 6418    & 89 \\
-luakit             & 4160    & 62 \\
-luarocks           & 2131    & 51 \\
-luvit              & 2862    & 68 \\
-nn                 & 1839    & 177 \\
-Penlight           & 730     & 46 \\
-rnn                & 622     & 42 \\
-snabb              & 8075    & 63 \\
-tarantool          & 12299   & 82 \\
-telegram-bot       & 729     & 50 \\
+awesome            & 9289    & 250 & 5   & 0  \\
+busted             & 936     & 39  & 9   & 1  \\
+CorsixTH           & 3207    & 64  & 25  & 10 \\
+hawkthorne-journey & 5538    & 61  & 158 & 49 \\
+kong               & 4669    & 142 & 163 & 31 \\
+koreader           & 6418    & 89  & 14  & 5  \\
+luakit             & 4160    & 62  & 28  & 7  \\
+luarocks           & 2131    & 51  & 45  & 4  \\
+luvit              & 2862    & 68  & 4   & 1  \\
+nn                 & 1839    & 177 & 3   & 0  \\
+Penlight           & 730     & 46  & 6   & 5  \\
+rnn                & 622     & 42  & 6   & 3  \\
+snabb              & 8075    & 63  & 94  & 19 \\
+tarantool          & 12299   & 82  & 33  & 4  \\
+telegram-bot       & 729     & 50  & 5   & 1  \\
+\midrule
+\multicolumn{3}{r}{total}    & 598 & 140 \\
 \bottomrule
 \end{tabular}
 \caption{Lua repositories mined from \emph{GitHub}}
@@ -1582,8 +1637,9 @@ telegram-bot       & 729     & 50 \\
 \end{figure}
 
 \begin{figure}
-\includegraphics[scale=0.5]{src/img/runtimes-less-than-10000.pdf}
-\includegraphics[scale=0.5]{src/img/runtimes-all.pdf}
+% \includegraphics[scale=0.5]{src/img/runtimes-less-than-10000.pdf}
+% \includegraphics[scale=0.5]{src/img/runtimes-all.pdf}
+\includegraphics[scale=0.5]{src/img/runtimes.pdf}
 \caption{Plot of the time for diffing two lua files over the total AST nodes}
 \label{fig:performance-plot}
 \end{figure}
@@ -1597,9 +1653,10 @@ a smaller success rate since we are ignoring all formatting changes
 altogether. Secondly, a significant number of developers prefer
 to rebase their branches instead of merging them. Hence, we might have
 missed a number of important merge conflicts. There is no way of
-mining these conflicts back since rebasing erases history.
-
-\TODO{show how many conflicts of each lua repository we can solve}
+mining these conflicts back since rebasing erases history. Another
+important threat to mention is that we did not check whether our merge
+corresponds to the merge executed by the developer that manually solved
+the conflict. We plan to address this points in the near future. 
 
 \section{Discussions, Future and Related Work}
 \label{sec:discussion}
