@@ -22,3 +22,5 @@ cabal.project.local
 .*
 !.projectile
 #*
+*.log
+dataset/
