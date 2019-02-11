@@ -1653,7 +1653,8 @@ a smaller success rate since we are ignoring all formatting changes
 altogether. Secondly, a significant number of developers prefer
 to rebase their branches instead of merging them. Hence, we might have
 missed a number of important merge conflicts. There is no way of
-mining these conflicts back since rebasing erases history. Another
+mining these conflicts back since rebasing erases history. \victor{maybe
+not mention this:} Another
 important threat to mention is that we did not check whether our merge
 corresponds to the merge executed by the developer that manually solved
 the conflict. We plan to address this points in the near future. 
@@ -1676,7 +1677,7 @@ programming library for handling mutually recursive families in the
 sums of products style. With recent advances in generic
 programming~\cite{Serrano2018}, we can think about go a step further
 and extend the library to handle mutually recursive families that have
-\texttt{GADTs} inside. Moreover, due to a bug~\cite{our-memleak-bug} in GHC
+\texttt{GADTs} inside. Moreover, due to a performance bug~\cite{our-memleak-bug} in GHC
 we are not able to compile our code for larger abstract syntax tress
 such as C, for example. 
 
@@ -1687,19 +1688,35 @@ that the oracle indicates as \emph{shareable}. This can be undesirable
 behaviour. For example, we do not want to share \emph{all} occurences
 of a variable in a program, but only those under the same scope.  That
 is, we want to respect the scope variables. Same applies for
-constants. There are a variety of options to enable this behavior. 
-The easiest seems to be changing the oracle. Making a custom oracle that keeps track of scope and hashes
-occurences of the same identifer under a different scope differently will ensure
-that the scoping is respected, for instance.
+constants. There are a variety of options to enable this behavior.
+The easiest seems to be changing the oracle. Making a custom oracle
+that keeps track of scope and hashes occurences of the same identifer
+under a different scope differently will ensure that the scoping is
+respected, for instance.
+
+\paragraph{Better Merge Algorithm}
+As noted in \Cref{sec:merging}, our merging algorithm is a topic of current study
+at the time of writing this paper. We wish to better understand the operation
+of merging patches. It seems to share a number of properties from unification theory,
+residual systems, rewritting systems and we would like to look into this 
+in more detail. This would enable us to better pinpoint the role
+that merging plays within our metatheory, ie, one would hope that it would
+have some resemblance to a pushout as in \cite{Mimram2013}. 
+
 
 \paragraph{Automatic Merge Strategies}
-As noted in \Cref{sec:merging}, our merging algorithm has room for improvement.
 Besides improving on the fully generic algorithm, though, we would like to
 have a language to specify domain specific strategies for conflict resolution.
 For instance, whenver the merging tool finds a conflict in the \texttt{build-depends}
 section of a cabal file, it tries sorting the packages alphabetically and keeping
 the ones with the higher version number. Ideally, these rules should be simple to
 write and would allow a high degree of customization.
+
+\paragraph{Formalization and Meta-theory}
+We would be happy to engage in a formal verification of our work. This could
+be achieved by rewritting our code in Agda~\cite{agda} whilst proving
+the correctness properties we desire. This process would provide
+invaluable insight into developping the meta-theory of our system.
 
 \subsection{Related Work}
 \label{sec:related-work}
@@ -1731,13 +1748,16 @@ As we have already mentioned (\Cref{sec:intro}), this is not an optimal
 strategy. The number of patches explodes and defining \emph{the best} is
 impossible without heuristics using only insertions, deletions and copies.
 
-  Although also untyped, the work of Asenov et al.~\cite{Asenov2017}
+  Of the untyped variant, the work of Asenov et al.~\cite{Asenov2017}
 is worth mentioning as it uses and interesting technique: it
 represents trees in an flattened fashion with some extra information,
 then uses the UNIX \texttt{diff} tool to find the differences. Finally, it
 transports the changes back to the tree shaped data using the additional
 information. The authors also identify a number of interesting situations
-that occur when merging tree differences.
+that occur when merging tree differences. Another important mention
+is the \texttt{gumtree}~\cite{Falleri2014} project, which uses its own
+algorithm for computing graph transformations between untyped representations
+of abstract syntax trees. 
 
   From a more theoretical point of view it is also important to
 mention the work of Mimram and De Giusto~\cite{Mimram2013}, where the
@@ -1750,9 +1770,26 @@ describes a patch theory based on homotopical type theory.
 \subsection{Conclusions}
 \label{sec:conclusions}
 
+\victor{conclusion needs a lot of fixing}
 
-\TODO{\huge I'm here!}
+  On this paper we have presented an encoding of structured
+differences over generic, well-typed, abstract syntax trees that supports
+additional operations in comparison with the standard approaches.
+We have also presented an efficient algorithm to compute
+these differences. Our implementation was validaded in practice by
+computing diffs over real Lua source files. Moreover, we sketch
+the start of a merging algorithm and show some partial results 
+obtained with it.
 
+  Our algorithm borrows some techniques from cryptography that
+enable a significant speedup from what one would have without them.
+The performance of our algorithm shows it is clearly applicable in
+practice. This is a very important first step in bringing structured
+diffing to practice as a whole and seeing the other potential applications
+of this work outside software version control. For example, one could envision writing
+\emph{conflict-free replicated datatypes}~\cite{CRDT} in a more generic setting
+using a structured differencing algorithm and custom, deterministic, conflict 
+resolution strategies.
 
 %% \subsubsection{Edit Scripts}
 %% \label{sec:es}
