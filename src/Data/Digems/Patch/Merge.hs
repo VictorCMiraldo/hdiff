@@ -95,6 +95,8 @@ reconcile p q
   | patchIsCpy p = utxMap InR p
   | patchIsCpy q = utxMap InR p
   | patchEq p q  = UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  | otherwise    = UTxHole $ InL (Conflict "non-disjoint" (distrCChange p) (distrCChange q))
+{-
   | nonStrut q   = utxMap InR p
   -- | composes p q && nonStrut q = utxMap InR p
   | otherwise      =
@@ -104,6 +106,7 @@ reconcile p q
       $ case specializeAndApply cp cq of
           Left  err -> InL (Conflict (show err) cp cq)
           Right res -> InR res
+-}
 {-
   | otherwise      =
     let cp = distrCChange p
