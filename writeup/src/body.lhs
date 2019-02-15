@@ -764,7 +764,7 @@ txExtract ics x = case ics x of
 
   After extracting a context with potential copies we must decide
 which subtrees are true copies and which other subtrees must be kept
-as part of the context. We do so by postprocessing the result of
+as part of the context. We do so by post processing the result of
 extracting both contexts from a source and a destination.  In case we
 need to keep a given tree and forget that it was shared we convert it
 to a context with |na2tx|.  We want to keep only the metavariables
@@ -824,10 +824,10 @@ that is declared is used and vice-versa.
 \subsection{Minimizing the Changes: Computing Patches}
 \label{sec:representing-patches}
 
-  Calling |diff0 x y| yields a potentialy large |Change| over trees that
+  Calling |diff0 x y| yields a potentially large |Change| over trees that
 transforms, in particular, |x| into |y|. Having \emph{one} single change
 that transforms |x| into |y| is not ideal. A number of 
-constructors are being deleted, then inserted back agin. Besides the
+constructors are being deleted, then inserted back again. Besides the
 redundant information in the contexts, changes are hard to manipulate
 and reason about. In order to make the fact that these constructors
 are also \emph{copies}, we say that they are part of the \emph{spine}
@@ -1093,7 +1093,7 @@ txRefine  :: (forall at  dot f at   -> Tx codes g at)
 \subsection{Applying Patches}
 \label{sec:application}
 
-  Patch application follwos closely the scheme sketched in
+  Patch application follows closely the scheme sketched in
 for 2-3-trees (\Cref{sec:concrete-changes}). There is one main
 difference, though. Our changes are now placed in the leaves of our spine
 and can be applied locally.
