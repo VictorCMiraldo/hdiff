@@ -1334,19 +1334,20 @@ collision is negligible and we chose to ignore it.
 \section{Merging Patches}
 \label{sec:merging}
 
-  One of the main motivations for generic structure-aware diffing 
-is being able to merge patches that previously required human interaction. 
-We have started working on a preliminary algorithm for merging two
-|Patch|es but this is still very much a work in progress. It is
-worthwhile, nevertheless, to go over how one can solve the easy cases
-and document the difficulties of the hard cases.
+  One of the main motivations for generic structure-aware diffing is
+being able to merge patches in a more automatic fashion than using
+\texttt{diff3}. This section shows how our new structure for
+representing changes helps in writing better merging algorithms.  We
+show a simple algorithm capable of merging disjoint patches, that is,
+patches that work on disjoints locations of a tree. We evaluate
+this algorithm in \Cref{sec:experiments}.
 
   The merging problem, illustrated in \Cref{fig:merge-square}, is the
-problem of computing |q // p| given two patches |p| and |q|. The patch
-|q // p| is sometimes called the \emph{transport} of |q| over |p| or
-the \emph{residual}~\cite{Huet1994} of |p| and |q|. Regardless of the
-name, it represents the patch that contains the changes of |q| adapted
-to be applied on a value that has already been modified by |p|.
+problem of computing |q // p| given two patches |p| and |q|. It
+consists in a patch that contains the changes of |q| pottentially
+adapted to work on a value that has already been modified by |p|.
+This is sometimes called the \emph{transport} of |q| over |p| or
+the \emph{residual}~\cite{Huet1994} of |p| and |q|. 
 
 \begin{figure}[t]
 \begin{displaymath}
@@ -1358,21 +1359,17 @@ to be applied on a value that has already been modified by |p|.
 \label{fig:merge-square}
 \end{figure}
 
-  Our merging operator, |(//)|, receives two patches and returns a patch
-possibly annotated with conflicts. Conflicts happen when an automatic
-merge is not possible. This operator is very similar to the \emph{residual}
-operator, usually studied within a term-rewriting perspective. 
+  There is a class of patches that are trivial to merge: those that
+work on separate locations of a tree. If |p| and |q| are disjoint, then
+|p // q| can return |p| without further adaptations. Our algorithm shall
+merge only those cases and mark as a |Conflict| any situation where
+the patches are \emph{disjoint}. 
 
-\begin{myhs}
-\begin{code}
-(//) :: Patch codes at -> Patch codes at -> PatchConf codes at
-\end{code}
-\end{myhs}
-
-  A |Conflict|, here, is nothing but a pair of irreconcilable
-patches. In practice one would carry a label around to identify the
-type of conflict for easier resolution. Note that the location is
-trivially kept, since the conflicts will where the patches disagree.
+  A |Conflict| is returned whenever the patches are not disjoint. We
+define it as a pair of irreconcilable patches. In practice one would
+carry a label around to identify the type of conflict for easier
+resolution. Note that the location is trivially kept, since the
+conflicts will where the patches disagree.
 
 \begin{myhs}
 \begin{code}
@@ -1382,11 +1379,22 @@ type PatchConf codes =  Tx codes (Sum (Conflict codes) (Change codes))
 \end{code}
 \end{myhs}
 
- The intuition is that |p // q| must preserve the intersection of the
+  Our merging operator, |(//)|, receives two patches and returns a
+patch possibly annotated with conflicts.  We do so by matching the 
+spines against each other and evaluating the situations where the
+spines differ. 
+
+\begin{myhs}
+\begin{code}
+(//) :: Patch codes at -> Patch codes at -> PatchConf codes at
+\end{code}
+\end{myhs} %  
+
+  The intuition is that |p // q| must preserve the intersection of the
 spines of |p| and |q| and reconcile the differences whenever one of
 the patches has a change. Note that it is impossible to have
 disagreeing spines since |p| and |q| are applicable to at least one
-common element.  This is yet another job for the \emph{greatest common
+common element.  This is yet another task for the \emph{greatest common
 prefix} operator:
 
 \begin{myhs}
@@ -1395,13 +1403,11 @@ p // q = utxMap (uncurry' reconcile) $$ txGCP p q
 \end{code}
 \end{myhs}
 
-  The |reconcile| function receives two disagreeing patches and attempt
-to transport the left argument over the right argument, that is, |reconcile p q|
-attempts to adapt |p| to the codomain |q|. If the patches cannot be
-reconciled, we return both patches marked as a conflict. This is 
-where we borrow from residual theory~\cite{Huet1994} to discharge 
-trivial cases for us. Let us look at the definition of
-|reconcile|:
+  Where the |reconcile| function shall check whether the
+disagreeing parts are disjoint, ie, either one of them
+performs no changes or they perform the same change. If thats
+the case, it returns its first argument. In fact, this is very
+much in line with the properties of a residual operator~\cite{Hued1994}.
 
 \begin{myhs}
 \begin{code}
@@ -1409,14 +1415,14 @@ reconcile  :: Patch codes at -> Patch codes at -> Sum (Conflict codes) (Change c
 reconcile p q
   | patchIden p || patchIden q  = InR $$ distr p
   | patchEquiv p q              = InR $$ copy
-  | otherwise                   = difficultCases p q
+  | otherwise                   = InL $$ Conflict p q
 \end{code}
 \end{myhs}
 
   The first branch borrows from the two identity laws from residual
 theory that state that |p // id == p| and |id // p == id|. This is
 fairly intuitive when spoken out loud. Take the first law as an
-example, |p / id|: we are adapting a change |p| to work over an object
+example, |p // id|, we are adapting a change |p| to work over an object
 has been changed by |id|, but this means the object is the same and we
 can apply |p| itself. The second law is also captured by the first
 conditional clause of |reconcile|. The third residual law on the
@@ -1426,39 +1432,22 @@ this very patch amounts to not changing anything. The |patchIden| functions
 checks whether all changes in that patch are copies and |patchEquiv|
 checks if two patches are $\alpha$-equivalent.
 
-  We are now left to handle the difficult cases, when the patches are
-not equivalent and none is equivalent to the identity patch. As noted
-before, our work in understanding these cases and handling them
-successfully is still in progress. We have, however, found that there
-are two main situations that can happen: (A) no action needed and (B)
-transport of pieces of a patch to different locations in the three.
-In \Cref{fig:merging-AB} we illustrate situations (A) and (B) in the
-merge square for the patches below:
+  The trivial merge algorithm returns a conflict for non-disjoint
+patches, but this does not mean that we cannot merge them. Although a
+full discussion is out of the scope of this paper, it is worth
+mentioning that there are a number of non-disjoint patches that can
+also be merged.  These non-trivial merges can be divided in two main
+situations: (A) no action needed even though patches are not disjoint
+and (B) transport of pieces of a patch to different locations in the
+three.  In \Cref{fig:merging-AB} we illustrate situations (A) and (B)
+in the merge square for the non disjoint patches given below.
 
-\begin{minipage}[t]{.45\textwidth}
 \begin{myhs}
 \begin{code}
 oa = diff (Node2 t u) (Node2 u t)
 ob = diff (Node2 y x) (Node2 y w)
 \end{code}
 \end{myhs}
-\end{minipage}%
-\begin{minipage}[t]{.45\textwidth}
-\begin{myhs}
-\begin{code}
-oa // ob = oa
-ob // oa = apply oa ob
-\end{code}
-\end{myhs}
-\end{minipage}
-
-  In order to apply a patch to another patch we use the same machinery
-used to apply a patch to an element. We omit the actual definition of these
-functions here as they are verbose and perhaps not final. That is,
-this is still a work in progress and our merging approach still has room
-for improvement and requires further study. For the interested 
-reader, the experiments in \Cref{sec:experiments} were performed
-with the code in commit \texttt{53967e7} of our repository\footnote{\hsdigemsgit}.
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/merge-01.pdf}
@@ -1469,97 +1458,10 @@ to another patch, transporting the changes.}
 \label{fig:merging-AB}
 \end{figure}
 
-
-
-%%  We have taken care of all the easy cases and are left with the definition
-%% of |mergeChange|, the function that merges two changes that are not equal
-%% nor copies, we are left with insertions, deletions or modifications. 
-%% In fact, it is simple to classify a change as one of these classes: if there
-%% is a leaf in the deletion context that is not a |TxHole|, then the
-%% change deletes information; if such leaf exists in the insertion
-%% context, it inserts information; if it exists in both, it modifies
-%% information. 
-%% 
-%% \begin{myhs}
-%% \begin{code}
-%% data ChangeType = CIns | CDel | CMod
-%% 
-%% classify :: Change codes at -> ChangeType
-%% \end{code}
-%% \end{myhs}
-%% 
-%%   Recall that the first argument to |mergeChange| is the change
-%% that must be adapted to work on the codomain of the second. In
-%% case we are attempting to merge two insertions or two deletions
-%% we return a conflict. It is worth mentioning that our merge algorithm
-%% is very primitive and is the current topic of our research. Here
-%% we present a preliminary \emph{underaproximation} algorithm. It is
-%% encouraging that such a simple approach already
-%% gives us decent results, \Cref{sec:experiments}. That being said,
-%% let us start discussing a simple merge algorithm for our
-%% structured patches.
-%% 
-%% \victor{experiment! seems like del/mod should be a conflict, huh?}
-%% 
-%%   There are three cases that are trivial. Namelly adapting
-%% an insertion over deletion or modification; and a deletion
-%% over a modification. \victor{after experimentation, explain why}
-%% This is because the insertion will be carrying new information that
-%% could not have been fiddled with by the deletion or modification.
-%% 
-%%   The other cases requires a more intricate treatment. Intuitively,
-%% when adapting a change |cp| to work on a tree modified by |cq| one \emph{applies} |cq| 
-%% to |cp|. This allows us to \emph{transport} the necessary bits of the change to the location
-%% they must be applied. For instance, imagine we are given the two patches over |Tree23|: |pa| and |pb| with
-%% type |Tx Tree23Codes (Tx Tree23Codes MetaVar :*: Tx Tree23Codes MetaVar) (I Z)|, that is, a common prefix
-%% to be copied with \emph{changes} inside. 
-%% 
-%% \begin{myhs}
-%% \begin{code}
-%% pa = Node2C (Hole (Change (Leaf 10) (Leaf 20)) (Hole (Change (Hole 0) (Hole 0)))
-%% pb = Hole (Change (Node2C (Hole 0) (Hole 1)) (Node2C (Hole 1) (Hole 0)))
-%% \end{code}
-%% \end{myhs}
-%% 
-%%   Here, |pa| changes the value in the left children of the root and |pb| swaps the 
-%% root children. If we are to apply |pa| on a tree already modified by |pb|, we must transport
-%% the |(Leaf 10 , Leaf 20)| change to the right children. This can be easily done by \emph{applying}
-%% |pb| to |pa|. That is, instantiate the metavariables in the deletion context of |pb| with
-%% values from |pa|. In this case, 0 becomes |Hole (Leaf 10 , Leaf 20)| and 1 becomes |Hole (Hole 0, Hole 0)|.
-%% Now we substitute that in the insertion context of |pb|, yielding:
-%% 
-%% \begin{myhs}
-%% \begin{code}
-%% pa / pb = Node2C (Hole (Hole 0 , Hole 0)) (Hole (Leaf 10 , Leaf 20))
-%% \end{code}
-%% \end{myhs}
-%% 
-%%   This is analogous to applying a change to a term, but instead we apply a change to a change. 
-%% We call the function that performs this application |adapt|. Finally, a simple |mergeChange| 
-%% can be given below. Recall that we only call this function on changes |cp| and |cq| that
-%% are not the identity and |cp /= cq|.
-%% 
-%% \begin{myhs}
-%% \begin{code}
-%% mergeChange  :: Change codes at 
-%%              -> Change codes at 
-%%              -> Sum (Conflict codes) (Change codes) at
-%% mergeChange cp cq = case (classify cp , classify cq) of
-%%   (CIns , CIns)  -> InL (cp , cq)
-%%   (CDel , CDel)  -> InL (cp , cq)
-%%   
-%%   (CIns , _)     -> InR cp
-%%   (CDel , CMod)  -> InR cp
-%%   
-%%   _              -> adapt cp cq
-%% \end{code}
-%% \end{myhs}
-%%  
-
 \section{Experiments}
 \label{sec:experiments}
 
-  We have conducted two experiments over a number of real
+  We have conducted two experiments over a number of 
 Lua~\cite{what} source files. We obtained the data by mining the top
 Lua repositories on GitHub and extracting all the merge conflicts recorded
 in their history. We then proceeded to run two experiments over this data:
@@ -1582,14 +1484,16 @@ bigger plot in greater detail. The results are what we would expect
 given that |diff x y| runs in $\bigO{n + m}$ where |n| and |m| are the
 number of constructors in |x| and |y| abstract syntax trees, respectively.
 
-\paragraph{Merging Evaluation} While working on our merging
-algorithm we wanted to analyze whether we could solve any of the 
-conflicts that the \texttt{UNIX} diff failed over. Upon a successful
-merge from our tool we attempted to apply the merges to the respective
-files and made sure that the merge square (\Cref{fig:merge-square})
-was commuting. At commit \texttt{53967e7}\footnote{\hsdigemsgit} we
-were able to solve a total of 140 conflicts, amounting to 24\% of
-the analyzed conflicts.
+\paragraph{Merging Evaluation} We have tested the trivial merging
+algorithm presented in \Cref{sec:merging} by running it over the merge
+conflicts we mined from GitHub. merge from our tool we attempted to
+apply the merges to the respective files and made sure that the merge
+square (\Cref{fig:merge-square}) was commuting.
+We were able to solve a total of 66 conflicts, amounting to 11\% of
+the analyzed conflicts. This means that about one tenth of the conflicts
+we analized are trivially simple to merge with a tool that looks at 
+changes in a more refined way other than looking purely at the lines
+in a file. 
 
 \begin{figure}\centering
 \ra{1.1} % better spacing
@@ -1598,22 +1502,22 @@ the analyzed conflicts.
 Repository         & Commits & Contributors  & Total Conflicts & Solved \\ 
 \midrule
 awesome            & 9289    & 250 & 5   & 0  \\
-busted             & 936     & 39  & 9   & 1  \\
-CorsixTH           & 3207    & 64  & 25  & 10 \\
-hawkthorne-journey & 5538    & 61  & 158 & 49 \\
-kong               & 4669    & 142 & 163 & 31 \\
-koreader           & 6418    & 89  & 14  & 5  \\
-luakit             & 4160    & 62  & 28  & 7  \\
-luarocks           & 2131    & 51  & 45  & 4  \\
+busted             & 936     & 39  & 9   & 0  \\
+CorsixTH           & 3207    & 64  & 25  & 8  \\
+hawkthorne-journey & 5538    & 61  & 158 & 27 \\
+kong               & 4669    & 142 & 163 & 11 \\
+koreader           & 6418    & 89  & 14  & 2  \\
+luakit             & 4160    & 62  & 28  & 2  \\
+luarocks           & 2131    & 51  & 45  & 3  \\
 luvit              & 2862    & 68  & 4   & 1  \\
 nn                 & 1839    & 177 & 3   & 0  \\
-Penlight           & 730     & 46  & 6   & 5  \\
-rnn                & 622     & 42  & 6   & 3  \\
-snabb              & 8075    & 63  & 94  & 19 \\
-tarantool          & 12299   & 82  & 33  & 4  \\
-telegram-bot       & 729     & 50  & 5   & 1  \\
+Penlight           & 730     & 46  & 6   & 3  \\
+rnn                & 622     & 42  & 6   & 1  \\
+snabb              & 8075    & 63  & 94  & 6 \\
+tarantool          & 12299   & 82  & 33  & 2  \\
+telegram-bot       & 729     & 50  & 5   & 0  \\
 \midrule
-\multicolumn{3}{r}{total}    & 598 & 140 \\
+\multicolumn{3}{r}{total}    & 598 & 66 \\
 \bottomrule
 \end{tabular}
 \caption{Lua repositories mined from \emph{GitHub}}
@@ -1637,18 +1541,14 @@ a smaller success rate since we are ignoring all formatting changes
 altogether. Secondly, a significant number of developers prefer
 to rebase their branches instead of merging them. Hence, we might have
 missed a number of important merge conflicts. There is no way of
-mining these conflicts back since rebasing erases history. \victor{maybe
-not mention this:} Another
-important threat to mention is that we did not check whether our merge
-corresponds to the merge executed by the developer that manually solved
-the conflict. We plan to address this points in the near future. 
+mining these conflicts back since rebasing erases history.
 
 \section{Discussions, Future and Related Work}
 \label{sec:discussion}
 
   The results from \Cref{sec:experiments} are very encouraging. 
 We see that our diffing algorithm has competitive performance 
-and our naive merging operation is already capable of merging
+and our trivial merging operation is  capable of merging
 a number of patches that \texttt{diff3} yields conflicts. In order to
 leave the research realm and deliver a production tool, there is
 still a number of points that must be addressed.
@@ -1679,14 +1579,14 @@ under a different scope differently will ensure that the scoping is
 respected, for instance.
 
 \paragraph{Better Merge Algorithm}
-As noted in \Cref{sec:merging}, our merging algorithm is a topic of current study
+The merging algorithm presented in \Cref{sec:merging} only handles trivial cases.
+Being able to handle the non trivial cases is the current topic of research
 at the time of writing this paper. We wish to better understand the operation
 of merging patches. It seems to share a number of properties from unification theory,
 residual systems, rewriting systems and we would like to look into this 
 in more detail. This would enable us to better pinpoint the role
-that merging plays within our meta-theory, ie, one would hope that it would
+that merging plays within our meta-theory, ie, one would expect that it would
 have some resemblance to a pushout as in \cite{Mimram2013}. 
-
 
 \paragraph{Automatic Merge Strategies}
 Besides improving on the fully generic algorithm, though, we would like to
@@ -1745,11 +1645,15 @@ of abstract syntax trees.
 
   From a more theoretical point of view it is also important to
 mention the work of Mimram and De Giusto~\cite{Mimram2013}, where the
-authors model line-based patches in a categorical fashion. Swierstra
+authors model line-based patches in a categorical fashion. This
+inspired the version control system \texttt{pijul}. Swierstra
 and L\"{o}h~\cite{Swierstra2014} propose an interesting meta theory
 for version control of structured data based on separation logic to
 model disjoint changes. Lastly, Angiuli et al.~\cite{Angiuli2014}
 describes a patch theory based on homotopical type theory.
+The version control system \texttt{darcs}~\cite{Darcs} also uses
+a more formal approach in its metatheory of patches, but the patches
+themselves are still working on the line level, they are not structure aware.
 
 \subsection{Conclusions}
 \label{sec:conclusions}
