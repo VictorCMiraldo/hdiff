@@ -1061,6 +1061,9 @@ closure  = either' (const $$ error "no closure exists") id
 
   The final |diff| function is assembled by getting the closure
 of the greatest common prefix of the change the comes from |diff0|.  
+The last additional detail is the refinement step that
+aims at replacing the opaque values one the spine by copies. This
+further enlarges the domain of our patch.
 
 \begin{myhs}
 \begin{code}
@@ -1074,13 +1077,10 @@ diff x y =  let  ics   = buildOracle x y
 \end{code}
 \end{myhs}
 
-  The |txRefine| step identifies the opaque
-values that should be copied, further enlarging the domain of our patch.  
-This is easy to identify since the |txGCP|
-already put those opaque values in the \emph{spine} of the
-patch. Hence, we simply need to traverse the patch and replace the
-occurrences of |TxOpq| by a new \emph{copy} change. We use the
-|txRefine| function, declared below.
+  The |txRefine| simply traverses the patch and refines the
+holes and opaques into |Tx|s using the provided functions. 
+In our case we leave the holes unchanged and replace the
+occurrences of |TxOpq| by a new \emph{copy} change. 
 
 \begin{myhs}
 \begin{code}
@@ -1090,153 +1090,53 @@ txRefine  :: (forall at  dot f at   -> Tx codes g at)
 \end{code}
 \end{myhs}
 
-\victor{IM HERE}
+\subsection{Applying Patches}
+\label{sec:application}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%
-%%%  A patch is characterized by a |Tx|, called the \emph{spine},
-%%%which contains \emph{changes} in its leaves. The spine represents a prefix
-%%%of constructors to be copied from source to destination. This is more
-%%%convenient than having a single \emph{change} that transforms the source
-%%%into the destination. Firstly because a good number of the constructors
-%%%of our trees will be repeated on both the insertion and deletion
-%%%contexts. Moreover, when trying to merge these changes together, it is
-%%%simpler to have a number of small changes that can be independently
-%%%classified and understood instead of a big, complex, change working
-%%%on the whole tree.
-%%%
-%%%
-%%%
-%%%  In \Cref{fig:patch-example} we show an illustration of the value of
-%%%type |Patch| we expect from calling our diff function with the
-%%%below parameters:
-%%%
-%%%\begin{myhs}
-%%%\begin{code}
-%%%diff (Node3 t (Node 2 u v) (Node2 w x)) (Node3 t (Node2 v u) (Node2 w' x))
-%%%\end{code}
-%%%\end{myhs}
-%%%
-%%%  Note that in \Cref{fig:patch-example} we borrow notation from
-%%%\Cref{sec:concrete-changes} for conciseness, but bear in mind that
-%%%|Node2C a b|, for example, stands for |TxPeel (CS CZ) (Cons a (Cons b
-%%%Nil))|. 
-%%%\begin{myhs}
-%%%\begin{code}
-%%%apply :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
-%%%apply patch el = txZip patch (na2tx el)  >>=  txMapM (uncurry' applyChange') 
-%%%                                         >>=  return . tx2na
-%%%\end{code}
-%%%\end{myhs}
-%%%
-%%%  Where |(:*:)| the indexed product, |uncurry'| the indexed
-%%%variant of |uncurry| made to work over the indexed product 
-%%%and |txZip| is the function that zips together two treefixes.
-%%%Note that the function fails if the structure disagrees at any point,
-%%%unlike |zip| for lists, for example.
-%%%
-%%%\begin{myhs}
-%%%\begin{code}
-%%%
-%%%txZip :: Tx codes phi ix -> Tx codes psi ix -> Maybe (Tx codes (phi :*: psi) ix)
-%%%\end{code}
-%%%\end{myhs}
-%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%
-%%%
-%%%
-%%%On this section we present our generic algorithm
-%%%and address the shortcomings discussed in \Cref{sec:concrete-changes}.
-%%%We shall omit some type variables that are not relevant to our domain
-%%%for clarity. The full code can be found in our
-%%%repository\footnote{\hsdigemsgit}.
-%%%
-%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%
-%%%
-%%%
-%%%Going from a source and a destination
-%%%trees directly to a |Patch| is hard. As seen in
-%%%\Cref{fig:patch-example}, one has to identify the copy opportunities
-%%%and isolate the largest possible spine that still respects the
-%%%independent bindings of the changes.  These will be done with the help
-%%%a number of intermediate steps.  First we extract the insertion and
-%%%deletion contexts by using the oracle, much like we did in
-%%%\Cref{sec:concrete-changes}.  We must, however, post-process those
-%%%contexts replacing undefined metavariables since the oracle might copy
-%%%\emph{too eagerly}.  Next we extract the greatest common prefix,
-%%%yielding the spine and fix any bindings that have been broken by a too
-%%%large spine.  
-%%%
-%%%
-%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%
-%%%
-%%%Coming back to the example
-%%%in \Cref{fig:closure-problem}, we can \emph{close} all changes by pushing the
-%%%|Node2C| from the \emph{spine} to the changes. 
-%%%%% 
-%%%%% \begin{myhs}
-%%%%% \begin{code}
-%%%%% closure (txMap isClosed (txGCP prob))  
-%%%%%   ==  closure (Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
-%%%%%                        (InL (Change x           (TxHole 0))))
-%%%%%   ==  Change  (Node2C (TxHole 0)  (TxHole 0))
-%%%%%               (Node2C x           (TxHole 0))
-%%%%% \end{code}         
-%%%%% \end{myhs}
-%%%This can be visualized in \Cref{fig:closure-patch-scoping-problem}.
-%%%We finalize by assembling all of the pieces in our final |diff| function.
+  Patch application follwos closely the scheme sketched in
+for 2-3-trees (\Cref{sec:concrete-changes}). There is one main
+difference, though. Our changes are now placed in the leaves of our spine
+and can be applied locally.
 
+  Our final |applyChange| will be responsible for receiving a change
+and a tree and instantiate the metavariables by matching the tree
+against the deletion context and substituting this valuation
+in the insertion context. Its type is given by:
 
-\paragraph{Applying Patches} Recall the definition of the
-application function.
+\begin{myhs}
+\begin{code}
+applyChange  :: Change codes MetaVarIK at 
+             -> NA (Fix codes) at 
+             -> Maybe (NA (Fix codes) at)
+\end{code}
+\end{myhs}
+
+  We are now left to match the spine with a value of |NA (Fix codes)|.  
+and leave the changes paired up with the corresponding local elements
+they must be applied to. This is similar to the |txGCP|, and can be implemented
+by it. We must extract the greatest common prefix of the spine and the
+|Tx| that comes from translating the |NA (Fix codes)| value but must make
+sure that the leaves have all |TxHole|s on the left. 
+
+\begin{myhs}
+\begin{code} %
+txZipEl :: Tx codes phi at -> NA (Fix codes) at -> Maybe (Tx codes (phi :*: NA (Fix codes)))
+txZipEl tx el = txMapM (uncurry' checkIsPhi) $$ txGCP tx (tx2na el)
+  where
+    checkChange :: Tx codes phi at -> Tx codes psi at -> Maybe (phi :*: NA (Fix codes) at)
+    checkChange (TxHole phi) el = (phi :*:) <$$> na2tx el
+    checkChange _            _  = Nothing
+\end{code}
+\end{myhs}
+
+  Finally, we assemble our final application function by checking whether
+the spine matches the element, then going over the changes in a local fashion
+and applying them:
 
 \begin{myhs}
 \begin{code}
 apply :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
-apply patch el  =    txZip patch (na2tx el) 
-                >>=  txMapM (uncurry' applyChange') 
-                >>=  return . tx2na
-\end{code}
-\end{myhs}
-
-  Where |applyChange'| very closely the implementation
-of the application presented in \Cref{sec:concrete-changes} but uses
-some more advanced type level mechanisms. The most important detail is the
-encoding of the interpretation of an atom with an existential index:
-
-\begin{myhs}
-\begin{code}
-data NAE :: [[[Atom kon]]] -> * where
-  SomeFix :: Fix codes ix -> NAE codes
-  SomeOpq :: Opq k        -> NAE codes
-\end{code}
-\end{myhs}
-
-  Which allows the application function to carry a |Map Int (NAE codes)|,
-analogously to the |Map MetaVar Tree23| in \Cref{sec:concrete-changes}. When
-looking a value in a |Map Int (NAE codes)| we must be able to cast
-it to the correct type, extracted from a |MetaVarIK|.
-
-\begin{myhs}
-\begin{code}
-naeCast  :: NAE ki codes
-         -> MetaVarIK ki at
-         -> Either String (NA ki (Fix ki codes) at)
-\end{code}
-\end{myhs}
-
-  This definition is uninteresting and can be found in the code. With these
-mechanisms in place the definition of the application function follows
-closely that of the sketched version in \Cref{sec:concrete-changes}. 
-Its type is:
-
-\begin{myhs}
-\begin{code}
-apply  :: Patch codes ix -> Fix codes ix -> Maybe (Fix codes ix)
+apply patch el = txZipEl patch el >>= return . txMapM (uncurry' applyChange)
 \end{code}
 \end{myhs}
 
