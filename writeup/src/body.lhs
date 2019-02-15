@@ -1180,19 +1180,16 @@ subtrees x = Ex x : case sop x of
   Next, we define an equality over |Exist (Fix codes)| and search
 through the list of all possible subtrees. The comparison function
 starts by comparing the indexes of the |Fix codes| values wrapped
-within |Ex|. If they agree, we pattern match on |Refl|, which
-in turn allows us to compare the values for propositional equality.
+within |Ex| with |testEquality|. If they agree, we pattern match on
+|Refl|, which in turn allows us to compare the values for
+propositional equality.
 
 \begin{myhs}
 \begin{code}
-idx :: (a -> Bool) -> [a] -> Maybe Int
-idx f  []     = Nothing
-idx f  (x:xs) = if f x then Just 0 else (1+) <$$> idx f xs
-
 heqFix :: Exists (Fix codes) -> Exists (Fix codes) -> Bool
 heqFix (Ex x) (Ex y) = case testEquality x y of
                          Nothing    -> False
-                         Just Refl  -> eqFix x y
+                         Just Refl  -> x == y
 \end{code}
 \end{myhs}
 
@@ -1206,6 +1203,10 @@ will return  |Nothing|.
 \begin{code}
 type Oracle codes = forall j dot Fix codes j -> Maybe Int
 
+idx :: (a -> Bool) -> [a] -> Maybe Int
+idx f  []     = Nothing
+idx f  (x:xs) = if f x then Just 0 else (1+) <$$> idx f xs
+
 buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 buildOracle x y t = do
   ix <- idx (heqFix t) (subtrees x)
@@ -1217,9 +1218,9 @@ buildOracle x y t = do
   There are two points of inefficiency this naive
 |buildOracle|. First, we build the |subtrees| list twice, once for the
 source and once for the destination. This is inherent to this
-approach and cannot be surpassed. We then proceed to compare a
-third tree, |t|, for equality with every subtree in the prepared
-lists. This, on the other hand, can be made fast.
+approach and cannot be avoided. We then proceed to compare a
+third tree, |t|, for equality with every subtree in the 
+lists of subtrees. The performance of this operation can be significantly improved.
 
   In order to compare trees for equality in constant time we can
 annotate them with cryptographic hashes~\cite{Menezes1997} and compare
@@ -1229,8 +1230,10 @@ security and authentication context~\cite{Miller2014,Miraldo2018HAMM}.
 Our generic programming machinery that is already at our disposal
 enables us to create \emph{merkle trees} generically quite easily.
 The \texttt{generics-mrsop} provide some attribute
-grammar~\cite{Knuth1990} mechanisms, in particular synthetization of
-attributes:
+grammar~\cite{Knuth1990} mechanisms, in particular computation of synthetized
+attributes.  We use these mechanisms to decorate each node of
+a |Fix codes| with a unique identifier (\ref{fig:merkelized-tree}) 
+by running the |prepare| function defined below.
 
 \begin{myhs}
 \begin{code}
@@ -1247,7 +1250,6 @@ prepare = synthesize authAlgebra
 identifier and |h| is a hash function.}
 \label{fig:merkelized-tree}
 \end{figure}
-
 
   Here, |AnnFix| is the cofree comonad, used to add a label to each
 recursive branch of our generic trees. In our case, this label will be
@@ -1267,26 +1269,33 @@ authAlgebra rep = case sop rep of
 \end{code}
 \end{myhs} 
 
-  We must append the index of the type in question, in this case |iy|, to our
-hash computation to differentiate constructors of different types in
-the family represented by the same number.  Once we have the hashes of
-all subtrees we must store them in a search-efficient structure.
-Given that a hash is just a |[Word]|, the optimal choice is a
-|Trie|~\cite{Brass2008} from |Word| to |Int|, where the |Int|
-indicates what is the \emph{identifier} of that very tree.
+  We must append the index of the type in question, in this case
+|getSNat (Tapp iy)|, to our hash computation to differentiate
+constructors of different types in the family represented by the same
+number.  Once we have the hashes of all subtrees we must store them in
+a search-efficient structure.  Given that a hash is just a |[Word]|,
+the optimal choice is a |Trie|~\cite{Brass2008} from |Word| to |Int|,
+where the |Int| indicates what is the \emph{identifier} of that very
+tree.
 
   Looking up whether a tree |x| is a subtree of two fixed trees |s| and |d|
 is then merely looking up |x|'s topmost hash, also called the \emph{merkle root},
 against the intersection of the tries of the hashes in |s| and |d|.
-The depth of our trie is always |4| or |8| for a |sha256| hash can be
-be put in that number of machine words, depending on the architecture. 
-Assume we have a 32-bit |Word|, this means that the complexity of the 
-overall lookup is $\bigO{ \log{} n_1 \times \cdots \times \log{} n_8 }$, 
-where $n_i$ indicates how many elements are in each level. Take $m = max(n_1 , \cdots, n_8)$
-and we have that the complexity of our lookup is $\bigO{ \log{} m }$. Since we can have at most
-256 elements per layer, the complexity of the lookup is bound by $ \bigO{ \log{} 256 } \equiv \bigO{ 1 } $. Naturally, this only holds if we precompute all the hashes,
-which is why we have to start handling annotated fixpoints instead
-of regular |Fix codes|.
+This is a very fast operation and hardly depends on the number
+of elements insrted in the trie. In fact, this lookup runs in constant time.
+%% The depth of our trie is always |4| or |8| for a |sha256| hash can be
+%% be put in that number of machine words, depending on the architecture.
+%% Assume we have a 32-bit |Word|, this means that the complexity of the
+%% overall lookup is $\bigO{ \log{} n_1 \times \cdots \times \log{} n_8
+%% }$, where $n_i$ indicates how many elements are in each level. Take $m
+%% = max(n_1 , \cdots, n_8)$ and we have that the complexity of our
+%% lookup is $\bigO{ \log{} m }$. Since we can have at most 256 elements
+%% per layer, the complexity of the lookup is bound by $ \bigO{ \log{}
+%% 256 } \equiv \bigO{ 1 } $. 
+Naturally, this only holds if we precompute
+all the hashes, which is why we have to start handling annotated
+fixpoints instead of regular |Fix codes| in the computation of
+our diff.
 
   After a small modification to our |Oracle|, allowing it to receive
 trees annotated with hashes we proceed to define the efficient
@@ -1320,7 +1329,7 @@ also an element of the second.
 we find a potential collision we check the trees for equality.
 If equality check fails, a hash collision is found and the entry would be
 removed from the map. When using a cryptographic hash, the chance of
-collision is negligible. Hence, we ignore such step.
+collision is negligible and we chose to ignore it.
 
 \section{Merging Patches}
 \label{sec:merging}
