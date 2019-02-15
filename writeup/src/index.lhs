@@ -106,16 +106,16 @@
 %% before \maketitle command
 \begin{abstract}
   Understanding the differences between different versions of a source
-file is crucual for software development. The UNIX \texttt{diff} is the
+file is crucual for software development. The \texttt{UNIX diff} is the
 cannonical tool for the task. It compares files line-by-line and outputs
-the differences. Yet, observing changes at such a fixed granularity leads to
-unnecessary conflicts beween different edits. Structural differencing tools
-on the other hand provide a finer granularity control over the presentation
-of changes but tend to be fairly inefficient. This paper proposes
-a \emph{generic representation} for describing transformations between elements
-of a mutually recursive family supporting permutation and duplication of subtrees.
-Moreover, we propose a linear algorithm for computing and merging these 
-structured transformations.
+the differences. Looking for differences in a granularity other than 
+one ``line of code'' is hard. Structural differencing tools are inefficient
+and the representation of changes they use are sub-optimal for merging.
+This paper proposes a \emph{generic representation} for differences between
+elements of a mutually recursive family, this includes most
+programming languages. Moreover, we propose an efficient algorithm 
+for computing these differences and show how this structure gives
+a free merging algorithm for disjoint changes.
 \end{abstract}
 
 

@@ -4,8 +4,6 @@
 % Bug because of double lines?
 % https://blog.codecentric.de/en/2014/02/curly-braces/
 
-\victor{hype the use of FP. Why do we use it here?}
-
   Software Version Control Systems are an essential tool in the 
 belt of today's software engineer. At their core is a
 differencing algorithm that computes patches between two versions of a file, 
@@ -13,6 +11,14 @@ the most well-known being the UNIX \texttt{diff}~\cite{McIlroy1976}.
 It is a line-based tool, ie, look at changes
 on the level of the \emph{lines} of a file, hence, it fails
 to identify more fine grained changes in software source code. 
+
+  In this paper we go over our representation of changes between
+arbitrary trees and an efficient algorithm to compute them. These
+can be particularly applied to abstract syntax trees and offer a
+different approach to look at file differencing. We have implemented
+our work in Haskell. The type-safety and generic programming capabilities
+of functional languages make it the optimal tool for approaching
+this task.
 
   Let us take a step back and introduce the differencing problem
 abstractly. The well-typed differencing problem for some type |a|
@@ -65,7 +71,7 @@ Note that this is \emph{a different property} than correctness:
 anything must be applicable to any element performing exactly 
 that action: not changing anything. 
 
-  The UNIX \texttt{diff}~\cite{McIlroy1979} solves the differencing
+  The UNIX \texttt{diff}~\cite{McIlroy1976} solves the differencing
 problem, and satisfies many of these desirable properties, for the
 special case of |a == [String]|, ie, files are seen as lists of
 lines. Although there has been attempts at a solution~\cite{Loh2009,Miraldo2017} for arbitrary
@@ -839,7 +845,7 @@ type Patch codes at = Tx codes (Change codes MetaVarIK) at
 \end{code}
 \end{myhs}
 
-\Cref{fog:example-patch} illustrates a value of type |Patch Tree23Codes (I Z)|,
+\Cref{fig:patch-example} illustrates a value of type |Patch Tree23Codes (I Z)|,
 the changes are shown with a
 shade in the background, placed always in the leaves of the
 spine. Note that the changes encompass only the minimum number of
@@ -1126,7 +1132,7 @@ txZipEl tx el = txMapM (uncurry' checkIsPhi) $$ txGCP tx (tx2na el)
     checkChange :: Tx codes phi at -> Tx codes psi at -> Maybe (phi :*: NA (Fix codes) at)
     checkChange (TxHole phi) el = (phi :*:) <$$> na2tx el
     checkChange _            _  = Nothing
-\end{code}
+\end{code} %
 \end{myhs}
 
   Finally, we assemble our final application function by checking whether
@@ -1407,7 +1413,7 @@ p // q = utxMap (uncurry' reconcile) $$ txGCP p q
 disagreeing parts are disjoint, ie, either one of them
 performs no changes or they perform the same change. If thats
 the case, it returns its first argument. In fact, this is very
-much in line with the properties of a residual operator~\cite{Hued1994}.
+much in line with the properties of a residual operator~\cite{Huet1994}.
 
 \begin{myhs}
 \begin{code}
@@ -1462,7 +1468,7 @@ to another patch, transporting the changes.}
 \label{sec:experiments}
 
   We have conducted two experiments over a number of 
-Lua~\cite{what} source files. We obtained the data by mining the top
+Lua~\cite{Lua} source files. We obtained the data by mining the top
 Lua repositories on GitHub and extracting all the merge conflicts recorded
 in their history. We then proceeded to run two experiments over this data:
 a performance test and a merging test.
@@ -1499,7 +1505,7 @@ in a file.
 \ra{1.1} % better spacing
 \begin{tabular}{@@{}lllll@@{}}
 \toprule
-Repository         & Commits & Contributors  & Total Conflicts & Solved \\ 
+Repository         & Commits & Contributors  & Total Conflicts & Trivial Conflicts \\ 
 \midrule
 awesome            & 9289    & 250 & 5   & 0  \\
 busted             & 936     & 39  & 9   & 0  \\
@@ -1561,7 +1567,7 @@ programming library for handling mutually recursive families in the
 sums of products style. With recent advances in generic
 programming~\cite{Serrano2018}, we can think about go a step further
 and extend the library to handle mutually recursive families that have
-\texttt{GADTs} inside. Moreover, due to a performance bug~\cite{our-memleak-bug} in GHC
+\texttt{GADTs} inside. Moreover, due to a performance bug~\cite{ghc-performance-bug} in GHC
 we are not able to compile our code for larger abstract syntax tress
 such as C, for example. 
 
@@ -1598,7 +1604,7 @@ write and would allow a high degree of customization.
 
 \paragraph{Formalization and Meta-theory}
 We would be happy to engage in a formal verification of our work. This could
-be achieved by rewriting our code in Agda~\cite{agda} whilst proving
+be achieved by rewriting our code in Agda~\cite{Norell2009} whilst proving
 the correctness properties we desire. This process would provide
 invaluable insight into developing the meta-theory of our system.
 
@@ -1628,7 +1634,7 @@ operations that work directly on tree shaped data. Using this
 approach, changes become easier to merge but harder to compute.
 Both bodies of work follow the same general idea as the untyped
 variants: compute all possible patches and filter out the bad ones.
-As we have already mentioned (\Cref{sec:intro}), this is not an optimal
+As we have already mentioned (\Cref{sec:introduction}), this is not an optimal
 strategy. The number of patches explodes and defining \emph{the best} is
 impossible without heuristics using only insertions, deletions and copies.
 
@@ -1665,7 +1671,7 @@ differences over generic, well-typed, abstract syntax trees that supports
 additional operations in comparison with the standard approaches.
 We have also presented an efficient algorithm to compute
 these differences. Our implementation was validated in practice by
-computing diffs over real Lua source files. Moreover, we sketch
+computing diffs over real Lua~\cite{Lua} source files. Moreover, we sketch
 the start of a merging algorithm and show some partial results 
 obtained with it.
 
@@ -1675,7 +1681,7 @@ The performance of our algorithm shows it is clearly applicable in
 practice. This is a very important first step in bringing structured
 diffing to practice as a whole and seeing the other potential applications
 of this work outside software version control. For example, one could envision writing
-\emph{conflict-free replicated datatypes}~\cite{CRDT} in a more generic setting
+\emph{conflict-free replicated datatypes}~\cite{Shapiro2011} in a more generic setting
 using a structured differencing algorithm and custom, deterministic, conflict 
 resolution strategies.
 
