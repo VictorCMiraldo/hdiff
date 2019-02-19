@@ -8,7 +8,7 @@
 belt of today's software engineer. At their core is a
 differencing algorithm that computes patches between two versions of a file, 
 the most well-known being the UNIX \texttt{diff}~\cite{McIlroy1976}.
-It is a line-based tool, ie, look at changes
+It is a line-based tool, i.e., it looks at changes
 on the level of the \emph{lines} of a file, hence, it fails
 to identify more fine grained changes in software source code. 
 
@@ -20,14 +20,13 @@ our work in Haskell. The type-safety and generic programming capabilities
 of functional languages make it the optimal tool for approaching
 this task.
 
-  Let us take a step back and introduce the differencing problem
-abstractly. The well-typed differencing problem for some type |a|
+  Abstractly, the well-typed differencing problem for some type |a|
 consists in finding a type constructor, call it |Patch a|, together with
-functions |diff| and |apply|. Naturally, the |diff| function computes
-the differences between two trees of type |a| whereas |apply| will
-attempt to transform one tree according to a |Patch|. The
-\emph{well-typed} refers to the fact that a |Patch| is guaranteed, by
-construction, to generate well-typed elements once its applied. This
+functions |diff| and |apply|. The |diff| function computes
+the differences between two values of type |a|, and |apply|
+attempts to transform one value according to the information stored in the |Patch|. 
+\emph{Well-typed}, here, refers to the fact that a |Patch| is guaranteed, by
+construction, to generate well-typed elements once it is applied. This
 is not the case for the approaches~\cite{Asenov2017,Falleri2014} using
 \texttt{xml} or \texttt{json} to represent their abstract syntax
 trees, where the result of an arbitrary patch could be an ill formed tree.
@@ -39,13 +38,11 @@ apply  :: Patch a -> a -> Maybe a
 \end{code}
 \end{myhs}
 
-  Not every such triple |(Patch , diff , apply)| solves
-the differencing problem. We expect certain properties on these
-components for them to be of any practical use. 
-
-  The first property one expects from this pair of functions
-is correctness, stating that |apply| faithfully reproduces |y|
-from |x| and |diff x y|.
+  Not every such triple |(Patch , diff , apply)| solves the
+differencing problem. We expect certain properties on these components
+for them to be of any practical use. The first property one expects
+from this pair of functions is correctness, stating that |apply|
+faithfully reproduces |y| from |x| and |diff x y|.
 
 \[
 | forall x y dot apply (diff x y) x == Just y |
@@ -54,16 +51,15 @@ from |x| and |diff x y|.
   Yet, there is a collection of other properties that might
 be desirable. For instance, we require that |diff|
 is both space and time efficient. That is, it must be fast to compute
-a |Patch| and the size of the patch must be smaller than storing both elements
+a |Patch| and its size must be smaller than storing both values
 of type |a|. Otherwise, one could argue that |Patch a = (a,a)| is a perfectly
 fine solution, for example. Yet, storing all revisions of every file under
-version control is not really an acceptable solution.
+version control is clearly not an acceptable solution.
 
-  Another interesting property we want to have is the ability to apply
-a patch to biggest amount of elements possible. In fact, we want to
-apply a patch to as much elements other than |x| as possible. One way
-of saying this is that |diff| will be the identity when there are no changes.
-Note that this is \emph{a different property} than correctness:
+  Moreover, a patch should be as general as possible, that is, it should
+be applicable to the biggest amount of elements possible. Consequently
+if there are no changes, the patch should represent a \emph{no-op}, and
+the application should be the identity:
 
 \[ | forall x y dot apply (diff x x) y == Just y | \]
 
@@ -72,32 +68,37 @@ anything must be applicable to any element performing exactly
 that action: not changing anything. 
 
   The UNIX \texttt{diff}~\cite{McIlroy1976} solves the differencing
-problem, and satisfies many of these desirable properties, for the
+problem, and satisfies many of these desirable properties for the
 special case of |a == [String]|, ie, files are seen as lists of
-lines. Although there has been attempts at a solution~\cite{Loh2009,Miraldo2017} for arbitrary
+lines. Although there have been attempts at a solution~\cite{Loh2009,Miraldo2017} for arbitrary
 such datatypes, all of them have the same \emph{modus operandis}: compute
 all possible patches between two objects, then filter out \emph{the
 best} such patch. There are two big problems with this approach: (A)
 the inefficiency of a non-deterministic algorithm with many choice
-points, and, (B) defining what is \emph{the best} patch. These two
+points, and, (B) the question of defining what is \emph{the best} patch. These two
 problems stem from the same design choice: having only insert,
-delete and copy as the base operations.
+delete and copy as the edit operations.
 
   We expect that the core of a differencing algorithm is to identify
 and pursue the copy opportunities as much as possible. Therefore the
 lack of a representation for moving and duplicating subtrees is an
-inherent issue in a structured setting: upon finding a subtree that
+inherent weakness in a structured setting: upon finding a subtree that
 can be copied in two different ways, the algorithm must choose between
 one of them. Besides efficiency problems, this also brings a
 complicated theoretical problems: it is impossible to order these
-patches in an educated fashion, and hence one cannot single out \emph{the
-best} possible patch. We illustrate this in \Cref{fig:linear-patch}. The tools
-dealing with insertions, deletions and copies all work on the preorder
-flattening of the tree as shown in the right side of
-\Cref{fig:linear-patch}. Hence, if we want to transform |Bin t u| into
-|Bin u t| using these tools, we will have to choose between copying
-|t| or |u|, but never both. One could choose to copy the bigger tree,
-but what if they have the same size? The choice becomes arbitrary.
+patches in an educated fashion, and hence one cannot single out
+\emph{the best} possible patch. We illustrate this in
+\Cref{fig:linear-patch}. The tools dealing with insertions, deletions
+and copies all work on the preorder flattening of the tree as shown in
+the right side of \Cref{fig:linear-patch}.  That is, the edit
+operations actually work on a flattened representation of the tree,
+just like computing the edit distance between two
+strings~\cite{Hirschberg1975}, but instead of \emph{lists of chars},
+we have a \emph{lists of constructors} here.  Hence, if we want to transform
+|Bin t u| into |Bin u t| using these tools, we will have to choose
+between copying |t| or |u|, but never both. One could choose to copy
+the bigger tree, but what if they have the same size? The choice
+becomes arbitrary.
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-00.pdf}
@@ -140,7 +141,7 @@ algorithm.
 \label{sec:concrete-changes}
 
   Before exploring the generic implementation of our algorithm, let us
-look at a simple, concrete instance, first. This sets the stage and
+look at a simple, concrete instance first. This sets the stage and
 introduces the intuition behind the building blocks used throughout
 the generic implementation
 (\Cref{sec:representing-changes}). Throughout this section we will
@@ -155,18 +156,15 @@ data Tree23  =  Leaf
 \end{code}
 \end{myhs}
 
-  The central concept of our work is the encoding of a
-\emph{change}.  Unlike the previous
-work~\cite{Loh2009,Miraldo2017,Klein1998} based on
+  The central concept of our work is the encoding of a \emph{change}.
+Unlike previous work~\cite{Loh2009,Miraldo2017,Klein1998} based on
 tree-edit-distance~\cite{Bille2005} which uses only insertions,
-deletions and copies and considers the preorder traversal
-of a tree (\Cref{fig:linear-patch}) we go a step
-further. We explicitly model duplications and contractions of subtrees
-within our notion of \emph{change}. 
-
-  The representation of a \emph{change} between two values of type
-|Tree23| is given by identifying the bits and pieces that must be
-copied from source to destination.
+deletions and copies and considers the preorder traversal of a tree
+(\Cref{fig:linear-patch}) we go a step further. We explicitly model
+duplications and contractions of subtrees within our notion of
+\emph{change}. The representation of a \emph{change} between two
+values of type |Tree23| is given by identifying the bits and pieces
+that must be copied from source to destination.
 
   A new datatype, |Tree23C phi|, enables us to annotate a value of
 |Tree23| with holes of type |phi|. Therefore, |Tree23C MetaVar|
@@ -175,7 +173,7 @@ These metavariables correspond to arbitrary trees
 that are \emph{common subtrees} of both the source and destination of the change.
 These are exactly the bits that are being copied from source to destination.
 We refer to a value of |Tree23C| as a \emph{context}. 
-For now, the metavariables will be a simple |Int| but later
+For now, the metavariables will be simple |Int| values but later
 on we will need to cary additional information.
 
 \begin{myhs}
@@ -196,7 +194,7 @@ context:
 
 \begin{myhs}
 \begin{code}
-type Change phi = (Tree23C phi , Tree23C phi)
+type Change23 phi = (Tree23C phi , Tree23C phi)
 \end{code}
 \end{myhs}
 
@@ -206,7 +204,7 @@ type Change phi = (Tree23C phi , Tree23C phi)
 \label{fig:first-patch}
 \end{figure}
 
-  The change that transforms |Node2 t u| in |Node2 u t| is then
+  The change that transforms |Node2 t u| into |Node2 u t| is then
 represented by a pair of |Tree23C|, |(Node2C (Hole 0) (Hole 1) ,
 Node2C (Hole 1) (Hole 0))|, as seen in \Cref{fig:first-patch}.
 This change works on any tree built using the |Node2| constructor
@@ -219,20 +217,19 @@ metavariables against the deletion context and the insertion context:
 
 \begin{myhs}
 \begin{code}
-applyChange :: Change MetaVar -> Tree23 -> Maybe Tree23
+applyChange :: Change23 MetaVar -> Tree23 -> Maybe Tree23
 applyChange (d , i) x = del d x >>= ins i
 \end{code}
 \end{myhs}
 
-Naturally, if the term |x| and
-the deletion context |d| are \emph{incompatible}, this operation will
-fail, as we can see in the definition of |del|, below.
-Contrary to regular pattern-matching, however, we allow variables to
-appear more than once on both the deletion and insertion
-contexts. Their semantics are dual: duplicate variables in the
-deletion context must match equal trees whereas when in the insertion
-context will duplicate trees. We use an auxiliary function within the
-definition of |del| to make this check easier to perform.
+Naturally, if the term |x| and the deletion context |d| are
+\emph{incompatible}, this operation will fail. Contrary to regular
+pattern-matching we allow variables to appear more than once on both
+the deletion and insertion contexts. Their semantics are dual:
+duplicate variables in the deletion context must match equal trees
+whereas when in the insertion context will duplicate trees. We use an
+auxiliary function within the definition of |del| to make this check
+easier to perform.
 
 \begin{myhs}
 \begin{code}
@@ -252,14 +249,14 @@ del ctx tree = go ctx tree empty
 \end{myhs}
 
   The |go| function above is mostly entirely structural. Only when
-we reach a |Hole| is that we check whether we have already instantiated
-this metavariable. If that is the case we must make sure that the values agree.
+we reach |Hole i| is that we check whether we have already instantiated
+metavariable |i|. If that is the case we must make sure that the values agree.
 Otherwise we simply instantiate the metavariable with the corresponding tree.
 
   Once we have obtained a valuation from a deletion context and 
 a tree, we substitute the variables in the insertion context
-with their respective values obtaining the resulting tree.
-This phase can also fail if the change contains unbound variables.
+with their respective values, obtaining the resulting tree.
+This phase fails when the change contains unbound variables.
 
 \begin{myhs}
 \begin{code}
@@ -277,11 +274,10 @@ ins (Hole i)        m  = lookup i m
 destination, defining a |changeTree23| function. This function
 will exploit as many copy opportunities as possible. For now, we delegate the
 decision of whether a subtree should be copied or not to an
-oracle. Assume we have access to an oracle, ie, a function |ics|, \emph{``is common
+oracle: assume we have access a function |ics|, \emph{``is common
 subtree''}, with type |Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar|, where
-|ics s d x| returns |Nothing| when |x| is not a subtree of |s| and |d|
-or |Just i| when |x| is a common subtree. The |Int| inside the |Just|
-tells us which metavariable to use. The only condition we impose is
+|ics s d x| returns |Nothing| when |x| is \emph{not} a subtree of |s| and |d|
+or |Just i| otherwise. The only condition we impose is
 injectivity of |ics s d| on the |Just| subset of the image. That is, if
 |ics s d x == ics s d y == Just j|, then |x == y|. That is, the same subtree
 is assigned the same metavariable. 
@@ -289,11 +285,11 @@ is assigned the same metavariable.
   Assuming the existence of this oracle is commonplace.  There is an
 obvious inefficient implementation for |ics|. Later on, in
 \Cref{sec:oracle}, we provide an efficient and generic
-implementation for |ics|. Abstracting away the oracle allows for a simple separation of tasks.
-The |changeTree23| function merely has to compute the deletion and insertion
-contexts using said oracle.  This is done by the means of an |extract|
-function that receives an oracle and a tree and extracts a context from its
-second argument.
+implementation. Nevertheless, abstracting away the oracle allows for a
+simple separation of tasks.  The |changeTree23| function merely has to
+compute the deletion and insertion contexts using said oracle.  This
+is done by the means of an |extract| function that receives an oracle
+and a tree and extracts a context from its second argument.
 
 \begin{myhs}
 \begin{code}
@@ -303,12 +299,12 @@ changeTree23 s d = (extract (ics s d) s , extract (ics s d) d)
 \end{myhs}
 
   The |extract| function traverses its argument tree, looking for
-sharing opportunities.  Recall that the oracle answers whether a tree
+sharing opportunities by calling the oracle, which answers whether a tree
 is a subtree of both |s| and |d|. If that is the case, we want our
 change to \emph{copy} such subtree. That is, we return a |Hole|
 whenever the second argument of |extract| is a common subtree
-according to the given oracle.  If the oracle returns |Nothing|, we
-peel the topmost constructor to the context and recurse into the
+according to the oracle.  If the oracle returns |Nothing|, we
+move the topmost constructor to the context and recurse into the
 children.
 
 \begin{myhs}
@@ -325,21 +321,21 @@ extract o x = maybe (peel x) Hole (o x)
   Note that had we used a version of |ics| that only returns a boolean
 value we would not know what to put in the |Hole| and would have to do
 some additional computation. Returning a value that uniquely
-identifies a subtree, and hence the injectivity constraint, allows us
-to keep the |extract| function linear in the number of constructors in |x|
-as long as calling the oracle runs in constant time.
+identifies a subtree allows us to keep the |extract| function linear
+in the number of constructors in |x| disconsidreing the oracle calls.
 
-  This extract function suffers from an important correctness
-issue: it forgets the subtrees the oracle identified as common
-subtrees. This occurs when a tree is both a subtree of the
-source and destination but occurs, additionally, as the subtree of
-another common subtree.  In \Cref{fig:problematic-ics} we see the
-subtree |t| as one such case. Since the oracle recognizes |Node2 t k|
+  This iteration of the |changeTree23| function suffers from an
+important correctness issue: Not all trees identified by the oracle
+are \emph{true} copies.  We cannot copy trees that occur as a subtree
+of the source and destination but additionally as a subtree of another
+common subtree. One such example is shown in
+\Cref{fig:problematic-ics}, where the oracle recognizes |Node2 t k|
 and |t| as common subtrees, and |t| additionally occurs by itself one
 of the extracted contexts will contain an undefined metavariable. This
-will trigger an \texttt{undefined variable} error when trying to
-apply that change, ie, applying the change from \Cref{fig:problematic-ics} 
-would trigger such error when the |ins| function tried to lookup metavariable |1|.
+will trigger an \texttt{undefined variable} error when trying to apply
+that change, i.e., applying the change from \Cref{fig:problematic-ics}
+would trigger such error when the |ins| function tried to lookup
+metavariable |1|.
 
 \begin{figure}
 \begin{minipage}[t]{.4\textwidth}
@@ -358,18 +354,28 @@ extract (ics a b) b  = Node2C (Hole 0) (Hole 1)
 \end{code}
 \end{myhs}
 \end{minipage}
+\begin{centering}
+\begin{minipage}[t]{.5\textwidth}
+\begin{myhs}
+\begin{code}
+postprocess a b (extract (ics a b) a) (extract (ics a b) b)
+  = (Node2C (Hole 0) u , Node2C (Hole 0) t)
+\end{code}
+\end{myhs}
+\end{minipage}
+\end{centering}
 \caption{Example of erroneous context extraction due to nested common subtrees}
 \label{fig:problematic-ics}
 \end{figure}
 
   One way to solve this is using an additional processing step that goes over the 
 the contexts and substitutes the variables that occur exclusively in
-the deletion or insertion context and by their corresponding tree.
+the deletion or insertion context by their corresponding tree.
 We could implement |postprocess| using |del| to get two valuations: one
 for the deletion context against the source tree and another for the
 insertion context against the destination tree. This information is later used
 to know what to substitute the \emph{unused} or \emph{undeclared} metavariables for.
-We ommit the implementation but we come back to this issue in \Cref{sec:representing-changes}.
+We postpone the implementation until its generic incarnation in \Cref{sec:representing-changes}.
 
 \begin{myhs}
 \begin{code}
@@ -378,9 +384,9 @@ postprocess  :: Tree23 -> Tree23 -> Tree23C MetaVar -> Tree23C MetaVar
 \end{code}
 \end{myhs}
 
-  We can now construct a correct version of our |changeTree23| by
-postprocessing the extracted contexts. Our new version of
-|changeTree23| will only produce closed changes. That is, a deletion
+  We fix the previous |changeTree23| by
+postprocessing the extracted contexts. The new version of
+|changeTree23| will only produce closed changes, i.e., a deletion
 and a insertion context that have \emph{the same set of
 metavariables}. Intuitively, this means that every variable that is
 declared is used and vice-versa.
@@ -392,10 +398,10 @@ changeTree23 s d = postprocess s d (extract (ics s d) s) (extract (ics s d) d)
 \end{code}
 \end{myhs}
 
-  Assuming that |ics s d| is \emph{the best} possible such function,
-that is, it correctly issues metavariables to \emph{all} common
-subtrees of |s| and |d|, it is not hard to see that our implementation 
-satisfies the properties enumerated in \Cref{sec:introduction}, namely:
+  Assuming that |ics s d| correctly issues metavariables to \emph{all}
+common subtrees of |s| and |d|, it is not hard to see that our
+implementation already satisfies the properties enumerated in
+\Cref{sec:introduction}, namely:
 
 \begin{description}
   \item[Correctness] Assuming |ics| is correct, 
@@ -414,16 +420,22 @@ satisfies the properties enumerated in \Cref{sec:introduction}, namely:
     where there is no common subtree, they have the same size.
 \end{description}
 
+  Although correct with respect to our specification, our |changeTree23|
+is not ideal. A call to |changeTree23 x y| yields a \emph{single} |Change23| over trees that
+transforms, in particular, |x| into |y|. This large change is carrying
+redundant information as a number of constructors are being deleted, then inserted back again.
+Moreover, it is much easier to handle small and isolated changes as we will
+see in \Cref{sec:merging}. 
+
 \subsection{Minimizing Changes: Computing Patches}
 
-  Calling |changeTree23 x y| yields a large |Change23| over trees that
-transforms, in particular, |x| into |y|. Yet, having \emph{one} single change
-that transforms |x| into |y| is not ideal. A number of 
-constructors are being deleted, then inserted back again. Besides the
-redundant information in the contexts, changes are hard to manipulate
-and reason about. In order to make the fact that these constructors
-are also \emph{copies}, we say that they are part of the \emph{spine}
-of the patch, which contains changes on its leaves:
+  The process of minimizing and isolating the changes starts by
+identifying the redundant part of the contexts. That is, the
+constructors that show up as a prefix in the deletion and the
+insertion context. They are essentially being copied over and we want
+to make this fact explicit by separating them into what we call the
+\emph{spine} of the patch. The spine will then contain changes on its
+leaves:
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-example.pdf}
@@ -448,20 +460,19 @@ type Patch23 = Tree23C (Change23 MetaVar)
 \end{code}
 \end{myhs}
 
-\Cref{fig:patch-example} illustrates a value of type |Patch23|, the
+\Cref{fig:patch-example} illustrates a value of type |Patch23| with the
 \emph{changes} are shown with a shade in the background, placed always in the
 leaves of the spine. Note that the changes encompass only the minimum
-number of constructor necessary to bind and use all
-metavariables. This keeps changes small and isolated. On this section
-we will discuss how to take the results of |changeTree23| and
-transform them into a |Patch23|.
+number of constructor necessary to \emph{bind and use} all
+metavariables. This keeps changes small and isolated. 
 
-  The first step to compute a patch from a change is identifying its
-\emph{spine}. That is, the constructors that are present in both the
-deletion and insertion contexts.  We are essentially splitting a big
-change into the \emph{greatest common prefix} of the insertion and
-deletion contexts and leaving smaller changes on the leaves of
-this prefix:
+  On this section we will discuss how to take the results of
+|changeTree23| and transform them into a |Patch23|. The first step to
+compute a patch from a change is identifying its \emph{spine}. That
+is, the constructors that are present in both the deletion and
+insertion contexts.  We are essentially splitting a big change into
+the \emph{greatest common prefix} of the insertion and deletion
+contexts and leaving smaller changes on the leaves of this prefix:
 
 \begin{myhs}
 \begin{code}
@@ -482,9 +493,9 @@ and hence they do \emph{not} belong in the common prefix.
 them into the |gcp| function and be done with it.  Yet, the
 \emph{greatest common prefix} consumes all the possible constructors
 leading to disagreeing parts of the contexts where this might be too greedy
-We must be careful not to break bindings as shown in \Cref{fig:patch-scoping-problem}.
+We must be careful not to break bindings as shown below:
 
-\begin{figure}
+%\begin{figure}
 \begin{minipage}[t]{.55\textwidth}
 \begin{myhs}
 \begin{code}
@@ -499,18 +510,21 @@ prob  =  Change  (  Node2C (Hole 0)  (Hole 0)
 \[ |gcp prob ==| \hspace{6em} \]
 \includegraphics[scale=0.3]{src/img/patch-02.pdf}
 \end{minipage}
-\caption{How |gcp| breaks binding. The triangle represents a |Tree23C| with no holes.}
-\label{fig:patch-scoping-problem}
-\end{figure}
+% \caption{How |gcp| breaks binding. The triangle represents a |Tree23C| with no holes.}
+% \label{fig:patch-scoping-problem}
+% \end{figure}
 
-  We can, again, postprocess the results of |gcp| and pull
+  One could think of writing a more specific version of |gcp|
+that is aware of metavariables, but that is not the best solution. Besides
+having a complicated implementation, the |gcp| function is used in different
+places. Instead, we postprocess the results of |gcp| and pull
 the changes up the tree until they are all closed again, that is, the set of
 variables in both contexts is identical. We call this process the \emph{closure}
 of a patch and declare a function to compute that below.
 
 \begin{myhs}
 \begin{code}
-closure :: Tree23C (Change23 MetaVar) -> Tree23C (Change23 MetaVar)
+closure :: Tree23C (Change23 MetaVar) -> Patch23
 \end{code}
 \end{myhs}
 

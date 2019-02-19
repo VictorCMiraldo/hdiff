@@ -105,7 +105,7 @@
 %% Note: \begin{abstract}...\end{abstract} environment must come
 %% before \maketitle command
 \begin{abstract}
-  Understanding the differences between different versions of a source
+  Understanding the differences between various versions of a source
 file is crucual for software development. The \texttt{UNIX diff} is the
 cannonical tool for the task. It compares files line-by-line and outputs
 the differences. Looking for differences in a granularity other than 
