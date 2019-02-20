@@ -522,20 +522,11 @@ the changes up the tree until they are all closed again, that is, the set of
 variables in both contexts is identical. We call this process the \emph{closure}
 of a patch and declare a function to compute that below.
 
-\begin{myhs}
-\begin{code}
-closure :: Tree23C (Change23 MetaVar) -> Patch23
-\end{code}
-\end{myhs}
-
-  It is worth mentioning that the |closure| is a total function only
-under the precondition that there exists a way to close all the changes 
-for its argument. In our case, we only pass values of |Patch23| that 
-come from |changeTree23| and, hence, have at least one possible closure
-since |changeTree23| produces closed changes. We will ommit the
-definition of this function for now and instead provide an illustration
-for an input outpur pair in \Cref{fig:closure-patch-scoping-problem}.
-We shall come back to this function in \Cref{sec:representing-changes}.
+  Take the illustration of |closure| in
+\Cref{fig:closure-patch-problem}, note that in both the input and
+output for the |closure| function the subtree |x| appears on the
+deletion context. Moreover, the |closure| functions pushes down only
+the necessary amount of constructors into the \emph{changes}.
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-03.pdf}
@@ -543,12 +534,22 @@ We shall come back to this function in \Cref{sec:representing-changes}.
 \label{fig:closure-patch-scoping-problem}
 \end{figure}
 
-  Note that in both the input and output for the |closure| function
-in \Cref{fig:closure-patch-scoping-problem}, the subtree |x| appears
-on the deletion context. Moreover, the |closure| functions pushes
-down only the necessary amount of constructors into the \emph{changes}.
-As soon as every change within our spine has been closed, we are done.
-The final differencing function for |Tree23| is then defined as:
+\begin{myhs}
+\begin{code}
+closure :: Tree23C (Change23 MetaVar) -> Patch23
+\end{code}
+\end{myhs}
+
+  Although the |closure| function is declared as total, it might fail
+if there exists no way of closing all the changes. This is not a
+problem for us since we know that |changeTree23| outputs a single,
+closed, change. Therefore, there exists a way of closing it. We will
+come back to the |closure| function in more detail on its generic
+incarnation (\Cref{sec:representing-changes}). For now, it is more
+important to understand why we need to compute the closures and see
+how it fits as the last part in our algorithm: As soon as every change
+within the spine has been closed, we have a \emph{patch}. The final
+differencing function for |Tree23| is then defined as:
 
 \begin{myhs}
 \begin{code}
@@ -556,11 +557,15 @@ diffTree23 :: Tree23 -> Tree23 -> Patch23
 diffTree23 s d = closure $$ gcp $$ changeTree23 s d
 \end{code}
 \end{myhs}
-
-  This function satisfies all the properties enumerated in
-\Cref{sec:introduction}, just like |changeTree23|, but produces its
-result in a format that is easier to reason about and does not carry
-redundant information.
+ 
+  Oposed to |applyChange23|, one could define the |applyPatch23| 
+function that applies a \emph{patch}. This is done by traversing
+the object tree and the spine of the patch until a change is
+found and applying that change to the \emph{local} subtree in question.
+Besides a having a localized application function, this representation
+with minimized changes enables us to trivially identify when two patches
+are working over disjoint parts of a tree. This will be specially interesting
+in the context of \emph{merging} (\Cref{sec:merging}).
 
 %% For one, we are not trying to
 %% minimize the changes after we |extract| a context from the source or
@@ -584,10 +589,10 @@ type of contexts over |Tree23|, which consisted in annotating a
 existence of an oracle that answers whether an arbitrary tree is a
 subtree of the source and the destination we described how to
 construct a value of type |Change23 MetaVar| from a |Tree23|. 
-We then discussed how to compute a |Patch23| given a |Change23|
-by \emph{minimizing and isolating} the changes and separating
+Finally, we described how to compute a |Patch23| given a |Change23|
+by \emph{minimizing} the changes and isolating
 them from the \emph{spine}. On this section we show how can
-we write that same algorithm for a generic fashion, working
+we write that same algorithm in a generic fashion, working
 over any mutually recursive family.
 
 
@@ -602,39 +607,49 @@ programming~\cite{deVries2014} and, additionally, enables us to work
 with mutually recursive families. This is important as the abstract
 syntax trees of most programming languages are mutually recursive.
 
-  For example, take the |Tree23| type from
+  Take the |Tree23| type from
 \Cref{sec:concrete-changes}.  Its structure can be seen in a
-\emph{sum-of-products} fashion through the |Tree23Codes| type given
-below.  The |Tree23Codes| type represents the shape in which every
-|Tree23| will come and consists in two nested lists of
+\emph{sum-of-products} fashion through the |Tree23SOP| type given
+below.  It represents the shape in which every
+|Tree23| comes and consists in two nested lists of
 \emph{atoms}. The outer list represents the choice of constructor, and
 packages the \emph{sum} part of the datatype whereas the inner list
 represents the \emph{product} of the fields of a given
-constructor. The |I 0| flags a recursive position.  The numeric
-argument supplied to |I| indicates the index of the recursive type
-within the family. For |Tree23| we only have one recursive type.
+constructor. The |P| notation represents a value that
+has been promoted to the type level~\cite{Yorgey2012}. 
 
 \begin{myhs}
 \begin{code}
-type Tree23Codes = P  ([  P [] 
-                      ,   P ([ I 0 , I 0 ]) 
-                      ,   P ([ I 0 , I 0 , I 0 ]) ])
+type Tree23SOP = P  ([  P [] 
+                    ,   P ([ I 0 , I 0 ]) 
+                    ,   P ([ I 0 , I 0 , I 0 ]) ])
 \end{code}
 \end{myhs}
 
- The \texttt{generics-mrsop} goes one step further and uses |Atom|s
+  The atoms, in this case only |I 0|, represent a recursive position
+referencing the first type in the family. In fact, a mutually
+recursive family is described by \emph{a list of sums-of-products}:
+one for each element in the family. We overload the word ``code'' in
+singular or plural to mean the represenation of a datatype, or the
+representation of a family, respectively.  The context should make
+clear the distinction. For example, |Tree23SOP| is the code of type
+|Tree23| and |Tree23Codes| is the codes for the mutually recursive
+family.
+
+\begin{myhs}
+\begin{code}
+type Tree23Codes = P  [ Tree23SOP ]
+\end{code}
+\end{myhs}
+
+ The \texttt{generics-mrsop} uses the type |Atom|
 to distinguish whether a field is a recursive position referencing the
 $n$-th type in the family, |I n|, or a opaque type, for example, |Int|
 or |Bool|, which are represented by |K KInt|, |K KBool|.
 
-\begin{myhs}
-\begin{code}
-type family Code (a :: Star) :: P ([ (P [Atom]) ])
-\end{code}
-\end{myhs}
-
-  Let us look at a slightly more involved example than |Tree23Codes|. 
-The mutually recursive family containing types |Zig| and |Zag| has
+  Let us now take a mutually recursive family with more than one
+element and see how it is represented within the \texttt{generics-mrsop}
+framework. The mutually recursive family containing types |Zig| and |Zag| has
 its codes defined as a list of codes, one for each member of the family:
 
 \begin{minipage}[t]{.45\textwidth}
@@ -648,25 +663,28 @@ data Zag  = Zag Bool  | ZagZig Zig
 \begin{minipage}[t]{.45\textwidth}
 \begin{myhs}
 \begin{code}
-type CodesZig = P  [ P [ P [ K KInt ]   , P [ I 1 ] ]
+type ZigCodes = P  [ P [ P [ K KInt ]   , P [ I 1 ] ]
                    , P [ P [ K KBool ]  , P [ I 0 ] ]
                    ]
 \end{code}
 \end{myhs}
 \end{minipage} %
 
-Note that the codes come in the same order as the family. The code for |Zig| is
-the first element of the |CodesZig| type level list. It consists in two lists, since
-|Zig| has two constructors. One receives a value of type |Int|, the other consists in
-a recursive call to the second element of the family. The code acts as a recipe that
-the \emph{representation} functor must follow in order to interpret those into
-a type of kind |Star|. 
+  Note that the codes come in the same order as the elements of the
+family. The code for |Zig| is the first element of the |ZigCodes| type
+level list. It consists in two lists, since |Zig| has two
+constructors. One receives a value of type |Int|, the other consists
+in a recursive call to the second element of the family. The code acts
+as a recipe that the \emph{representation} functor must follow in
+order to interpret those into a type of kind |Star|.
 
   The representation is defined by the means of $n$-ary sums (|NS|)
 and products (|NP|) that work by induction on the \emph{codes} and one
-interpretation for atoms.
+interpretation for atoms (|NA|). Their definition together with
+their respective elimination principles can be found in \Cref{fig:nsnpna}.
 
-\begin{minipage}[t]{.45\textwidth}
+\begin{figure}
+\begin{minipage}[t]{.5\textwidth}
 \begin{myhs}
 \begin{code}
 data NS :: (k -> Star) -> [k] -> Star where
@@ -674,8 +692,6 @@ data NS :: (k -> Star) -> [k] -> Star where
   There  :: NS f xs  -> NS f (x PCons xs)
 \end{code}
 \end{myhs}
-\end{minipage} %
-\begin{minipage}[t]{.45\textwidth}
 \begin{myhs}
 \begin{code}
 data NP :: (k -> Star) -> [k] -> Star where
@@ -683,7 +699,6 @@ data NP :: (k -> Star) -> [k] -> Star where
   Cons  :: f x -> NP f xs -> NP f (x PCons xs)
 \end{code}
 \end{myhs}
-\end{minipage} %
 \begin{myhs}
 \begin{code}
 data NA :: (Nat -> Star) -> Atom -> Star where
@@ -691,6 +706,35 @@ data NA :: (Nat -> Star) -> Atom -> Star where
   NA_K :: Opq k  -> NA phi (K k)
 \end{code}
 \end{myhs}
+\end{minipage} %
+\begin{minipage}[t]{.45\textwidth}
+\begin{myhs}
+\begin{code}
+elimNS :: (forall at dot f at -> a) -> NS f s -> a
+elimNS f (There s)  = elimNS f s
+elimNS f (Here x)   = f x
+\end{code}
+\end{myhs}
+\begin{myhs}
+\begin{code}
+elimNP :: (forall at dot f at -> a) -> NP f p -> [a]
+elimNP f Nil          = []
+elimNP f (Cons x xs)  = f x : elimNP f xs
+\end{code}
+\end{myhs}
+\begin{myhs}
+\begin{code}
+elimNA  :: (forall ix dot f x -> a) -> (forall k dot g k -> a) 
+        -> NA f g at -> a
+elimNA f g (NA_I x)  = f x
+elimNA f g (NA_K x)  = g x
+\end{code}
+\end{myhs}
+\end{minipage}
+\caption{Interpretation and elimination principles for each component of a sum-of-products code.}
+\label{fig:nsnpna}
+\end{figure}
+
 
   The |NS| type is responsible for determining the choice of
 constructor whereas the |NP| applies a representation functor to all
@@ -710,32 +754,8 @@ type Rep phi = NS (NP (NA phi))
 \end{code}
 \end{myhs}
 
-  Naturally, |NS|, |NP| and |NA| come equipped with their elimination principles:
-
-\begin{myhs}
-\begin{code}
-elimNS :: (forall at dot f at -> a) -> NS f s -> a
-elimNS f (There s)  = elimNS f s
-elimNS f (Here x)   = f x
-\end{code}
-\end{myhs}
-\begin{myhs}
-\begin{code}
-elimNP :: (forall at dot f at -> a) -> NP f p -> [a]
-elimNP f Nil          = []
-elimNP f (Cons x xs)  = f x : elimNP f xs
-\end{code}
-\end{myhs}
-\begin{myhs}
-\begin{code}
-elimNA :: (forall ix dot f x -> a) -> (forall k dot g k -> a) -> NA f g at -> a
-elimNA f g (NA_I x)  = f x
-elimNA f g (NA_K x)  = g x
-\end{code}
-\end{myhs}
-
-  Finally, we tie the recursive knot with a functor of kind |Nat -> Star| that we 
-pass as a parameter to |NA| in order to interpret the recursive positions. The
+  Finally, we tie the recursive knot with a functor of kind |Nat -> Star| that is
+passed as a parameter to |NA| in order to interpret the recursive positions. The
 familiar reader might recognize it as the indexed least fixedpoint:
 
 \begin{myhs}
@@ -745,17 +765,17 @@ newtype Fix (codes :: P [ P [ P [ Atom ] ] ]) (ix :: Nat)
 \end{code}
 \end{myhs}
 
-  Where |Lkup codes ix| denotes the type level lookup of the element
+  Here, |Lkup codes ix| denotes the type level lookup of the element
 with index |ix| within the list |codes|. This type family throws a
 type error if the index is out of bounds.  The generic versions of the
 constructors of type |Zig| are given by:
 
 \begin{myhs}
 \begin{code}
-gzig :: Int -> Fix CodesZig 0
+gzig :: Int -> Fix ZigCodes 0
 gzig n = Fix (Here (Cons (NA_K (OpqInt n)) Nil))
 
-gzigzag :: Fix CodesZig 1 -> Fix CodesZig 0
+gzigzag :: Fix ZigCodes 1 -> Fix ZigCodes 0
 gzigzag zag = Fix (There (Here (Cons (NA_I zag) Nil)))
 \end{code}
 \end{myhs}
@@ -775,10 +795,12 @@ data Constr :: [[k]] -> Nat -> Star where
 \end{code}
 \end{myhs}
 
-  And use |Constr sum c| as a predicate indicating that |c| is a valid
-constructor for |sum|, ie, it is a valid index into the type level
-list |sum|. Then define a |View| over a value of a sum type to be a
-choice of constructor and corresponding product:
+  The |Constr sum c| type represents a predicate indicating that |c|
+is a valid constructor for |sum|, ie, it is a valid index into the
+type level list |sum|. This enables us to define a |View| over a value
+of a sum type to be a choice of constructor and corresponding
+product. We can then unwrap a |Fix codes i| value into its topmost
+constructor and a product of its fields with the |sop| function.
 
 \begin{myhs}
 \begin{code}
@@ -789,9 +811,7 @@ sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
 \end{code}
 \end{myhs}
 
-  The |sop| functions converts a value in its standard representation
-to the more useful choice of constructor and associated product.  This
-brief introduction covers the basics of generic programming in Haskell
+This brief introduction covers the basics of generic programming in Haskell
 that we will use in this paper. We refer the interested reader to the
 literature~\cite{deVries2014,Miraldo2018} for more information.
 
@@ -802,16 +822,18 @@ literature~\cite{deVries2014,Miraldo2018} for more information.
   In \Cref{sec:concrete-changes} we gained some intuition about the
 workings of our algorithm whereas in \Cref{sec:generic-prog} we
 discussed techniques for writing programs over arbitrary mutually
-recursive families. The next step is to start writing our algorithm in
-a generic fashion. 
+recursive families. In this section we write our differencing algorithm
+in a fully generic fashion.
 
-  First we need to define a generic notion of context, analogously to
-|Tree23C| (\Cref{sec:concrete-changes}) which augmented the
-|Tree23| type with an extra constructor for representing holes.  This
-type construction is crucial to the representation of patches. In
-fact, this construction can be done for any mutually recursive family
-and any representation of \emph{metavariable}, hence we parametrize by
-a functor:
+  We start defining the generic notion of context, called |Tx|.
+Analogously to |Tree23C| (\Cref{sec:concrete-changes}), |Tx| enables
+us to augment mutually recursive family with type holes.  This type
+construction is crucial to the representation of patches.  This
+construction can be done for any mutually recursive family.
+
+  We can read |Tx codes phi at| as the element of the
+mutually recursive family |codes| indexed by |at| augmented with holes
+of type |phi|. Its definition follows:
 
 \begin{myhs}
 \begin{code}
@@ -824,10 +846,24 @@ data Tx :: [[[Atom]]] -> (Atom -> Star) -> Atom -> Star where
 \end{code}
 \end{myhs}
 
-  We can read the type |Tx codes phi at| as the element of the
-mutually recursive family |codes| indexed by |at| augmented with holes
-of type |phi|.  The |Tx| type is, in fact, the indexed free monad over
-the |Rep| functor.  Essentially, a value of type |Tx codes phi at| is
+  Looking at the definition of |Tx|, we see that its values
+consist in either a \emph{typed} hole, some opaque value, or
+a constructor and a product of fields. The |TxPeel| follows
+very closely the |View| type from \Cref{sec:generic-prog}. 
+The |Tx| type is, in fact, the indexed free monad over
+the |Rep|. The return method is just |TxHole|, and the multiplication
+is given by: 
+
+\begin{myhs}
+\begin{code}
+txJoin :: Tx codes (Tx codes phi) at -> Tx codes phi at
+txJoin (TxHole tx)   = tx
+txJoin (TxOpq opq)   = TxOpq opq
+txJoin (TxPeel c d)  = TxPeel c (mapNP txJoin p)
+\end{code}
+\end{myhs}
+
+  Essentially, a value of type |Tx codes phi at| is
 a value of type |NA (Fix codes) at| augmented with \emph{holes} of
 type |phi|. To illustrate this, let us define the injection of a |NA|
 into a |Tx|:
@@ -836,8 +872,7 @@ into a |Tx|:
 \begin{code}
 na2tx :: NA (Fix codes) at -> Tx codes phi at
 na2tx (NA_K k)        = TxOpq k
-na2tx (NA_I (Fix x))  = case sop x of
-                          Tag c p -> TxPeel c (mapNP na2tx p) 
+na2tx (NA_I (Fix x))  = case sop x of Tag c p -> TxPeel c (mapNP na2tx p) 
 \end{code}
 \end{myhs}
 
@@ -853,18 +888,13 @@ tx2na (TxPeel c txs)  = inj c <$$> mapNPM tx2na txs
 \end{code}
 \end{myhs}
 
-  Differently than with |Tree23C|, in |Tx| we parametrize the type of
-\emph{metavariables}.  This comes in quite handy as it allows us to
-use the |Tx| differently for a number of intermediate steps in the algorithm
-and the representation. 
-
 \paragraph{Generic Representation of Changes}
 
-  With a generic notion of contexts, we can go ahead and define our generic
-|Change| type.  We need a pair of |Tx|, with the same semantics
-as in \Cref{sec:concrete-changes}: one deletion context and one insertion context. 
-This time, however, we define a new datatype to be able to partially
-apply its type arguments later on.
+  With a generic notion of contexts, we can go ahead and define our
+generic |Change| type.  We use a pair of |Tx| exactly as in
+\Cref{sec:concrete-changes}: one deletion context and one insertion
+context.  This time, however, we define a new datatype to be able to
+partially apply its type arguments later on.
 
 \begin{myhs}
 \begin{code}
@@ -872,41 +902,42 @@ data Change codes phi at = Change (Tx codes phi at) (Tx codes phi at)
 \end{code}
 \end{myhs}
 
-  The interpretation for the metavariables, |MetaVarIK| will carry the
-identifier for the variable itself but also identifies whether this
-metavariable is supposed to be instantiated by a recursive member of
-the family or a opaque type. We do so by carrying a singleton~\cite{Eisenberg2012} of type
-|NA|, enabling the compiler to gain knowledge over |at| when
-pattern-matching.  This is important since we must know the types of
+  The interpretation for the metavariables, |MetaVar|, now carries the
+integer representing the metavariable itself but also carries
+information to identify whether this metavariable is supposed to be
+instantiated by a recursive member of the family or a opaque type. We
+do so by carrying a singleton~\cite{Eisenberg2012} of type |NA|.
+This enables the compiler to gain knowledge over |at| when
+pattern-matching, which is important purely from the generic programming perspective.
+Without this information we would not be able to write a well-typed
+application function, for instance. We must know the types of
 the values supposed to be matched against a metavariable to ensure we
-will produce well-typed trees. This difficulty that comes from 
-having a generic implementation.
+will produce well-typed trees.
 
 \begin{myhs}
 \begin{code}
-data MetaVarIK at = MetaVarIK Int (NA (Const Unit) at)
+data MetaVar at = MetaVar Int (NA (Const Unit) at)
 \end{code}
 \end{myhs}
 
   The type of changes over |Tree23| can now be written using the
-generic representation for changes and metavariables. Since the type
-|ChangeTree23|, defined below, is isomorphic to |(Tree23C , Tree23C)|
-we will commit a slight abuse of notation and use their values
-interchangeably. For example, we write |Node2C a b| for |TxPeel (CS
-CZ) (Cons a (Cons b Nil))|.
+generic representation for changes and metavariables. 
 
 \begin{myhs}
 \begin{code}
-type ChangeTree23 = Change Tree23Codes MetaVarIK (I Z)
+type ChangeTree23 = Change Tree23Codes MetaVar (I 0)
 \end{code}
 \end{myhs}
 
   We can read the type above as the type of changes over the
-\emph{zero}-th (|I Z|) type within the mutually recursive family |Tree23Codes|.
+\emph{zero}-th (|I 0|) type within the mutually recursive family |Tree23Codes|
+with values of type |MetaVar| in its holes.
 
-\paragraph{Computing Changes} Next, we look at how can we compute a
-|Change codes MetaVarIK| from a source and a destination elements of
-type |Fix codes ix|.  We are still assuming an efficient
+\paragraph{Computing Changes} Computing a
+|Change codes MetaVar| from a source and a destination elements of
+type |Fix codes ix| follows exactly the roadmap from \Cref{sec:concrete-changes}:
+extract the contexts and fix bindings by removing \emph{false copies}.
+We are still assuming an efficient
 oracle |buildOracle s d :: Oracle codes|, for answering whether \emph{an arbitrary |t| is a
 subtree of a fixed |s| and |d| indexed by |n|}, where:
 
@@ -918,7 +949,7 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 \end{code}
 \end{myhs}
 
-  Recall that the core of computing a change is in the extraction of
+  The core of computing a change is in the extraction of
 the deletion and insertion contexts. This was done by the |extract|
 function in \Cref{sec:concrete-changes}. Unfortunately that function
 had an important correctness issue when a tree is both a subtree of
@@ -1052,7 +1083,7 @@ of |Patch23| from \Cref{sec:concrete-changes} is given by:
 
 \begin{myhs}
 \begin{code}
-type Patch codes at = Tx codes (Change codes MetaVarIK) at
+type Patch codes at = Tx codes (Change codes MetaVar) at
 \end{code}
 \end{myhs}
 
@@ -1117,8 +1148,6 @@ to a change by the means of a distributive law:
 
 \begin{myhs}
 \begin{code}
-txJoin :: Tx codes (Tx codes phi) at -> Tx codes phi at
-
 distr :: Tx codes (Tx codes phi :*: Tx codes psi) at -> (Tx codes phi :*: Tx codes psi) at
 distr spine = txJoin (txMap fst spine) :*: txJoin (txMap snd spine)
 \end{code}
@@ -1316,7 +1345,7 @@ in the insertion context. Its type is given by:
 
 \begin{myhs}
 \begin{code}
-applyChange  :: Change codes MetaVarIK at 
+applyChange  :: Change codes MetaVar at 
              -> NA (Fix codes) at 
              -> Maybe (NA (Fix codes) at)
 \end{code}
