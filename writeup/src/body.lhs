@@ -523,15 +523,15 @@ variables in both contexts is identical. We call this process the \emph{closure}
 of a patch and declare a function to compute that below.
 
   Take the illustration of |closure| in
-\Cref{fig:closure-patch-problem}, note that in both the input and
+\Cref{fig:closure}, note that in both the input and
 output for the |closure| function the subtree |x| appears on the
 deletion context. Moreover, the |closure| functions pushes down only
 the necessary amount of constructors into the \emph{changes}.
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-03.pdf}
-\caption{The closure of |gcp prob|, shown in \Cref{fig:patch-scoping-problem}}
-\label{fig:closure-patch-scoping-problem}
+\caption{Graphical representation of the |closure| function.}
+\label{fig:closure}
 \end{figure}
 
 \begin{myhs}
@@ -724,8 +724,8 @@ elimNP f (Cons x xs)  = f x : elimNP f xs
 \end{myhs}
 \begin{myhs}
 \begin{code}
-elimNA  :: (forall ix dot f x -> a) -> (forall k dot g k -> a) 
-        -> NA f g at -> a
+elimNA  ::  (forall ix dot f x -> a) -> (forall k dot g k -> a) 
+        ->  NA f g at -> a
 elimNA f g (NA_I x)  = f x
 elimNA f g (NA_K x)  = g x
 \end{code}
@@ -949,41 +949,22 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 \end{code}
 \end{myhs}
 
-  The core of computing a change is in the extraction of
-the deletion and insertion contexts. This was done by the |extract|
-function in \Cref{sec:concrete-changes}. Unfortunately that function
-had an important correctness issue when a tree is both a subtree of
-the source and destination but occurs, additionally, as the subtree of
-another common subtree (\Cref{fig:problematic-ics}). We arguied one
-could solved that with some postprocessing of the resulting change.
-That is still the case, but we will maintain some extra information
-from the context extraction step to make postprocessing simpler.
+  The core of computing a change is in the extraction of the deletion
+and insertion contexts (|extract| function,
+\Cref{sec:concrete-changes}).  We must care for an important
+correctness issue , though. When a tree is both a subtree of the
+source and destination but also occurs as the subtree of another
+common subtree (\Cref{fig:problematic-ics}) care must be taken before
+issuing a copy. We shown how to fix this with a postprocessing step of
+the resulting change.  That is still the case, but we now maintain
+some extra information from the context extraction step to make the
+postprocessing a self contained function.
 
-%% \begin{figure}
-%% \begin{minipage}[t]{.4\textwidth}
-%% \begin{myhs}
-%% \begin{code}
-%% a  = Node2 (Node2 t k) u
-%% b  = Node2 (Node2 t k) t
-%% \end{code}
-%% \end{myhs}
-%% \end{minipage}
-%% \begin{minipage}[t]{.5\textwidth}
-%% \begin{myhs}
-%% \begin{code}
-%% extract (ics a b) a  = Node2C (Hole 0) u
-%% extract (ics a b) b  = Node2C (Hole 0) (Hole 1)
-%% \end{code}
-%% \end{myhs}
-%% \end{minipage}
-%% \caption{Example of erroneous context extraction due to nested common subtrees}
-%% \label{fig:problematic-ics}
-%% \end{figure}
-
-  We will use the |ForceI| type to ensure that the index of the 
-copied position is of the |I ix|
-form, that is, we are only sharing \emph{recursive} positions so
-far. We also use the indexed product type |(:*:)| to carry along information.
+  Looking at the type of |Oracle|, we see it will only share recursive
+positions by construction. We use the |ForceI| type to evidentiate
+this fact on the type level. That is, we are only sharing
+\emph{recursive} positions so far. We also use the indexed product
+type |(:*:)| to carry along information.
 
 \begin{myhs}
 \begin{code}
@@ -994,7 +975,7 @@ data ForceI :: (Nat -> Star) -> Atom -> Star where
 \end{code}
 \end{myhs}
 
-  Finally, we define our generic |txExtract| function to check whether a given
+  Defining the generic |txExtract| function is simple. We check whether a given
 |x| is a subtree of the fixed source and destinations by calling the
 provided oracle, if so, we return a hole with the subtree annotated If
 |x| is not a common subtree we extract the topmost constructor and its
@@ -1003,9 +984,9 @@ the context on the fields that reference recursive positions.
 
 \begin{myhs}
 \begin{code}
-txExtract  :: Oracle codes
-           -> Fix codes ix 
-           -> Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
+txExtract  ::  Oracle codes
+           ->  Fix codes ix 
+           ->  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
 txExtract ics x = case ics x of
     Just i   -> TxHole (ForceI (Const i :*: x))
     Nothing  ->  let Tag c p = sop (unFix x)
@@ -1013,15 +994,18 @@ txExtract ics x = case ics x of
 \end{code}
 \end{myhs}
 
-
-  After extracting both contexts with potential copies we must
-postprocess them to make sure we produce a closed change
-(\Cref{fig:problematic-ics}).  We do so by traverssing the result of
-extracting both contexts from a source and a destination.  In case we
-need to keep a given tree and forget that it was shared we convert it
-to a context with |na2tx|.  We want to keep only the metavariables
-that occur in both the insertion and deletion contexts to prevent any
-\texttt{undefined variable} when applying our patches.
+  Postprocessing works by traverssing the result of the extracted
+contexts.  In case we need to keep a given tree and forget that it was
+shared we convert it to a context with |na2tx|.  Recall the reason for
+wanting to keep only the metavariables that occur in both the
+insertion and deletion contexts is to prevent any \texttt{undefined
+variable} when applying our patches, which would break
+correctness. More technically, the |txPostprocess| function groups the
+metavariables of each context in a set and computes the intersection
+of such sets, then maps over its arguments replacing the |Const Int
+:*: Fix codes| hole by either |Const Int|, if the |Int| belongs in the
+set, or by translating the |Fix codes| with |na2tx . NA_I|. The implementation
+is shown in \Cref{fig:postprocess}.
 
 \begin{figure}
 \begin{myhs}
@@ -1030,12 +1014,15 @@ txPostprocess  ::  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
                ->  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
                ->  Change (ForceI (Const Int)) (I ix)
 txPostprocess del ins =
+  -- We have to txJoin the results since keepOrDrop returns a Tx
   execState  (Change  <$$> (txJoin <$$> utxMapM keepOrDrop del) 
-                      <*> (txJoin <$$> utxMapM keepOrDrop))
+                      <*> (txJoin <$$> utxMapM keepOrDrop ins))
              (varsOf del `intersect` varsOf ins)
  where
-   varsOf  :: Tx codes (ForceI (Const Int :*: Fix codes)) (I ix) -> [Int]
+   -- traverses a Tx and puts all the variables in a Set.
+   varsOf  :: Tx codes (ForceI (Const Int :*: Fix codes)) (I ix) -> Set Int
 
+   -- check whether a variable is in both contexts and decides
    keepOrDrop (ForceI (Const mvar) :*: subtree) = do
      okvars <- get
      if var `elem` okvars  then return (TxHole (ForceI (Const mvar)))
@@ -1046,21 +1033,13 @@ txPostprocess del ins =
 \label{fig:postprocess}
 \end{figure}
 
-  The |txPostprocess| function, \Cref{fig:postprocess}, proceeds by grouping every metavariable
-in a set, computing the intersection of the sets, then mapping over
-its arguments and replacing the |Const Int :*: Fix codes| hole by
-either |Const Int|, if the |Int| belongs in the set, or by translating
-the |Fix codes| with |na2tx . NA_I|.
-
-  At this point, given two trees |a, b| of type |Fix codes ix|, we
-have extracted and post-processed both the deletion and insertion
+  At this point, given two trees |a| and |b| of type |Fix codes ix|,
+we can extract and post-processed both the deletion and insertion
 contexts, of type |Tx codes (ForceI (Const Int)) (I ix)|. These are
-just like a value of type |Fix codes ix| with holes in some
-recursive positions only.  This is enforced by the |ForceI| type.
-
-  Assembling these pieces into the generic version of
-the |changeTree23| function presented in \Cref{sec:concrete-changes} yields
-the function |change|, defined below.
+just like a value of type |Fix codes ix| with holes of type |Const
+Int| exclusively in recursive positions. This is the generic version
+of the |changeTree23| function presented in
+\Cref{sec:concrete-changes}:
 
 \begin{myhs}
 \begin{code}
@@ -1077,9 +1056,9 @@ declared is used and vice-versa.
 
 \paragraph{Minimizing the Changes: Computing Patches}
 
-  The next step is to try to minimize the changes comming from |change|.
-This time, however, in a generic setting. The generic counterpart
-of |Patch23| from \Cref{sec:concrete-changes} is given by:
+  The next step is to to minimize the changes comming from |change|
+function, yielding a \emph{patch}. The generic counterpart of
+|Patch23| from \Cref{sec:concrete-changes} is given by:
 
 \begin{myhs}
 \begin{code}
@@ -1087,34 +1066,9 @@ type Patch codes at = Tx codes (Change codes MetaVar) at
 \end{code}
 \end{myhs}
 
-%% \Cref{fig:patch-example} illustrates a value of type |Patch Tree23Codes (I Z)|,
-%% the changes are shown with a
-%% shade in the background, placed always in the leaves of the
-%% spine. Note that the changes encompass only the minimum number of
-%% constructor necessary to bind and use all metavariables. This keeps
-%% changes small and isolated. On this section we will discuss how
-%% to take the results of |diff0| and transform them into a |Patch|.
-%% 
-%% \begin{figure}
-%% \includegraphics[scale=0.3]{src/img/patch-example.pdf}
-%% \vspace{.4em}
-%% \begin{myhs}
-%% \begin{code}
-%% Node3C  (Change (Hole 0) (Hole 0))
-        %% (Change (Node2C (Hole 0) (Hole 1)) (Node2C (Hole 1) (Hole 0))
-        %% (Node2C  (Change (na2tx w) (na2tx w'))
-                 %% (Change (Hole 3)  (Hole 3)))
-%% \end{code}
-%% \end{myhs}
-%% \caption{Graphical and textual representation of the patch that transforms the value %
-%% |Node3 t (Node2 u v) (Node2 w x)| into the value |Node3 t (Node2 v u) (Node2 w' x)|.}
- %% \label{fig:patch-example}
-%% \end{figure}
-%% 
-
-  Recall first step was to identify the \emph{spine}. That is, the
+  Firstly, we have to identify the \emph{spine}, that is, the
 constructors that are present in both the deletion and insertion
-contexts.  We are essentially splitting a big change into the
+contexts. This is done by splitting a big change into the
 \emph{greatest common prefix} of the insertion and deletion contexts
 and the smaller changes inside:
 
@@ -1132,70 +1086,29 @@ txGCP a b = TxHole (a :*: b)
 \end{code}
 \end{myhs}
 
-  The |txGCP| can be seen as a generalized |zip| function that instead
-of stopping whenever one of its arguments has been consumed, it stores
-the rest of the other argument. It is \emph{greatest} in the sense
-that it eagerly consumes as many constructors as possible and
-places in the |TxHole|s just the different parts. 
+  The |txGCP| can is just like a generalized |zip| function, but
+instead of stopping whenever one of its arguments has been consumed
+and forgetting the other, it stores the rest of the other argument.
+It is \emph{greatest} in the sense that it consumes as many
+constructors as possible and resorts to |TxHole| when it cannot
+progress further.
 
-%% We can write
-%% this as the following property, with |Delta a = (a :*: a)|:
-%% 
-%% \[ |forall x dot txGCP x x == txMap (\h -> Delta . TxHole) x| \]
+  We know, from \Cref{sec:concrete-changes} that we cannot simply take
+the result of |change|, compute its \emph{greatest common prefix} and
+be done with it. This would yield a patch with pottentially malformed
+changes. The |txGCD| function is not aware of metavariables
+and might break their scoping (\Cref{fig:patch-scoping-problem}). 
+ 
+  Refining the result of |txGCP| is conceptually simple. All we have
+to do is bubble up the changes to a point where they are all \emph{closed},
+\Cref{fig:patch-scoping-problem}.  We start by creating some machinery
+to distinguish the open changes from the closed changes in the result
+of a |txGCP|. Then we define a traversal that shall look at those tags
+and decide whether more constructors should be pushed into the changes
+or not. This is done by the |closure| function.
 
-  It is worth mentioning that it is trivial to invert a spine back
-to a change by the means of a distributive law:
-
-\begin{myhs}
-\begin{code}
-distr :: Tx codes (Tx codes phi :*: Tx codes psi) at -> (Tx codes phi :*: Tx codes psi) at
-distr spine = txJoin (txMap fst spine) :*: txJoin (txMap snd spine)
-\end{code}
-\end{myhs}
-
-  We cannot simply take the result of |change| and get its
-\emph{greatest common prefix}. The |txGCD| function is not aware
-of metavariables and might break their scoping. 
-This can happen when subtrees are being duplicated or transported
-across different parts of the source and destination. One such
-example was shown in \Cref{fig:patch-scoping-problem}. The \emph{greatest
-common prefix} is too permissive and must be later refined.
-
-%% \begin{figure}
-%% \begin{minipage}[t]{.55\textwidth}
-%% \begin{myhs}
-%% \begin{code}
-%% -- prob = diff0 (Node2 t t) (Node2 x t)
-%% prob  :: Change Tree23Codes (Const Int) (I Z)
-%% prob  =  Change  (Node2C (Hole 0)  (Hole 0))
-%%                  (Node2C x         (Hole 0))
-%% \end{code}
-%% \end{myhs}
-%% \end{minipage} %
-%% \begin{minipage}[t]{.35\textwidth}
-%% \[ |txGCP prob ==| \hspace{6em} \]
-%% \includegraphics[scale=0.3]{src/img/patch-02.pdf}
-%% \end{minipage}
-%% \caption{How |txGCP| breaks binding. The triangle represents a |Tx| with no holes.}
-%% \label{fig:patch-scoping-problem}
-%% \end{figure}
-  
-  This refinement aims to fix the scoping problems introduced by |txGCP|.
-For example, \Cref{fig:patch-scoping-problem}  has |TxHole 0| unbound in its
-insertion context. That happens because |TxHole 0| was supposedly bound by
-the left child from the root, but the |txGCP| function broke this
-dependency. In this example, |txGCP prob| has what
-one \emph{closed change} and one \emph{open change}. 
-Closed changes are those where all instantiated variables are used
-and vice-versa, ie, the set of variables in both the insertion
-and deletion context is the same. The \emph{open changes},
-on the other hand, are those that contain metavariables
-that occur solely in the insertion or deletion context.
-The process of translating a patch with open changes into
-one with closed changes is called \emph{closure}.
-
-  Before we explain the machinery necessary to identify and eliminate
-the open changes inside a spine let us introduce some auxiliary definitions:
+  Tagging open and closed changes is done with the indexed sum type.
+We use |InL| to mark the \emph{open} changes and |InR| for the \emph{closed} changes.
 
 \begin{myhs}
 \begin{code}
@@ -1206,9 +1119,9 @@ either' a b (InL fx) = a fx
 either' a b (InR gx) = b gx
 \end{code}
 \end{myhs}
- 
-  Which in turn allow us to define a predicate that returns whether
-a change is closed or not by tagging it with |InR| or |InL|
+
+  The |isClosed| predicate is responsible for deciding how to
+tag a change.
 
 \begin{myhs}
 \begin{code}
@@ -1221,36 +1134,26 @@ isClosed (Change del ins)
 
   The |Sum| comes in handy for it can be passed as an argument to
 |Tx|, of kind |Atom -> Star|. This enables us to map our
-predicate over a patch, as shown below:
+predicate over an arbitrary patch |p|:
 
 \begin{myhs}
 \begin{code}
-txMap isClosed (txGCP prob)  = Node2C  (InR (Change (TxHole 0)  (TxHole 0)))
-                                       (InL (Change x           (TxHole 0)))
+txMap isClosed p :: Tx codes (Sum (Change codes) (Change codes)) at
 \end{code} 
 \end{myhs}
 
-  We could \emph{close} all changes by pushing the |Node2C| from the
-\emph{spine} to the changes, which is essentially what the
-|closure| function does. 
-
-  The |closure| function receives a patch with identified open and
-closed changes and tries to eliminate all the \emph{open changes},
-tagged by |InL|. We do so by finding the smallest closed change that
-binds the required variables. If we cannot find such change, we
-translate the whole patch as an \emph{open change} altogether. The first
-three cases are trivial:
-
-%% \begin{figure}
-%% \includegraphics[scale=0.3]{src/img/patch-03.pdf}
-%% \caption{The closure of |txGCP prob|, shown in \Cref{fig:patch-scoping-problem}}
-%% \label{fig:closure-patch-scoping-problem}
-%% \end{figure}
+  The final |closure| function is defined with an auxiliary function,
+|closure'|. This auxiliary function receives a patch with tagged
+changes and tries to eliminate all the \emph{open changes}, tagged
+with |InL|. We do so by finding the smallest closed change that binds
+the required variables. If the |closure'| function cannot find the
+constructor that binds all variables, it tags the patch as an
+\emph{open change} altogether. The first three cases are trivial:
 
 \begin{myhs}
 \begin{code}
-closure'  :: Tx codes (Sum (Change codes) (Change codes)) at
-          -> Sum (Change codes) (Tx codes (Change codes)) at
+closure'  ::  Tx codes (Sum (Change codes) (Change codes)) at
+          ->  Sum (Change codes) (Tx codes (Change codes)) at
 closure' (TxOpq x) = InR (TxOpq x)
 closure' (TxHole (InL oc)) = InL oc
 closure' (TxHole (InR cc)) = InR cc
@@ -1262,19 +1165,29 @@ pattern, where we first try to compute the closures for the fields of
 the constructor and check whether all these fields contain only closed
 changes. If that is the case, we are done. If some fields contain open
 changes, however, the |mapNPM fromInR| fails with a |Nothing| and
-we must massage some data. The |inss| and |dels| are the projections
-of the insertion contexts and deletion contexts of \emph{all} changes
-inside the fields of the product |px|, regardless of whether these are 
-open or closed. We then assemble a new change by \emph{pushing} the |TxPeel cx|
-and checking whether this suffices to bind all variables. That is,
-if this closes the change. 
+we must massage some data. This is akin to a simple distributive
+law for |Tx|, defined below.
+
+\begin{myhs}
+\begin{code}
+distr :: Tx codes (Change codes phi) at -> Change codes phi at
+distr spine = Change  (txJoin (txMap chgDel spine)) 
+                      (txJoin (txMap chgIns spine))
+\end{code}
+\end{myhs}
+
+  The difference between |distr| and the |Nothing| clause in |closure'|
+is that in the later we are handling |NP (Tx codes (Change codes phi))|, i.e.,
+a sequence of |Tx| instead of a sinle one. Consequently, we need some more code.
 
 \begin{myhs}
 \begin{code}
 closure' (TxPeel cx px) 
   = let aux = mapNP closure' px
      in case mapNPM fromInR aux of
-       Just np  -> InR (TxPeel cx np)
+       Just np  -> InR (TxPeel cx np) -- everything is closed.
+       -- some changes are open. Try pushing cx down the changes in px and
+       -- see if this closes them, then.
        Nothing  -> let  chgs = mapNP (either' InL (InR . distr)) aux
                         dels = mapNP (either' chgDel chgDel) chgs
                         inss = mapNP (either' chgIns chgIns) chgs
@@ -1285,49 +1198,62 @@ closure' (TxPeel cx px)
 \end{code}
 \end{myhs}
 
-  We then wrap |closure'| within a larger function that always returns
-a |Tx codes (Change codes) ix| with all changes being \emph{closed}.
-The necessary observation is that if we pass a given |tx| to |closure'|
-such that there is no undefined or unreferenced variable, |closure'|
-will always return a |InR| value. In our case, the |txPostprocess|
-guarantees that.
+  In the code above, |aux| is a sequence of either open changes
+or patches. The local |dels| and |inss| are defined as the
+a sequence deletion and insertion contexts from |aux|, regardless
+if they come from open or closed changes. This allows us to
+assemple a new, larger, change (|tmp|). Finally, we check whether
+this larger change is closed or not. We recall the illustration in
+\Cref{fig:closure}, repeated below, for a graphical
+intuition.
+
+{\centering
+\medskip
+\includegraphics[scale=0.3]{src/img/patch-03.pdf}
+\bigskip
+\par}
+
+  To finish it up, we wrap |closure'| within a larger function that
+always returns a |Tx| with all changes being \emph{closed}.  The
+necessary observation is that if we pass a given |tx| to |closure'|
+such that |distr tx| is closed, then |closure'| will always return a
+|InR| value. In our case, the |txPostprocess| is in place precisely 
+to provided that gurantee, hence, the |error| is unreachable.
 
 \begin{myhs}
 \begin{code}
-closure  :: Tx codes (Sum (Change codes) (Change codes)) at
-         -> Tx codes (Change codes) at
+closure  ::  Tx codes (Sum (Change codes) (Change codes)) at
+         ->  Patch codes at
 closure  = either' (const $$ error "no closure exists") id
 \end{code} %%
 \end{myhs}
 
-  The final |diff| function is assembled by getting the closure
-of the greatest common prefix of the change the comes from |diff0|.  
-The last additional detail is the refinement step that
-aims at replacing the opaque values one the spine by copies. This
-further enlarges the domain of our patch.
+  The final |diff| function is then assembled by using the closure of
+the greatest common prefix of the change the comes from the |change|
+funtion.  In order to further enlarge the domain of our patches 
+we add a small additional step where we replace the opaque values
+in the spine for copies.
 
 \begin{myhs}
 \begin{code}
 diff :: Fix codes ix -> Fix codes ix -> Patch codes (I ix)
-diff x y =  let  ics   = buildOracle x y
-                 del0  = txExtract ics x
-                 ins0  = txExtract ics y
-                 (del1 , ins1) = txPostprocess del ins
-            in  closure  $$  txRefine TxHole mkCpy 
-                         $$  txMap isClosed (txGCP del1 ins1) 
+diff x y =  let Change del ins = change x y 
+            in closure  $$  txRefine TxHole mkCpy 
+                        $$  txMap isClosed 
+                        $$  txGCP del ins
 \end{code}
 \end{myhs}
 
-  The |txRefine| simply traverses the patch and refines the
+  The |txRefine| simply traverses the |Tx| and refines the
 holes and opaques into |Tx|s using the provided functions. 
 In our case we leave the holes unchanged and replace the
 occurrences of |TxOpq| by a new \emph{copy} change. 
 
 \begin{myhs}
 \begin{code}
-txRefine  :: (forall at  dot f at   -> Tx codes g at) 
-          -> (forall k   dot Opq k  -> Tx codes g (K k)) 
-          -> Tx codes f at -> Tx codes g at
+txRefine  ::  (forall at  dot f at   -> Tx codes g at) 
+          ->  (forall k   dot Opq k  -> Tx codes g (K k)) 
+          ->  Tx codes f at -> Tx codes g at
 \end{code}
 \end{myhs}
 
@@ -1340,14 +1266,14 @@ and can be applied locally.
 
   Our final |applyChange| will be responsible for receiving a change
 and a tree and instantiate the metavariables by matching the tree
-against the deletion context and substituting this valuation
+against the deletion context then substituting this valuation
 in the insertion context. Its type is given by:
 
 \begin{myhs}
 \begin{code}
-applyChange  :: Change codes MetaVar at 
-             -> NA (Fix codes) at 
-             -> Maybe (NA (Fix codes) at)
+applyChange  ::  Change codes MetaVar at 
+             ->  NA (Fix codes) at 
+             ->  Maybe (NA (Fix codes) at)
 \end{code}
 \end{myhs}
 
@@ -1359,19 +1285,19 @@ by it. We must extract the greatest common prefix of the spine and the
 sure that the leaves have all |TxHole|s on the left. 
 
 \begin{myhs}
-\begin{code} %
+\begin{code}
 txZipEl :: Tx codes phi at -> NA (Fix codes) at -> Maybe (Tx codes (phi :*: NA (Fix codes)))
-txZipEl tx el = txMapM (uncurry' checkIsPhi) $$ txGCP tx (tx2na el)
+txZipEl tx el = txMapM (uncurry' checkIsHole) $$ txGCP tx (tx2na el)
   where
-    checkChange :: Tx codes phi at -> Tx codes psi at -> Maybe (phi :*: NA (Fix codes) at)
-    checkChange (TxHole phi) el = (phi :*:) <$$> na2tx el
-    checkChange _            _  = Nothing
+    checkIsHole :: Tx codes phi at -> Tx codes psi at -> Maybe (phi :*: NA (Fix codes) at)
+    checkIsHole (TxHole phi)  el  = (phi :*:) <$$> na2tx el
+    checkIsHole _             _   = Nothing
 \end{code} %
 \end{myhs}
 
-  Finally, we assemble our final application function by checking whether
-the spine matches the element, then going over the changes in a local fashion
-and applying them:
+  Finally, we define our application function. First we check whether
+the spine matches the element. If that is the case, we apply the changes,
+which are already paired with the parts of the element they must be applied to:
 
 \begin{myhs}
 \begin{code}
@@ -1387,24 +1313,23 @@ to |x|.
 \section{Defining the Oracle}
 \label{sec:oracle}
 
-  We have been assuming the existence of an \emph{oracle} to answer
-whether a tree was a subtree of the source and destination of a patch.
-We have seen that the efficiency with which we can answer this query is 
-fundamental to the overall efficiency of our algorithm: we perform one such
-query per constructor in the source and destination. It is time for us to
-finally define this efficient lookup function. Yet, it is worthwhile
-to define the inefficient, naive version, first. Besides providing
-important intuition to what this function is doing it is an interesting
-generic programming exercise in its own. 
+  In the previous sections we have implemented a generic diffing
+algorithm assuming the existence of a function, called \emph{an
+oracle}, that answers whether a given subtree should be copied or
+not. We have seen that the overal performance of our algorithm depends
+on answering that question efficiently: we perform one such query per
+constructor in the source and destination of the diff. In this section
+we provide an efficient construction for this oracle.  Yet, it is
+worthwhile to define the inefficient, naive version, first. Besides
+providing important intuition to what this function is doing it is an
+interesting generic programming exercise in its own.
 
-  When deciding whether a given tree |x| is a subtree of both |s| and
-|d|, for |s| and |d| fixed trees, a naive oracle would check every
+  When deciding whether a given tree |x| is a subtree of two
+fixed trees |s| and |d|, a naive oracle would check every
 single subtree of |s| and |d| for equality against |x|.  Upon finding
 a match, it would return the index of such subtree in the list of all
-subtrees. Lets try to write this very function. First, we enumerate
-all possible subtrees. Since these subtrees might be indexed by
-different |Atom|s, we need an existential type to put all of these in
-the same list.
+subtrees. We enumerate all possible subtrees in a list with
+the help of |Exists| since the trees might have different indicies.
 
 \begin{myhs}
 \begin{code}
@@ -1418,10 +1343,10 @@ subtrees x = Ex x : case sop x of
 \end{myhs}
 
   Next, we define an equality over |Exist (Fix codes)| and search
-through the list of all possible subtrees. The comparison function
-starts by comparing the indexes of the |Fix codes| values wrapped
-within |Ex| with |testEquality|. If they agree, we pattern match on
-|Refl|, which in turn allows us to compare the values for
+through the list of all possible subtrees for a match. The comparison
+function starts by comparing the indexes of the |Fix codes| values
+wrapped within |Ex| with |testEquality|. If they agree, we pattern
+match on |Refl|, which in turn allows us to compare the values for
 propositional equality.
 
 \begin{myhs}
