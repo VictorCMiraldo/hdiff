@@ -60,7 +60,7 @@
 \begin{document}
 
 %% Title information
-\title[Computing Structured Differences]{Computing Structured Differences}
+\title{An Efficient Algorithm for Type-Directed Structural Diffing}
 
 
 %% Author information
