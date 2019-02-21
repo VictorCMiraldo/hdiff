@@ -1,10 +1,15 @@
 #! /bin/bash
 
 forbid="!datatype,data type,data-type,\
-!fixpoint,fixed point,fixed-point,fix point,fixed-point,\
-!pattern functor,pattern-functor\
-!subtree,sub tree,sub-tree\
-!type level,type-level,typelevel"
+!fixpoint,fixedpoint,fixed point,fixed-point,fix point,fixed-point,\
+!pattern functor,pattern-functor,\
+!subtree,sub tree,sub-tree,\
+!type level,type-level,typelevel,\
+!postprocessing,post processing,post-processing,\
+!preorder,pre order,pre-order,\
+!untyped,un-typed,un typed,\
+!dataset,data-set,data set,\
+!meta-theroy,metatheory,meta theory"
 
 if [[ $# -ne 1 ]]; then
   echo "I need a file!"
