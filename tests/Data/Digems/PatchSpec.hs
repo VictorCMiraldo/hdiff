@@ -18,6 +18,7 @@ import Data.Digems.Patch.Show
 import Data.Digems.MetaVar
 import Data.Digems.Change
 import Languages.RTree
+import Languages.RTree.Diff
 
 import Test.QuickCheck
 import Test.Hspec
