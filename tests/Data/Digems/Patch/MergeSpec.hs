@@ -182,6 +182,9 @@ ob8 = digemRTree o8 b8
 oa2 = digemRTree o2 a2
 ob2 = digemRTree o2 b2
 
+oa7 = digemRTree o7 a7
+ob7 = digemRTree o7 b7
+
 spec :: Spec
 spec = do
   -- describe "properties" $ do

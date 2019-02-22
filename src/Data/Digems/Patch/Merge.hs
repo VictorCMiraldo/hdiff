@@ -95,7 +95,70 @@ reconcile p q
   | patchIsCpy p = utxMap InR p
   | patchIsCpy q = utxMap InR p
   | patchEq p q  = UTxHole $ InR $ makeCopyFrom (distrCChange p)
-  | otherwise    = UTxHole $ InL (Conflict "non-disjoint" (distrCChange p) (distrCChange q))
+  | otherwise    = go (spinedChange p) (spinedChange q)
+  where
+    go :: (Eq1 ki , Show1 ki)
+       => SpinedChange ki codes at -> SpinedChange ki codes at
+       -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
+    go sp sq 
+      -- For us to be able to apply sp directly on top of sq,
+      -- the spine of the change for sp has to be 'shorter' than
+      -- sq.
+      | sp `isShorterThan` sq = UTxHole $ InR (changeSpined sp)
+      | otherwise             = UTxHole $ InL (Conflict "what?" (changeSpined sp) (changeSpined sq))
+
+-- A spine 'sp' is shorter than a spine 'sq' when it has holes "sooner" and, moreover,
+-- those holes' domain is compatible with the codomain of what 'sq' is doing.
+isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange ki codes at
+              -> Bool
+isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' go) $ (utxLCP sp sq)
+  where
+    go (UTxHole chgP) sQ = chgP `acceptsWhatIsProvidedBy` sQ
+    go _              _  = False
+
+rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bool
+rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
+rawCpy _                           = False
+
+-- checks that the domain of its first argument accepts what is provided
+-- by its second argument.
+acceptsWhatIsProvidedBy :: (Eq1 ki, Show1 ki)
+                        => (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
+                        -> SpinedChange ki codes at
+                        -> Bool
+acceptsWhatIsProvidedBy (domP :*: _) sQ =
+    and $ utxGetHolesWith' (uncurry' domAccepts) $ utxLCP domP sQ
+  where
+    domAccepts (UTxHole _) _ = True
+    domAccepts domP sQ@(UTxHole chgQ) = trace (show1 domP ++ "\n$$$\n" ++ show1 sQ) $ rawCpy chgQ
+    domAccepts domP sQ = trace (show1 domP ++ "\n$$$\n" ++ show1 sQ) False
+
+instance (Show1 f , Show1 g) => Show1 (f :*: g) where
+  show1 (fx :*: gx) = "(" ++ show1 fx ++ " :*: " ++ show1 gx ++ ")"
+    
+type SpinedChange ki codes
+  = UTx ki codes (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki))
+
+spinedChange :: (Eq1 ki)
+             => RawPatch ki codes at
+             -> SpinedChange ki codes at
+spinedChange p = let cp = distrCChange p
+                  in utxLCP (cCtxDel cp) (cCtxIns cp)
+
+changeSpined :: SpinedChange ki codes at
+             -> CChange ki codes at
+changeSpined sp = let del = utxJoin (utxMap fst' sp)
+                      ins = utxJoin (utxMap snd' sp)
+                   in cmatch del ins
+  where
+    fst' (a :*: _) = a
+    snd' (_ :*: b) = b
+                                                                   
+{-
+
+
+    UTxHole $ InL (Conflict "non-disjoint" (distrCChange p) (distrCChange q))
+-}
 {-
   | nonStrut q   = utxMap InR p
   -- | composes p q && nonStrut q = utxMap InR p
