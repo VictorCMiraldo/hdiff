@@ -141,19 +141,9 @@ extractSpine :: forall ki codes phi at
              -> UTx ki codes phi at
              -> UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
 extractSpine meta i dx dy
-  = utxMap (uncurry' go)
+  = utxMap (uncurry' change)
   $ issueOpqCopies meta i
   $ utxLCP dx dy
-  where
-    go :: UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> Sum (OChange ki codes) (CChange ki codes) at
-    -- precond utx and uty are different
-    go utx uty = let vx = utxGetHolesWith Exists utx
-                     vy = utxGetHolesWith Exists uty
-                  in if vx == vy
-                     then InR $ CMatch vx utx uty
-                     else InL $ OMatch vx vy utx uty
 
 -- |Combines changes until they are closed
 close :: UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at

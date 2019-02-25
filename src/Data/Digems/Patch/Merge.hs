@@ -29,11 +29,9 @@ import Generics.MRSOP.Digems.Digest
 import Data.Exists
 import qualified Data.WordTrie as T
 import Data.Digems.Patch
-import Data.Digems.Patch.Specialize
+import Data.Digems.Patch.Diff
 import Data.Digems.Change
 import Data.Digems.Change.Apply
-import Data.Digems.Change.Classify
-import qualified Data.Digems.Change.Specialize as CS
 import Data.Digems.MetaVar
 
 import Debug.Trace
@@ -47,7 +45,7 @@ import Debug.Trace
 
 -- |Hence, a conflict is simply two changes together.
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
-  Conflict :: ConflictClass
+  Conflict :: String
            -> CChange        ki codes at
            -> CChange        ki codes at
            -> Conflict       ki codes at
@@ -103,8 +101,91 @@ reconcile p q
   -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
     -- First we translate both patches to a 'spined change' representation.
-    let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
-        sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
+    let sp0 = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
+        sq  = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
+        -- Now, we refine 'sp0' to the domain of sq. The deletion
+        -- context can be seen as a representation of the domain. The idea
+        -- of this process is that if 'sp0' copies a subtree that 'sq'
+        -- requires to be of a given shape, we can speclialize that copy
+        -- to be of the required shape, essentially shrinking the domain of sp0
+        sp = sp0 `refinedFor` scDel sq
+     in if sp `isShorterThan` sq
+        then utxMap InR $ close (utxMap (uncurry' change) sp)
+        else let cq = CMatch S.empty (scDel sq) (scIns sq)
+                 cp = CMatch S.empty (scDel sp) (scIns sp)
+              in case metaApply cp cq of
+                   Left  err -> UTxHole $ InL (Conflict (show err) cp cq)
+                   Right res -> UTxHole $ InR res
+
+refinedFor :: (Eq1 ki)
+           => SpinedChange ki codes at
+           -> UTx ki codes (MetaVarIK ki) at
+           -> SpinedChange ki codes at
+refinedFor s = utxJoin . utxMap (uncurry' go) . utxLCP s
+  where
+    go :: SpinedChange ki codes at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> SpinedChange ki codes at
+    go (UTxHole chgP) codQ
+      | rawCpy chgP = let v = rawCpyVar chgP + 1
+                       in utxMap (\i -> delta (UTxHole $ metavarAdd v i)) codQ
+      | otherwise   = UTxHole chgP
+    go sP             codQ = sP
+
+    delta x = (x :*: x)
+
+    rawCpyVar (UTxHole v :*: _) = metavarGet v
+         
+type SpinedChange ki codes
+  = UTx ki codes (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki))
+
+metaApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
+             , UTxTestEqualityCnstr ki (CChange ki codes))
+          => CChange ki codes at -- ^ @cp@
+          -> CChange ki codes at -- ^ @cq@
+          -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
+metaApply cp cq = do
+    resD <- genericApply cq (cCtxDel cp)
+    resI <- genericApply cq (cCtxIns cp)
+    return $ cmatch resD resI
+
+
+rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bool
+rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
+rawCpy _                           = False
+
+
+isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange ki codes at
+              -> Bool
+isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP (scDel sp) sq)
+  where
+    -- a hole accepts anything
+    domAccepts (UTxHole _) _          = True
+    -- If we are going to apply over some unrestricted
+    -- value, we can also consider our domain accepts it.
+    domAccepts domP sQ@(UTxHole chgQ) = rawCpy chgQ
+    -- Otherwise, we don't accept
+    domAccepts domP sQ                = False
+
+fst' :: (f :*: g) x -> f x
+fst' (a :*: _) = a
+
+snd' :: (f :*: g) x -> g x
+snd' (_ :*: b) = b
+
+scDel :: SpinedChange ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scDel = utxJoin . utxMap fst' 
+
+scIns :: SpinedChange ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scIns = utxJoin . utxMap snd'
+
+
+{-
+
+{-
+
      in go (sp `refinedFor` scDel sq) sq
   where
     go :: SpinedChange ki codes at -> SpinedChange ki codes at
@@ -120,30 +201,9 @@ reconcile p q
          in UTxHole $ case metaApply cp cq of
                         Left  err -> InL (Conflict (show err) cp cq)
                         Right res -> InR res
-
-metaApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
-             , UTxTestEqualityCnstr ki (CChange ki codes))
-          => CChange ki codes at -- ^ @cp@
-          -> CChange ki codes at -- ^ @cq@
-          -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
-metaApply cp cq = do
-    resD <- genericApply cq (cCtxDel cp)
-    resI <- genericApply cq (cCtxIns cp)
-    return $ cmatch resD resI
-
+-}
 -- A spine 'sp' is shorter than a spine 'sq' when it has holes "sooner" and, moreover,
 -- those holes' domain is compatible with the codomain of what 'sq' is doing.
-isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange ki codes at
-              -> Bool
-isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP (scDel sp) sq)
-  where
-    -- a hole accepts anything
-    domAccepts (UTxHole _) _          = True
-    -- If we are going to apply over some unrestricted
-    -- value, we can also consider our domain accepts it.
-    domAccepts domP sQ@(UTxHole chgQ) = rawCpy chgQ
-    -- Otherwise, we don't accept
-    domAccepts domP sQ                = False
 {-
 
     go sP sQ = (scDel sP) `acceptsWhatIsProvidedBy` sQ
@@ -154,10 +214,6 @@ isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP (sc
     go sP (UTxHole chgQ) = rawCpy chgQ -- trace (show1 sP ++ "\n$$$\n" ++ show1 sQ) False
     go _  _ = False
 -}
-
-rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bool
-rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
-rawCpy _                           = False
 
 utxOnDisagreement :: (Eq1 ki)
                   => (forall at . UTx ki codes phi at -> UTx ki codes psi at -> r)
@@ -187,47 +243,11 @@ acceptsWhatIsProvidedBy domP = and . utxOnDisagreement domAccepts domP
 instance (Show1 f , Show1 g) => Show1 (f :*: g) where
   show1 (fx :*: gx) = "(" ++ show1 fx ++ " :*: " ++ show1 gx ++ ")"
     
-type SpinedChange ki codes
-  = UTx ki codes (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki))
-
 spinedChange :: (Eq1 ki)
              => RawPatch ki codes at
              -> SpinedChange ki codes at
 spinedChange p = let cp = distrCChange p
                   in utxLCP (cCtxDel cp) (cCtxIns cp)
-
-refinedFor :: (Eq1 ki)
-           => SpinedChange ki codes at
-           -> UTx ki codes (MetaVarIK ki) at
-           -> SpinedChange ki codes at
-refinedFor s = utxJoin . utxMap (uncurry' go) . utxLCP s
-  where
-    go :: SpinedChange ki codes at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> SpinedChange ki codes at
-    go (UTxHole chgP) codQ
-      | rawCpy chgP = let v = rawCpyVar chgP + 1
-                       in utxMap (\i -> delta (UTxHole $ metavarAdd v i)) codQ
-      | otherwise   = UTxHole chgP
-    go sP             codQ = sP
-
-    delta x = (x :*: x)
-
-    rawCpyVar (UTxHole v :*: _) = metavarGet v
-         
-fst' :: (f :*: g) x -> f x
-fst' (a :*: _) = a
-
-snd' :: (f :*: g) x -> g x
-snd' (_ :*: b) = b
-
-scDel :: SpinedChange ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scDel = utxJoin . utxMap fst' 
-
-scIns :: SpinedChange ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scIns = utxJoin . utxMap snd'
 
 changeSpined :: SpinedChange ki codes at
              -> CChange ki codes at
@@ -264,6 +284,7 @@ changeSpined sp = let del = utxJoin (utxMap fst' sp)
                     Right res -> InR res
 -}
 
+{-
 
 specializeAndApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
                       , UTxTestEqualityCnstr ki (CChange ki codes))
@@ -281,6 +302,7 @@ nonStrut :: (TestEquality ki, Eq1 ki , Show1 ki) => RawPatch ki codes at -> Bool
 nonStrut = nonstrut . utxGetHolesWith changeClassify
   where
     nonstrut s = or $ [ x `S.member` s | x <- [CPerm , CMod , CIns] ]
+-}
 {-
 -- (i) both different patches consist in changes
 reconcile (UTxHole cp) (UTxHole cq)
@@ -436,5 +458,6 @@ metaApply :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes
           -> Term ki codes at    -- ^ @p@
           -> Either (UnificationErr ki codes) (Term ki codes at)
 metaApply cq = utxUnify (cCtxDel cq) (cCtxIns cq) 
+-}
 -}
 -}

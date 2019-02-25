@@ -8,6 +8,7 @@ module Data.Digems.Change where
 
 import           Control.Monad.Cont
 import           Control.Monad.State
+import           Data.Functor.Sum
 import           Data.Functor.Const
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -158,3 +159,14 @@ data OChange ki codes at where
             , oCtxDel  :: UTx ki codes (MetaVarIK ki) at 
             , oCtxIns  :: UTx ki codes (MetaVarIK ki) at }
          -> OChange ki codes at
+
+-- |Given two treefixes, constructs and classifies a change from
+-- them.
+change :: UTx ki codes (MetaVarIK ki) at
+       -> UTx ki codes (MetaVarIK ki) at
+       -> Sum (OChange ki codes) (CChange ki codes) at
+change utx uty = let vx = utxGetHolesWith Exists utx
+                     vy = utxGetHolesWith Exists uty
+                  in if vx == vy
+                     then InR $ CMatch vx utx uty
+                     else InL $ OMatch vx vy utx uty
