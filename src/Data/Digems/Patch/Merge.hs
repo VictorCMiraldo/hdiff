@@ -108,9 +108,9 @@ reconcile p q
         -- of this process is that if 'sp0' copies a subtree that 'sq'
         -- requires to be of a given shape, we can speclialize that copy
         -- to be of the required shape, essentially shrinking the domain of sp0
-        sp = sp0 `refinedFor` scDel sq
+        sp = sp0 -- sp0 `refinedFor` scDel sq
      in if sp `isShorterThan` sq
-        then utxMap InR $ close (utxMap (uncurry' change) sp)
+        then trace "ist" $ utxMap InR p -- utxMap InR $ close (utxMap (uncurry' change) sp)
         else let cq = CMatch S.empty (scDel sq) (scIns sq)
                  cp = CMatch S.empty (scDel sp) (scIns sp)
               in case metaApply cp cq of
@@ -157,15 +157,20 @@ rawCpy _                           = False
 
 isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange ki codes at
               -> Bool
-isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP (scDel sp) sq)
+isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP sp sq)
   where
+    domAccepts (UTxHole h) (UTxHole chgQ)
+      = _
     -- a hole accepts anything
-    domAccepts (UTxHole _) _          = True
+    domAccepts (UTxHole h) s          = trace ("$$$\n" ++ show1 h ++ "\n$$$\n" ++ show1 s) True
     -- If we are going to apply over some unrestricted
     -- value, we can also consider our domain accepts it.
     domAccepts domP sQ@(UTxHole chgQ) = rawCpy chgQ
     -- Otherwise, we don't accept
     domAccepts domP sQ                = False
+
+instance (Show1 f , Show1 g) => Show1 (f :*: g) where
+  show1 (fx :*: gx) = "(" ++ show1 fx ++ " :*: " ++ show1 gx ++ ")"
 
 fst' :: (f :*: g) x -> f x
 fst' (a :*: _) = a
@@ -240,9 +245,6 @@ acceptsWhatIsProvidedBy domP = and . utxOnDisagreement domAccepts domP
     -- domAccepts domP sQ@(UTxHole chgQ) = trace (show1 domP ++ "\n$$$\n" ++ show1 sQ) $ rawCpy chgQ
     -- domAccepts domP sQ = trace (show1 domP ++ "\n$$$\n" ++ show1 sQ) False
 
-instance (Show1 f , Show1 g) => Show1 (f :*: g) where
-  show1 (fx :*: gx) = "(" ++ show1 fx ++ " :*: " ++ show1 gx ++ ")"
-    
 spinedChange :: (Eq1 ki)
              => RawPatch ki codes at
              -> SpinedChange ki codes at

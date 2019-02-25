@@ -56,8 +56,21 @@ merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
 --------------------------------------------
 -- ** Manual Merge Examples
 
-mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
-mustMerge lbl a o b
+data MergeOutcome
+  = MergeOk
+  | MergeDiffers
+  | ApplyFailed
+  | HasConflicts
+  deriving (Eq , Show)
+
+expectMerge :: MergeOutcome -> String -> RTree -> RTree -> RTree
+            -> SpecWith (Arg Property)
+expectMerge expt lbl a o b = do
+  it (lbl ++ ": " ++ show expt) $
+    doMerge a o b `shouldBe` expt
+
+doMerge :: RTree -> RTree -> RTree -> MergeOutcome
+doMerge a o b
   = let a' = dfrom $ into @FamRTree a
         b' = dfrom $ into @FamRTree b
         o' = dfrom $ into @FamRTree o
@@ -65,20 +78,17 @@ mustMerge lbl a o b
         ob = diff 1 o' b'
         oaob = (oa // ob)
         oboa = (ob // oa)
-     in do it (lbl ++ ": merge square commutes") $ do
-             case (,) <$> noConflicts oaob <*> noConflicts oboa of
-               Just (ab , ba)
-                 -> case (,) <$> apply ab b' <*> apply ba a' of
-                     Right (c1 , c2)
-                       -> eqFix eq1 c1 c2 `shouldBe` True
-                     Left err
-                       -> expectationFailure ("apply failed: " ++ err)
-               _ -> expectationFailure
-                    $ unwords [ "has conflicts:"
-                              , unwords $ getConflicts oaob
-                              , ";;"
-                              , unwords $ getConflicts oboa
-                              ]
+     in case (,) <$> noConflicts oaob <*> noConflicts oboa of
+             Just (ab , ba)
+               -> case (,) <$> apply ab b' <*> apply ba a' of
+                   Right (c1 , c2)
+                     | eqFix eq1 c1 c2 -> MergeOk
+                     | otherwise       -> MergeDiffers
+                   Left err            -> ApplyFailed
+             Nothing                   -> HasConflicts
+
+mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
+mustMerge = expectMerge MergeOk
 
 ----------------------
 -- Example 1
@@ -173,6 +183,18 @@ o9 = "x" :>: [ "u" :>: []  , "k" :>: []]
 b9 = "x" :>: [ "u'" :>: [] , "k" :>: []]
 
 
+-- Now we follow with triples that must NOT merge
+
+--------------------------------
+-- Example 10
+
+a10 , o10 , b10 :: RTree
+a10 = "x" :>: [ "u" :>: []  , "a" :>: [] , "k" :>: []]
+o10 = "x" :>: [ "u" :>: []  , "k" :>: []]
+b10 = "x" :>: [ "u" :>: []  , "b" :>: [] , "k" :>: []]
+
+
+
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
 
@@ -188,6 +210,9 @@ ob7 = digemRTree o7 b7
 oa6 = digemRTree o6 a6
 ob6 = digemRTree o6 b6
 
+oa10 = digemRTree o10 a10
+ob10 = digemRTree o10 b10
+
 spec :: Spec
 spec = do
   -- describe "properties" $ do
@@ -195,12 +220,14 @@ spec = do
   --   it "p // p  == id"                 $ merge_diag
   
   describe "merge: manual examples" $ do
-    mustMerge "1" a1 o1 b1
-    mustMerge "2" a2 o2 b2
-    mustMerge "3" a3 o3 b3
-    mustMerge "4" a4 o4 b4
-    mustMerge "5" a5 o5 b5
-    mustMerge "6" a6 o6 b6
-    mustMerge "7" a7 o7 b7
-    mustMerge "8" a8 o8 b8
-    mustMerge "9" a9 o9 b9
+    mustMerge "01" a1 o1 b1
+    mustMerge "02" a2 o2 b2
+    mustMerge "03" a3 o3 b3
+    mustMerge "04" a4 o4 b4
+    mustMerge "05" a5 o5 b5
+    mustMerge "06" a6 o6 b6
+    mustMerge "07" a7 o7 b7
+    mustMerge "08" a8 o8 b8
+    mustMerge "09" a9 o9 b9
+
+    expectMerge HasConflicts "10" a10 o10 b10
