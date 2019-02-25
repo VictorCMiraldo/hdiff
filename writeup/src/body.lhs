@@ -1853,3 +1853,7 @@ a tool with similar capabilities as Haskell, the generic development
 would have been impossible. 
 
 
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 
