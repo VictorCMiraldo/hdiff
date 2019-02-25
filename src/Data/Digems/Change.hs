@@ -42,6 +42,9 @@ cmatch del ins =
       then CMatch vi del ins
       else error "Data.Digems.Change.cmatch: invariant failure"
 
+unCMatch :: CChange ki codes at -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
+unCMatch (CMatch _ del ins) = del :*: ins
+
 -- |Returns the maximum variable in a change
 cMaxVar :: CChange ki codes at -> Int
 cMaxVar = maybe 0 id . S.lookupMax . S.map (exElim metavarGet) . cCtxVars

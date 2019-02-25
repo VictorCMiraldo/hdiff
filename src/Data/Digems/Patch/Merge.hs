@@ -94,12 +94,17 @@ reconcile :: forall ki codes fam at
           -> RawPatch ki codes at
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 reconcile p q
+  -- When one of the patches is a copy, this is easy. We borrow
+  -- from residual theory and return the first one.
   | patchIsCpy p = utxMap InR p
   | patchIsCpy q = utxMap InR p
+  -- If both patches are alpha-equivalent, we return a copy.
   | patchEq p q  = UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
-    let sp = spinedChange p
-        sq = spinedChange q
+    -- First we translate both patches to a 'spined change' representation.
+    let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
+        sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
      in go (sp `refinedFor` scDel sq) sq
   where
     go :: SpinedChange ki codes at -> SpinedChange ki codes at
@@ -126,34 +131,56 @@ metaApply cp cq = do
     resI <- genericApply cq (cCtxIns cp)
     return $ cmatch resD resI
 
-
 -- A spine 'sp' is shorter than a spine 'sq' when it has holes "sooner" and, moreover,
 -- those holes' domain is compatible with the codomain of what 'sq' is doing.
 isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange ki codes at
               -> Bool
-isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' go) $ (utxLCP sp sq)
+isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP (scDel sp) sq)
   where
+    -- a hole accepts anything
+    domAccepts (UTxHole _) _          = True
+    -- If we are going to apply over some unrestricted
+    -- value, we can also consider our domain accepts it.
+    domAccepts domP sQ@(UTxHole chgQ) = rawCpy chgQ
+    -- Otherwise, we don't accept
+    domAccepts domP sQ                = False
+{-
+
+    go sP sQ = (scDel sP) `acceptsWhatIsProvidedBy` sQ
+-}
+{-
     go (UTxHole chgP) sQ = chgP `acceptsWhatIsProvidedBy` sQ
     -- this branch could be removed by specializing the 'spined changes'
     go sP (UTxHole chgQ) = rawCpy chgQ -- trace (show1 sP ++ "\n$$$\n" ++ show1 sQ) False
     go _  _ = False
+-}
 
 rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bool
 rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
 rawCpy _                           = False
 
+utxOnDisagreement :: (Eq1 ki)
+                  => (forall at . UTx ki codes phi at -> UTx ki codes psi at -> r)
+                  -> UTx ki codes phi at -> UTx ki codes psi at
+                  -> [r]
+utxOnDisagreement f x = utxGetHolesWith' (uncurry' f) . utxLCP x
+
 -- checks that the domain of its first argument accepts what is provided
 -- by its second argument.
 acceptsWhatIsProvidedBy :: (Eq1 ki, Show1 ki)
-                        => (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
+                        => UTx ki codes (MetaVarIK ki) at
                         -> SpinedChange ki codes at
                         -> Bool
-acceptsWhatIsProvidedBy (domP :*: _) sQ =
-    and $ utxGetHolesWith' (uncurry' domAccepts) $ utxLCP domP sQ
+acceptsWhatIsProvidedBy domP = and . utxOnDisagreement domAccepts domP
   where
+    -- a hole accepts anything
     domAccepts (UTxHole _) _          = True
+    -- If we are going to apply over some unrestricted
+    -- value, we can also consider our domain accepts it.
     domAccepts domP sQ@(UTxHole chgQ) = rawCpy chgQ
+    -- Otherwise, we don't accept
     domAccepts domP sQ                = False
+
     -- domAccepts domP sQ@(UTxHole chgQ) = trace (show1 domP ++ "\n$$$\n" ++ show1 sQ) $ rawCpy chgQ
     -- domAccepts domP sQ = trace (show1 domP ++ "\n$$$\n" ++ show1 sQ) False
 
