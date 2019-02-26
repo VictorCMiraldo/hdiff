@@ -471,6 +471,9 @@ in the introduction:
 merging changes, as we will see in \Cref{sec:merging}. 
 
 \subsection{Minimizing Changes: Computing Patches}
+%todo I think I understand why you want to minimize these changes -- but
+%it's a quite subtle point. What problems do you run into if you *don't* minimize
+%changes?
 
   The process of minimizing and isolating the changes starts by
 identifying the redundant part of the contexts. That is, the
@@ -630,12 +633,13 @@ when trying to \emph{merge} different patches, as we will see shortly (\Cref{sec
 solve the differencing problem for 2-3-trees. We began by creating the
 type of contexts over |Tree23|, which consisted in annotating a
 |Tree23| with a \emph{metavariable} constructor. Later, assuming the
-existence of an oracle that answers whether an arbitrary tree is a
-subtree of the source and the destination we described how to
-construct a value of type |Change23 MetaVar| from a |Tree23|. 
+existence of an oracle that determins whether or not an arbitrary tree is a
+subtree of the source and the destination, we compute
+a value of type |Change23 MetaVar| from a |Tree23|.
+%todo isn't this a pair of Tree23?
 Finally, we described how to compute a |Patch23| given a |Change23|
 by \emph{minimizing} the changes and isolating
-them from the \emph{spine}. On this section we show how can
+them in the \emph{spine}. On this section we show how can
 we write that same algorithm in a generic fashion, working
 over any mutually recursive family.
 
@@ -645,11 +649,13 @@ over any mutually recursive family.
 
   Firstly, let us briefly review the
 \texttt{generics-mrsop}~\cite{Miraldo2018} library, that we will use
-to give a generic version of our algorithm.  This library follows the
+to define a generic version of our algorithm.  This library follows the
 \emph{sums-of-products} school of generic
 programming~\cite{deVries2014} and, additionally, enables us to work
-with mutually recursive families. This is important as the abstract
-syntax trees of most programming languages are mutually recursive.
+with mutually recursive families. This is particularly important for
+this algorithm, as the abstract
+syntax trees of many programming languages consist of mutually recursive
+types for expressions, statements, methods, classes and other language constructs.
 
   Take the |Tree23| type from
 \Cref{sec:concrete-changes}.  Its structure can be seen in a
@@ -827,8 +833,8 @@ gzigzag zag = Fix (There (Here (Cons (NA_I zag) Nil)))
   One of the main benefits of the \emph{sums-of-products} approach to
 generic programming is that it enables us to pattern match
 generically. In fact, we can state that a value of a type consists
-precisely in a choice of constructor and a product of its fields by
-defining a \emph{view} type. Take the \emph{constructor} of a generic
+precisely of a choice of constructor and a product of its fields by
+defining a \emph{view} type. For example, we take the \emph{constructor} of a generic
 type to be:
 
 \begin{myhs}
@@ -857,17 +863,15 @@ sop :: Fix codes i -> View (Fix codes) (Lkup i codes)
 
 This brief introduction covers the basics of generic programming in Haskell
 that we will use in this paper. We refer the interested reader to the
-literature~\cite{deVries2014,Miraldo2018} for more information.
+literature~\cite{deVries2014,Miraldo2018} for a more thorough overview.
 
 \subsection{Representing and Computing Changes, Generically}
 \label{sec:representing-changes}
 
   
-  In \Cref{sec:concrete-changes} we gained some intuition about the
-workings of our algorithm whereas in \Cref{sec:generic-prog} we
-discussed techniques for writing programs over arbitrary mutually
-recursive families. In this section we write our differencing algorithm
-in a fully generic fashion.
+\Cref{sec:concrete-changes} presented one particular instance
+of our differencing algorithm. In this section, we will generalize
+the definition using the generic programming techniques we have just seen.
 
   We start defining the generic notion of context, called |Tx|.
 Analogously to |Tree23C| (\Cref{sec:concrete-changes}), |Tx| enables
@@ -979,10 +983,10 @@ with values of type |MetaVar| in its holes.
 
 \paragraph{Computing Changes} Computing a
 |Change codes MetaVar| from a source and a destination elements of
-type |Fix codes ix| follows exactly the road map from \Cref{sec:concrete-changes}:
-extract the contexts and fix bindings by removing \emph{false copies}.
+type |Fix codes ix| follows exactly the structure as we saw previously in \Cref{sec:concrete-changes}:
+extract the pair of contexts and fix unbound metavariables in a postprocessing step.
 We are still assuming an efficient
-oracle |buildOracle s d :: Oracle codes|, for answering whether \emph{an arbitrary |t| is a
+oracle |buildOracle s d :: Oracle codes|, that determins whether or not \emph{an arbitrary |t| is a
 subtree of a fixed |s| and |d| indexed by |n|}, where:
 
 \begin{myhs}
@@ -995,14 +999,14 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 
   The core of computing a change is in the extraction of the deletion
 and insertion contexts (|extract| function,
-\Cref{sec:concrete-changes}).  We must care for an important
-correctness issue , though. When a tree is both a subtree of the
-source and destination but also occurs as the subtree of another
-common subtree (\Cref{fig:problematic-ics}) care must be taken before
-issuing a copy. We shown how to fix this with a postprocessing step of
-the resulting change.  That is still the case, but we now maintain
-some extra information from the context extraction step to make the
-postprocessing a self contained function.
+\Cref{sec:concrete-changes}).  We must take care to
+avoid the problem we encountered in our previous implementation: 
+a subtree that occurs in both the source and destination trees,
+but also occurs as the subtree of another
+common subtree (\Cref{fig:problematic-ics}) may result in unbound metavariables.
+We have shown how to fix this with a postprocessing step of
+the resulting change.  That is still the case, but we now collect
+additional information from the context extraction before postprocessing.
 
   Looking at the type of |Oracle|, we see it will only share recursive
 positions by construction. We use the |ForceI| type to bring
@@ -1020,11 +1024,10 @@ data ForceI :: (Nat -> Star) -> Atom -> Star where
 \end{myhs}
 
   Defining the generic |txExtract| function is simple. We check whether a given
-|x| is a subtree of the fixed source and destinations by calling the
-provided oracle, if so, we return a hole with the subtree annotated If
-|x| is not a common subtree we extract the topmost constructor and its
-fields then map |TxOpq| on the opaque fields and continue extracting
-the context on the fields that reference recursive positions.
+|x| is a subtree of the source and destination trees by consulting the
+oracle. If so, we return a hole with the subtree annotated; if
+|x| is not a common subtree we extract the topmost constructor and recurse
+over its recursive positions.
 
 \begin{myhs}
 \begin{code}
@@ -1037,7 +1040,7 @@ txExtract ics x = case ics x of
                  in TxPeel c (mapNP (elimNA TxOpq (txExtract ics)) p)
 \end{code}
 \end{myhs}
-
+%todo: Victor I'm up to here with my edits.
   Postprocessing works by traversing the result of the extracted
 contexts.  In case we need to keep a given tree and forget that it was
 shared we convert it to a context with |na2tx|.  Recall the reason for
