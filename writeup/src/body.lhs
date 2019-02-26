@@ -4,101 +4,110 @@
 % Bug because of double lines?
 % https://blog.codecentric.de/en/2014/02/curly-braces/
 
-  Software Version Control Systems are an essential tool in the 
-belt of today's software engineer. At their core is a
-differencing algorithm that computes patches between two versions of a file, 
-the most well-known being the UNIX \texttt{diff}~\cite{McIlroy1976}.
-It is a line-based tool, i.e., it looks at changes
-on the level of the \emph{lines} of a file, hence, it fails
-to identify more fine grained changes in software source code. 
+Software Version Control Systems are an essential tool in modern
+software development. Platforms such as Github and Bitbucket are only
+possible due to the widespread adoption of tools such as git,
+mercurial and darcs, that enable multiple developers to collaborate
+effectively.  At the heart of all these tools is the UNIX \texttt{diff}
+utility~\cite{McIlroy1976}, that computes a patch between two versions
+of a file.  The \texttt{diff} utility compares files on a line-by-line
+basis and attempts to share lines between its source and destination
+whenever possible. While this works well in practice, this fixed
+granularity of change cannot describe common refactorings---such as
+variable renaming---effectively. Representing all patches on the basis
+of the lines that have been changed may therefore lead to spurious
+\emph{merge conflicts} when combining the work of different
+developers.
+%Wouter: or maximize copies?
 
-  In this paper we go over our representation of changes between
-arbitrary trees and an efficient algorithm to compute them. These
-can be particularly applied to abstract syntax trees and offer a
-different approach to look at file differencing. We have implemented
-our work in Haskell. The type-safety and generic programming capabilities
-of functional languages make it the optimal tool for approaching
-this task.
+In this paper we will present an efficient datatype generic algorithm
+to compute the difference between two algebraic datatypes, while
+guaranteeing to share subtrees whenever possible. In particular, this
+algorithm can be instantiated to the abstract syntax tree of a
+programming language---thereby enabling two changes to the same line
+of code to be merged, provided they do not modify the same parts of
+the underlying tree. We have implemented our algorithm in Haskell,
+using the datatype generic libraries it provides. %todo citation to mr-sop?
 
-  Abstractly, the well-typed differencing problem for some type |a|
-consists in finding a type constructor, call it |Patch a|, together with
-functions |diff| and |apply|. The |diff| function computes
-the differences between two values of type |a|, and |apply|
-attempts to transform one value according to the information stored in the |Patch|. 
-\emph{Well-typed}, here, refers to the fact that a |Patch| is guaranteed, by
-construction, to generate well-typed elements once it is applied. This
-is not the case for the approaches~\cite{Asenov2017,Falleri2014} using
-\texttt{xml} or \texttt{json} to represent their abstract syntax
-trees, where the result of an arbitrary patch could be an ill formed tree.
-
+Before making stating the novel contributions of this paper, we will
+start by giving a specification of the problem that we aim to solve.
+In general, we intend to compute the difference between two trees of
+type |a|, and represent these changes in some type, |Patch a|. There
+are two functions, |diff| and |apply|, that manipulate patches. The
+|diff| function computes the differences between two values of type
+|a|; wherease the |apply| function attempts to transform a value of
+type |a| according to the information stored in its argument patch:
 \begin{myhs}
 \begin{code}
 diff   :: a -> a -> Patch a
 apply  :: Patch a -> a -> Maybe a 
 \end{code}
 \end{myhs}
+Note that the |apply| function may fail, for example, when attempting
+to delete data that is not present. Yet when it succeeds, the |apply|
+function must return a value of type |a|. This may seem like an
+obvious design choice, but this property does not hold for the
+approaches~\cite{Asenov2017,Falleri2014} using \texttt{xml} or
+\texttt{json} to represent their abstract syntax trees, where the
+result of applying a patch may produce ill-formed tree.
 
-  Not every such triple |(Patch , diff , apply)| solves the
-differencing problem. We expect certain properties on these components
-for them to be of any practical use. The first property one expects
-from this pair of functions is correctness, stating that |apply|
-faithfully reproduces |y| from |x| and |diff x y|.
+
+Beyond type correctness, we expect certain properties of our |diff|
+and |apply| functions. The first property captures the expected
+behaviour of |diff|: the patch that |diff x y| computes can be used to
+faithfully reproduces |y| from |x|.
 
 \[
 | forall x y dot apply (diff x y) x == Just y |
 \]
 
-  Yet, there is a collection of other properties that might
-be desirable. For instance, we require that |diff|
+Yet, there are several other desirable properties.
+For instance, we require that |diff|
 is both space and time efficient. That is, it must be fast to compute
 a |Patch| and its size must be smaller than storing both values
-of type |a|. Otherwise, one could argue that |Patch a = (a,a)| is a perfectly
-fine solution, for example. Yet, storing all revisions of every file under
+of type |a|. This last point is important: one could argue that |Patch a = (a,a)| is a perfectly
+fine solution. Yet, storing all revisions of every file under
 version control is clearly not an acceptable solution.
 
-  Moreover, a patch should be as general as possible, that is, it should
-be applicable to the biggest amount of elements possible. Consequently
-if there are no changes, the patch should represent a \emph{no-op}, and
-the application should be the identity:
+The |apply| function is partial. The property stated above requires
+apply to succeed in one particular instance---but what should happen
+when applying a patch to a different value than was used to create the
+input patch? We argue that the apply function should only fail when
+strictly necessary. In particular, if there are no changes, the patch should
+represent a \emph{no-op}, and its application should be the identity:
 
 \[ | forall x y dot apply (diff x x) y == Just y | \]
 
-  This captures the idea that a patch that comes from not changing
-anything must be applicable to any element performing exactly 
-that action: not changing anything. 
+  This captures the idea that a patch that does not make any modifications
+must be applicable to any value.
 
-  The UNIX \texttt{diff}~\cite{McIlroy1976} solves the differencing
-problem, and satisfies many of these desirable properties for the
-special case of |a == [String]|, i.e., files are seen as lists of
-lines. Although there have been attempts at a solution~\cite{Loh2009,Miraldo2017} for arbitrary
-such datatypes, all of them have the same \emph{modus operandis}: compute
-all possible patches between two objects, then filter out \emph{the
-best} such patch. There are two big problems with this approach: (A)
-the inefficiency of a non-deterministic algorithm with many choice
-points, and, (B) the question of defining what is \emph{the best} patch. These two
-problems stem from the same design choice: having only insert,
-delete and copy as the edit operations.
+The UNIX \texttt{diff}~\cite{McIlroy1976} satisfies these properties,
+but is restricted work on lines of text.  There have been several
+attempts at a generalizing these results to handle arbitrary data
+types~\cite{Loh2009,Miraldo2017}, following the same pattern: they
+describe patches as a series of insertions, deletions, and copy
+operations. Finding the best possible patch becomes quite a challenge:
+firstly, the non-deterministic nature of the problem quickly leads to
+inefficient algorithms; furthermore, there are many situations where
+there is no canonical `best' patch available.
 
-  We expect that the core of a differencing algorithm is to identify
-and pursue the copy opportunities as much as possible. Therefore the
-lack of a representation for moving and duplicating subtrees is an
-inherent weakness in a structured setting: upon finding a subtree that
-can be copied in two different ways, the algorithm must choose between
-one of them. Besides efficiency problems, this also brings a
-complicated theoretical problems: it is impossible to order these
-patches in an educated fashion, and hence one cannot single out
-\emph{the best} possible patch. We illustrate this in
-\Cref{fig:linear-patch}. The tools dealing with insertions, deletions
-and copies all work on the preorder flattening of the tree as shown in
-the right side of \Cref{fig:linear-patch}.  That is, the edit
-operations actually work on a flattened representation of the tree,
-just like computing the edit distance between two
-strings~\cite{Hirschberg1975}, but instead of \emph{lists of chars},
-we have a \emph{lists of constructors} here.  Hence, if we want to transform
-|Bin t u| into |Bin u t| using these tools, we will have to choose
-between copying |t| or |u|, but never both. One could choose to copy
-the bigger tree, but what if they have the same size? The choice
-becomes arbitrary.
+Let us illustrate this last point with the example in
+\Cref{fig:linear-patch}. Existing datatype generic approaches with
+insertions, deletions and copies typically perform a preorder
+traversal of the trees, copying over constructors whenever
+possible. Yet if we want to transform a binary tree |Bin t u| into
+|Bin u t| using only these operations, we will be forced to choose
+between copying |t| or |u|, but never both. The choice of which
+subtree to copy becomes arbitrary and unpredictable. To make matters
+worse, the non-determinism such choice points introduce makes
+algorithms intractably slow.
+%todo{I don't think you even need the right hand side of Figure 1...}
+
+The central design decision underlying the UNIX \texttt{diff} tool is
+to \emph{copy data whenever possible}. Yet this example shows that
+restricting the set of operations also limits the opportunities for
+copying data. In the presence of richly structured data beyond lines
+of text, this becomes especially problematic.
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-00.pdf}
@@ -106,35 +115,37 @@ becomes arbitrary.
 \label{fig:linear-patch}
 \end{figure}
 
-  The lesson here that no option is better than the other. 
-If, however, we have some operation
-that encodes permutation of subtrees, we have not only removed a
-choice point from the algorithm but also constructed a patch that
-pursues all copy opportunities without having to resort to heuristics or such
-arbitrary choices. And, contrary to what one might expect, more is
-less in this scenario: adding more expressive basic change
-operations, duplicate and permute, enables us to remove choice
-points and write a efficient deterministic structure-aware differencing 
-algorithm. 
-
-  The contributions presented in this paper are listed as:
+This paper explores a novel direction for differencing algorithms:
+rather than restricting ourselves to insertions, deletions, and copy
+operations, we allow the arbitrary reordering, duplication, and
+contraction of subtrees. Not only does this restrict the inherent
+non-determinism in the problem, making it \emph{easier} to find
+patches, this also \emph{increases} the opportunities for copying.
+More specifically, this paper makes the following novel contributions:
 
 \begin{itemize}
-  \item A generic solution to the well-typed differencing problem
-        that does not suffer from problems (A) and (B) outline above.
-        In fact, our approach supports subtree duplication and permutations
-        and satisfy the desired properties outlined above, including
-        space efficiency.
-  \item An idealized algorithm capable of computing a patch that
-        transforms a source tree into a target tree. We also give a practical
-        instantiation of this algorithm that is correct modulo cryptographic hash
-        collisions and runs in linear time, offering competitive performance
-        with widely used tools such as the UNIX \texttt{diff}.
-  \item An implementation of our algorithm that exploits generic programming
-        techniques making it readily applicable to a large universe of datatypes,
-        namely, any mutually recursive family.
-  \item We define a \emph{merging} algorithm capable of merging trivially disjoint
-        patches and evaluate our prototype over data mined from GitHub repositories.
+\item This paper defines a datatype generic |diff| function that
+  computes a patch between two algebraic datatypes that is efficient
+  in both time and space.  This |diff| function supports the
+  duplication and permutation of subtrees, and satisfies all the
+  desired properties outlined above. We illustrate this algorithm by
+  first defining a specific instance
+  (Section~\ref{sec:concrete-changes}), before presenting a complete generic
+  version capable of handling arbitrary mutually recursive families of
+  datatypes (Section~\ref{sec:generic-diff}).
+\item Initially, we present our diff algorithm under the assumption
+  that an oracle exists, capable of detecting all possible copying
+  opportunities. We give a practical implementation of this oracle
+  that is correct modulo cryptographic hash collisions and runs in
+  linear time (Section~\ref{sec:oracle}). 
+\item We show how generic patches that are \emph{disjoint} may be
+  \emph{merged} automatically (Section~\ref{sec:merging}). 
+\item Finally, we have instantiated our algorithm to the abstract
+  syntax tree of Lua and collected historical data regarding merge
+  conflicts from popular GitHub repositories. We show how our naive
+  merging algorithm is already capable of resolving more than 10\% of
+  the merge conflicts encountered automatically, while still offering
+  competive performance (Section~\ref{sec:experiments}).
 \end{itemize}
 
 \section{Tree Diffing: A Concrete Example}
