@@ -1,4 +1,4 @@
-\documentclass[acmsmall,10pt,review=true]{acmart}%
+\documentclass[acmsmall,10pt,review=true,anonymous=true]{acmart}%
 \settopmatter{printfolios=true,printccs=false,printacmref=false}
 
 %%%%%%%%%%%%%%
@@ -106,8 +106,8 @@
 %% before \maketitle command
 \begin{abstract}
   Understanding the differences between various versions of a source
-file is crucual for software development. The \texttt{UNIX diff} is the
-cannonical tool for the task. It compares files line-by-line and outputs
+file is crucial for software development. The \texttt{UNIX diff} is the
+canonical tool for the task. It compares files line-by-line and outputs
 the differences. Looking for differences in a granularity other than 
 one ``line of code'' is hard. Structural differencing tools are inefficient
 and the representation of changes they use are sub-optimal for merging.
