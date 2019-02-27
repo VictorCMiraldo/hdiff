@@ -6,22 +6,22 @@
 
   The UNIX \texttt{diff}~\cite{McIlroy1976} is an essential tool in
 modern software development. It has seen a number of use cases ever
-since it was created buti is, undoubtly, mainly present in today's
-Software Version Control Systems. Tools such as git, mercurial and
-darcs, that enable multiple developers to collaborate effectively, are
-built around the UNIX \texttt{diff}, which is used to compute a patch
+since it was created but and is specially present in today's Software
+Version Control Systems. Tools such as git, mercurial and darcs, that
+enable multiple developers to collaborate effectively, are built
+around the UNIX \texttt{diff}, which is used to compute a patch
 between two versions of a file. It compares files on a line-by-line
-basis attempting to share as many lines as possible between the source 
+basis attempting to share as many lines as possible between the source
 and the destination files. 
 
-  We say the UNIX \texttt{diff} looks at changes at the granularity of
-the \emph{line}. Consequently, it fails to identify more fine grained
-changes in the objects it compares.  For example, if two parts of a
-program were changed, but happen to be printed on the same line, the
-UNIX \texttt{diff} sees this as a \emph{single} change.  Ideally,
-however, the objects under comparison should dictate the granularity
-of change to be considered. This is precisely the goal of
-\emph{structural differencing} tools.
+  A consequence of the \emph{by line} granularity of the UNIX
+\texttt{diff} is it inability to identify more fine grained changes in
+the objects it compares.  For example, if two parts of a program were
+changed, but happen to be printed on the same line, the UNIX
+\texttt{diff} sees this as a \emph{single} change.  Ideally, however,
+the objects under comparison should dictate the granularity of change
+to be considered. This is precisely the goal of \emph{structural
+differencing} tools.
 
 %% vcm: mention the problems with previous approaches here?
 
@@ -90,7 +90,7 @@ represents patches as a series of insertions, deletions and copies of
 lines and works by enumerating all possible patches that transform the
 source into the destination and chooses the `best' such patch.  There
 have been several attempts at a generalizing these results to handle
-arbitrary data types~\cite{Loh2009,Miraldo2017}, but following the
+arbitrary datatypes~\cite{Loh2009,Miraldo2017}, but following the
 same recipe: enumerate all combinations of insertions, deletions and
 copies that transform the source into the destination and choose the
 `best' one. We argue that this design has two weaknesses when
