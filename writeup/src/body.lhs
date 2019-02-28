@@ -28,10 +28,10 @@ differencing} tools.
   In this paper we present an efficient dataype-generic algorithm to
 compute the difference between two elements of any mutually recursive
 family. In particular, our algorithm readily works over the abstract
-syntax tree of a programming language---thereby enabling, for
-example, two changes that appear at the same line of code to be
-trivially merged, provided they do not modify the same parts of the
-underlying tree. We have implemented our algorithm in Haskell and make
+syntax tree of a programming language--- thereby enabling, for
+example, two changes that work on separate parts of the AST to be
+trivially merged, even if they appear to be on the same line in the
+source file.  We have implemented our algorithm in Haskell and make
 heavy use of its datatype generic programming capabilities.
 
   In general, we intend to compute the difference between two values
