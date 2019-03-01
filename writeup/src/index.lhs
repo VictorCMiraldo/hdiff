@@ -61,7 +61,8 @@
 
 %% Title information
 \title{An Efficient Algorithm for Type-Directed Structural Diffing}
-
+%Wouter: How about 'An Efficient Datatype Generic Algorithm for Structural Diffing'
+%That makes the generic programming aspect more obvious...
 
 %% Author information
 %% Contents and number of authors suppressed with 'anonymous'.
@@ -105,17 +106,26 @@
 %% Note: \begin{abstract}...\end{abstract} environment must come
 %% before \maketitle command
 \begin{abstract}
-  Understanding the differences between various versions of a source
-file is crucial for software development. The \texttt{UNIX diff} is the
-canonical tool for the task. It compares files line-by-line and outputs
-the differences. Looking for differences in a granularity other than 
-one ``line of code'' is hard. Structural differencing tools are inefficient
-and the representation of changes they use are sub-optimal for merging.
-This paper proposes a \emph{generic representation} for differences between
-elements of a mutually recursive family, this includes most
-programming languages. Moreover, we propose an efficient algorithm 
-for computing these differences and show how this structure gives
-a free merging algorithm for disjoint changes.
+Effectively computing the difference between two version of a
+source file has become an indespensible part of software engineering.
+%wouter development or engineering?
+The \emph{de facto} standard tool used by most version control systems
+is the \texttt{UNIX diff} utility,
+that compares two files on a line-by-line basis without any regard for the
+\emph{structure} of the data stored in these files.
+%
+This paper presents an alternative \emph{datatype generic} algorithm
+for computing the difference between two values of \emph{any}
+algebraic datatype. This algorithm maximises sharing between the
+source and target trees, while still running in linear
+time.
+%
+Finally, this paper demonstrates that by instantiating this algorithm
+to the Lua abstract syntax tree and mining the commit history of
+repositories found on GitHub, the resulting patches can often be
+merged automatically, even when existing technology has failed.
+%
+
 \end{abstract}
 
 
@@ -129,11 +139,6 @@ a free merging algorithm for disjoint changes.
 <concept_significance>500</concept_significance>
 </concept>
 <concept>
-<concept_id>10003456.10003457.10003521.10003525</concept_id>
-<concept_desc>Social and professional topics~History of programming languages</concept_desc>
-<concept_significance>300</concept_significance>
-</concept>
-</ccs2012>
 \end{CCSXML}
 
 \ccsdesc[500]{Software and its engineering~General programming languages}
@@ -143,7 +148,7 @@ a free merging algorithm for disjoint changes.
 
 %% Keywords
 %% comma separated list
-\keywords{Generic Programming, Datatype, Haskell, Version Control, diff}
+\keywords{Generic Programming, diff, Version Control, Haskell}
 
 
 %% \maketitle
