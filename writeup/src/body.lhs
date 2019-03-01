@@ -1371,15 +1371,15 @@ to |x|.
 \label{sec:oracle}
 
   In the previous sections we have implemented a generic diffing
-algorithm assuming the existence of a function, called \emph{an
-oracle}, that answers whether a given subtree should be copied or
+algorithm assuming the existence of \emph{an
+oracle}, that determines whether a given subtree should be copied or
 not. We have seen that the overall performance of our algorithm depends
-on answering that question efficiently: we perform one such query per
+on answering that question efficiently: we perform one query per
 constructor in the source and destination of the diff. In this section
 we provide an efficient construction for this oracle.  Yet, it is
-worthwhile to define the inefficient, naive version, first. Besides
+worthwhile to define the inefficient, naive version first. Besides
 providing important intuition to what this function is doing it is an
-interesting generic programming exercise in its own.
+interesting generic programming exercise in its own right.
 
   When deciding whether a given tree |x| is a subtree of two
 fixed trees |s| and |d|, a naive oracle would check every
@@ -1449,14 +1449,14 @@ annotate them with cryptographic hashes~\cite{Menezes1997} and compare
 these hashes instead. This technique transforms our trees into
 \emph{merkle trees}~\cite{Merkle1988} and is more commonly seen in the
 security and authentication context~\cite{Miller2014,Miraldo2018HAMM}.
-Our generic programming machinery that is already at our disposal
+The generic programming machinery that is already at our disposal
 enables us to create \emph{merkle trees} generically quite easily.
 The \texttt{generics-mrsop} provide some attribute
-grammar~\cite{Knuth1990} mechanisms, in particular computation of synthesized
-attributes.  The |synthesize| function is just like a catamorphism, but
-we annotate the trees with the result of calling a catamorphism instead
-of forgetting them. These mechanisms enables us to decorate each node of
-a |Fix codes| with a unique identifier (\ref{fig:merkelized-tree}) 
+grammar~\cite{Knuth1990} functionality, in particular the computation of synthesized
+attributes arising from a fold.  The |synthesize| function is just like a catamorphism, but
+we decorate the tree with the intermediate results at each node, rather than
+only using them to compute the final outcome. This enables us to decorate each node of
+a |Fix codes| with a unique identifier (as shown in Figure~\ref{fig:merkelized-tree}) 
 by running the |prepare| function, defined below.
 
 \begin{myhs}
@@ -1499,15 +1499,24 @@ constructors of different types in the family represented by the same
 number.  
 
   Once we have a tree fully annotated with the hashes for its
-subtrees, we store them in a search-efficient structure.  Given
-that a hash is just a |[Word]|, the optimal choice is a
-|Trie|~\cite{Brass2008} from |Word| to |Int|, where the |Int|
-indicates what is the \emph{identifier} of the tree.
-Looking up whether a tree |x| is a subtree of two fixed trees |s| and |d|
-is then merely looking up |x|'s topmost hash of |x|, also called the \emph{merkle root},
-against the intersection of the tries generated from |s| and |d|.
-This is a very fast operation and hardly depends on the number
-of elements in the trie. In fact, this lookup runs in amortized constant time.
+subtrees, we store them in a search-efficient structure.  Given that a
+hash is just a |[Word]|, the optimal choice is a Trie~\cite{Brass2008}
+mapping a |Word| to |Int|, where the |Int| is the value of the
+\emph{metavariable} that will be assigned to the tree, in case it is a
+common subtree Looking up whether a tree |x| is a subtree of some tree
+|s| can be done by looking up |x|'s topmost hash, also called the
+\emph{merkle root}, against the trie generated from |s|.  This is a
+very fast operation and hardly depends on the number of elements in
+the trie. In fact, this lookup runs in amortized constant time.
+
+In this situation, however, we have to determine whether or not a tree
+|x| occurs as a subtree of \emph{both} the source and destination
+trees. This is no harder, as we can efficiently compute the
+intersection of the tries arising from the source and target trees.
+Querying this trie will tell us whether or not a |x| occurs
+as a subtree of both trees.
+%Wouter: split the 'construction of tries' from the 'intersection of tries' paragraphs
+
 %% The depth of our trie is always |4| or |8| for a |sha256| hash can be
 %% be put in that number of machine words, depending on the architecture.
 %% Assume we have a 32-bit |Word|, this means that the complexity of the
@@ -1520,7 +1529,7 @@ of elements in the trie. In fact, this lookup runs in amortized constant time.
 
 
   It is of paramount importance to avoid recomputing the merkle root
-of a tree |x| every time we wish to know whether it is a common
+of a tree |x| each time we wish to know whether it is a common
 subtree.  Otherwise, we still end up with an exponential
 algorithm. The solution is quite simple: we use |AnnFix (Const Digest)
 codes| in the |txExtract| function and the type of our oracle, where
@@ -1563,18 +1572,18 @@ collision is negligible and we chose to ignore it.
 \label{sec:merging}
 
   One of the main motivations for generic structure-aware diffing is
-being able to merge patches in a more automatic fashion than using
-\texttt{diff3}.  In the past, structural merging has proven to be a
-difficult task~\cite{Vassena2016,Miraldo2017} even for trivial cases,
-due to how the authors chose to represent patches.  In this section
-shows how our new structure for representing changes enables us to
-write better merging algorithms.  We write a merging algorithm capable
-of merging disjoint patches, that is, patches that work on disjoints
-locations of a tree. We evaluate this algorithm in
+being able to merge patches in a more structured fashion than using
+\texttt{diff3}, which considers changes to every line.  In the past,
+structural merging has proven to be a difficult
+task~\cite{Vassena2016,Miraldo2017} even for the easiest cases.  This
+section shows how our new structure for representing changes enables
+us to write a simple merge algorithm, offering both acceptable
+performance and a improvement over \texttt{diff3}.  We will sketch the
+implementation of our algorithm here and evaluate its performance in
 \Cref{sec:experiments}.
 
   The merging problem, illustrated in \Cref{fig:merge-square}, is the
-problem of computing |q // p| given two patches |p| and |q|. It
+problem of computing a new patch, |q // p|, given two patches |p| and |q|. It
 consists in a patch that contains the changes of |q| potentially
 adapted to work on a value that has already been modified by |p|.
 This is sometimes called the \emph{transport} of |q| over |p| or
@@ -1591,16 +1600,11 @@ the \emph{residual}~\cite{Huet1994} of |p| and |q|.
 \end{figure}
 
   There is a class of patches that are trivial to merge: those that
-work on separate locations of a tree. If |p| and |q| are disjoint, then
-|p // q| can return |p| without further adaptations. Our algorithm shall
-merge only those cases and mark as a |Conflict| any situation where
-the patches are \emph{disjoint}. 
-
-  A |Conflict| is returned whenever the patches are not disjoint. We
-define it as a pair of irreconcilable patches. In practice one would
-carry a label around to identify the type of conflict for easier
-resolution. Note that the location is trivially kept, since the
-conflicts will where the patches disagree.
+modify separate locations of a tree. If |p| and |q| are disjoint, then
+|p // q| can return |p| without further adaptations. Our algorithm
+shall merge only disjoint patches, marking all other situations as a
+conflict. We choose to represent conflicts as a pair of overlapping
+patches.
 
 \begin{myhs}
 \begin{code}
@@ -1609,10 +1613,13 @@ type Conflict codes = Patch codes :*: Patch codes
 type PatchConf codes =  Tx codes (Sum (Conflict codes) (Change codes))
 \end{code}
 \end{myhs}
+In practice, it may be desirable to record further meta-information
+to facilitate conflict
+resolution. 
 
   Our merging operator, |(//)|, receives two patches and returns a
 patch possibly annotated with conflicts.  We do so by matching the
-spines against each other and evaluating with more care the places
+spines,  and carefully inspecting any changes
 where the spines differ.
 
 \begin{myhs}
@@ -1624,9 +1631,10 @@ where the spines differ.
   The intuition here is that |p // q| must preserve the intersection of the
 spines of |p| and |q| and reconcile the differences whenever one of
 the patches has a change. Note that it is impossible to have
-disagreeing spines since |p| and |q| are applicable to at least one
-common element.  This is yet another task for the \emph{greatest common
-prefix} operator:
+completely disjoint spines since |p| and |q| are applicable to at least one
+common element.  Using the \emph{greatest common
+  prefix} function defined previously, we can zip together the shared spines,
+pushing the resolution down to the leaves:
 
 \begin{myhs}
 \begin{code}
@@ -1635,9 +1643,9 @@ p // q = txMap (uncurry' reconcile) $$ txGCP p q
 \end{myhs}
 
   Here, the |reconcile| function shall check whether the
-disagreeing parts are disjoint, i.e., either one of them
-performs no changes or they perform the same change. If that is
-the case, it returns its first argument. In fact, this is very
+disagreeing parts are disjoint, i.e., either one of the two changes
+is the identity or they perform the exactly same change. If that is
+the case, the |reconcile| function returns its first argument. In fact, this is very
 much in line with the properties of a residual operator~\cite{Huet1994}.
 
 \begin{myhs}
@@ -1651,8 +1659,8 @@ reconcile p q
 \end{myhs}
 
   The first branch borrows from the two identity laws from residual
-theory that state that |p // id == p| and |id // p == id|. This is
-fairly intuitive when spoken out loud. Take the first law as an
+theory that state that |p // id == p| and |id // p == id|.
+Take the first law, for
 example, |p // id|, we are adapting a change |p| to work over an object
 has been changed by |id|, but this means the object is the same and we
 can apply |p| itself. The second law is also captured by the first
@@ -1662,6 +1670,9 @@ meaning that applying a patch over something that has been modified by
 this very patch amounts to not changing anything. The |patchIden| functions
 checks whether all changes in that patch are copies and |patchEquiv|
 checks if two patches are $\alpha$-equivalent.
+%Wouter: I wouldn't talk about laws of residual theory, but simply refer to the code
+%and the definition of disjoint a few lines above: that is---one of the patches
+%must be the identity or they are equal.
 
   Our trivial merge algorithm returns a conflict for non-disjoint
 patches, but this does not mean that it is impossible to merge
@@ -1671,7 +1682,15 @@ merged.  These non-trivial merges can be divided in two main
 situations: (A) no action needed even though patches are not disjoint
 and (B) transport of pieces of a patch to different locations in the
 three.  In \Cref{fig:merging-AB} we illustrate situations (A) and (B)
-in the merge square for two non-disjoint patches.
+in the merge square for two non-disjoint patches. In the top subfigure
+we see the residual returning the patch unaltered (case A), this is
+because the domain of the patch in the `nominator' position accepts
+objects in the codomain of the `denominator'. Moreover, the `denominator'
+does \emph{not} alter the structure that the `nominator' expects
+in its spine. On the lower subfigure, however, the patches are reversed.
+The `denominator' now changes the structure that the `nominator' expected
+in its spine, and hence the `nominator' has to be adapted. This adaptation
+can be done by applying one patch to the other.
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/merge-01.pdf}
@@ -1692,8 +1711,8 @@ in their history. Next, we ran two experiments over this data:
 a performance test and a merging test. We chose the Lua programming language
 for two reasons. First, there is a Haskell parser for Lua readily available
 on Hackage and, secondly, due to a performance bug~\cite{ghc-performance-bug} in GHC
-we are not able to compile our code for larger abstract syntax tress
-such as C, for example. 
+we are not able to instantiate our generic algorithm to more complex abstract syntax trees,
+such as that of C.
 
 \paragraph{Performance Evaluation} In order to evaluate the
 performance of our implementation we have timed the computation of the
@@ -1715,16 +1734,15 @@ number of constructors in |x| and |y| abstract syntax trees, respectively.
 Confirming our analysis with empirical further strengthens our 
 algorithm as a practical implementation of structured differencing.
 
-\paragraph{Merging Evaluation} We have tested the trivial merging
-algorithm presented in \Cref{sec:merging} by running it over the merge
-conflicts we mined from GitHub. Upon a successful merge from our tool we attempted to
-apply the residuals to the respective files and made sure that the merge
-square (\Cref{fig:merge-square}) was commuting.
-We were able to solve a total of 66 conflicts, amounting to 11\% of
-the analyzed conflicts. This means that about one tenth of the conflicts
-we analyzed are trivially simple to merge with a tool that looks at 
-changes in a more refined way other than looking purely at the lines
-in a file. 
+\paragraph{Merging Evaluation} We have also performed a preliminary evaluation of the simple merging
+algorithm presented in \Cref{sec:merging}. After collecting all the conflicts from the Github
+repostitories, we attempted to merge the structured diffs that our algorithm computes.
+When this merge succeeded, we checked that the resulting merge
+square (\Cref{fig:merge-square}) commutes as expected.
+In this way, we were able to solve a total of 66 conflicts automatically, amounting to 11\% of
+all the conflicts we encountered. We consider these initial numbers to be encouraging:
+even a naive merge algorithm on structured changes manages to outperform the current
+state of the art. We expect that a more refined notion of merging may improve these results further.
 
 \begin{figure}\centering
 \ra{1.1} % better spacing
@@ -1763,16 +1781,18 @@ telegram-bot       & 729     & 50  & 5   & 0  \\
 \label{fig:performance-plot}
 \end{figure}
 
-\subsection{Threats to Validity} There are two main threats to the
+\subsection*{Threats to Validity} There are two main threats to the
 validity of our empirical results. Firstly, we are diffing and merging
-abstract syntax trees, hence ignoring comments and formatting. There would
-be no extra effort in handling formatting issues besides writing a custom parser that
-records this information. Nevertheless, it is reasonable to expect 
-a smaller success rate since we are ignoring formatting changes
+\emph{abstract} syntax trees, hence ignoring comments and formatting. There would
+be no extra effort in handling these issues, beyond recording them explicitly
+in a more concrete syntax tree and adapting our parser to
+produce such trees. Nevertheless, one might expect expect 
+a slightly lower success rate since we are ignoring formatting changes
 altogether. Secondly, a significant number of developers prefer
-to rebase their branches instead of merging them. Hence, we might have
-missed a number of important merge conflicts. There is no way of
-mining these conflicts back since rebasing erases history.
+to rebase their branches instead of merging them. Therefore, we may have
+missed a number of important merge conflicts that are no longer recorded,
+as rebasing erases history. Our merge algorithm might be able to resolve
+some of these conflicts automatically---but there is no way to establish this.
 
 \section{Discussion and Conclusion}
 \label{sec:discussion}
@@ -1780,134 +1800,144 @@ mining these conflicts back since rebasing erases history.
   The results from \Cref{sec:experiments} are very encouraging. 
 We see that our diffing algorithm has competitive performance 
 and our trivial merging operation is  capable of merging
-a number of patches that \texttt{diff3} yields conflicts. In order to
-leave the research realm and deliver a production tool, there is
-still a number of points that must be addressed.
+changes where \texttt{diff3} fails. Yet there is still plenty of work to be done.
 
-\subsection{Future Work}  
+\subsection*{Future Work}  
+%Wouter: I've made the subsections here subsection* -- you never need to refer to them by number
 
 \paragraph{Controlling Sharing}
-One interesting discussion point in the algorithm is how to control
-sharing. As it stands, the differencing algorithm will share anything
-that the oracle indicates as \emph{shareable}. This can be undesirable
-behavior. For example, we do not want to share \emph{all} occurrences
-of a variable in a program, but only those under the same scope.  That
-is, we want to respect the scope variables. Same applies for
-constants. There are a variety of options to enable this behavior.
-The easiest seems to be changing the oracle. Making a custom oracle
-that keeps track of scope and hashes occurrences of the same identifier
-under a different scope differently will ensure that the scoping is
-respected, for instance. Another option would be consider abstract syntax trees
-with explicit binding.
+One interesting direction for further work is how to control
+the sharing of subtrees. As it stands, the differencing algorithm will share every
+subtree that occurs in both the source and destination files. This can lead to undesirable
+behavior. For example, we may not want to share \emph{all} occurrences
+of a variable within a program, but rather only share occurrences of a variable with the same binder.  That
+is, sharing should respect the scope variables. A similar question arises with
+constants -- should all occurrences of the number |1| be shared?
+
+There are a variety of options to customize the sharing behavior of our algorithm.
+One way to do so would allow the definition of a custom oracle
+that is scope-aware. By hashing both the identifier name and its binder,
+we can ensure that variables are not shared over scope boundaries.
+Another option would be consider abstract syntax trees
+that make the binding structure of variables explicit.
 
 \paragraph{Better Merge Algorithm}
 The merging algorithm presented in \Cref{sec:merging} only handles trivial cases.
-Being able to handle the non trivial cases is the current topic of research
-at the time of writing this paper. We wish to better understand the operation
-of merging patches. It seems to share a number of properties from unification theory,
-residual systems, rewriting systems and we would like to look into this 
-in more detail. This would enable us to better pinpoint the role
-that merging plays within our meta-theory, that is, one would expect that it would
-have some resemblance to a pushout as in \cite{Mimram2013}. 
+Being able to merge patches that are not disjoint is the subject of ongoing research.
+The problem seems related to unification,
+residual systems, and rewriting systems. We hope that relating the merging problem to these
+settings might help nail down the necessary conditions for merging to succeed.
+One would expect that it would
+have some resemblance to a pushout, as in pointed out by Mimram and Di Giusto~\cite{Mimram2013}. 
 
 \paragraph{Automatic Merge Strategies}
-Besides improving on the fully generic algorithm, though, we would like to
-have a language to specify domain specific strategies for conflict resolution.
+We would like to
+develop a language to specify domain specific strategies for conflict resolution.
 For instance, whenever the merging tool finds a conflict in the \texttt{build-depends}
-section of a cabal file, it tries sorting the packages alphabetically and keeping
-the ones with the higher version number. Ideally, these rules should be simple to
-write and would allow a high degree of customization.
+section of a cabal file, it might try sorting the packages alphabetically and keeping
+the conflicting packages with the higher version number. Ideally, these rules should be simple to
+write, yet still allow a high degree of customization.
 
 \paragraph{Formalization and Meta-theory}
-We would be happy to engage in a formal verification of our work. This could
-be achieved by rewriting our code in Agda~\cite{Norell2009} whilst proving
-the correctness properties we desire. This process would provide
-invaluable insight into developing the meta-theory of our system.
+We would be happy to engage in a formalization of our work with the
+help of a proof assistant.  This would help to develop the meta-theory
+and provide definite confidence that our algorithms are correct with
+respect to their specification.  This could be achieved by rewriting
+our code in Agda~\cite{Norell2009} whilst proving the correctness
+properties we desire. This process would provide invaluable insight
+into developing the meta-theory of our system.
 
 \paragraph{Extending the Generic Universe.}
 Our prototype is built on top of \texttt{generics-mrsop}, a generic
 programming library for handling mutually recursive families in the
 sums of products style. With recent advances in generic
-programming~\cite{Serrano2018}, we can think about go a step further
-and extend the library to handle mutually recursive families that have
-\texttt{GADTs} inside. 
+programming~\cite{Serrano2018}, we might be able to extend 
+our algorithm to handle mutually recursive families that have
+\texttt{GADTs}.
 
-\subsection{Related Work}
+\subsection*{Related Work}
 \label{sec:related-work}
 
-  The work related to ours can be divided in the typed and untyped
-variants. The untyped tree differencing problem was introduced in 1979
+  Related work can be classified in the treatment of types.  The
+untyped tree differencing problem was introduced in 1979
 \cite{Tai1979} as a generalization of the longest common subsequence
 problem~\cite{Bergroth2000}. There has been a significant body of work
 on the untyped tree differencing
-problem~\cite{Demaine2007,Klein1998,Akutsu2010}, but these hardly transport
-to the typed variant, that is, when the transformations are
-guaranteed to produce well-typed trees.
+problem~\cite{Demaine2007,Klein1998,Akutsu2010}, but these results do
+not transport to the typed setting: the transformations that are
+computed are not guaranteed to produce well-typed trees.
 
-  The first attempt was done by Lempsink and L\"{o}h~\cite{Loh2009},
-which was later extended by Vassena~\cite{Vassena2016}. Their work
-consists largely in using the same algorithm as \texttt{diff} in the
-flattened representations of a tree. The main observation is that
-basic operations (insertion, deletion and copy) can be shown to be
-well-typed when operating on flattened representations. Although one
-could compute differences with reasonably fast algorithms, merging
-these changes is fairly difficult and in some cases might be
-impossible~\cite{Vassena2016}. A different attempt was done by Miraldo
-et al.~\cite{Miraldo2017}, where the authors defined
-operations that work directly on tree shaped data. Using this
-approach, changes become easier to merge but harder to compute.
-Both bodies of work follow the same general idea as the untyped
-variants: compute all possible patches and filter out the bad ones.
-As we have already mentioned (\Cref{sec:introduction}), this is not an optimal
-strategy. The number of patches explodes and defining \emph{the best} is
-impossible without heuristics using only insertions, deletions and copies.
+  The first datatype generic algorithm was presented by Lempsink and
+L\"{o}h~\cite{Loh2009}, which was later extended by
+Vassena~\cite{Vassena2016}. Their work consists largely in using the
+same algorithm as \texttt{diff} on the flattened representation of a
+tree. The main observation is that basic operations (insertion,
+deletion and copy) can be shown to be well-typed when operating on
+these flattened representations. Although one could compute
+differences with reasonably fast algorithms, merging these changes is
+fairly difficult and in some cases might be
+impossible~\cite{Vassena2016}. Miraldo et al.~\cite{Miraldo2017} take
+a slightly different approach, defining operations that work directly
+on tree shaped data. Using this approach, changes become easier to
+merge but harder to compute.  Both bodies of work follow the same
+general idea as the untyped variants: compute all possible patches and
+select the `best' patch from these alternatives.  As we have already
+mentioned (\Cref{sec:introduction}), this is not an optimal
+strategy. The number of patches grows explosively and defining the
+\emph{best} patch using insertions, deletions and copies is impossible
+without further heuristics .
 
-  Of the untyped variant, the work of Asenov et al.~\cite{Asenov2017}
-is worth mentioning as it uses and interesting technique: it
-represents trees in an flattened fashion with some extra information,
-then uses the UNIX \texttt{diff} tool to find the differences. Finally, it
-transports the changes back to the tree shaped data using the additional
-information. The authors also identify a number of interesting situations
-that occur when merging tree differences. Another important mention
-is the \texttt{gumtree}~\cite{Falleri2014} project, which uses its own
-algorithm for computing graph transformations between untyped representations
-of abstract syntax trees. 
+  The work of Asenov et al.~\cite{Asenov2017} is also untyped, but
+uses a different technique for finding the diff: it flattens trees and
+embellishes the resulting lists with additional annotations, and then
+uses the UNIX \texttt{diff} tool to compute patches. Finally, it
+transports the changes back to the tree-shaped datatypes using the
+annotations that were added. The authors identify a number of
+interesting situations that occur when merging tree differences.  The
+\texttt{gumtree}~\cite{Falleri2014} project, explores a similar line
+of work, but uses its own algorithm for computing graph
+transformations between untyped representations of abstract syntax
+trees.
 
-  From a more theoretical point of view it is also important to
-mention the work of Mimram and De Giusto~\cite{Mimram2013}, where the
-authors model line-based patches in a categorical fashion. This
-inspired the version control system \texttt{pijul}. Swierstra
-and L\"{o}h~\cite{Swierstra2014} propose an interesting meta-theory
-for version control of structured data based on separation logic to
-model disjoint changes. Lastly, Angiuli et al.~\cite{Angiuli2014}
-describes a patch theory based on homotopical type theory.
-The version control system \texttt{darcs}~\cite{Darcs} also uses
-a more formal approach in its meta-theory of patches, but the patches
-themselves are still working on the line level, they are not structure aware.
+There have been several different approaches to formalizing a theory
+of patches.  The version control system \texttt{darcs}~\cite{Darcs}
+was one of the first to present a more formal theory of patches, but
+the patches themselves were still line-based.  Mimram and De
+Giusto~\cite{Mimram2013} have developed a theoretical model of
+line-based patches in a categorical fashion. This has inspired the
+version control system \texttt{pijul}.  %wouter: citation for pijul?
+Swierstra and L\"{o}h~\cite{Swierstra2014} have proposed using
+separation logic to define a meta-theory of patches and merging.
+Finally, Angiuli et al.~\cite{Angiuli2014} describe a patch theory
+based on homotopy type theory.
 
-\subsection{Conclusions}
+\subsection*{Conclusions}
 \label{sec:conclusions}
 
-  Throughout this paper we have developed an efficient type-directed 
-algorithm for computing structured differences for a whole class of datatypes,
-namely, mutually recursive families. This class of types is sufficient
-for representing programming languages and, hence, our algorithm can
-be readily used to compute differences over a number of abstract
-syntax trees out of the box.  We validated our implementation by
-computing diffs over Lua~\cite{Lua} source files obtained from various
-repositories on GitHub. Finally, we shown how our representation
-of changes makes it very easy to merge trivially disjoint patches.
-We have also seen that about one tenth of the merge conflicts from
-the top Lua repositories on GitHub fall under this ``trivially disjoint''
-classification.
+  Throughout this paper we have developed an efficient type-directed
+algorithm for computing structured differences for a large class of
+algebraic datatypes, namely, mutually recursive families. This class
+of types can represent the abstract syntax tree of most programming
+languages and, hence, our algorithm can be readily instantiated to
+compute the difference between programs written in these languages.
+We have validated our implementation by computing diffs between
+Lua~\cite{Lua} source files obtained from various repositories on
+GitHub; the algorithm's run-time is competitive, and even a naive
+merging algorithm already offers a substantial improvement over
+existing technology.  Together, these results demonstrate both a
+promising direction for further research and a novel application of
+the generic programming technology that is readily available in
+today's functional languages.
 
-  In order to bridge the gap between a theoretical algorithm and
-a practical, efficient, implementation we had to borrow techniques from
-cryptography and programming languages to define a generic function
-that answers whether some value is occurs as a subtree of two values:
-a source and a destination.  It is worth to mention that without
-a tool with similar capabilities as Haskell, the generic development
-would have been impossible. 
+
+
+%   To bridge the gap between a theoretical algorithm and
+% a practical, efficient, implementation we had to borrow techniques from
+% cryptography and programming languages to define a generic function
+% that answers whether some value is occurs as a subtree of two values:
+% a source and a destination.  It is worth to mention that without
+% a tool with similar capabilities as Haskell, the generic development
+% would have been impossible. 
 
 
 %%% Local Variables:
