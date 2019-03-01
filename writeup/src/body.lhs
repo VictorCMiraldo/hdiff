@@ -201,7 +201,10 @@ values but later on we will need to carry additional information.
 \begin{myhs}
 \begin{code}
 type MetaVar = Int
-
+\end{code}
+\end{myhs}
+\begin{myhs}
+\begin{code}
 data Tree23C phi  = Hole phi
                   | LeafC
                   | Node2C Tree23C Tree23C
@@ -270,8 +273,7 @@ del ctx tree = go ctx tree empty
     go (Node3C x y z)  (Node3 a b c)  m = go x a m >>= go y b >>= go z c
     go (Hole i)        t              m = case lookup i m of
                                             Nothing  -> return (M.insert i t m)
-                                            Just t'  -> guard (t == t') 
-                                                     >> return m
+                                            Just t'  -> guard (t == t') >> return m
     go _               _              m = Nothing
 \end{code}
 \end{myhs}
@@ -652,7 +654,9 @@ value of type |Change23 MetaVar| from a |Tree23|.
 how to compute a |Patch23| given a |Change23| by \emph{minimizing} the
 changes and isolating them in the \emph{spine}. On this section we
 show how can we write that same algorithm in a generic fashion,
-working over any mutually recursive family.
+working over any mutually recursive family.  The code in this section
+might look a bit daunting to the unfamiliar reader. It is safe to skip
+it on a first read.
 
 \subsection{Background on Generic Programming}
 \label{sec:generic-prog}
