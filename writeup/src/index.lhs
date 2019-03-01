@@ -107,8 +107,7 @@
 %% before \maketitle command
 \begin{abstract}
 Effectively computing the difference between two version of a
-source file has become an indespensible part of software engineering.
-%wouter development or engineering?
+source file has become an indespensible part of software development.
 The \emph{de facto} standard tool used by most version control systems
 is the \texttt{UNIX diff} utility,
 that compares two files on a line-by-line basis without any regard for the
@@ -125,7 +124,6 @@ to the Lua abstract syntax tree and mining the commit history of
 repositories found on GitHub, the resulting patches can often be
 merged automatically, even when existing technology has failed.
 %
-
 \end{abstract}
 
 
