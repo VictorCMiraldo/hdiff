@@ -107,7 +107,7 @@
 %% before \maketitle command
 \begin{abstract}
 Effectively computing the difference between two version of a
-source file has become an indespensible part of software development.
+source file has become an indispensable part of software development.
 The \emph{de facto} standard tool used by most version control systems
 is the \texttt{UNIX diff} utility,
 that compares two files on a line-by-line basis without any regard for the
@@ -115,7 +115,7 @@ that compares two files on a line-by-line basis without any regard for the
 %
 This paper presents an alternative \emph{datatype generic} algorithm
 for computing the difference between two values of \emph{any}
-algebraic datatype. This algorithm maximises sharing between the
+algebraic datatype. This algorithm maximizes sharing between the
 source and target trees, while still running in linear
 time.
 %

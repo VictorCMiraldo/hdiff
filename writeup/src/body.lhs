@@ -25,7 +25,7 @@ differencing} tools.
 
 %% vcm: mention the problems with previous approaches here?
 
-  In this paper we present an efficient dataype-generic algorithm to
+  In this paper we present an efficient datatype-generic algorithm to
 compute the difference between two elements of any mutually recursive
 family. In particular, our algorithm readily works over the abstract
 syntax tree of a programming language--- thereby enabling, for
@@ -76,8 +76,8 @@ application should be the identity:
   This captures the idea that a patch that does not make any modifications
 must be applicable to any value. 
 
-  Finally, the last important properties stem from a pratical perspective.
-We need both the |diff| and |apply| functions to be computationaly
+  Finally, the last important properties stem from a practical perspective.
+We need both the |diff| and |apply| functions to be computationally
 efficient. Lastly, when stored in disk, a value of type |Patch a| must
 use less space then storing both elements of type |a|.  Otherwise, one
 could argue that |Patch a = (a,a)| is a perfectly fine solution. Yet,
@@ -154,7 +154,7 @@ More specifically, this paper makes the following novel contributions:
   conflicts from popular GitHub repositories. We show how our naive
   merging algorithm is already capable of resolving more than 10\% of
   the merge conflicts encountered automatically, while still offering
-  competive performance (Section~\ref{sec:experiments}).
+  competitive performance (Section~\ref{sec:experiments}).
 \end{itemize}
 
 \section{Tree Diffing: A Concrete Example}
@@ -213,7 +213,7 @@ data Tree23C phi  = Hole phi
 \end{myhs}
 
 A \emph{change} in this setting is a pair of such contexts. The first
-contexd defines a pattern that binds some metavariables, called the
+context defines a pattern that binds some metavariables, called the
 deletion context; the second, called the insertion context,
 corresponds to the tree annotated with the metavariables that are supposed
 to be instantiated by the bindings given by the deletion context.
@@ -255,7 +255,7 @@ applyChange (d , i) x = del d x >>= ins i
 pattern-matching we allow variables to appear more than once on both
 the deletion and insertion contexts. Their semantics are dual:
 duplicate variables in the deletion context must match equal trees,
-and are refered to as contractions, whereas duplicate variables in the
+and are referred to as contractions, whereas duplicate variables in the
 insertion context will duplicate trees.  We use an auxiliary function
 within the definition of |del| to make this check easier to
 perform. Given a deletion context |ctx| and source |tree|, the |del|
@@ -1660,21 +1660,17 @@ reconcile p q
 \end{code}
 \end{myhs}
 
-  The first branch borrows from the two identity laws from residual
-theory that state that |p // id == p| and |id // p == id|.
-Take the first law, for
-example, |p // id|, we are adapting a change |p| to work over an object
-has been changed by |id|, but this means the object is the same and we
-can apply |p| itself. The second law is also captured by the first
-conditional clause of |reconcile|. The third residual law on the
-other hand, needs its very own clause. It states that |p // p == id|,
-meaning that applying a patch over something that has been modified by
-this very patch amounts to not changing anything. The |patchIden| functions
-checks whether all changes in that patch are copies and |patchEquiv|
-checks if two patches are $\alpha$-equivalent.
-%Wouter: I wouldn't talk about laws of residual theory, but simply refer to the code
-%and the definition of disjoint a few lines above: that is---one of the patches
-%must be the identity or they are equal.
+  We see the code for |reconcile| closely follows the definition of
+disjointness above---one of the patches must be the identity or they
+are equal. The |patchIden| functions checks whether all changes in
+that patch are copies and |patchEquiv| checks if two patches are
+$\alpha$-equivalent.  Taking a closer look at the |reconcile|
+function, we see it follows the three identity laws from residual
+theory.  The first branch agrees from the two identity laws from
+residual theory that state that |p // id == p| and |id // p == id|,
+whereas the second branch follows the third identity law, which states
+that |p // p == id|, meaning that applying a patch over something that
+has been modified by this very patch amounts to not changing anything.
 
   Our trivial merge algorithm returns a conflict for non-disjoint
 patches, but this does not mean that it is impossible to merge
@@ -1737,8 +1733,8 @@ Confirming our analysis with empirical further strengthens our
 algorithm as a practical implementation of structured differencing.
 
 \paragraph{Merging Evaluation} We have also performed a preliminary evaluation of the simple merging
-algorithm presented in \Cref{sec:merging}. After collecting all the conflicts from the Github
-repostitories, we attempted to merge the structured diffs that our algorithm computes.
+algorithm presented in \Cref{sec:merging}. After collecting all the conflicts from the GitHub
+repositories, we attempted to merge the structured diffs that our algorithm computes.
 When this merge succeeded, we checked that the resulting merge
 square (\Cref{fig:merge-square}) commutes as expected.
 In this way, we were able to solve a total of 66 conflicts automatically, amounting to 11\% of
