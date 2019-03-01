@@ -1677,25 +1677,25 @@ that |p // p == id|, meaning that applying a patch over something that
 has been modified by this very patch amounts to not changing anything.
 
   Our trivial merge algorithm returns a conflict for non-disjoint
-patches, but this does not mean that it is impossible to merge
-them in general. Although a full discussion is out of the scope of this paper,
-there are a number of non-disjoint patches that can still be
-merged.  These non-trivial merges can be divided in two main
-situations: (A) there is no action needed even though patches are not disjoint,
-and (B) the relevant parts of a patch can be transported to operate on different parts
-tree automatically.  In \Cref{fig:merging-AB} we illustrate situations (A) and (B)
-in the merge square for two non-disjoint patches. In the top subfigure
-we see the residual returning the patch unaltered (case A). In this example,
-the patch in the `nominator' position is a simple swap of subtrees.
-This swap operation can be applied to every possible result of applying the second patch
-in the `denominator' of the residual. As a result, it computing the residual is easy:
-we simply return the first patch.
-In the second subfigure, however, the situation is reversed.
-In this case, however, we can apply the swap operation from the 
-`denominator' to the changes in the `nominator' --
-yielding a new patch that has the expected behaviour. In future work, we hope to identify
-the precise
-conditions under which two non-disjoint patches can be merged in this way.
+patches, but this does not mean that it is impossible to merge them in
+general. Although a full discussion is out of the scope of this paper,
+there are a number of non-disjoint patches that can still be merged.
+These non-trivial merges can be divided in two main situations: (A)
+there is no action needed even though patches are not disjoint, and
+(B) the relevant parts of a patch can be transported to operate on
+different parts tree automatically.  In \Cref{fig:merging-AB} we
+illustrate situations (A) and (B) in the merge square for two
+non-disjoint patches. In the top subfigure we see the residual
+returning the patch unaltered (case A). In this example, the patch in
+the `nominator' position is a simple swap of subtrees.  This swap
+operation can be applied to every possible result of applying the
+second patch in the `denominator' of the residual. As a result, it
+computing the residual is easy: we simply return the `nominator'
+patch.  In the second subfigure, however, the situation is reversed.
+The `denominator' patch must be applied to the `nominator' -- yielding
+a new patch that has the expected behavior. In future work, we hope
+to identify the precise conditions under which two non-disjoint
+patches can be merged in this way.
 
 
 \begin{figure}
