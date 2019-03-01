@@ -653,8 +653,12 @@ how to compute a |Patch23| given a |Change23| by \emph{minimizing} the
 changes and isolating them in the \emph{spine}. On this section we
 show how can we write that same algorithm in a generic fashion,
 working over any mutually recursive family.  The code in this section
-might look a bit daunting to the unfamiliar reader. It is safe to skip
-it on a first read.
+generalizes the example from the previous section, but we assume some
+familiarity with generic programming in modern Haskell.
+Readers unfamiliar with these concepts may safely skip this section
+on a first reading.
+% Wouter: slightly reworded -- if you say it's safe to skip,
+% you don't want reviewers complaining that you should have left it out.
 
 \subsection{Background on Generic Programming}
 \label{sec:generic-prog}
@@ -1678,21 +1682,25 @@ checks if two patches are $\alpha$-equivalent.
 
   Our trivial merge algorithm returns a conflict for non-disjoint
 patches, but this does not mean that it is impossible to merge
-them. Although a full discussion is out of the scope of this paper,
-there are a number of non-disjoint patches that are possible to be
+them in general. Although a full discussion is out of the scope of this paper,
+there are a number of non-disjoint patches that can still be
 merged.  These non-trivial merges can be divided in two main
-situations: (A) no action needed even though patches are not disjoint
-and (B) transport of pieces of a patch to different locations in the
-three.  In \Cref{fig:merging-AB} we illustrate situations (A) and (B)
+situations: (A) there is no action needed even though patches are not disjoint,
+and (B) the relevant parts of a patch can be transported to operate on different parts
+tree automatically.  In \Cref{fig:merging-AB} we illustrate situations (A) and (B)
 in the merge square for two non-disjoint patches. In the top subfigure
-we see the residual returning the patch unaltered (case A), this is
-because the domain of the patch in the `nominator' position accepts
-objects in the codomain of the `denominator'. Moreover, the `denominator'
-does \emph{not} alter the structure that the `nominator' expects
-in its spine. On the lower subfigure, however, the patches are reversed.
-The `denominator' now changes the structure that the `nominator' expected
-in its spine, and hence the `nominator' has to be adapted. This adaptation
-can be done by applying one patch to the other.
+we see the residual returning the patch unaltered (case A). In this example,
+the patch in the `nominator' position is a simple swap of subtrees.
+This swap operation can be applied to every possible result of applying the second patch
+in the `denominator' of the residual. As a result, it computing the residual is easy:
+we simply return the first patch.
+In the second subfigure, however, the situation is reversed.
+In this case, however, we can apply the swap operation from the 
+`denominator' to the changes in the `nominator' --
+yielding a new patch that has the expected behaviour. In future work, we hope to identify
+the precise
+conditions under which two non-disjoint patches can be merged in this way.
+
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/merge-01.pdf}
