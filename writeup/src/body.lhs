@@ -6,13 +6,13 @@
 
   The UNIX \texttt{diff}~\cite{McIlroy1976} is an essential tool in
 modern software development. It has seen a number of use cases ever
-since it was created but and is specially present in today's Software
-Version Control Systems. Tools such as git, mercurial and darcs, that
-enable multiple developers to collaborate effectively, are built
-around the UNIX \texttt{diff}, which is used to compute a patch
-between two versions of a file. It compares files on a line-by-line
-basis attempting to share as many lines as possible between the source
-and the destination files. 
+since it was created and lies at the heart of today's Software Version
+Control Systems.  Tools such as git, mercurial and darcs, that enable
+multiple developers to collaborate effectively, are all built around the
+UNIX \texttt{diff} utility, which is used to compute a patch between two
+versions of a file. It compares files on a line-by-line basis
+attempting to share as many lines as possible between the source and
+the destination files.
 
   A consequence of the \emph{by line} granularity of the UNIX
 \texttt{diff} is it inability to identify more fine grained changes in
@@ -1154,7 +1154,7 @@ progress further.
 the result of |change|, compute its \emph{greatest common prefix} and
 be done with it. This would yield a patch with potentially malformed
 changes. The |txGCD| function is not aware of metavariables
-and might break their scoping (\Cref{fig:patch-scoping-problem}). 
+and might break their scoping.
  
   Refining the result of |txGCP| is conceptually simple. All we have
 to do is bubble up the changes to a point where they are all \emph{closed},
@@ -1289,7 +1289,7 @@ closure  = either' (const $$ error "no closure exists") id
 the greatest common prefix of the change the comes from the |change|
 function.  In order to further enlarge the domain of our patches 
 we add a small additional step where we replace the opaque values
-in the spine for copies.
+in the spine with copies.
 
 \begin{myhs}
 \begin{code}
