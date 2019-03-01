@@ -649,8 +649,6 @@ type of contexts over |Tree23|, which consisted in annotating a
 existence of an oracle that determines whether or not an arbitrary
 tree is a subtree of the source and the destination, we compute a
 value of type |Change23 MetaVar| from a |Tree23|.  
-%todo isn't this a pair of Tree23?  
-%vcm: its a pair of Tree23"C" Finally, we described
 how to compute a |Patch23| given a |Change23| by \emph{minimizing} the
 changes and isolating them in the \emph{spine}. On this section we
 show how can we write that same algorithm in a generic fashion,
