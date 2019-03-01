@@ -1800,41 +1800,45 @@ and our trivial merging operation is  capable of merging
 changes where \texttt{diff3} fails. Yet there is still plenty of work to be done.
 
 \subsection*{Future Work}  
+%Wouter: I've made the subsections here subsection* -- you never need to refer to them by number
 
 \paragraph{Controlling Sharing}
-One interesting discussion point in the algorithm is how to control
-sharing. As it stands, the differencing algorithm will share anything
-that the oracle indicates as \emph{shareable}. This can be undesirable
-behavior. For example, we do not want to share \emph{all} occurrences
-of a variable in a program, but only those under the same scope.  That
-is, we want to respect the scope variables. Same applies for
-constants. There are a variety of options to enable this behavior.
-The easiest seems to be changing the oracle. Making a custom oracle
-that keeps track of scope and hashes occurrences of the same identifier
-under a different scope differently will ensure that the scoping is
-respected, for instance. Another option would be consider abstract syntax trees
-with explicit binding.
+One interesting direction for further work is how to control
+the sharing of subtrees. As it stands, the differencing algorithm will share every
+subtree that occurs in both the source and destination files. This can lead to undesirable
+behavior. For example, we may not want to share \emph{all} occurrences
+of a variable within a program, but rather only share occurrences of a variable with the same binder.  That
+is, sharing should respect the scope variables. A similar question arises with
+constants -- should all occurrences of the number |1| be shared?
+
+There are a variety of options to customize the sharing behavior of our algorithm.
+One way to do so would allow the definition of a custom oracle
+that is scope-aware. By hashing both the identifier name and its binder,
+we can ensure that variables are not shared over scope boundaries.
+Another option would be consider abstract syntax trees
+that make the binding structure of variables explicit.
 
 \paragraph{Better Merge Algorithm}
 The merging algorithm presented in \Cref{sec:merging} only handles trivial cases.
-Being able to handle the non trivial cases is the current topic of research
-at the time of writing this paper. We wish to better understand the operation
-of merging patches. It seems to share a number of properties from unification theory,
-residual systems, rewriting systems and we would like to look into this 
-in more detail. This would enable us to better pinpoint the role
-that merging plays within our meta-theory, that is, one would expect that it would
-have some resemblance to a pushout as in \cite{Mimram2013}. 
+Being able to merge patches that are not disjoint is the subject of ongoing research.
+The problem seems related to unification,
+residual systems, and rewriting systems. We hope that relating the merging problem to these
+settings might help nail down the necessary conditions for merging to succeed.
+One would expect that it would
+have some resemblance to a pushout, as in pointed out by Mimram and Di Giusto~\cite{Mimram2013}. 
 
 \paragraph{Automatic Merge Strategies}
-Besides improving on the fully generic algorithm, though, we would like to
-have a language to specify domain specific strategies for conflict resolution.
+We would like to
+develop a language to specify domain specific strategies for conflict resolution.
 For instance, whenever the merging tool finds a conflict in the \texttt{build-depends}
-section of a cabal file, it tries sorting the packages alphabetically and keeping
-the ones with the higher version number. Ideally, these rules should be simple to
-write and would allow a high degree of customization.
+section of a cabal file, it might try sorting the packages alphabetically and keeping
+the conflicting packages with the higher version number. Ideally, these rules should be simple to
+write, yet still allow a high degree of customization.
 
 \paragraph{Formalization and Meta-theory}
-We would be happy to engage in a formal verification of our work. This could
+We would be happy to engage in a formal verification of our work.
+%Wouter what does this even mean? Proving the diff-apply laws?
+This could
 be achieved by rewriting our code in Agda~\cite{Norell2009} whilst proving
 the correctness properties we desire. This process would provide
 invaluable insight into developing the meta-theory of our system.
@@ -1843,86 +1847,95 @@ invaluable insight into developing the meta-theory of our system.
 Our prototype is built on top of \texttt{generics-mrsop}, a generic
 programming library for handling mutually recursive families in the
 sums of products style. With recent advances in generic
-programming~\cite{Serrano2018}, we can think about go a step further
-and extend the library to handle mutually recursive families that have
-\texttt{GADTs} inside. 
+programming~\cite{Serrano2018}, we might be able to extend 
+our algorithm to handle mutually recursive families that have
+\texttt{GADTs}.
 
-\subsection{Related Work}
+\subsection*{Related Work}
 \label{sec:related-work}
 
-  The work related to ours can be divided in the typed and untyped
-variants. The untyped tree differencing problem was introduced in 1979
+  Related work can be classified in the treatment of types.
+The untyped tree differencing problem was introduced in 1979
 \cite{Tai1979} as a generalization of the longest common subsequence
 problem~\cite{Bergroth2000}. There has been a significant body of work
 on the untyped tree differencing
-problem~\cite{Demaine2007,Klein1998,Akutsu2010}, but these hardly transport
-to the typed variant, that is, when the transformations are
-guaranteed to produce well-typed trees.
+problem~\cite{Demaine2007,Klein1998,Akutsu2010}, but these results
+do not transport
+to the typed setting: the transformations that are computed
+are not guaranteed to produce well-typed trees.
 
-  The first attempt was done by Lempsink and L\"{o}h~\cite{Loh2009},
+  The first datatype generic algorithm was presented by Lempsink and L\"{o}h~\cite{Loh2009},
 which was later extended by Vassena~\cite{Vassena2016}. Their work
-consists largely in using the same algorithm as \texttt{diff} in the
-flattened representations of a tree. The main observation is that
+consists largely in using the same algorithm as \texttt{diff} on the
+flattened representation of a tree. The main observation is that
 basic operations (insertion, deletion and copy) can be shown to be
-well-typed when operating on flattened representations. Although one
+well-typed when operating on these flattened representations. Although one
 could compute differences with reasonably fast algorithms, merging
 these changes is fairly difficult and in some cases might be
-impossible~\cite{Vassena2016}. A different attempt was done by Miraldo
-et al.~\cite{Miraldo2017}, where the authors defined
+impossible~\cite{Vassena2016}. Miraldo
+et al.~\cite{Miraldo2017} take a slightly different approach, defining
 operations that work directly on tree shaped data. Using this
 approach, changes become easier to merge but harder to compute.
 Both bodies of work follow the same general idea as the untyped
-variants: compute all possible patches and filter out the bad ones.
+variants: compute all possible patches and select the `best' patch from these alternatives.
+%Wouter: is this still in the intro?
 As we have already mentioned (\Cref{sec:introduction}), this is not an optimal
-strategy. The number of patches explodes and defining \emph{the best} is
-impossible without heuristics using only insertions, deletions and copies.
+strategy. The number of patches grows explosively and defining the \emph{best} patch
+using insertions, deletions and copies
+is
+impossible without further heuristics .
 
-  Of the untyped variant, the work of Asenov et al.~\cite{Asenov2017}
-is worth mentioning as it uses and interesting technique: it
-represents trees in an flattened fashion with some extra information,
-then uses the UNIX \texttt{diff} tool to find the differences. Finally, it
-transports the changes back to the tree shaped data using the additional
-information. The authors also identify a number of interesting situations
-that occur when merging tree differences. Another important mention
-is the \texttt{gumtree}~\cite{Falleri2014} project, which uses its own
+  The work of Asenov et al.~\cite{Asenov2017}
+is also untyped, but uses a different technique for finding the diff: it
+flattens trees and embellishes the resulting lists with additional annotations,
+and then uses the UNIX \texttt{diff} tool to compute patches. Finally, it
+transports the changes back to the tree-shaped datatypes using the 
+annotations that were added. The authors identify a number of interesting situations
+that occur when merging tree differences. 
+The \texttt{gumtree}~\cite{Falleri2014} project, explores a similar line of work,
+but uses its own
 algorithm for computing graph transformations between untyped representations
 of abstract syntax trees. 
 
-  From a more theoretical point of view it is also important to
-mention the work of Mimram and De Giusto~\cite{Mimram2013}, where the
-authors model line-based patches in a categorical fashion. This
-inspired the version control system \texttt{pijul}. Swierstra
-and L\"{o}h~\cite{Swierstra2014} propose an interesting meta-theory
-for version control of structured data based on separation logic to
-model disjoint changes. Lastly, Angiuli et al.~\cite{Angiuli2014}
-describes a patch theory based on homotopical type theory.
-The version control system \texttt{darcs}~\cite{Darcs} also uses
-a more formal approach in its meta-theory of patches, but the patches
-themselves are still working on the line level, they are not structure aware.
+There have been several different approaches to formalizing a theory of patches.
+The version control system \texttt{darcs}~\cite{Darcs} was one of the first
+to present a more formal theory of patches, but the patches
+themselves were still line-based.
+Mimram and De Giusto~\cite{Mimram2013} have developed a theoretical model
+of line-based patches in a categorical fashion. This
+has inspired the version control system \texttt{pijul}.
+%wouter: citation for pijul?
+Swierstra
+and L\"{o}h~\cite{Swierstra2014} have proposed using
+separation logic to define a meta-theory of patches and merging.
+Finally, Angiuli et al.~\cite{Angiuli2014}
+describe a patch theory based on homotopy type theory.
 
-\subsection{Conclusions}
+\subsection*{Conclusions}
 \label{sec:conclusions}
 
   Throughout this paper we have developed an efficient type-directed 
-algorithm for computing structured differences for a whole class of datatypes,
-namely, mutually recursive families. This class of types is sufficient
-for representing programming languages and, hence, our algorithm can
-be readily used to compute differences over a number of abstract
-syntax trees out of the box.  We validated our implementation by
-computing diffs over Lua~\cite{Lua} source files obtained from various
-repositories on GitHub. Finally, we shown how our representation
-of changes makes it very easy to merge trivially disjoint patches.
-We have also seen that about one tenth of the merge conflicts from
-the top Lua repositories on GitHub fall under this ``trivially disjoint''
-classification.
+algorithm for computing structured differences for a large class of algebraic datatypes,
+namely, mutually recursive families. This class of types can
+represent the abstract syntax tree of most programming languages and, hence, our algorithm can
+be readily instantiated to compute the difference between programs written in these languages.
+We have validated our implementation by
+computing diffs between Lua~\cite{Lua} source files obtained from various
+repositories on GitHub; the algorithm's run-time is acceptable, and even a naive
+merging algorithm already offers a substantial improvement over existing technology.
+Together, these results demonstrate both a promising direction for further research
+and a novel application of
+the generic programming technology that is readily available in today's functional languages.
 
-  In order to bridge the gap between a theoretical algorithm and
-a practical, efficient, implementation we had to borrow techniques from
-cryptography and programming languages to define a generic function
-that answers whether some value is occurs as a subtree of two values:
-a source and a destination.  It is worth to mention that without
-a tool with similar capabilities as Haskell, the generic development
-would have been impossible. 
+
+
+%   To bridge the gap between a theoretical algorithm and
+% a practical, efficient, implementation we had to borrow techniques from
+% cryptography and programming languages to define a generic function
+% that answers whether some value is occurs as a subtree of two values:
+% a source and a destination.  It is worth to mention that without
+% a tool with similar capabilities as Haskell, the generic development
+% would have been impossible. 
 
 
 %%% Local Variables:
