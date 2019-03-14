@@ -36,6 +36,7 @@ import Data.Digems.MetaVar
 
 import Debug.Trace
 
+
 -- * Merging Treefixes
 --
 -- $mergingtreefixes
@@ -160,7 +161,7 @@ isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange 
 isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP sp sq)
   where
     domAccepts (UTxHole h) (UTxHole chgQ)
-      = _
+      = False
     -- a hole accepts anything
     domAccepts (UTxHole h) s          = trace ("$$$\n" ++ show1 h ++ "\n$$$\n" ++ show1 s) True
     -- If we are going to apply over some unrestricted

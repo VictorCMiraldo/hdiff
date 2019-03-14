@@ -22,6 +22,10 @@ import           Data.Exists
 import           Data.Digems.MetaVar
 import           Generics.MRSOP.Digems.Treefix
 
+-- this has the Show1 (Const a) instance
+import Generics.MRSOP.AG
+
+
 -- |A 'CChange', or, closed change, consists in a declaration of metavariables
 --  and two contexts. The precondition is that every variable declared
 --  occurs at least once in ctxDel and that every variable that occurs in ctxIns
