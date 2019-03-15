@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE TypeOperators #-}
@@ -47,9 +50,9 @@ import Debug.Trace
 -- |Hence, a conflict is simply two changes together.
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
   Conflict :: String
-           -> CChange        ki codes at
-           -> CChange        ki codes at
-           -> Conflict       ki codes at
+           -> RawPatch ki codes at
+           -> RawPatch ki codes at
+           -> Conflict ki codes at
 
 -- |A 'PatchC' is a patch with potential conflicts inside
 type PatchC ki codes ix
@@ -74,8 +77,9 @@ getConflicts = snd . runWriter . utxMapM go
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
-(//) :: ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes 
-        , UTxTestEqualityCnstr ki (CChange ki codes))
+(//) :: ( Applicable ki codes (UTx2 ki codes)
+        , HasDatatypeInfo ki fam codes 
+        )
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
@@ -87,8 +91,9 @@ p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
 --  Precondition: before calling @reconcile p q@, make sure
 --                @p@ and @q@ are different.
 reconcile :: forall ki codes fam at
-           . ( Show1 ki , Eq1 ki , HasDatatypeInfo ki fam codes 
-             , UTxTestEqualityCnstr ki (CChange ki codes))
+           . ( Applicable ki codes (UTx2 ki codes)
+             , HasDatatypeInfo ki fam codes 
+             ) 
           => RawPatch ki codes at
           -> RawPatch ki codes at
           -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
@@ -102,21 +107,122 @@ reconcile p q
   -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
     -- First we translate both patches to a 'spined change' representation.
-    let sp0 = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
-        sq  = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
-        -- Now, we refine 'sp0' to the domain of sq. The deletion
-        -- context can be seen as a representation of the domain. The idea
-        -- of this process is that if 'sp0' copies a subtree that 'sq'
-        -- requires to be of a given shape, we can speclialize that copy
-        -- to be of the required shape, essentially shrinking the domain of sp0
-        sp = sp0 -- sp0 `refinedFor` scDel sq
-     in if sp `isShorterThan` sq
+    let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
+        sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
+     in case process sp sq of
+          CantReconcile     -> UTxHole $ InL $ Conflict "conf" p q
+          ReturnNominator   -> utxMap InR p
+          InstDenominator v -> UTxHole $
+            case runExcept $ transport (scIns sq) v of
+              Left err -> InL $ Conflict (show err) p q
+              Right r  -> InR $ utx2change r
+          
+
+type UTx2 ki codes
+  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
+type UTxUTx2 ki codes
+  = UTx ki codes (UTx2 ki codes)
+
+utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
+utx2distr x = (scDel x :*: scIns x)
+
+instance (Eq1 f , Eq1 g) => Eq1 (f :*: g) where
+  eq1 (fx :*: gx) (fy :*: gy) = eq1 fx fy && eq1 gx gy
+
+instance (TestEquality f) => TestEquality (f :*: g) where
+  testEquality x y = testEquality (fst' x) (fst' y)
+
+instance HasIKProjInj ki (UTx2 ki codes) where
+  konInj  ki = (konInj ki :*: konInj ki)
+  varProj p (f :*: _) = varProj p f
+
+utx2change :: UTxUTx2 ki codes at -> CChange ki codes at
+utx2change x = cmatch (scDel x) (scIns x)
+
+data ProcessOutcome ki codes
+  = ReturnNominator
+  | InstDenominator (Subst ki codes (UTx2 ki codes))
+  | CantReconcile
+
+fst' :: (f :*: g) x -> f x
+fst' (a :*: _) = a
+
+snd' :: (f :*: g) x -> g x
+snd' (_ :*: b) = b
+
+scDel :: SpinedChange ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scDel = utxJoin . utxMap fst' 
+
+scIns :: SpinedChange ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scIns = utxJoin . utxMap snd'
+
+-- |This will process two changes, represented as a spine and
+-- inner changes, into a potential merged patch. The result of @process sp sq@
+-- is supposed to be applicable to the codomain of @sq@
+process :: (Applicable ki codes (UTx2 ki codes))
+        => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
+        -> ProcessOutcome ki codes
+process sp sq =
+  let aux = utxGetHolesWithM' (uncurry' isSmaller) $ utxLCP sp sq
+   in case runState (fmap mboolsum aux) M.empty of
+        (Just True,  _) -> ReturnNominator
+        (Just False, s) -> InstDenominator s
+        (Nothing,    _) -> CantReconcile
+ where
+   mboolsum :: [Maybe Bool] -> Maybe Bool
+   mboolsum = fmap and . sequence
+    
+   isSmaller :: (Applicable ki codes (UTx2 ki codes))
+             => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
+             -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
+   isSmaller (UTxHole pp) (UTxHole qq)
+     | isLocalIns pp && isLocalIns qq = return Nothing
+     | otherwise                      = instRight (UTxHole pp) qq
+                                     >> return (Just True)
+   isSmaller (UTxHole pp) qq = instRight (UTxHole pp) (utx2distr qq) 
+                            >> return (Just True)
+   isSmaller pp (UTxHole qq) = instRight pp qq
+                            >> return (Just $ rawCpy qq)
+   isSmaller _ _ = return $ Just False
+
+   instRight :: (Applicable ki codes (UTx2 ki codes))
+             => UTxUTx2 ki codes at -> UTx2 ki codes at
+             -> State (Subst ki codes (UTx2 ki codes)) ()
+   instRight l r = do
+     s <- get
+     case runExcept (pmatch' s (fst' r) l) of
+       Left err -> trace "here" $ return () -- what to do here?
+       Right r  -> put r
+       
+   isLocalIns :: (UTx ki codes phi :*: UTx ki codes phi) at -> Bool
+   isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
+   isLocalIns _                           = False
+
+{-
+
+    domAccepts (UTxHole h) (UTxHole chgQ)
+      = let r =not (isLocalIns h && isLocalIns chgQ)
+         in trace ("$$$\n" ++ show1 h ++ "\n$$$\n" ++ show1 chgQ ++ "\n" ++ show r) r
+    -- a hole accepts anything
+    domAccepts (UTxHole h) s          = trace ("$$$\n" ++ show1 h ++ "\n$$$\n" ++ show1 s) True
+    -- If we are going to apply over some unrestricted
+    -- value, we can also consider our domain accepts it.
+    domAccepts domP sQ@(UTxHole chgQ) = rawCpy chgQ
+    -- Otherwise, we don't accept
+    domAccepts domP sQ                = False
+
+-}
+      {- if sp `isShorterThan` sq
         then trace "ist" $ utxMap InR p -- utxMap InR $ close (utxMap (uncurry' change) sp)
         else let cq = CMatch S.empty (scDel sq) (scIns sq)
                  cp = CMatch S.empty (scDel sp) (scIns sp)
               in case metaApply cp cq of
                    Left  err -> UTxHole $ InL (Conflict (show err) cp cq)
                    Right res -> UTxHole $ InR res
+      -}
+
 
 refinedFor :: (Eq1 ki)
            => SpinedChange ki codes at
@@ -161,7 +267,8 @@ isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange 
 isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP sp sq)
   where
     domAccepts (UTxHole h) (UTxHole chgQ)
-      = not (isLocalIns h && isLocalIns chgQ)
+      = let r =not (isLocalIns h && isLocalIns chgQ)
+         in trace ("$$$\n" ++ show1 h ++ "\n$$$\n" ++ show1 chgQ ++ "\n" ++ show r) r
     -- a hole accepts anything
     domAccepts (UTxHole h) s          = trace ("$$$\n" ++ show1 h ++ "\n$$$\n" ++ show1 s) True
     -- If we are going to apply over some unrestricted
@@ -176,20 +283,6 @@ isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP sp 
 
 instance (Show1 f , Show1 g) => Show1 (f :*: g) where
   show1 (fx :*: gx) = "(" ++ show1 fx ++ " :*: " ++ show1 gx ++ ")"
-
-fst' :: (f :*: g) x -> f x
-fst' (a :*: _) = a
-
-snd' :: (f :*: g) x -> g x
-snd' (_ :*: b) = b
-
-scDel :: SpinedChange ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scDel = utxJoin . utxMap fst' 
-
-scIns :: SpinedChange ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scIns = utxJoin . utxMap snd'
 
 
 {-

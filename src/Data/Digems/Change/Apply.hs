@@ -103,31 +103,31 @@ pmatch :: (Applicable ki codes phi)
        => UTx ki codes (MetaVarIK ki) ix
        -> UTx ki codes phi ix
        -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
-pmatch pat = go M.empty pat
-  where
-    go :: (Applicable ki codes phi)
-       => Subst ki codes phi
-       -> UTx ki codes (MetaVarIK ki) ix
-       -> UTx ki codes phi ix
-       -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
-    go s (UTxHole var) x  = substInsert s var x
-    go s pa (UTxHole var)
-      -- When we are trying to match a pattern @pa@ against a hole
-      -- we must make some occurs check over this pattern and make
-      -- sure @pa@ does not bind any variable. Otherwise, we'll
-      -- end up with an 'UndefinedVariable' in the transport phase.
-      | utxArity pa == 0 = return s
-      | otherwise        = throwError (IncompatibleHole pa var)
-    go s (UTxOpq oa) (UTxOpq ox)
-      | eq1 oa ox = return s
-      | otherwise = throwError (IncompatibleOpqs oa ox)
-    go s pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
-      case testEquality ca cx of
-        Nothing   -> throwError (IncompatibleTerms pa x)
-        Just Refl -> getConst <$>
-          cataNPM (\y (Const val) -> fmap Const (uncurry' (go val) y))
-                  (return $ Const s)
-                  (zipNP ppa px)
+pmatch pat = pmatch' M.empty pat
+
+pmatch' :: (Applicable ki codes phi)
+   => Subst ki codes phi
+   -> UTx ki codes (MetaVarIK ki) ix
+   -> UTx ki codes phi ix
+   -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
+pmatch' s (UTxHole var) x  = substInsert s var x
+pmatch' s pa (UTxHole var)
+  -- When we are trying to match a pattern @pa@ against a hole
+  -- we must make some occurs check over this pattern and make
+  -- sure @pa@ does not bind any variable. Otherwise, we'll
+  -- end up with an 'UndefinedVariable' in the transport phase.
+  | utxArity pa == 0 = return s
+  | otherwise        = throwError (IncompatibleHole pa var)
+pmatch' s (UTxOpq oa) (UTxOpq ox)
+  | eq1 oa ox = return s
+  | otherwise = throwError (IncompatibleOpqs oa ox)
+pmatch' s pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
+  case testEquality ca cx of
+    Nothing   -> throwError (IncompatibleTerms pa x)
+    Just Refl -> getConst <$>
+      cataNPM (\y (Const val) -> fmap Const (uncurry' (pmatch' val) y))
+              (return $ Const s)
+              (zipNP ppa px)
 
 -- |Given a 'MetaVarIK' and a 'UTx', decide whether their indexes
 -- are equal.

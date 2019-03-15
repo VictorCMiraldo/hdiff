@@ -61,6 +61,9 @@ instance (Eq1 phi , Eq1 ki) => Eq (UTx ki codes phi ix) where
       cmp (UTxOpq  x) (UTxOpq  y) = eq1 x y
       cmp _           _           = False
 
+instance (Eq1 phi , Eq1 ki) => Eq1 (UTx ki codes phi) where
+  eq1 utx uty = utx == uty
+
 -- |Returns the index of the UTx as a singleton.
 getUTxSNat :: (IsNat ix) => UTx ki codes f (I ix) -> SNat ix
 getUTxSNat _ = getSNat (Proxy :: Proxy ix)
@@ -164,6 +167,20 @@ utxGetHolesWith' tr = flip execState [] . utxMapM (getHole tr)
             -> f ix
             -> State [r] (f ix)
     getHole f x = modify (f x :) >> return x
+
+utxGetHolesWithM' :: (Monad m)
+                  => (forall ix . f ix -> m r)
+                  -> UTx ki codes f at
+                  -> m [r]
+utxGetHolesWithM' tr = flip execStateT [] . utxMapM (getHole tr)
+  where
+    -- Gets all holes from a treefix.
+    getHole :: (Monad m)
+            => (forall at . f at -> m r)
+            -> f ix
+            -> StateT [r] m (f ix)
+    getHole f x = lift (f x) >>= modify . (:) >> return x
+
 
 -- |Returns how many holes are inside a treefix
 utxArity :: UTx ki codes f at -> Int
