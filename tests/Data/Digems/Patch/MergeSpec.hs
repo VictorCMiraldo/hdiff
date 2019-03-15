@@ -193,6 +193,37 @@ a10 = "x" :>: [ "u" :>: []  , "a" :>: [] , "k" :>: []]
 o10 = "x" :>: [ "u" :>: []  , "k" :>: []]
 b10 = "x" :>: [ "u" :>: []  , "b" :>: [] , "k" :>: []]
 
+------------------------------
+-- Example 11
+
+a11 , o11 , b11 :: RTree
+a11 = "x" :>: [ "u" :>: []  , "a" :>: []]
+o11 = "x" :>: [ "u" :>: []  , "b" :>: []]
+b11 = "x" :>: [ "u" :>: []  , "c" :>: []]
+
+-----------------------------
+-- Example 12
+
+a12 , o12 , b12 :: RTree
+a12 = "f" :>: ["j" :>: []]
+o12 = "f" :>: ["a" :>: []]
+b12 = "e" :>: []
+
+----------------------------
+-- Example 13
+
+a13 , o13 , b13 :: RTree
+a13 = "a" :>: []
+o13 = "d" :>: ["i" :>: []]
+b13 = "a" :>: ["j" :>: ["i" :>: []]]
+
+---------------------------
+-- Example 14
+
+a14 , o14 , b14 :: RTree
+a14 = "l" :>: []
+o14 = "k" :>: ["b" :>: [],"l" :>: []]
+b14 = "f" :>: ["k" :>: [],"b" :>: []]
 
 
 oa9 = digemRTree o9 a9
@@ -210,8 +241,15 @@ ob7 = digemRTree o7 b7
 oa6 = digemRTree o6 a6
 ob6 = digemRTree o6 b6
 
-oa10 = digemRTree o10 a10
-ob10 = digemRTree o10 b10
+oa12 = digemRTree o12 a12
+ob12 = digemRTree o12 b12
+
+oa13 = digemRTree o13 a13
+ob13 = digemRTree o13 b13
+
+oa14 = digemRTree o14 a14
+ob14 = digemRTree o14 b14
+
 
 spec :: Spec
 spec = do
@@ -231,3 +269,10 @@ spec = do
     mustMerge "09" a9 o9 b9
 
     expectMerge HasConflicts "10" a10 o10 b10
+    expectMerge HasConflicts "11" a11 o11 b11
+    expectMerge HasConflicts "12" a12 o12 b12
+    expectMerge HasConflicts "13" a13 o13 b13
+
+  describe "merge: conflict or ok" $ do
+    it "contains no apply fail or merge differs" $ property $
+      \(a , o , b) -> doMerge a o b `elem` [MergeOk , HasConflicts]
