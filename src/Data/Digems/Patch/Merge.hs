@@ -161,7 +161,7 @@ isShorterThan :: (Eq1 ki, Show1 ki) => SpinedChange ki codes at -> SpinedChange 
 isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP sp sq)
   where
     domAccepts (UTxHole h) (UTxHole chgQ)
-      = False
+      = not (isLocalIns h && isLocalIns chgQ)
     -- a hole accepts anything
     domAccepts (UTxHole h) s          = trace ("$$$\n" ++ show1 h ++ "\n$$$\n" ++ show1 s) True
     -- If we are going to apply over some unrestricted
@@ -169,6 +169,10 @@ isShorterThan sp sq = and $ utxGetHolesWith' (uncurry' domAccepts) $ (utxLCP sp 
     domAccepts domP sQ@(UTxHole chgQ) = rawCpy chgQ
     -- Otherwise, we don't accept
     domAccepts domP sQ                = False
+
+    isLocalIns :: (UTx ki codes phi :*: UTx ki codes phi) at -> Bool
+    isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
+    isLocalIns _                           = False
 
 instance (Show1 f , Show1 g) => Show1 (f :*: g) where
   show1 (fx :*: gx) = "(" ++ show1 fx ++ " :*: " ++ show1 gx ++ ")"
