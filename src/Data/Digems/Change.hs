@@ -40,12 +40,17 @@ data CChange ki codes at where
 -- |smart constructor for 'CChange'. Enforces the invariant
 cmatch :: UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at
        -> CChange ki codes at
-cmatch del ins =
+cmatch del ins = maybe (error "Data.Digems.Change.cmatch: invariant failure") id
+               $ cmatch' del ins
+
+cmatch' :: UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at
+        -> Maybe (CChange ki codes at)
+cmatch' del ins =
   let vi = utxGetHolesWith Exists ins
       vd = utxGetHolesWith Exists del
    in if vi == vd
-      then CMatch vi del ins
-      else error "Data.Digems.Change.cmatch: invariant failure"
+      then Just $ CMatch vi del ins
+      else Nothing
 
 unCMatch :: CChange ki codes at -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
 unCMatch (CMatch _ del ins) = del :*: ins

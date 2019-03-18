@@ -117,7 +117,9 @@ reconcile p q
           InstDenominator v -> UTxHole $
             case runExcept $ transport (scIns sq) v of
               Left err -> InL $ Conflict (show err) p q
-              Right r  -> InR $ utx2change r
+              Right r  -> case utx2change r of
+                            Nothing  -> InL $ Conflict "chg" p q
+                            Just res -> InR res
 
 type UTx2 ki codes
   = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
@@ -140,8 +142,8 @@ instance HasIKProjInj ki (UTx2 ki codes) where
   konInj  ki = (konInj ki :*: konInj ki)
   varProj p (f :*: _) = varProj p f
 
-utx2change :: UTxUTx2 ki codes at -> CChange ki codes at
-utx2change x = cmatch (scDel x) (scIns x)
+utx2change :: UTxUTx2 ki codes at -> Maybe (CChange ki codes at)
+utx2change x = cmatch' (scDel x) (scIns x)
 
 data ProcessOutcome ki codes
   = ReturnNominator
@@ -194,36 +196,33 @@ process sp sq =
               => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
               -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
    isSmaller' pp qq
-     = trace ("Looking at:\n" ++ show1 pp ++ "\n$$$\n" ++ show1 qq) (isSmaller pp qq)
+     -- | isLocalIns pp && isLocalIns qq = return Nothing
+     -- | divergingOpaques pp qq         = return Nothing
+     | not $ compat (scIns pp) (scIns qq)
+       = return Nothing
+     | otherwise
+       = -- trace ("Looking at:\n" ++ show1 pp ++ "\n$$$\n" ++ show1 qq)
+         isSmaller pp qq
+    
 
    isSmaller :: (Applicable ki codes (UTx2 ki codes))
              => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
              -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
-   isSmaller (UTxHole pp) (UTxHole qq)
-     -- | isLocalIns pp && isLocalIns qq = return Nothing
-     -- | divergingOpaques pp qq         = return Nothing
-     | compat (snd' pp) (snd' qq)     = instRight (UTxHole pp) qq
-                                     >> return (Just True)
-     | otherwise                      = return Nothing
-   isSmaller (UTxHole pp) qq
-     | compat (snd' pp) (scIns qq)    = instRight (UTxHole pp) (utx2distr qq) 
-                                     >> return (Just True)
-     | otherwise                      = return Nothing
-   isSmaller pp (UTxHole qq)
-     | compat (scIns pp) (snd' qq)    = instRight pp qq
-                                     >> trace "aha" (return (Just $ rawCpy qq))
-     | otherwise                      = return Nothing
-   isSmaller _ _ = return $ Just False
+   isSmaller (UTxHole pp) (UTxHole qq) = instRight (UTxHole pp) qq
+   isSmaller (UTxHole pp) qq           = instRight (UTxHole pp) (utx2distr qq) 
+   isSmaller pp (UTxHole qq)           = instRight pp qq >> return (Just $ rawCpy qq)
+   isSmaller _ _                       = return $ Just False
 
    instRight :: (Applicable ki codes (UTx2 ki codes))
              => UTxUTx2 ki codes at -> UTx2 ki codes at
-             -> State (Subst ki codes (UTx2 ki codes)) ()
+             -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
    instRight l r = do
      s <- get
      let l' = l `refinedFor` (fst' r)
      case runExcept (pmatch' s (fst' r) l') of
-       Left err -> trace "finally" (return ()) -- should we fail here?
-       Right r  -> put r
+       Left (IncompatibleHole _ _) -> return (Just True)
+       Left  _  -> return Nothing
+       Right r  -> put r >> return (Just True)
 
    compat :: (Eq1 ki)
           => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool

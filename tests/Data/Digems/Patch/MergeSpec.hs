@@ -250,6 +250,10 @@ ob13 = digemRTree o13 b13
 oa14 = digemRTree o14 a14
 ob14 = digemRTree o14 b14
 
+gen3Trees :: Gen (RTree , RTree , RTree)
+gen3Trees = choose (0 , 4)
+        >>= genSimilarTreesN 3
+        >>= \[a , o , b] -> return (a , o , b)
 
 spec :: Spec
 spec = do
@@ -272,7 +276,9 @@ spec = do
     expectMerge HasConflicts "11" a11 o11 b11
     expectMerge HasConflicts "12" a12 o12 b12
     expectMerge HasConflicts "13" a13 o13 b13
+    expectMerge HasConflicts "14" a14 o14 b14
 
   describe "merge: conflict or ok" $ do
     it "contains no apply fail or merge differs" $ property $
-      \(a , o , b) -> doMerge a o b `elem` [MergeOk , HasConflicts]
+      forAll gen3Trees $ \(a , o , b)
+        -> doMerge a o b `elem` [MergeOk , HasConflicts]
