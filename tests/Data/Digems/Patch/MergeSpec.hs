@@ -233,6 +233,14 @@ a15 = "g" :>: []
 o15 = "i" :>: ["g" :>: [],"c" :>: []]
 b15 = "g" :>: ["k" :>: [],"l" :>: []]
 
+------------------------
+-- Example 16
+
+a16 , o16 , b16 :: RTree
+a16 = "j" :>: []
+o16 = "g" :>: ["f" :>: [],"j" :>: []]
+b16 = "e" :>: ["a" :>: [],"a" :>: [],"f" :>: []]
+
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
 
@@ -260,6 +268,8 @@ ob14 = digemRTree o14 b14
 oa15 = digemRTree o15 a15
 ob15 = digemRTree o15 b15
 
+oa16 = digemRTree o16 a16
+ob16 = digemRTree o16 b16
 
 
 gen3Trees :: Gen (RTree , RTree , RTree)
@@ -290,8 +300,11 @@ spec = do
     expectMerge HasConflicts "13" a13 o13 b13
     expectMerge HasConflicts "14" a14 o14 b14
     expectMerge HasConflicts "15" a15 o15 b15
+    expectMerge HasConflicts "16" a16 o16 b16
 
+{-
   describe "merge: conflict or ok" $ do
     it "contains no apply fail or merge differs" $ property $
       forAll gen3Trees $ \(a , o , b)
         -> doMerge a o b `elem` [MergeOk , HasConflicts]
+-}
