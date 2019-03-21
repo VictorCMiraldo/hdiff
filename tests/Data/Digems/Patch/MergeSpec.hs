@@ -225,6 +225,13 @@ a14 = "l" :>: []
 o14 = "k" :>: ["b" :>: [],"l" :>: []]
 b14 = "f" :>: ["k" :>: [],"b" :>: []]
 
+---------------------------
+-- Example 15
+
+a15 , o15 , b15 :: RTree
+a15 = "g" :>: []
+o15 = "i" :>: ["g" :>: [],"c" :>: []]
+b15 = "g" :>: ["k" :>: [],"l" :>: []]
 
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
@@ -249,6 +256,11 @@ ob13 = digemRTree o13 b13
 
 oa14 = digemRTree o14 a14
 ob14 = digemRTree o14 b14
+
+oa15 = digemRTree o15 a15
+ob15 = digemRTree o15 b15
+
+
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
@@ -277,6 +289,7 @@ spec = do
     expectMerge HasConflicts "12" a12 o12 b12
     expectMerge HasConflicts "13" a13 o13 b13
     expectMerge HasConflicts "14" a14 o14 b14
+    expectMerge HasConflicts "15" a15 o15 b15
 
   describe "merge: conflict or ok" $ do
     it "contains no apply fail or merge differs" $ property $

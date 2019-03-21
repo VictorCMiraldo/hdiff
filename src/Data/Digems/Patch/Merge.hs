@@ -168,6 +168,10 @@ rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bo
 rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
 rawCpy _                           = False
 
+rawCpy' :: UTxUTx2 ki codes at -> Bool
+rawCpy' (UTxHole v) = rawCpy v
+rawCpy' _           = False
+
 -- |This will process two changes, represented as a spine and
 -- inner changes, into a potential merged patch. The result of @process sp sq@
 -- is supposed to instruct how to construct a patch that
@@ -191,6 +195,23 @@ process sp sq =
  where
    mboolsum :: [Maybe Bool] -> Maybe Bool
    mboolsum = fmap and . sequence
+
+   delMod :: (Eq1 ki) => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
+   delMod pp qq = and $ utxGetHolesWith' (uncurry' go) (utxLCP (scDel pp) qq)
+     where go :: (Eq1 ki)
+              => UTx ki codes (MetaVarIK ki) at
+              -> UTxUTx2 ki codes at
+              -> Bool
+           go (UTxHole _) _ = False
+           go _ (UTxHole (UTxHole _ :*: _)) = False
+           go r (UTxHole v) = and $ utxGetHolesWith' (uncurry' go') (utxLCP r (fst' v))
+           go _ _           = True
+
+           go' :: UTx ki codes (MetaVarIK ki) at
+               -> UTx ki codes (MetaVarIK ki) at
+               -> Bool
+           go' (UTxPeel _ _) (UTxHole _) = True
+           go' _ _ = False
     
    isSmaller' :: (Applicable ki codes (UTx2 ki codes))
               => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
@@ -198,10 +219,13 @@ process sp sq =
    isSmaller' pp qq
      -- | isLocalIns pp && isLocalIns qq = return Nothing
      -- | divergingOpaques pp qq         = return Nothing
-     | not $ compat (scIns pp) (scIns qq)
+     | not (compat (scIns pp) (scIns qq)) 
        = return Nothing
+     | delMod pp qq -- && (not (rawCpy' qq))
+       = -- trace ("Looking at:\n" ++ show1 pp ++ "\n$$$\n" ++ show1 qq ++ "\n\n") $
+         return Nothing
      | otherwise
-       = -- trace ("Looking at:\n" ++ show1 pp ++ "\n$$$\n" ++ show1 qq)
+       = -- trace ("Looking at:\n" ++ show1 pp ++ "\n$$$\n" ++ show1 qq ++ "\n\n" ++ show (noDelMod pp qq)) $
          isSmaller pp qq
     
 
