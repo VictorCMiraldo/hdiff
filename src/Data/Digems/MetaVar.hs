@@ -23,7 +23,7 @@ import Generics.MRSOP.Digems.Treefix
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
 --  by forcing the atom to be an 'I'.
 data ForceI :: (Nat -> *) -> Atom kon -> * where
-  ForceI :: (IsNat i) => { unForceI :: f i } -> ForceI f (I i)
+  ForceI :: (IsNat i) => { unForceI :: f i } -> ForceI f ('I i)
 
 -- |A 'MetaVarI' can only take place of a recursive position.
 type MetaVarI  = ForceI (Const Int)
@@ -32,15 +32,12 @@ type MetaVarI  = ForceI (Const Int)
 data Annotate (x :: *) (f :: k -> *) :: k -> * where
   Annotate :: x -> f i -> Annotate x f i
 
-instance (Show1 f , Show x) => Show1 (Annotate x f) where
-  show1 (Annotate i f)
-    = show1 f ++ "[" ++ show i ++ "]"
+instance (ShowHO f , Show x) => ShowHO (Annotate x f) where
+  showHO (Annotate i f)
+    = showHO f ++ "[" ++ show i ++ "]"
 
-instance (Eq1 f , Eq x) => Eq1 (Annotate x f) where
-  eq1 (Annotate x1 f1) (Annotate x2 f2) = x1 == x2 && eq1 f1 f2
-
-instance (Eq x) => Eq1 (Const x) where
-  eq1 (Const x) (Const y) = x == y
+instance (EqHO f , Eq x) => EqHO (Annotate x f) where
+  eqHO (Annotate x1 f1) (Annotate x2 f2) = x1 == x2 && eqHO f1 f2
 
 instance (TestEquality ki) => TestEquality (Annotate x ki) where
   testEquality (Annotate _ x) (Annotate _ y)
@@ -68,14 +65,6 @@ metavarGet = elimNA go getConst
 metavarAdd :: Int -> MetaVarIK ki at -> MetaVarIK ki at
 metavarAdd n (NA_K (Annotate i x)) = NA_K $ Annotate (n + i) x
 metavarAdd n (NA_I (Const i))      = NA_I $ Const    (n + i)
-
-instance Show (MetaVarIK ki at) where
-  show (NA_I (Const v))      = "i" ++ show v
-  show (NA_K (Annotate v _)) = "k" ++ show v
-
-instance Eq (MetaVarIK ki at) where
-  (NA_I (Const i))      == (NA_I (Const j))      = i == j
-  (NA_K (Annotate v _)) == (NA_K (Annotate u _)) = v == u
 
 -- TODO: Goes away with Annotate
 instance HasIKProjInj ki (MetaVarIK ki) where

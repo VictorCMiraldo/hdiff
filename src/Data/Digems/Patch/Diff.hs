@@ -12,18 +12,16 @@ import           Data.Functor.Sum
 
 import           Control.Monad.State
 
-import           Generics.MRSOP.Util
 import           Generics.MRSOP.Base
+import           Generics.MRSOP.AG 
 import           Generics.MRSOP.Digems.Treefix
 import           Generics.MRSOP.Digems.Digest
 
-import           Data.Exists
 import qualified Data.WordTrie as T
 import           Data.Digems.Patch
 import           Data.Digems.Patch.Preprocess
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
-import           Data.Digems.Change.Apply
 
 -- * Utils
 --
@@ -96,7 +94,7 @@ extractUTx :: (IsNat ix)
            => MinHeight
            -> IsSharedMap
            -> PrepFix ki codes ix
-           -> UTx ki codes (ForceI (Const Int :*: (Fix ki codes))) (I ix)
+           -> UTx ki codes (ForceI (Const Int :*: (Fix ki codes))) ('I ix)
 extractUTx minHeight tr (AnnFix (Const prep) rep)
   -- TODO: if the tree's height is smaller than minHeight we don't
   --       even have to look it up on the map
@@ -116,12 +114,12 @@ issueOpqCopies :: forall ki codes phi at
                -> Int
                -> PrePatch ki codes phi at
                -> PrePatch ki codes (MetaVarIK ki) at
-issueOpqCopies meta i
-  = flip evalState i
+issueOpqCopies meta maxvar
+  = flip evalState maxvar
   . utxRefineM (\(x :*: y) -> return $ UTxHole $ utxMap meta x :*: utxMap meta y)
                opqCopy
   where
-    opqCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) (K k))
+    opqCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
     opqCopy ki = do
       i <- get
       put (i+1)
@@ -134,7 +132,7 @@ issueOpqCopies meta i
 --  we also copy the opaque values present in the spine by issuing
 --  /"copy"/ changes
 extractSpine :: forall ki codes phi at
-              . (Eq1 ki)
+              . (EqHO ki)
              => (forall ix . phi ix -> MetaVarIK ki ix)
              -> Int
              -> UTx ki codes phi at
@@ -175,14 +173,6 @@ close utx = case closure utx of
                              then InR (UTxHole $ CMatch vx (UTxPeel cx dels) (UTxPeel cx inss))
                              else InL (OMatch vx vy (UTxPeel cx dels) (UTxPeel cx inss))
 
-    -- TODO: refactor this to Util
-    either' :: (f x -> a x) -> (g x -> a x) -> Sum f g x -> a x
-    either' l r (InL x) = l x
-    either' l r (InR x) = r x
-
-    either'' :: (f x -> a) -> (g x -> a) -> Sum f g x -> a
-    either'' f g = getConst . either' (Const . f) (Const . g)
-    
     fromInR :: Sum f g x -> Maybe (g x)
     fromInR (InL _) = Nothing
     fromInR (InR x) = Just x
@@ -197,7 +187,7 @@ close utx = case closure utx of
 --    iv)  keep the holes that appear both in the insertion and
 --         deletion treefixes
 --
-diff :: (Eq1 ki , Digestible1 ki , IsNat ix)
+diff :: (EqHO ki , Digestible1 ki , IsNat ix)
      => MinHeight
      -> Fix ki codes ix
      -> Fix ki codes ix

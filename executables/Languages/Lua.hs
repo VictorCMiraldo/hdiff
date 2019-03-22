@@ -56,8 +56,8 @@ instance Digestible1 LuaSingl where
 
 deriving instance Show (LuaSingl k)
 deriving instance Eq (LuaSingl k)
-instance Show1 LuaSingl where show1 = show
-instance Eq1 LuaSingl where eq1 = (==)
+instance ShowHO LuaSingl where showHO = show
+instance EqHO LuaSingl where eqHO = (==)
 
 instance TestEquality LuaSingl where
   testEquality (SLuaText _) (SLuaText _) = Just Refl

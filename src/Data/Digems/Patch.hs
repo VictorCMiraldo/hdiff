@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections    #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE PolyKinds        #-}
@@ -52,13 +52,13 @@ type Patch ki codes ix = UTx ki codes (CChange ki codes) (I ix)
 
 -- ** Patch Alpha Equivalence
 
-patchEq :: (Eq1 ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
+patchEq :: (EqHO ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
 patchEq p q = and $ utxGetHolesWith' (uncurry' go) $ utxLCP p q
   where
-    go :: (Eq1 ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
+    go :: (EqHO ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
     go c d = changeEq (distrCChange c) (distrCChange d)
 
-patchIsCpy :: (Eq1 ki) => RawPatch ki codes at -> Bool
+patchIsCpy :: (EqHO ki) => RawPatch ki codes at -> Bool
 patchIsCpy = and . utxGetHolesWith' isCpy
 
 -- ** Functionality over a 'Patch'
@@ -88,7 +88,7 @@ patchMaxVar = flip execState 0 . utxMapM localMax
 
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
-apply :: (TestEquality ki , Eq1 ki , Show1 ki, IsNat ix)
+apply :: (TestEquality ki , EqHO ki , ShowHO ki, IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
       -> Either String (Fix ki codes ix)
@@ -107,7 +107,7 @@ apply patch x
 
 -- |Specializing will attempt to adjust a spine with changes to be properly
 -- adapted by a change.
-specialize :: ( Show1 ki , Eq1 ki , TestEquality ki)
+specialize :: ( ShowHO ki , EqHO ki , TestEquality ki)
            => RawPatch ki codes at
            -> UTx ki codes (MetaVarIK ki) at
            -> RawPatch ki codes at
@@ -116,7 +116,7 @@ specialize spine cc
   where
     vmax = patchMaxVar spine
 
-    go :: (Eq1 ki , Show1 ki , TestEquality ki)
+    go :: (EqHO ki , ShowHO ki , TestEquality ki)
        => UTx ki codes (CChange ki codes) at
        -> UTx ki codes (MetaVarIK ki) at
        -> UTx ki codes (CChange ki codes) at
@@ -148,14 +148,14 @@ specialize spine cc
 -- lemma: cpy encompasses everything
 -- |The predicate @composes qr pq@ checks whether @qr@ is immediatly applicable
 -- to the codomain of @pq@.
-composes   :: (Show1 ki , Eq1 ki , TestEquality ki)
+composes   :: (ShowHO ki , EqHO ki , TestEquality ki)
            => RawPatch ki codes at
            -> RawPatch ki codes at
            -> Bool
 composes qr pq = and $ utxGetHolesWith' getConst
                $ utxMap (uncurry' go) $ utxLCP qr pq
   where
-    go :: (Show1 ki , Eq1 ki , TestEquality ki)
+    go :: (ShowHO ki , EqHO ki , TestEquality ki)
        => RawPatch ki codes at
        -> RawPatch ki codes at
        -> Const Bool at
@@ -164,7 +164,7 @@ composes qr pq = and $ utxGetHolesWith' getConst
             cpq = distrCChange pq
          in Const $ applicableTo (cCtxDel cqr) (cCtxIns cpq)
 
-applicableTo :: (Show1 ki , Eq1 ki , TestEquality ki)
+applicableTo :: (ShowHO ki , EqHO ki , TestEquality ki)
        => UTx ki codes (MetaVarIK ki) ix
        -> UTx ki codes (MetaVarIK ki) ix
        -> Bool
@@ -172,7 +172,7 @@ applicableTo pat = either (const False) (const True)
                  . runExcept
                  . go M.empty M.empty pat
   where
-    go :: (Show1 ki , Eq1 ki , TestEquality ki) 
+    go :: (ShowHO ki , EqHO ki , TestEquality ki) 
        => Subst ki codes (MetaVarIK ki)
        -> Subst ki codes (MetaVarIK ki)
        -> UTx ki codes (MetaVarIK ki) ix
@@ -182,7 +182,7 @@ applicableTo pat = either (const False) (const True)
     go l r (UTxHole var) ex = (,r) <$> substInsert' "l" l var ex 
     go l r pa (UTxHole var) = (l,) <$> substInsert' "r" r var pa
     go l r (UTxOpq oa) (UTxOpq ox)
-      | eq1 oa ox = return (l , r)
+      | eqHO oa ox = return (l , r)
       | otherwise = throwError (IncompatibleOpqs oa ox)
     go l r pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
       case testEquality ca cx of
@@ -193,7 +193,7 @@ applicableTo pat = either (const False) (const True)
                   (return $ Const $ (l ,r))
                   (zipNP ppa px)
 
-substInsert' :: (Show1 ki , Eq1 ki , TestEquality ki)
+substInsert' :: (ShowHO ki , EqHO ki , TestEquality ki)
              => String
              -> Subst ki codes (MetaVarIK ki)
              -> MetaVarIK ki ix
@@ -208,7 +208,7 @@ substInsert' lbl s var new = case M.lookup (metavarGet var) s of
                    Just res -> return $ M.insert (metavarGet var) (Exists $ res) s
                    Nothing  -> throwError (FailedContraction (metavarGet var) old new)
   where
-    specializesTo :: (Eq1 ki)
+    specializesTo :: (EqHO ki)
                   => UTx ki codes (MetaVarIK ki) ix
                   -> UTx ki codes (MetaVarIK ki) ix
                   -> Maybe (UTx ki codes (MetaVarIK ki) ix)

@@ -12,7 +12,6 @@ module Generics.MRSOP.Digems.Treefix where
 
 import Data.Proxy
 import Data.Functor.Const
-import Data.Void
 import Data.Type.Equality
 import qualified Data.Set as S (insert , empty , Set)
 
@@ -24,7 +23,6 @@ import qualified Data.Text.Prettyprint.Doc as PP
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 --------------------------------
-import Data.Exists
 import Generics.MRSOP.Digems.Renderer
 
 -- * Generic Treefixes
@@ -45,27 +43,27 @@ data UTx :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> Atom kon -> *  wh
   -- |A "hole" contains something of type @phi@ 
   UTxHole :: phi at -> UTx ki codes phi at
   -- |An opaque value
-  UTxOpq  :: ki k   -> UTx ki codes phi (K k) 
+  UTxOpq  :: ki k   -> UTx ki codes phi ('K k) 
   -- |A view over a constructor with its fields replaced
   --  by treefixes.
   UTxPeel :: (IsNat n , IsNat i)
           => Constr (Lkup i codes) n
           -> NP (UTx ki codes phi) (Lkup n (Lkup i codes))
-          -> UTx ki codes phi (I i)
+          -> UTx ki codes phi ('I i)
 
-instance (Eq1 phi , Eq1 ki) => Eq (UTx ki codes phi ix) where
+instance (EqHO phi , EqHO ki) => Eq (UTx ki codes phi ix) where
   utx == uty = and $ utxGetHolesWith' (uncurry' cmp) $ utxLCP utx uty
     where
       cmp :: UTx ki codes phi at -> UTx ki codes phi at -> Bool
-      cmp (UTxHole x) (UTxHole y) = eq1 x y
-      cmp (UTxOpq  x) (UTxOpq  y) = eq1 x y
+      cmp (UTxHole x) (UTxHole y) = eqHO x y
+      cmp (UTxOpq  x) (UTxOpq  y) = eqHO x y
       cmp _           _           = False
 
-instance (Eq1 phi , Eq1 ki) => Eq1 (UTx ki codes phi) where
-  eq1 utx uty = utx == uty
+instance (EqHO phi , EqHO ki) => EqHO (UTx ki codes phi) where
+  eqHO utx uty = utx == uty
 
 -- |Returns the index of the UTx as a singleton.
-getUTxSNat :: (IsNat ix) => UTx ki codes f (I ix) -> SNat ix
+getUTxSNat :: (IsNat ix) => UTx ki codes f ('I ix) -> SNat ix
 getUTxSNat _ = getSNat (Proxy :: Proxy ix)
 
 -- |Our 'UTx' is a higher order functor and can be mapped over.
@@ -96,12 +94,12 @@ utxJoin (UTxPeel c p) = UTxPeel c (mapNP utxJoin p)
 --  >  utxJoin (utxMap fst (utxLCP p q)) == p
 --  >  utxJoin (utxMap snd (utxLCP p q)) == q
 --
-utxLCP :: (Eq1 ki)
+utxLCP :: (EqHO ki)
        => UTx ki codes f at
        -> UTx ki codes g at
        -> UTx ki codes (UTx ki codes f :*: UTx ki codes g) at
 utxLCP (UTxOpq kx) (UTxOpq ky)
-  | eq1 kx ky = UTxOpq kx
+  | eqHO kx ky = UTxOpq kx
   | otherwise = UTxHole (UTxOpq kx :*: UTxOpq ky)
 utxLCP (UTxPeel cx px) (UTxPeel cy py)
   = case testEquality cx cy of
@@ -191,25 +189,16 @@ utxMultiplicity :: Int -> UTx ki codes f at -> Int
 utxMultiplicity k utx
   | utxArity utx == k = 1
   | otherwise = case utx of
-      UTxPeel c p -> sum $ elimNP (utxMultiplicity k) p
+      UTxPeel _ p -> sum $ elimNP (utxMultiplicity k) p
       _           -> 0
 
 
 -- * Show instances
 
-instance (Show1 ki , Show1 phi) => Show1 (NA ki phi) where
-  show1 (NA_K ki) = show1 ki
-  show1 (NA_I i)  = show1 i
-
-instance Show1 p => Show1 (NP p) where
-  show1 NP0 = "NP0"
-  show1 (v :* vs)
-    = show1 v ++ " :* " ++ show1 vs
-
-instance (Show1 ki , Show1 f) => Show1 (UTx ki codes f) where
-  show1 (UTxHole x)      = "[" ++ show1 x ++ "]"
-  show1 (UTxOpq k)       = show1 k
-  show1 (UTxPeel c rest) = "(" ++ show c ++ "| " ++ show1 rest ++ ")"
+instance (ShowHO ki , ShowHO f) => ShowHO (UTx ki codes f) where
+  showHO (UTxHole x)      = "[" ++ showHO x ++ "]"
+  showHO (UTxOpq k)       = showHO k
+  showHO (UTxPeel c rest) = "(" ++ show c ++ "| " ++ showHO rest ++ ")"
 
 -- |A stiff treefix is one with no holes anywhere.
 utxStiff :: NA ki (Fix ki codes) at -> UTx ki codes f at
@@ -229,16 +218,16 @@ utxUnstiffM red (UTxPeel c p) = (NA_I . Fix . inj c) <$> mapNPM (utxUnstiffM red
 -- |Pretty-prints a treefix using a specific function to
 --  print holes.
 utxPretty :: forall ki fam codes f at ann
-           . (HasDatatypeInfo ki fam codes , Renderer1 ki)
+           . (HasDatatypeInfo ki fam codes , RendererHO ki)
           => Proxy fam
           -> (PP.Doc ann -> PP.Doc ann) -- ^ styling
-          -> (forall at . f at -> PP.Doc ann)
+          -> (forall at' . f at' -> PP.Doc ann)
           -> UTx ki codes f at
           -> PP.Doc ann
-utxPretty pfam sty sx (UTxHole x)
+utxPretty _pfam sty sx  (UTxHole x)
   = sty $ sx x
-utxPretty pfam sty sx (UTxOpq k)
-  = sty $ render1 k
+utxPretty _pfam sty _sx (UTxOpq k)
+  = sty $ renderHO k
 utxPretty pfam sty sx utx@(UTxPeel c rest)
   = renderNP pfam sty (getUTxSNat utx) c
   $ mapNP (Const . utxPretty pfam sty sx) rest
@@ -253,19 +242,19 @@ utxPretty pfam sty sx utx@(UTxPeel c rest)
 --       All we need is a class 'IsOpq' comming from mrsop that
 --       allows us to compare the indexes of 'ki' for equality.
 class HasIKProjInj (ki :: kon -> *) (f :: Atom kon -> *) where
-  konInj  :: ki k -> f (K k)
+  konInj  :: ki k -> f ('K k)
   varProj :: Proxy ki -> f x -> Maybe (IsI x)
 
 instance (HasIKProjInj ki phi) => HasIKProjInj ki (UTx ki codes phi) where
   konInj                   = UTxOpq
   varProj pr (UTxHole h)   = varProj pr h
-  varProj pr (UTxPeel _ _) = Just IsI
-  varProj pr (UTxOpq _)    = Nothing
+  varProj _  (UTxPeel _ _) = Just IsI
+  varProj _  (UTxOpq _)    = Nothing
 
 data IsI :: Atom kon -> * where
-  IsI :: (IsNat i) => IsI (I i)
+  IsI :: (IsNat i) => IsI ('I i)
 
-getIsISNat :: IsI (I i) -> SNat i
+getIsISNat :: IsI ('I i) -> SNat i
 getIsISNat IsI = getSNat (Proxy :: Proxy i)
 
 type UTxTestEqualityCnstr ki f
@@ -274,18 +263,18 @@ type UTxTestEqualityCnstr ki f
 instance (UTxTestEqualityCnstr ki f)
     => TestEquality (UTx ki codes f) where
   testEquality (UTxOpq kx) (UTxOpq ky)
-    = testEquality kx ky >>= return . apply (Refl :: K :~: K)
+    = testEquality kx ky >>= return . apply (Refl :: 'K :~: 'K)
   testEquality (UTxHole v) (UTxHole u)
     = testEquality v u
   testEquality (UTxOpq kx) (UTxHole v)
     = testEquality (konInj kx) v
   testEquality (UTxHole v) (UTxOpq ky)
     = testEquality v (konInj ky)
-  testEquality x@(UTxPeel c p) (UTxHole u)
+  testEquality x@(UTxPeel _ _) (UTxHole u)
     = do i@IsI <- varProj (Proxy :: Proxy ki) u
          Refl  <- testEquality (getUTxSNat x) (getIsISNat i)
          return Refl
-  testEquality (UTxHole u) x@(UTxPeel c p)
+  testEquality (UTxHole u) x@(UTxPeel _ _)
     = do i@IsI <- varProj (Proxy :: Proxy ki) u
          Refl  <- testEquality (getUTxSNat x) (getIsISNat i)
          return Refl

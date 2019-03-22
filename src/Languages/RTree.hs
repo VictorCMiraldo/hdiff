@@ -16,7 +16,6 @@ module Languages.RTree where
 import Data.Type.Equality
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Renderer
@@ -30,25 +29,25 @@ data RTree = String :>: [RTree]
   deriving (Eq , Show)
 
 height :: RTree -> Int
-height (n :>: []) = 0
-height (n :>: ns) = 1 + maximum (map height ns)
+height (_ :>: []) = 0
+height (_ :>: ns) = 1 + maximum (map height ns)
 
 data WKon = WString
 
 data W :: WKon -> * where
-  W_String  :: String  -> W WString
+  W_String  :: String  -> W 'WString
 
-instance Eq1 W where
-  eq1 (W_String s)  (W_String ss) = s == ss
+instance EqHO W where
+  eqHO (W_String s)  (W_String ss) = s == ss
 
 instance Digestible1 W where
   digest1 (W_String s)  = hashStr s
 
-instance Renderer1 W where
-  render1 (W_String s) = pretty s
+instance RendererHO W where
+  renderHO (W_String s) = pretty s
 
-instance Show1 W where
-  show1 (W_String s)  = s
+instance ShowHO W where
+  showHO (W_String s)  = s
 
 instance TestEquality W where
   testEquality (W_String _)  (W_String _)  = Just Refl

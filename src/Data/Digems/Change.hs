@@ -22,7 +22,7 @@ import           Data.Exists
 import           Data.Digems.MetaVar
 import           Generics.MRSOP.Digems.Treefix
 
--- this has the Show1 (Const a) instance
+-- this has the ShowHO (Const a) instance
 import Generics.MRSOP.AG
 
 
@@ -59,9 +59,9 @@ unCMatch (CMatch _ del ins) = del :*: ins
 cMaxVar :: CChange ki codes at -> Int
 cMaxVar = maybe 0 id . S.lookupMax . S.map (exElim metavarGet) . cCtxVars
 
-instance (Show1 ki) => Show (CChange ki codes at) where
+instance (ShowHO ki) => Show (CChange ki codes at) where
   show (CMatch _ del ins)
-    = "{- " ++ show1 del ++ " -+ " ++ show1 ins ++ " +}"
+    = "{- " ++ showHO del ++ " -+ " ++ showHO ins ++ " +}"
 
 instance HasIKProjInj ki (CChange ki codes) where
   konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
@@ -74,7 +74,7 @@ instance (TestEquality ki) => TestEquality (CChange ki codes) where
     = testEquality x y
 
 -- |Alpha-equality for 'CChange'
-changeEq :: (Eq1 ki) => CChange ki codes at -> CChange ki codes at -> Bool
+changeEq :: (EqHO ki) => CChange ki codes at -> CChange ki codes at -> Bool
 changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
   = S.size v1 == S.size v2 && aux
  where
@@ -118,7 +118,7 @@ changeCopy :: MetaVarIK ki at -> CChange ki codes at
 changeCopy vik = CMatch (S.singleton (Exists vik)) (UTxHole vik) (UTxHole vik)
 
 -- |Checks whetehr a change is a copy.
-isCpy :: (Eq1 ki) => CChange ki codes at -> Bool
+isCpy :: (EqHO ki) => CChange ki codes at -> Bool
 isCpy (CMatch _ (UTxHole v1) (UTxHole v2))
   -- arguably, we don't even need that since changes are closed.
   = metavarGet v1 == metavarGet v2

@@ -77,35 +77,35 @@ data WKon = WInt | WString | WBool
 
 -- |And their singletons.
 --
---  Note we need instances of Eq1, Show1 and Digestible1
+--  Note we need instances of EqHO, ShowHO and DigestibleHO
 data W :: WKon -> * where
   W_Integer :: Integer -> W WInt
   W_String  :: String  -> W WString
   W_Bool    :: Bool    -> W WBool
 
-instance Eq1 W where
-  eq1 (W_Integer i) (W_Integer j) = i == j
-  eq1 (W_String s)  (W_String ss) = s == ss
-  eq1 (W_Bool b)    (W_Bool c)    = b == c
+instance EqHO W where
+  eqHO (W_Integer i) (W_Integer j) = i == j
+  eqHO (W_String s)  (W_String ss) = s == ss
+  eqHO (W_Bool b)    (W_Bool c)    = b == c
 
 instance Digestible1 W where
   digest1 (W_Integer i) = hashStr (show i)
   digest1 (W_String s)  = hashStr s
   digest1 (W_Bool b)    = hashStr (show b)
 
-instance Show1 W where
-  show1 (W_Integer i) = show i
-  show1 (W_String s)  = s
-  show1 (W_Bool b)    = show b
+instance ShowHO W where
+  showHO (W_Integer i) = show i
+  showHO (W_String s)  = s
+  showHO (W_Bool b)    = show b
 
 -- Now we derive the 'Family' instance
 -- using 'W' for the constants.
 deriveFamilyWithTy [t| W |] [t| Stmt |]
 
-instance Renderer1 W where
-  render1 (W_Integer i) = pretty i
-  render1 (W_String s)  = pretty s
-  render1 (W_Bool b)    = pretty b
+instance RendererHO W where
+  renderHO (W_Integer i) = pretty i
+  renderHO (W_String s)  = pretty s
+  renderHO (W_Bool b)    = pretty b
 
 instance TestEquality W where
   testEquality (W_Integer _) (W_Integer _) = Just Refl
@@ -246,7 +246,7 @@ parseString str =
 testString :: String -> IO ()
 testString str
   = do let stmt = parseString str
-       putStrLn $ show $ renderEl render1 (into @FamStmt stmt)
+       putStrLn $ show $ renderEl renderHO (into @FamStmt stmt)
 
 parseFile :: String -> IO Stmt
 parseFile file =

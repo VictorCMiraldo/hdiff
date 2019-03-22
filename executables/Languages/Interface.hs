@@ -9,8 +9,6 @@
 module Languages.Interface where
 
 import Data.List (isSuffixOf)
-import Data.Proxy
-import Data.Functor.Const
 import Data.Type.Equality
 
 import Control.Applicative
@@ -42,7 +40,7 @@ vecMapM f V0 = return V0
 vecMapM f (VS x xs) = VS <$> f x <*> vecMapM f xs
 
 type LangCnstr ki fam codes ix
-  = (HasDatatypeInfo ki fam codes , Eq1 ki , Renderer1 ki , IsNat ix, Show1 ki
+  = (HasDatatypeInfo ki fam codes , EqHO ki , RendererHO ki , IsNat ix, ShowHO ki
     ,Digestible1 ki,TestEquality ki)
 
 -- |Given a list of languages, parses a number of files

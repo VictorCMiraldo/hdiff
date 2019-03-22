@@ -67,7 +67,7 @@ noConflicts = utxMapM rmvInL
     rmvInL (InR x) = Just x
 
 -- |Returns the labels of the conflicts ina a patch.
-getConflicts :: (Show1 ki) => PatchC ki codes ix -> [String]
+getConflicts :: (ShowHO ki) => PatchC ki codes ix -> [String]
 getConflicts = snd . runWriter . utxMapM go
   where
     go x@(InL (Conflict str _ _)) = tell [show str] >> return x
@@ -129,18 +129,12 @@ type UTxUTx2 ki codes
 utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
 utx2distr x = (scDel x :*: scIns x)
 
-instance (Eq1 f , Eq1 g) => Eq1 (f :*: g) where
-  eq1 (fx :*: gx) (fy :*: gy) = eq1 fx fy && eq1 gx gy
-
-instance (Show1 f , Show1 g) => Show1 (f :*: g) where
-  show1 (x :*: y) = "(" ++ show1 x ++ " :*: " ++ show1 y ++ ")"
-
 instance (TestEquality f) => TestEquality (f :*: g) where
   testEquality x y = testEquality (fst' x) (fst' y)
 
 instance HasIKProjInj ki (UTx2 ki codes) where
   konInj  ki = (konInj ki :*: konInj ki)
-  varProj p (f :*: _) = varProj p f
+  varProj p (Pair f _) = varProj p f
 
 utx2change :: UTxUTx2 ki codes at -> Maybe (CChange ki codes at)
 utx2change x = cmatch' (scDel x) (scIns x)
@@ -151,10 +145,10 @@ data ProcessOutcome ki codes
   | CantReconcile
 
 fst' :: (f :*: g) x -> f x
-fst' (a :*: _) = a
+fst' (Pair a _) = a
 
 snd' :: (f :*: g) x -> g x
-snd' (_ :*: b) = b
+snd' (Pair _ b) = b
 
 scDel :: UTxUTx2 ki codes at
       -> UTx ki codes (MetaVarIK ki) at
@@ -196,9 +190,9 @@ process sp sq =
    mboolsum :: [Maybe Bool] -> Maybe Bool
    mboolsum = fmap and . sequence
 
-   delMod :: (Eq1 ki) => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
+   delMod :: (EqHO ki) => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
    delMod pp qq = and $ utxGetHolesWith' (uncurry' go) (utxLCP (scDel pp) qq)
-     where go :: (Eq1 ki)
+     where go :: (EqHO ki)
               => UTx ki codes (MetaVarIK ki) at
               -> UTxUTx2 ki codes at
               -> Bool
@@ -222,10 +216,10 @@ process sp sq =
      | not (compat (scIns pp) (scIns qq)) 
        = return Nothing
      | delMod pp qq -- && (not (rawCpy' qq))
-       = -- trace ("Looking at:\n" ++ show1 pp ++ "\n$$$\n" ++ show1 qq ++ "\n\n") $
+       = -- trace ("Looking at:\n" ++ showHO pp ++ "\n$$$\n" ++ showHO qq ++ "\n\n") $
          return Nothing
      | otherwise
-       = -- trace ("Looking at:\n" ++ show1 pp ++ "\n$$$\n" ++ show1 qq ++ "\n\n" ++ show (noDelMod pp qq)) $
+       = -- trace ("Looking at:\n" ++ showHO pp ++ "\n$$$\n" ++ showHO qq ++ "\n\n" ++ show (noDelMod pp qq)) $
          isSmaller pp qq
     
 
@@ -248,19 +242,19 @@ process sp sq =
        Left  _  -> return Nothing
        Right r  -> put r >> return (Just True)
 
-   compat :: (Eq1 ki)
+   compat :: (EqHO ki)
           => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
    compat domP codQ = and $ utxGetHolesWith' (uncurry' ok) (utxLCP domP codQ)
      where ok _ (UTxHole _) = True
            ok (UTxHole _) _ = True
            ok _ _           = False
 
-   delmod :: (Eq1 ki)
+   delmod :: (EqHO ki)
           => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
    delmod domP domQ = undefined
        
-   divergingOpaques :: (Eq1 ki) => UTx2 ki codes phi -> UTx2 ki codes phi -> Bool
-   divergingOpaques (_ :*: UTxOpq x) (_ :*: UTxOpq y) = not $ eq1 x y
+   divergingOpaques :: (EqHO ki) => UTx2 ki codes phi -> UTx2 ki codes phi -> Bool
+   divergingOpaques (_ :*: UTxOpq x) (_ :*: UTxOpq y) = not $ eqHO x y
    divergingOpaques _                _                = False
 
    isLocalIns :: (UTx ki codes phi :*: UTx ki codes phi) at -> Bool
@@ -281,7 +275,7 @@ process sp sq =
 -- required a `cons' node. No problem, if we copied anything, we can
 -- copy cons nodes in particular.
 --
-refinedFor :: (Eq1 ki)
+refinedFor :: (EqHO ki)
            => UTxUTx2 ki codes at
            -> UTx ki codes (MetaVarIK ki) at
            -> UTxUTx2 ki codes at

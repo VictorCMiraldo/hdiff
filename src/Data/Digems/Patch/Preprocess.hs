@@ -13,9 +13,8 @@ module Data.Digems.Patch.Preprocess where
 import Data.Proxy
 import Data.Functor.Const
 
-import Generics.MRSOP.Util
 import Generics.MRSOP.Base
-import Generics.MRSOP.AG (synthesize)
+import Generics.MRSOP.AG (AnnFix(..) , synthesize)
 
 import Generics.MRSOP.Digems.Digest
 

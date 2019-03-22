@@ -32,7 +32,7 @@ type Domain ki codes = UTx ki codes (MetaVarIK ki)
 domain :: CChange ki codes at -> Domain ki codes at
 domain = cCtxDel
 
-specialize :: (Show1 ki , TestEquality ki, Eq1 ki)
+specialize :: (ShowHO ki , TestEquality ki, EqHO ki)
            => CChange ki codes at
            -> Domain ki codes at
            -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)

@@ -160,12 +160,12 @@ putStrLnErr = hPutStrLn stderr
 mainAST :: Options -> IO ExitCode
 mainAST opts = withParsed1 mainParsers (optFileA opts)
   $ \fa -> do
-    putStrLn (show (renderFix render1 fa))
+    putStrLn (show (renderFix renderHO fa))
     return ExitSuccess
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
-tryApply :: (Eq1 ki , Show1 ki , TestEquality ki , IsNat ix, Renderer1 ki
+tryApply :: (EqHO ki , ShowHO ki , TestEquality ki , IsNat ix, RendererHO ki
             ,HasDatatypeInfo ki fam codes)
          => D.Patch ki codes ix
          -> Fix ki codes ix
@@ -176,7 +176,7 @@ tryApply patch fa fb
       Left err -> hPutStrLn stderr "!! apply failed"
                >> hPutStrLn stderr ("  " ++ err)
                >> whenLoud
-                   (hPutStrLn stderr (show $ renderFix render1 fa))
+                   (hPutStrLn stderr (show $ renderFix renderHO fa))
                >> exitFailure
       Right b' -> return $ maybe (Just b') (const Nothing) fb
 
@@ -215,7 +215,7 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
         Just fb' <- tryApply ba fa Nothing
         whenLoud (putStrLnErr "!! apply ab fb")
         Just fa' <- tryApply ab fb Nothing
-        if eqFix eq1 fb' fa'
+        if eqFix eqHO fb' fa'
         then return ExitSuccess
         else return (ExitFailure 2)
 {-

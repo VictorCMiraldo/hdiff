@@ -19,7 +19,6 @@ import Data.Text
 import Data.Text.Encoding (encodeUtf8)
 import Generics.MRSOP.TH
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Renderer
 
@@ -56,10 +55,10 @@ data ConflictResult a = NoConflict | ConflictAt a
 
 data CljKon = CljText
 data CljSingl (kon :: CljKon) :: * where
-  SCljText :: Text -> CljSingl CljText
+  SCljText :: Text -> CljSingl 'CljText
 
-instance Renderer1 CljSingl where
-  render1 (SCljText t) = pretty (unpack t)
+instance RendererHO CljSingl where
+  renderHO (SCljText t) = pretty (unpack t)
 
 instance Digestible Text where
   digest = hash . encodeUtf8
@@ -70,8 +69,8 @@ instance Digestible1 CljSingl where
 
 deriving instance Show (CljSingl k)
 deriving instance Eq (CljSingl k)
-instance Show1 CljSingl where show1 = show
-instance Eq1 CljSingl where eq1 = (==)
+instance ShowHO CljSingl where showHO = show
+instance EqHO CljSingl where eqHO = (==)
 
 instance TestEquality CljSingl where
   testEquality (SCljText _) (SCljText _) = Just Refl

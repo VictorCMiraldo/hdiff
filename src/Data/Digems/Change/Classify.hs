@@ -21,7 +21,7 @@ import Generics.MRSOP.Digems.Treefix
 -----------------------------------------
 -- Change Classification algo
 
-instance (Eq1 ki , TestEquality ki) => Eq (Exists (UTx ki codes (MetaVarIK ki))) where
+instance (EqHO ki , TestEquality ki) => Eq (Exists (UTx ki codes (MetaVarIK ki))) where
   (Exists v) == (Exists u) =
     case testEquality v u of
       Nothing   -> False
@@ -42,7 +42,7 @@ data ChangeClass
   = CPerm | CMod | CId | CIns | CDel
   deriving (Eq , Show , Ord)
 
-changeClassify :: (Eq1 ki , TestEquality ki)
+changeClassify :: (EqHO ki , TestEquality ki)
                => CChange ki codes at -> ChangeClass
 changeClassify c
   | isCpy c   = CId
@@ -61,7 +61,7 @@ changeClassify c
         (_ , 0) -> if dups       then CMod else CIns
         (_ , _) -> if mis == mds then CPerm else CMod
 
-isIns , isDel :: (TestEquality ki , Eq1 ki) => CChange ki codes ix -> Bool
+isIns , isDel :: (TestEquality ki , EqHO ki) => CChange ki codes ix -> Bool
 isIns c = changeClassify c == CIns
 isDel c = changeClassify c == CDel
 

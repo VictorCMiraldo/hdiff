@@ -39,21 +39,21 @@ data WKon = WString
 data W :: WKon -> * where
   W_String  :: String  -> W WString
 
-instance Eq1 W where
-  eq1 (W_String s)  (W_String ss) = s == ss
+instance EqHO W where
+  eqHO (W_String s)  (W_String ss) = s == ss
 
 instance Digestible1 W where
   digest1 (W_String s)  = hashStr s
 
-instance Show1 W where
-  show1 (W_String s)  = s
+instance ShowHO W where
+  showHO (W_String s)  = s
 
 -- Now we derive the 'Family' instance
 -- using 'W' for the constants.
 deriveFamilyWithTy [t| W |] [t| Stmt |]
 
-instance Renderer1 W where
-  render1 (W_String s)  = pretty s
+instance RendererHO W where
+  renderHO (W_String s)  = pretty s
 
 instance TestEquality W where
   testEquality (W_String _)  (W_String _)  = Just Refl

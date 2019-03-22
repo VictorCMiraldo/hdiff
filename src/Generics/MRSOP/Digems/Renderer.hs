@@ -15,7 +15,6 @@
 module Generics.MRSOP.Digems.Renderer where
 
 import Data.Proxy
-import qualified Data.List as L
 import Data.Functor.Const
 
 import           Data.Text.Prettyprint.Doc    (Doc)
@@ -23,10 +22,9 @@ import qualified Data.Text.Prettyprint.Doc as PP
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
-import Generics.MRSOP.AG
 
-class Renderer1 f where
-  render1 :: f x -> Doc ann
+class RendererHO f where
+  renderHO :: f x -> Doc ann
 
 -- |Default rendering of constructors
 renderView :: (HasDatatypeInfo ki fam codes)

@@ -61,7 +61,7 @@ conflictPretty renderK (InR (D.Conflict l r))
 -}
 
 -- |Pretty prints a patch on the terminal
-showRawPatch :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+showRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
              => UTx ki codes (D.CChange ki codes) v
              -> [String]
 showRawPatch patch 
@@ -69,7 +69,7 @@ showRawPatch patch
       (utxPretty (Proxy :: Proxy fam) id prettyCChangeDel patch)
       (utxPretty (Proxy :: Proxy fam) id prettyCChangeIns patch)
   where
-    prettyCChangeDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+    prettyCChangeDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => D.CChange ki codes at
                     -> Doc AnsiStyle
     prettyCChangeDel (D.CMatch _ del ins)
@@ -78,7 +78,7 @@ showRawPatch patch
                   (metavarPretty (annotate mydullred))
                   del
 
-    prettyCChangeIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+    prettyCChangeIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => D.CChange ki codes at
                     -> Doc AnsiStyle
     prettyCChangeIns (D.CMatch _ del ins)
@@ -87,7 +87,7 @@ showRawPatch patch
                   (metavarPretty (annotate mydullgreen))
                   ins
 
-showPatchC :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+showPatchC :: (HasDatatypeInfo ki fam codes , RendererHO ki)
            => UTx ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
            -> [String]
 showPatchC patch 
@@ -95,7 +95,7 @@ showPatchC patch
       (utxPretty (Proxy :: Proxy fam) id prettyConfDel patch)
       (utxPretty (Proxy :: Proxy fam) id prettyConfIns patch)
   where
-    prettyConfDel :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+    prettyConfDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
     prettyConfDel (InL (D.Conflict lbl _ _))
@@ -106,7 +106,7 @@ showPatchC patch
                   (metavarPretty (annotate mydullred))
                   del
 
-    prettyConfIns :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+    prettyConfIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
     prettyConfIns (InL (D.Conflict lbl _ _))
@@ -117,23 +117,23 @@ showPatchC patch
                   (metavarPretty (annotate mydullgreen))
                   ins
 
-instance (HasDatatypeInfo ki fam codes , Renderer1 ki)
+instance (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (UTx ki codes (D.CChange ki codes) at) where
   show = unlines . showRawPatch
 
-instance (HasDatatypeInfo ki fam codes , Renderer1 ki)
+instance (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (UTx ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at) where
   show = unlines . showPatchC
 
 -- |Outputs the result of 'showPatchC' to the specified handle
-displayPatchC :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+displayPatchC :: (HasDatatypeInfo ki fam codes , RendererHO ki)
               => Handle
               -> UTx ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
               -> IO ()
 displayPatchC hdl = mapM_ (hPutStrLn hdl) . showPatchC
 
 -- |Outputs the result of 'showRawPatch' to the specified handle
-displayRawPatch :: (HasDatatypeInfo ki fam codes , Renderer1 ki)
+displayRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                 => Handle
                 -> UTx ki codes (D.CChange ki codes) at
                 -> IO ()

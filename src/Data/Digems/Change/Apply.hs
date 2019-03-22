@@ -62,8 +62,8 @@ instance Show (ApplicationErr ki codes phi) where
 -- |A substitution from metavariable numbers to some treefix
 type Subst ki codes phi = M.Map Int (Exists (UTx ki codes phi))
 
-type Applicable ki codes phi = (Show1 ki , Eq1 ki , TestEquality ki , TestEquality phi
-                              , HasIKProjInj ki phi , Eq1 phi)
+type Applicable ki codes phi = (ShowHO ki , EqHO ki , TestEquality ki , TestEquality phi
+                              , HasIKProjInj ki phi , EqHO phi)
 
 -- |We try to unify @pa@ and @pq@ onto @ea@. The idea is that
 --  we instantiate the variables of @pa@ with their corresponding expression
@@ -79,7 +79,7 @@ genericApply chg x = runExcept (pmatch (cCtxDel chg) x >>= transport (cCtxIns ch
 
 -- |Specializes 'genericApply' to work over terms of our language, ie, 'NA's
 termApply :: forall ki codes at
-           . (Show1 ki , Eq1 ki , TestEquality ki)
+           . (ShowHO ki , EqHO ki , TestEquality ki)
           => CChange ki codes at
           -> NA ki (Fix ki codes) at
           -> Either String (NA ki (Fix ki codes) at)
@@ -90,7 +90,7 @@ termApply chg = either (Left . show) (utxUnstiffM cast)
     -- cast is used only to fool the compiler here! Since the
     -- UTx comes from 'utxStiff', it has no occurence of 'UTxHole'
     -- and hence genericApply will return a term with no such
-    -- occurence. Yet, it requires a Eq1 instance for phi, so
+    -- occurence. Yet, it requires a EqHO instance for phi, so
     -- we provide one
     cast :: MetaVarIK ki ix
          -> Either String (NA ki (Fix ki codes) ix)
@@ -119,7 +119,7 @@ pmatch' s pa (UTxHole var)
   | utxArity pa == 0 = return s
   | otherwise        = throwError (IncompatibleHole pa var)
 pmatch' s (UTxOpq oa) (UTxOpq ox)
-  | eq1 oa ox = return s
+  | eqHO oa ox = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)
 pmatch' s pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
   case testEquality ca cx of
