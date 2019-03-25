@@ -116,7 +116,7 @@ pmatch' s pa (UTxHole var)
   -- we must make some occurs check over this pattern and make
   -- sure @pa@ does not bind any variable. Otherwise, we'll
   -- end up with an 'UndefinedVariable' in the transport phase.
-  | utxArity pa == 0 = return s
+  -- | utxArity pa == 0 = return s
   | otherwise        = throwError (IncompatibleHole pa var)
 pmatch' s (UTxOpq oa) (UTxOpq ox)
   | eqHO oa ox = return s

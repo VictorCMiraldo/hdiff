@@ -16,7 +16,7 @@ import Data.Functor.Const
 import Data.Functor.Sum
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Data.List (nub)
+import Data.List (nub, sort)
 
 import Control.Monad
 import Control.Monad.State
@@ -35,6 +35,7 @@ import Data.Digems.Patch
 import Data.Digems.Patch.Diff
 import Data.Digems.Change
 import Data.Digems.Change.Apply
+import Data.Digems.Change.Classify
 import Data.Digems.MetaVar
 
 import Debug.Trace
@@ -166,6 +167,41 @@ rawCpy' :: UTxUTx2 ki codes at -> Bool
 rawCpy' (UTxHole v) = rawCpy v
 rawCpy' _           = False
 
+
+showHs pp qq = "Looking at:\n" ++ showHO pp ++ "\n$$$\n" ++ showHO qq 
+
+
+delMod :: (ShowHO ki , EqHO ki) => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
+delMod pp qq = or $ utxGetHolesWith' (uncurry' go) (utxLCP (scDel pp) qq)
+  where go :: (ShowHO ki , EqHO ki)
+           => UTx ki codes (MetaVarIK ki) at
+           -> UTxUTx2 ki codes at
+           -> Bool
+        go (UTxHole p) q = False
+        go _ (UTxHole (UTxHole _ :*: _)) = False
+        go r (UTxHole v) = and $ utxGetHolesWith' (uncurry' go') (utxLCP r (fst' v))
+        go _ _           = True
+
+        go' :: (ShowHO ki)
+            => UTx ki codes (MetaVarIK ki) at
+            -> UTx ki codes (MetaVarIK ki) at
+            -> Bool
+        go' (UTxPeel _ _) (UTxHole _) = True
+        go' p q = False
+
+compat :: (EqHO ki)
+       => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
+compat codP codQ = and $ utxGetHolesWith' (uncurry' ok) (utxLCP codP codQ)
+  where ok _ (UTxHole _) = True
+        ok (UTxHole _) _ = True
+        ok _ _           = False
+
+nodelmod :: (Applicable ki codes phi)
+         => UTx ki codes (MetaVarIK ki) at -> UTx ki codes phi at -> Bool
+nodelmod delCtx denom = case runExcept (pmatch delCtx denom) of
+                          Left err -> False
+                          Right _  -> True
+
 -- |This will process two changes, represented as a spine and
 -- inner changes, into a potential merged patch. The result of @process sp sq@
 -- is supposed to instruct how to construct a patch that
@@ -181,7 +217,7 @@ process :: (Applicable ki codes (UTx2 ki codes))
         => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
         -> ProcessOutcome ki codes
 process sp sq =
-  let aux = utxGetHolesWithM' (uncurry' isSmaller') $ utxLCP sp sq
+  let aux = utxGetHolesWithM' (uncurry' wrapper) $ utxLCP sp sq
    in case runState (fmap mboolsum aux) M.empty of
         (Just True,  _) -> ReturnNominator
         (Just False, s) -> InstDenominator s
@@ -189,79 +225,39 @@ process sp sq =
  where
    mboolsum :: [Maybe Bool] -> Maybe Bool
    mboolsum = fmap and . sequence
-
-   delMod :: (EqHO ki) => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
-   delMod pp qq = and $ utxGetHolesWith' (uncurry' go) (utxLCP (scDel pp) qq)
-     where go :: (EqHO ki)
-              => UTx ki codes (MetaVarIK ki) at
-              -> UTxUTx2 ki codes at
-              -> Bool
-           go (UTxHole _) _ = False
-           go _ (UTxHole (UTxHole _ :*: _)) = False
-           go r (UTxHole v) = and $ utxGetHolesWith' (uncurry' go') (utxLCP r (fst' v))
-           go _ _           = True
-
-           go' :: UTx ki codes (MetaVarIK ki) at
-               -> UTx ki codes (MetaVarIK ki) at
-               -> Bool
-           go' (UTxPeel _ _) (UTxHole _) = True
-           go' _ _ = False
-    
-   isSmaller' :: (Applicable ki codes (UTx2 ki codes))
-              => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-              -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
-   isSmaller' pp qq
-     -- | isLocalIns pp && isLocalIns qq = return Nothing
-     -- | divergingOpaques pp qq         = return Nothing
-     | not (compat (scIns pp) (scIns qq)) 
-       = return Nothing
-     | delMod pp qq -- && (not (rawCpy' qq))
-       = -- trace ("Looking at:\n" ++ showHO pp ++ "\n$$$\n" ++ showHO qq ++ "\n\n") $
-         return Nothing
+   
+   wrapper :: (Applicable ki codes (UTx2 ki codes))
+           => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
+           -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
+   wrapper pp qq
+     | not (compat (scIns pp) (scIns qq))
+     = return Nothing
      | otherwise
-       = -- trace ("Looking at:\n" ++ showHO pp ++ "\n$$$\n" ++ showHO qq ++ "\n\n" ++ show (noDelMod pp qq)) $
-         isSmaller pp qq
-    
-
+     = isSmaller pp qq
+      
+   -- This function returns 'Just True' when we can apply pp over an object
+   -- that has been modified by qq without adjusting pp.
    isSmaller :: (Applicable ki codes (UTx2 ki codes))
              => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
              -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
-   isSmaller (UTxHole pp) (UTxHole qq) = instRight (UTxHole pp) qq
-   isSmaller (UTxHole pp) qq           = instRight (UTxHole pp) (utx2distr qq) 
-   isSmaller pp (UTxHole qq)           = instRight pp qq >> return (Just $ rawCpy qq)
-   isSmaller _ _                       = return $ Just False
+   isSmaller (UTxHole pp) qq
+     | nodelmod (fst' pp) (qq `refinedFor` fst' pp)
+       = instRight (UTxHole pp) (utx2distr qq) 
+       >> return (Just True)
+     | otherwise = return Nothing
+   isSmaller pp (UTxHole qq) = instRight pp qq
+                            >> return (Just $ rawCpy qq)
+   isSmaller _ _             = trace "3" (return $ Just False)
 
    instRight :: (Applicable ki codes (UTx2 ki codes))
              => UTxUTx2 ki codes at -> UTx2 ki codes at
-             -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
+             -> State (Subst ki codes (UTx2 ki codes)) ()
    instRight l r = do
      s <- get
      let l' = l `refinedFor` (fst' r)
      case runExcept (pmatch' s (fst' r) l') of
-       Left (IncompatibleHole _ _) -> return (Just True)
-       Left  _  -> return Nothing
-       Right r  -> put r >> return (Just True)
-
-   compat :: (EqHO ki)
-          => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
-   compat domP codQ = and $ utxGetHolesWith' (uncurry' ok) (utxLCP domP codQ)
-     where ok _ (UTxHole _) = True
-           ok (UTxHole _) _ = True
-           ok _ _           = False
-
-   delmod :: (EqHO ki)
-          => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
-   delmod domP domQ = undefined
-       
-   divergingOpaques :: (EqHO ki) => UTx2 ki codes phi -> UTx2 ki codes phi -> Bool
-   divergingOpaques (_ :*: UTxOpq x) (_ :*: UTxOpq y) = not $ eqHO x y
-   divergingOpaques _                _                = False
-
-   isLocalIns :: (UTx ki codes phi :*: UTx ki codes phi) at -> Bool
-   isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
-   isLocalIns _                           = False
-
-   
+       Left  _  -> return ()
+       Right s  -> put s
 
 -- |Given a change in its spined-representation and a domain,
 -- we attempt to refine the change to the domain in question.
@@ -275,13 +271,14 @@ process sp sq =
 -- required a `cons' node. No problem, if we copied anything, we can
 -- copy cons nodes in particular.
 --
-refinedFor :: (EqHO ki)
+refinedFor :: (ShowHO ki , EqHO ki)
            => UTxUTx2 ki codes at
            -> UTx ki codes (MetaVarIK ki) at
            -> UTxUTx2 ki codes at
 refinedFor s = utxJoin . utxMap (uncurry' go) . utxLCP s
   where
-    go :: UTxUTx2 ki codes at
+    go :: (ShowHO ki)
+       => UTxUTx2 ki codes at
        -> UTx ki codes (MetaVarIK ki) at
        -> UTxUTx2 ki codes at
     go (UTxHole chgP) codQ

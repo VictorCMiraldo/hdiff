@@ -82,10 +82,10 @@ doMerge a o b
              Just (ab , ba)
                -> case (,) <$> apply ab b' <*> apply ba a' of
                    Right (c1 , c2)
-                     | eqFix eq1 c1 c2 -> MergeOk
-                     | otherwise       -> MergeDiffers
-                   Left err            -> ApplyFailed
-             Nothing                   -> HasConflicts
+                     | eqFix eqHO c1 c2 -> MergeOk
+                     | otherwise        -> MergeDiffers
+                   Left err             -> ApplyFailed
+             Nothing                    -> HasConflicts
 
 mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
 mustMerge = expectMerge MergeOk
@@ -241,6 +241,15 @@ a16 = "j" :>: []
 o16 = "g" :>: ["f" :>: [],"j" :>: []]
 b16 = "e" :>: ["a" :>: [],"a" :>: [],"f" :>: []]
 
+------------------------
+-- Example 17
+
+a17 , o17 , b17 :: RTree
+a17 = "j" :>: ["f" :>: []]
+o17 = "e" :>: ["f" :>: [],"f" :>: [],"m" :>: []]
+b17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
+
+
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
 
@@ -271,6 +280,8 @@ ob15 = digemRTree o15 b15
 oa16 = digemRTree o16 a16
 ob16 = digemRTree o16 b16
 
+oa17 = digemRTree o17 a17
+ob17 = digemRTree o17 b17
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
@@ -301,10 +312,9 @@ spec = do
     expectMerge HasConflicts "14" a14 o14 b14
     expectMerge HasConflicts "15" a15 o15 b15
     expectMerge HasConflicts "16" a16 o16 b16
+    expectMerge HasConflicts "17" a17 o17 b17
 
-{-
   describe "merge: conflict or ok" $ do
     it "contains no apply fail or merge differs" $ property $
       forAll gen3Trees $ \(a , o , b)
         -> doMerge a o b `elem` [MergeOk , HasConflicts]
--}
