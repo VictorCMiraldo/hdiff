@@ -165,7 +165,9 @@ rawCpy' :: UTxUTx2 ki codes at -> Bool
 rawCpy' (UTxHole v) = rawCpy v
 rawCpy' _           = False
 
-
+-- |compat makes sure that we don't have diverging opaque changes nor
+-- insertions insertions conflicts. We do so by checking where the codomains
+-- diverge. If they diverge only on holes, the codomains are compatible.
 compat :: (EqHO ki)
        => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
 compat codP codQ = and $ utxGetHolesWith' (uncurry' ok) (utxLCP codP codQ)
@@ -215,18 +217,18 @@ process sp sq =
      | not (compat (scIns pp) (scIns qq)) || delmod pp qq
      = return Nothing
      | otherwise
-     = isSmaller pp qq
+     = Just <$> isSmaller pp qq
       
    -- This function returns 'Just True' when we can apply pp over an object
    -- that has been modified by qq without adjusting pp.
    isSmaller :: (Applicable ki codes (UTx2 ki codes))
              => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-             -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
+             -> State (Subst ki codes (UTx2 ki codes)) Bool
    isSmaller (UTxHole pp) qq = instRight (UTxHole pp) (utx2distr qq) 
-                            >> return (Just True)
+                            >> return True
    isSmaller pp (UTxHole qq) = instRight pp qq
-                            >> return (Just $ rawCpy qq)
-   isSmaller _ _             = trace "3" (return $ Just False)
+                            >> return (rawCpy qq)
+   isSmaller _ _             = return False -- I think this is unreachable
 
    instRight :: (Applicable ki codes (UTx2 ki codes))
              => UTxUTx2 ki codes at -> UTx2 ki codes at
