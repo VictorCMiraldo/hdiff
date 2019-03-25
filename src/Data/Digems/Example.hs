@@ -30,10 +30,10 @@ import Data.Digems.Patch.Diff
 import Data.Digems.MetaVar
 import Data.Digems.Change
 
-instance Digestible1 Singl where
-  digest1 (SString s) = hashStr s
-  digest1 (SInt s)    = hashStr (show s)
-  digest1 _           = error "No one told me!"
+instance DigestibleHO Singl where
+  digestHO (SString s) = hashStr s
+  digestHO (SInt s)    = hashStr (show s)
+  digestHO _           = error "No one told me!"
 
 -- |2-3-Trees declaration
 data Tree23

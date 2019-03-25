@@ -88,10 +88,10 @@ instance EqHO W where
   eqHO (W_String s)  (W_String ss) = s == ss
   eqHO (W_Bool b)    (W_Bool c)    = b == c
 
-instance Digestible1 W where
-  digest1 (W_Integer i) = hashStr (show i)
-  digest1 (W_String s)  = hashStr s
-  digest1 (W_Bool b)    = hashStr (show b)
+instance DigestibleHO W where
+  digestHO (W_Integer i) = hashStr (show i)
+  digestHO (W_String s)  = hashStr s
+  digestHO (W_Bool b)    = hashStr (show b)
 
 instance ShowHO W where
   showHO (W_Integer i) = show i

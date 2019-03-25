@@ -43,16 +43,16 @@ data LuaSingl (kon :: LuaKon) :: * where
   SLuaText :: Text -> LuaSingl LuaText
   SLuaBool :: Bool -> LuaSingl LuaBool
 
-instance Renderer1 LuaSingl where
-  render1 (SLuaText t) = pretty (T.unpack t)
-  render1 (SLuaBool b) = pretty b
+instance RendererHO LuaSingl where
+  renderHO (SLuaText t) = pretty (T.unpack t)
+  renderHO (SLuaBool b) = pretty b
 
 instance Digestible Text where
   digest = hash . encodeUtf8
 
-instance Digestible1 LuaSingl where
-  digest1 (SLuaText text) = digest text
-  digest1 (SLuaBool bool) = hashStr (show bool)
+instance DigestibleHO LuaSingl where
+  digestHO (SLuaText text) = digest text
+  digestHO (SLuaBool bool) = hashStr (show bool)
 
 deriving instance Show (LuaSingl k)
 deriving instance Eq (LuaSingl k)

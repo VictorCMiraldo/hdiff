@@ -35,15 +35,15 @@ data WKon = WString
 
 -- |And their singletons.
 --
---  Note we need instances of Eq1, Show1 and Digestible1
+--  Note we need instances of Eq1, Show1 and DigestibleHO
 data W :: WKon -> * where
   W_String  :: String  -> W WString
 
 instance EqHO W where
   eqHO (W_String s)  (W_String ss) = s == ss
 
-instance Digestible1 W where
-  digest1 (W_String s)  = hashStr s
+instance DigestibleHO W where
+  digestHO (W_String s)  = hashStr s
 
 instance ShowHO W where
   showHO (W_String s)  = s

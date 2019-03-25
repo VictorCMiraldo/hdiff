@@ -64,8 +64,8 @@ instance Digestible Word64 where
 
 -- |A functor is digestible if we can hash its
 --  value pointwise.
-class Digestible1 (f :: k -> *) where
-  digest1 :: forall ki . f ki -> Digest
+class DigestibleHO (f :: k -> *) where
+  digestHO :: forall ki . f ki -> Digest
 
 -- |Type synonym for fixpoints annotated with their digest.
 type DigFix ki codes = AnnFix ki codes (Const Digest)
@@ -73,7 +73,7 @@ type DigFix ki codes = AnnFix ki codes (Const Digest)
 -- |Given a generic fixpoint, annotate every recursive position
 --  with its cryptographic digests.
 auth :: forall ki codes ix
-      . (IsNat ix , Digestible1 ki)
+      . (IsNat ix , DigestibleHO ki)
      => Fix ki codes ix
      -> DigFix ki codes ix
 auth = synthesize (authAlgebra getConst)
@@ -82,7 +82,7 @@ auth = synthesize (authAlgebra getConst)
 --  to compute a merkelized fixpoint.
 --
 authAlgebra :: forall ki sum ann iy
-             . (Digestible1 ki , IsNat iy)
+             . (DigestibleHO ki , IsNat iy)
             => (forall ix . ann ix -> Digest)
             -> Rep ki ann sum
             -> Const Digest iy
@@ -91,7 +91,7 @@ authAlgebra proj rep
      in case sop rep of
        Tag c p -> Const . digestConcat
                 $ ([digest (constr2W64 c) , digest siy] ++)
-                $ elimNP (elimNA digest1 proj) p
+                $ elimNP (elimNA digestHO proj) p
   where
     -- We are mapping Constr and SNat's to
     -- Word64 because these are better handled by the 'memory'

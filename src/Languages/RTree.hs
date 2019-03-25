@@ -40,8 +40,8 @@ data W :: WKon -> * where
 instance EqHO W where
   eqHO (W_String s)  (W_String ss) = s == ss
 
-instance Digestible1 W where
-  digest1 (W_String s)  = hashStr s
+instance DigestibleHO W where
+  digestHO (W_String s)  = hashStr s
 
 instance RendererHO W where
   renderHO (W_String s) = pretty s

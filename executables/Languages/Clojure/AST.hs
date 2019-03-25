@@ -63,8 +63,8 @@ instance RendererHO CljSingl where
 instance Digestible Text where
   digest = hash . encodeUtf8
 
-instance Digestible1 CljSingl where
-  digest1 (SCljText text) = digest text
+instance DigestibleHO CljSingl where
+  digestHO (SCljText text) = digest text
   
 
 deriving instance Show (CljSingl k)

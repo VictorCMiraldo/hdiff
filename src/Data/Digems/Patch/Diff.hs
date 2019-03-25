@@ -187,7 +187,7 @@ close utx = case closure utx of
 --    iv)  keep the holes that appear both in the insertion and
 --         deletion treefixes
 --
-diff :: (EqHO ki , Digestible1 ki , IsNat ix)
+diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight
      -> Fix ki codes ix
      -> Fix ki codes ix

@@ -31,7 +31,7 @@ type PrepFix ki codes = AnnFix ki codes (Const PrepData)
 -- |And a more general form of the algebra used
 --  to compute a merkelized fixpoint.
 heightAlgebra :: forall ki sum ann iy
-               . (Digestible1 ki , IsNat iy)
+               . (DigestibleHO ki , IsNat iy)
               => (forall ix . ann ix -> Int)
               -> Rep ki ann sum
               -> Const Int iy 
@@ -43,7 +43,7 @@ heightAlgebra proj = Const . (1+) . elimRep (const 0) proj safeMax
 -- |Combining 'authAlgebra' with 'heightAlgebra' we can
 --  'synthesize' an annotated fixpoint quite easily:
 preprocess :: forall ki codes ix
-            . (IsNat ix , Digestible1 ki)
+            . (IsNat ix , DigestibleHO ki)
            => Fix ki codes ix
            -> PrepFix ki codes ix
 preprocess = synthesize alg
