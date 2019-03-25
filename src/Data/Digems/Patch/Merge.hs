@@ -101,12 +101,10 @@ reconcile :: forall ki codes fam at
 reconcile p q
   -- If both patches are alpha-equivalent, we return a copy.
   | patchEq p q  = UTxHole $ InR $ makeCopyFrom (distrCChange p)
-{-
   -- When one of the patches is a copy, this is easy. We borrow
   -- from residual theory and return the first one.
   | patchIsCpy p = utxMap InR p
   | patchIsCpy q = utxMap InR p
--}
 -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
     -- First we translate both patches to a 'spined change' representation.
@@ -168,27 +166,6 @@ rawCpy' (UTxHole v) = rawCpy v
 rawCpy' _           = False
 
 
-showHs pp qq = "Looking at:\n" ++ showHO pp ++ "\n$$$\n" ++ showHO qq 
-
-
-delMod :: (ShowHO ki , EqHO ki) => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
-delMod pp qq = or $ utxGetHolesWith' (uncurry' go) (utxLCP (scDel pp) qq)
-  where go :: (ShowHO ki , EqHO ki)
-           => UTx ki codes (MetaVarIK ki) at
-           -> UTxUTx2 ki codes at
-           -> Bool
-        go (UTxHole p) q = False
-        go _ (UTxHole (UTxHole _ :*: _)) = False
-        go r (UTxHole v) = and $ utxGetHolesWith' (uncurry' go') (utxLCP r (fst' v))
-        go _ _           = True
-
-        go' :: (ShowHO ki)
-            => UTx ki codes (MetaVarIK ki) at
-            -> UTx ki codes (MetaVarIK ki) at
-            -> Bool
-        go' (UTxPeel _ _) (UTxHole _) = True
-        go' p q = False
-
 compat :: (EqHO ki)
        => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
 compat codP codQ = and $ utxGetHolesWith' (uncurry' ok) (utxLCP codP codQ)
@@ -196,11 +173,16 @@ compat codP codQ = and $ utxGetHolesWith' (uncurry' ok) (utxLCP codP codQ)
         ok (UTxHole _) _ = True
         ok _ _           = False
 
-nodelmod :: (Applicable ki codes phi)
-         => UTx ki codes (MetaVarIK ki) at -> UTx ki codes phi at -> Bool
-nodelmod delCtx denom = case runExcept (pmatch delCtx denom) of
-                          Left err -> False
-                          Right _  -> True
+-- |A deletion context has no del/mod conflict with a change when we
+-- can pattern match the deletion context in the refined spine of
+-- the change without problems.
+delmod :: (Applicable ki codes (UTx2 ki codes))
+         => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
+delmod (UTxHole (delCtx :*: _)) denom
+  = case runExcept (pmatch delCtx (denom `refinedFor` delCtx)) of
+          Left err -> True
+          Right _  -> False
+delmod _ _ = False
 
 -- |This will process two changes, represented as a spine and
 -- inner changes, into a potential merged patch. The result of @process sp sq@
@@ -230,7 +212,7 @@ process sp sq =
            => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
            -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
    wrapper pp qq
-     | not (compat (scIns pp) (scIns qq))
+     | not (compat (scIns pp) (scIns qq)) || delmod pp qq
      = return Nothing
      | otherwise
      = isSmaller pp qq
@@ -240,11 +222,8 @@ process sp sq =
    isSmaller :: (Applicable ki codes (UTx2 ki codes))
              => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
              -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
-   isSmaller (UTxHole pp) qq
-     | nodelmod (fst' pp) (qq `refinedFor` fst' pp)
-       = instRight (UTxHole pp) (utx2distr qq) 
-       >> return (Just True)
-     | otherwise = return Nothing
+   isSmaller (UTxHole pp) qq = instRight (UTxHole pp) (utx2distr qq) 
+                            >> return (Just True)
    isSmaller pp (UTxHole qq) = instRight pp qq
                             >> return (Just $ rawCpy qq)
    isSmaller _ _             = trace "3" (return $ Just False)
