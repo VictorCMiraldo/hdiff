@@ -2,8 +2,11 @@
 resolver: lts-12.2
 
 packages:
-  - ./
-  - ../generics-mrsop
+  - .
+  - location:
+      git: git@github.com:VictorCMiraldo/generics-mrsop.git
+      commit: 9cee726fef18ca7fe380409244bce0cd9ef8ade0
+    extra-dep: true
 
 extra-deps:
   - language-lua-0.11.0
