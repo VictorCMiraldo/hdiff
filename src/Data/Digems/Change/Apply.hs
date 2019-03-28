@@ -148,7 +148,7 @@ idxDecEq utx i@(NA_I _)
 
 -- |Attempts to insert a new binding into a substitution. If the variable is already
 -- bound, we check the existing binding for equality
-substInsert :: (Applicable ki codees phi)
+substInsert :: (Applicable ki codes phi)
             => Subst ki codes phi
             -> MetaVarIK ki ix
             -> UTx ki codes phi ix

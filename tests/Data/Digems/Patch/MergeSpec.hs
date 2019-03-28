@@ -249,6 +249,23 @@ a17 = "j" :>: ["f" :>: []]
 o17 = "e" :>: ["f" :>: [],"f" :>: [],"m" :>: []]
 b17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
 
+------------------------
+-- Example 18
+
+a18 , o18 , b18 :: RTree
+a18 = "r" :>: [ "a" :>: [] , "a" :>: []]
+o18 = "r" :>: [ "a" :>: [] , "c" :>: []]
+b18 = "r" :>: [ "b" :>: [] , "c" :>: [] ]
+
+-------------------------
+-- Example 19
+
+a19 , o19 , b19 :: RTree
+a19 = "c" :>: ["c" :>: []]
+o19 = "c" :>: ["m" :>: ["a" :>: []]]
+b19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []]
+
+
 
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
@@ -283,6 +300,12 @@ ob16 = digemRTree o16 b16
 oa17 = digemRTree o17 a17
 ob17 = digemRTree o17 b17
 
+oa18 = digemRTree o18 a18
+ob18 = digemRTree o18 b18
+
+oa19 = digemRTree o19 a19
+ob19 = digemRTree o19 b19
+
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3
@@ -308,11 +331,16 @@ spec = do
     expectMerge HasConflicts "10" a10 o10 b10
     expectMerge HasConflicts "11" a11 o11 b11
     expectMerge HasConflicts "12" a12 o12 b12
-    expectMerge HasConflicts "13" a13 o13 b13
+
+    mustMerge "13" a13 o13 b13
+
     expectMerge HasConflicts "14" a14 o14 b14
     expectMerge HasConflicts "15" a15 o15 b15
     expectMerge HasConflicts "16" a16 o16 b16
     expectMerge HasConflicts "17" a17 o17 b17
+
+    mustMerge "18" a18 o18 b18
+    mustMerge "19" a19 o19 b19
 
   describe "merge: conflict or ok" $ do
     it "contains no apply fail or merge differs" $ property $

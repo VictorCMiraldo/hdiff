@@ -101,10 +101,13 @@ reconcile :: forall ki codes fam at
 reconcile p q
   -- If both patches are alpha-equivalent, we return a copy.
   | patchEq p q  = UTxHole $ InR $ makeCopyFrom (distrCChange p)
+{-
+  -- TODO: check that these are guaranteed by the algo below
   -- When one of the patches is a copy, this is easy. We borrow
   -- from residual theory and return the first one.
-  | patchIsCpy p = utxMap InR p
-  | patchIsCpy q = utxMap InR p
+  | patchIsCpy p = trace "1" $ utxMap InR p
+  | patchIsCpy q = trace "2" $ utxMap InR p
+-}
 -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
     -- First we translate both patches to a 'spined change' representation.
@@ -118,7 +121,7 @@ reconcile p q
               Left err -> InL $ Conflict (show err) p q
               Right r  -> case utx2change r of
                             Nothing  -> InL $ Conflict "chg" p q
-                            Just res -> InR res
+                            Just res -> InR res 
 
 type UTx2 ki codes
   = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
@@ -161,10 +164,6 @@ rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bo
 rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
 rawCpy _                           = False
 
-rawCpy' :: UTxUTx2 ki codes at -> Bool
-rawCpy' (UTxHole v) = rawCpy v
-rawCpy' _           = False
-
 -- |compat makes sure that we don't have diverging opaque changes nor
 -- insertions insertions conflicts. We do so by checking where the codomains
 -- diverge. If they diverge only on holes, the codomains are compatible.
@@ -186,6 +185,20 @@ delmod (UTxHole (delCtx :*: _)) denom
           Right _  -> False
 delmod _ _ = False
 
+isLocalIns :: UTx2 ki codes at -> Bool
+isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
+isLocalIns _                           = False
+
+arityMap :: UTx ki codes (MetaVarIK ki) at -> M.Map Int Int
+arityMap = go . utxGetHolesWith' metavarGet
+  where
+    go []     = M.empty
+    go (v:vs) = M.alter (Just . maybe 1 (+1)) v (go vs)
+
+
+instance ShowHO x => Show (Exists x) where
+  show (Exists x) = showHO x
+
 -- |This will process two changes, represented as a spine and
 -- inner changes, into a potential merged patch. The result of @process sp sq@
 -- is supposed to instruct how to construct a patch that
@@ -201,44 +214,64 @@ process :: (Applicable ki codes (UTx2 ki codes))
         => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
         -> ProcessOutcome ki codes
 process sp sq =
-  let aux = utxGetHolesWithM' (uncurry' wrapper) $ utxLCP sp sq
-   in case runState (fmap mboolsum aux) M.empty of
-        (Just True,  _) -> ReturnNominator
-        (Just False, s) -> InstDenominator s
-        (Nothing,    _) -> CantReconcile
- where
-   mboolsum :: [Maybe Bool] -> Maybe Bool
-   mboolsum = fmap and . sequence
-   
-   wrapper :: (Applicable ki codes (UTx2 ki codes))
-           => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-           -> State (Subst ki codes (UTx2 ki codes)) (Maybe Bool)
-   wrapper pp qq
-     | not (compat (scIns pp) (scIns qq)) || delmod pp qq
-     = return Nothing
-     | otherwise
-     = Just <$> isSmaller pp qq
-      
-   -- This function returns 'Just True' when we can apply pp over an object
-   -- that has been modified by qq without adjusting pp.
-   isSmaller :: (Applicable ki codes (UTx2 ki codes))
-             => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-             -> State (Subst ki codes (UTx2 ki codes)) Bool
-   isSmaller (UTxHole pp) qq = instRight (UTxHole pp) (utx2distr qq) 
-                            >> return True
-   isSmaller pp (UTxHole qq) = instRight pp qq
-                            >> return (rawCpy qq)
-   isSmaller _ _             = return False -- I think this is unreachable
+  case and <$> mapM (exElim $ uncurry' step1) phiD of
+    Nothing    -> CantReconcile
+    Just True  -> if any (exElim $ uncurry' insins) phiID
+                  then CantReconcile
+                  else ReturnNominator
+    Just False ->
+      case runState (and <$> mapM (exElim $ uncurry' step2) phiID) M.empty of
+        (False , _) -> CantReconcile
+        (True  , s) -> InstDenominator s
+  where
+    (delsp :*: _) = utx2distr sp
+    phiD  = utxGetHolesWith' Exists $ utxLCP delsp sq
+    phiID = utxGetHolesWith' Exists $ utxLCP sp sq
 
-   instRight :: (Applicable ki codes (UTx2 ki codes))
-             => UTxUTx2 ki codes at -> UTx2 ki codes at
-             -> State (Subst ki codes (UTx2 ki codes)) ()
-   instRight l r = do
-     s <- get
-     let l' = l `refinedFor` (fst' r)
-     case runExcept (pmatch' s (fst' r) l') of
-       Left  _  -> return ()
-       Right s  -> put s
+    -- counts how many times a variable appears in 'sq'
+    m var = maybe 0 id $ M.lookup var (arityMap (snd' (utx2distr sq)))
+
+    -- |Step1 checks that the own-variable mappings of the
+    -- anti-unification of (scDel p) and q is of a specific shape.
+    step1 :: UTx ki codes (MetaVarIK ki) at -> UTxUTx2 ki codes at
+          -> Maybe Bool
+    -- If the deletion context of the numerator requires an opaque
+    -- fixed value and the denominator performs any change other
+    -- than a copy, this is a del/mod conflict.
+    step1 (UTxOpq _) (UTxHole chg)
+      | rawCpy chg = Just True
+      | otherwise  = Nothing
+    -- If the numerator imposes no restriction in what it accepts here,
+    -- we return true for this hole
+    step1 (UTxHole _) _   = Just True
+    -- If the numerator expects something specific but the denominator
+    -- merely copies, we still return true
+    step1 _ (UTxHole chg) = Just $
+      case chg of
+        -- The thing is, 'chg' is a true copy only if v2 occurs only once
+        -- within the whole of 'sq'
+        (UTxHole v1 :*: UTxHole v2)
+          -> metavarGet v1 == metavarGet v2 && m (metavarGet v2) == 1
+        _ -> False
+    -- Any other situation requires further analisys.
+    step1 _ _ = Just False
+
+    -- |Step2 checks a condition for the own-variable mappints
+    -- of the anti-unification of p and q! note this is different
+    -- altogether from step 1!!!
+    step2 :: (Applicable ki codes (UTx2 ki codes))
+          => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
+          -> State (Subst ki codes (UTx2 ki codes)) Bool
+    step2 pp qq = do
+      s <- get
+      let del = scDel qq
+      case runExcept (pmatch' s del (pp `refinedFor` del)) of
+        Left  _  -> return False
+        Right s' -> put s' >> return True
+
+    insins :: UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
+    insins (UTxHole pp) (UTxHole qq) = isLocalIns pp && isLocalIns qq
+    insins _ _ = False
 
 -- |Given a change in its spined-representation and a domain,
 -- we attempt to refine the change to the domain in question.
@@ -258,12 +291,14 @@ refinedFor :: (ShowHO ki , EqHO ki)
            -> UTxUTx2 ki codes at
 refinedFor s = utxJoin . utxMap (uncurry' go) . utxLCP s
   where
+    maxVar = maximum $ 0 : utxGetHolesWith' metavarGet (snd' $ utx2distr s)
+    
     go :: (ShowHO ki)
        => UTxUTx2 ki codes at
        -> UTx ki codes (MetaVarIK ki) at
        -> UTxUTx2 ki codes at
     go (UTxHole chgP) codQ
-      | rawCpy chgP = let v = rawCpyVar chgP + 1
+      | rawCpy chgP = let v = rawCpyVar chgP + maxVar + 1
                        in utxMap (\i -> delta (UTxHole $ metavarAdd v i)) codQ
       | otherwise   = UTxHole chgP
     go sP             codQ = sP
