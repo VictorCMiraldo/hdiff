@@ -176,9 +176,14 @@ scIns :: UTxUTx2 ki codes at
       -> UTx ki codes (MetaVarIK ki) at
 scIns = utxJoin . utxMap snd'
 
-rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bool
-rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
-rawCpy _                           = False
+-- |Checks whether a variable is a rawCpy, note that we need
+--  a map that checks occurences of this variable.
+rawCpy :: M.Map Int Int
+       -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
+       -> Bool
+rawCpy ar (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
+                                     && M.lookup (metavarGet v1) ar == Just 1
+rawCpy ar _                           = False
 
 isLocalIns :: UTx2 ki codes at -> Bool
 isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
@@ -224,6 +229,8 @@ process sp sq =
     phiD  = utxGetHolesWith' Exists $ utxLCP delsp sq
     phiID = utxGetHolesWith' Exists $ utxLCP sp sq
 
+    -- The thing is, 'chg' is a true copy only if v2 occurs only once
+    -- within the whole of 'sq'
     -- counts how many times a variable appears in 'sq'
     varmap = arityMap (snd' (utx2distr sq))
     m var = maybe 0 id $ M.lookup var varmap
@@ -240,20 +247,14 @@ process sp sq =
     -- fixed value and the denominator performs any change other
     -- than a copy, this is a del/mod conflict.
     step1 (UTxOpq _) (UTxHole chg)
-      | rawCpy chg = Just True
-      | otherwise  = Nothing
+      | rawCpy varmap chg = Just True
+      | otherwise         = Nothing
     -- If the numerator imposes no restriction in what it accepts here,
     -- we return true for this hole
     step1 (UTxHole _) _   = Just True
     -- If the numerator expects something specific but the denominator
     -- merely copies, we still return true
-    step1 _ (UTxHole chg) = Just $
-      case chg of
-        -- The thing is, 'chg' is a true copy only if v2 occurs only once
-        -- within the whole of 'sq'
-        (UTxHole v1 :*: UTxHole v2)
-          -> metavarGet v1 == metavarGet v2 && m (metavarGet v2) == 1
-        _ -> False
+    step1 _ (UTxHole chg) = Just $ rawCpy varmap chg
     -- Any other situation requires further analisys.
     step1 _ _ = Just False
 
@@ -266,8 +267,8 @@ process sp sq =
     step2 pp qq = do
       s <- get
       let del = scDel qq
-      pp' <- lift (pp `refinedFor` del)
-      case runExcept (pmatch' s del pp') of
+      pp' <- lift (refinedFor varmap pp del)
+      case runExcept (pmatch' s del pp) of
         Left  _  -> return False
         Right s' -> put s' >> return True
 
@@ -288,19 +289,20 @@ process sp sq =
 -- copy cons nodes in particular.
 --
 refinedFor :: (ShowHO ki , EqHO ki)
-           => UTxUTx2 ki codes at
+           => M.Map Int Int
+           -> UTxUTx2 ki codes at
            -> UTx ki codes (MetaVarIK ki) at
            -> FreshM (UTxUTx2 ki codes at)
-refinedFor s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
+refinedFor varmap s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
   where
     go :: (ShowHO ki)
        => UTxUTx2 ki codes at
        -> UTx ki codes (MetaVarIK ki) at
        -> FreshM (UTxUTx2 ki codes at)
     go (UTxHole chgP) codQ
-      | rawCpy chgP = do v <- freshMetaVar
-                         return $ utxMap (\i -> delta (UTxHole $ metavarAdd v i)) codQ
-      | otherwise   = return $ UTxHole chgP
+      | rawCpy varmap chgP = do v <- freshMetaVar
+                                return $ utxMap (delta . UTxHole . metavarAdd v) codQ
+      | otherwise          = return $ UTxHole chgP
     go sP      codQ = return sP
 
     delta x = (x :*: x)
