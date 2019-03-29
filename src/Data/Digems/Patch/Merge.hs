@@ -185,6 +185,10 @@ rawCpy ar (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
                                      && M.lookup (metavarGet v1) ar == Just 1
 rawCpy ar _                           = False
 
+simpleCopy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bool
+simpleCopy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
+simpleCopy _ = False
+
 isLocalIns :: UTx2 ki codes at -> Bool
 isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
 isLocalIns _                           = False
@@ -247,8 +251,8 @@ process sp sq =
     -- fixed value and the denominator performs any change other
     -- than a copy, this is a del/mod conflict.
     step1 (UTxOpq _) (UTxHole chg)
-      | rawCpy varmap chg = Just True
-      | otherwise         = Nothing
+      | simpleCopy chg = Just True
+      | otherwise      = Nothing
     -- If the numerator imposes no restriction in what it accepts here,
     -- we return true for this hole
     step1 (UTxHole _) _   = Just True
@@ -300,8 +304,8 @@ refinedFor varmap s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
        -> UTx ki codes (MetaVarIK ki) at
        -> FreshM (UTxUTx2 ki codes at)
     go (UTxHole chgP) codQ
-      | rawCpy varmap chgP = do v <- freshMetaVar
-                                return $ utxMap (delta . UTxHole . metavarAdd v) codQ
+      | simpleCopy chgP = do v <- freshMetaVar
+                             return $ utxMap (delta . UTxHole . metavarAdd v) codQ
       | otherwise          = return $ UTxHole chgP
     go sP      codQ = return sP
 
