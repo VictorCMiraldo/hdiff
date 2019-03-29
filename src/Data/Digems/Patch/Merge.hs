@@ -73,7 +73,20 @@ getConflicts = snd . runWriter . utxMapM go
   where
     go x@(InL (Conflict str _ _)) = tell [show str] >> return x
     go x                          = return x
-    
+
+-- |We might need to issue new variables, hence we need a 'FreshM'
+-- monad do issue them correctly;
+type FreshM = State Int
+
+-- |runs a 'FreshM' computation over the names of a patch
+withFreshNamesFrom :: FreshM a -> Patch ki codes ix -> a
+withFreshNamesFrom comp p = evalState comp maxVar
+  where
+    maxVar = let vs = S.unions $ utxGetHolesWith' (S.map (exElim metavarGet) . cCtxVars) p
+              in maybe 0 id $ S.lookupMax vs 
+
+freshMetaVar :: FreshM Int
+freshMetaVar = modify (+1) >> get
 
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
@@ -84,7 +97,8 @@ getConflicts = snd . runWriter . utxMapM go
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = utxJoin . utxMap (uncurry' reconcile) $ utxLCP p q
+p // q = utxJoin $ (utxMapM (uncurry' reconcile) $ utxLCP p q)
+                   `withFreshNamesFrom` p
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.
@@ -97,10 +111,10 @@ reconcile :: forall ki codes fam at
              ) 
           => RawPatch ki codes at
           -> RawPatch ki codes at
-          -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
+          -> FreshM (UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at)
 reconcile p q
   -- If both patches are alpha-equivalent, we return a copy.
-  | patchEq p q  = UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  | patchEq p q  = return $ UTxHole $ InR $ makeCopyFrom (distrCChange p)
 {-
   -- TODO: check that these are guaranteed by the algo below
   -- When one of the patches is a copy, this is easy. We borrow
@@ -113,10 +127,12 @@ reconcile p q
     -- First we translate both patches to a 'spined change' representation.
     let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
         sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
-     in case process sp sq of
-          CantReconcile     -> UTxHole $ InL $ Conflict "conf" p q
-          ReturnNominator   -> utxMap InR p
-          InstDenominator v -> UTxHole $
+     in do
+      res0 <- process sp sq
+      case res0 of
+          CantReconcile     -> return $ UTxHole $ InL $ Conflict "conf" p q
+          ReturnNominator   -> return $ utxMap InR p
+          InstDenominator v -> return $ UTxHole $
             case runExcept $ transport (scIns sq) v of
               Left err -> InL $ Conflict (show err) p q
               Right r  -> case utx2change r of
@@ -164,27 +180,6 @@ rawCpy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bo
 rawCpy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
 rawCpy _                           = False
 
--- |compat makes sure that we don't have diverging opaque changes nor
--- insertions insertions conflicts. We do so by checking where the codomains
--- diverge. If they diverge only on holes, the codomains are compatible.
-compat :: (EqHO ki)
-       => UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at -> Bool
-compat codP codQ = and $ utxGetHolesWith' (uncurry' ok) (utxLCP codP codQ)
-  where ok _ (UTxHole _) = True
-        ok (UTxHole _) _ = True
-        ok _ _           = False
-
--- |A deletion context has no del/mod conflict with a change when we
--- can pattern match the deletion context in the refined spine of
--- the change without problems.
-delmod :: (Applicable ki codes (UTx2 ki codes))
-         => UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
-delmod (UTxHole (delCtx :*: _)) denom
-  = case runExcept (pmatch delCtx (denom `refinedFor` delCtx)) of
-          Left err -> True
-          Right _  -> False
-delmod _ _ = False
-
 isLocalIns :: UTx2 ki codes at -> Bool
 isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
 isLocalIns _                           = False
@@ -212,24 +207,30 @@ instance ShowHO x => Show (Exists x) where
 --
 process :: (Applicable ki codes (UTx2 ki codes))
         => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-        -> ProcessOutcome ki codes
+        -> FreshM (ProcessOutcome ki codes)
 process sp sq =
   case and <$> mapM (exElim $ uncurry' step1) phiD of
-    Nothing    -> CantReconcile
+    Nothing    -> return CantReconcile
     Just True  -> if any (exElim $ uncurry' insins) phiID
-                  then CantReconcile
-                  else ReturnNominator
-    Just False ->
-      case runState (and <$> mapM (exElim $ uncurry' step2) phiID) M.empty of
-        (False , _) -> CantReconcile
-        (True  , s) -> InstDenominator s
+                  then return CantReconcile
+                  else return ReturnNominator
+    Just False -> do
+      partial <- runStateT (and <$> mapM (exElim $ uncurry' step2) phiID) M.empty
+      case partial of
+        (False , _) -> return CantReconcile
+        (True  , s) -> return $ InstDenominator s
   where
     (delsp :*: _) = utx2distr sp
     phiD  = utxGetHolesWith' Exists $ utxLCP delsp sq
     phiID = utxGetHolesWith' Exists $ utxLCP sp sq
 
     -- counts how many times a variable appears in 'sq'
-    m var = maybe 0 id $ M.lookup var (arityMap (snd' (utx2distr sq)))
+    varmap = arityMap (snd' (utx2distr sq))
+    m var = maybe 0 id $ M.lookup var varmap
+
+    maxVar = case M.toDescList varmap of
+               []        -> 0
+               ((v,_):_) -> v
 
     -- |Step1 checks that the own-variable mappings of the
     -- anti-unification of (scDel p) and q is of a specific shape.
@@ -261,11 +262,12 @@ process sp sq =
     -- altogether from step 1!!!
     step2 :: (Applicable ki codes (UTx2 ki codes))
           => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-          -> State (Subst ki codes (UTx2 ki codes)) Bool
+          -> StateT (Subst ki codes (UTx2 ki codes)) FreshM Bool
     step2 pp qq = do
       s <- get
       let del = scDel qq
-      case runExcept (pmatch' s del (pp `refinedFor` del)) of
+      pp' <- lift (pp `refinedFor` del)
+      case runExcept (pmatch' s del pp') of
         Left  _  -> return False
         Right s' -> put s' >> return True
 
@@ -288,20 +290,18 @@ process sp sq =
 refinedFor :: (ShowHO ki , EqHO ki)
            => UTxUTx2 ki codes at
            -> UTx ki codes (MetaVarIK ki) at
-           -> UTxUTx2 ki codes at
-refinedFor s = utxJoin . utxMap (uncurry' go) . utxLCP s
+           -> FreshM (UTxUTx2 ki codes at)
+refinedFor s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
   where
-    maxVar = maximum $ 0 : utxGetHolesWith' metavarGet (snd' $ utx2distr s)
-    
     go :: (ShowHO ki)
        => UTxUTx2 ki codes at
        -> UTx ki codes (MetaVarIK ki) at
-       -> UTxUTx2 ki codes at
+       -> FreshM (UTxUTx2 ki codes at)
     go (UTxHole chgP) codQ
-      | rawCpy chgP = let v = rawCpyVar chgP + maxVar + 1
-                       in utxMap (\i -> delta (UTxHole $ metavarAdd v i)) codQ
-      | otherwise   = UTxHole chgP
-    go sP             codQ = sP
+      | rawCpy chgP = do v <- freshMetaVar
+                         return $ utxMap (\i -> delta (UTxHole $ metavarAdd v i)) codQ
+      | otherwise   = return $ UTxHole chgP
+    go sP      codQ = return sP
 
     delta x = (x :*: x)
 
