@@ -23,6 +23,7 @@ cabal.project.local
 !.projectile
 #*
 PANIC/*
+vault/*
 dataset/conflicts*
 writeup/*
 TAGS
