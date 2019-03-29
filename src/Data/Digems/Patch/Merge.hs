@@ -251,7 +251,7 @@ process sp sq =
     -- fixed value and the denominator performs any change other
     -- than a copy, this is a del/mod conflict.
     step1 (UTxOpq _) (UTxHole chg)
-      | simpleCopy chg = Just True
+      | rawCpy varmap chg = Just True
       | otherwise      = Nothing
     -- If the numerator imposes no restriction in what it accepts here,
     -- we return true for this hole
@@ -272,7 +272,7 @@ process sp sq =
       s <- get
       let del = scDel qq
       pp' <- lift (refinedFor varmap pp del)
-      case runExcept (pmatch' s del pp) of
+      case runExcept (pmatch' s del pp') of
         Left  _  -> return False
         Right s' -> put s' >> return True
 
@@ -304,6 +304,12 @@ refinedFor varmap s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
        -> UTx ki codes (MetaVarIK ki) at
        -> FreshM (UTxUTx2 ki codes at)
     go (UTxHole chgP) codQ
+      -- breaks three tests! When is refinment ok when copying?
+      -- Feels like refinement should be a separate monster from merging
+      -- altogether
+
+      -- > | rawCpy varmap chgP = do v <- freshMetaVar
+      -- >                           return $ utxMap (delta . UTxHole . metavarAdd v) codQ
       | simpleCopy chgP = do v <- freshMetaVar
                              return $ utxMap (delta . UTxHole . metavarAdd v) codQ
       | otherwise          = return $ UTxHole chgP
