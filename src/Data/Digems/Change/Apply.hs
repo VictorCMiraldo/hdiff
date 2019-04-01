@@ -59,7 +59,7 @@ instance Show (ApplicationErr ki codes phi) where
   show (IncompatibleHole _ _)    = "IncompatibleHole"
   show (IncompatibleTypes)       = "IncompatibleTypes"
 
--- |A substitution from metavariable numbers to some treefix
+-- |A instantiation substitution from metavariable numbers to some treefix
 type Subst ki codes phi = M.Map Int (Exists (UTx ki codes phi))
 
 type Applicable ki codes phi = (ShowHO ki , EqHO ki , TestEquality ki , TestEquality phi

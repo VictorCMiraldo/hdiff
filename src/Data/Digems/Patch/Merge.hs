@@ -35,7 +35,7 @@ import Data.Digems.Patch
 import Data.Digems.Patch.Diff
 import Data.Digems.Change
 import Data.Digems.Change.Apply
-import Data.Digems.Change.Classify
+import Data.Digems.Change.Unify
 import Data.Digems.MetaVar
 
 import Debug.Trace
@@ -87,6 +87,13 @@ withFreshNamesFrom comp p = evalState comp maxVar
 
 freshMetaVar :: FreshM Int
 freshMetaVar = modify (+1) >> get
+
+withUnifiedDelCtx :: (Applicable ki codes (MetaVarIK ki))
+                  => RawPatch ki codes at -> RawPatch ki codes at
+                  -> ( UTx ki codes (MetaVarIK ki) at
+                     , UTx ki codes (MetaVarIK ki) at
+                     , UTx ki codes (MetaVarIK ki) at)
+withUnifiedDelCtx p q = undefined
 
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
