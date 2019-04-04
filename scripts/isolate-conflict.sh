@@ -3,6 +3,7 @@ set -uo pipefail
 
 vault="vault"
 dataset="dataset"
+digemopts=""
 id1=""
 id2=""
 
@@ -22,6 +23,13 @@ function showUsage() {
   echo "      Specivies the destination the conflict should be put."
   echo "      Defaults to '$vault'"
   echo ""
+  echo "    -r , --run \"opts-to-digem\""
+  echo "      Instead of copying the conflicting files, run 'digem'"
+  echo "      inside the found folder"
+  echo ""
+  echo "   -m , --run-merge"
+  echo "     The same as '-r \"merge A.lua O.lua B.lua\", just easier to type."
+  echo ""
   exit 0
 }
 
@@ -35,6 +43,8 @@ case "$#" in
        case $arg in
          -d|--dataset) dataset="${1?'missing argument to --skip'}" ; shift ;;
          -v|--vault) vault="${1?'missing argument to --vault'}" ; shift ;;
+         -r|--run) digemopts="${1?'missing argument to --run'}"; shift ;;
+         -m|--run-merge) digemopts="merge A.lua O.lua B.lua" ;;
          *) showUsage ;;
        esac
      done
@@ -52,15 +62,21 @@ if [[ "$tgtn" -ne "1" ]]; then
   echo "Too many targets, please get more specific id's"
   exit 1;
 else
-  echo "Copying files:"
-  echo "  from $tgt" 
-  echo "  to   $vault"
+  # We just want to isolate the conflicts to a specific location
+  if [[ -z "$digemopts" ]]; then
+    echo "Copying files:"
+    echo "  from $tgt" 
+    echo "  to   $vault"
 
-  mkdir -p "$vault"
-  cp $tgt/* $vault/
+    mkdir -p "$vault"
+    cp $tgt/* $vault/
 
-  echo "Making link to original dir"
-  linkname="${tgt##*/}"
-  ln -sr $tgt $vault/$linkname
+    echo "Making link to original dir"
+    linkname="${tgt##*/}"
+    ln -sr $tgt $vault/$linkname
+  # Or we just want to run 'digems' there
+  else
+    (cd $tgt/ && digem $digemopts ; echo "[exited with $?]")
+  fi
 fi
 
