@@ -88,6 +88,10 @@ withFreshNamesFrom comp p = evalState comp maxVar
 freshMetaVar :: FreshM Int
 freshMetaVar = modify (+1) >> get
 
+freshMetaVarFor :: MetaVarIK ki at -> FreshM (MetaVarIK ki at)
+freshMetaVarFor (NA_K (Annotate _ x)) = NA_K . flip Annotate x <$> freshMetaVar
+freshMetaVarFor (NA_I _)              = NA_I . Const           <$> freshMetaVar
+
 withUnifiedDelCtx :: (Applicable ki codes (MetaVarIK ki))
                   => RawPatch ki codes at -> RawPatch ki codes at
                   -> ( UTx ki codes (MetaVarIK ki) at
@@ -317,10 +321,9 @@ refinedFor varmap s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
 
       -- > | rawCpy varmap chgP = do v <- freshMetaVar
       -- >                           return $ utxMap (delta . UTxHole . metavarAdd v) codQ
-      | simpleCopy chgP = do v <- freshMetaVar
-                             return $ utxMap (delta . UTxHole . metavarAdd v) codQ
-      | otherwise          = return $ UTxHole chgP
-    go sP      codQ = return sP
+      | simpleCopy chgP = utxMapM (\i -> delta . UTxHole <$> freshMetaVarFor i) codQ
+      | otherwise       = return $ UTxHole chgP
+    go sP      codQ     = return sP
 
     delta x = (x :*: x)
 
