@@ -71,7 +71,7 @@ noConflicts = utxMapM rmvInL
 getConflicts :: (ShowHO ki) => PatchC ki codes ix -> [String]
 getConflicts = snd . runWriter . utxMapM go
   where
-    go x@(InL (Conflict str _ _)) = tell [show str] >> return x
+    go x@(InL (Conflict str _ _)) = tell [str] >> return x
     go x                          = return x
 
 -- |We might need to issue new variables, hence we need a 'FreshM'
@@ -141,7 +141,7 @@ reconcile p q
      in do
       res0 <- process sp sq
       case res0 of
-          CantReconcile     -> return $ UTxHole $ InL $ Conflict "conf" p q
+          CantReconcile err -> return $ UTxHole $ InL $ Conflict err p q
           ReturnNominator   -> return $ utxMap InR p
           InstDenominator v -> return $ UTxHole $
             case runExcept $ transport (scIns sq) v of
@@ -171,7 +171,7 @@ utx2change x = cmatch' (scDel x) (scIns x)
 data ProcessOutcome ki codes
   = ReturnNominator
   | InstDenominator (Subst ki codes (UTx2 ki codes))
-  | CantReconcile
+  | CantReconcile String
 
 fst' :: (f :*: g) x -> f x
 fst' (Pair a _) = a
@@ -230,15 +230,15 @@ process :: (Applicable ki codes (UTx2 ki codes))
         -> FreshM (ProcessOutcome ki codes)
 process sp sq =
   case and <$> mapM (exElim $ uncurry' step1) phiD of
-    Nothing    -> return CantReconcile
+    Nothing    -> return (CantReconcile "p1n")
     Just True  -> if any (exElim $ uncurry' insins) phiID
-                  then return CantReconcile
+                  then return (CantReconcile "p1ii")
                   else return ReturnNominator
     Just False -> do
-      partial <- runStateT (and <$> mapM (exElim $ uncurry' step2) phiID) M.empty
+      partial <- runStateT (runExceptT $ mapM_ (exElim $ uncurry' step2) phiID) M.empty
       case partial of
-        (False , _) -> return CantReconcile
-        (True  , s) -> return $ InstDenominator s
+        (Left err  , _) -> return (CantReconcile $ "p2n: " ++ err)
+        (Right ()  , s) -> return $ InstDenominator s
   where
     (delsp :*: _) = utx2distr sp
     phiD  = utxGetHolesWith' Exists $ utxLCP delsp sq
@@ -278,14 +278,14 @@ process sp sq =
     -- altogether from step 1!!!
     step2 :: (Applicable ki codes (UTx2 ki codes))
           => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-          -> StateT (Subst ki codes (UTx2 ki codes)) FreshM Bool
+          -> ExceptT String (StateT (Subst ki codes (UTx2 ki codes)) FreshM) ()
     step2 pp qq = do
-      s <- get
+      s <- lift get
       let del = scDel qq
-      pp' <- lift (refinedFor varmap pp del)
+      pp' <- lift $ lift (refinedFor varmap pp del)
       case runExcept (pmatch' s del pp') of
-        Left  _  -> return False
-        Right s' -> put s' >> return True
+        Left  e  -> throwError (show e)
+        Right s' -> put s' >> return ()
 
     insins :: UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
     insins (UTxHole pp) (UTxHole qq) = isLocalIns pp && isLocalIns qq

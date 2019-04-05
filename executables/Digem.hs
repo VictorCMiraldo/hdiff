@@ -206,9 +206,9 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
       displayPatchC stderr resBA
     case (,) <$> D.noConflicts resAB <*> D.noConflicts resBA of
       Nothing        -> putStrLnErr " !! Conflicts O->A/O->B !!"
-                     >> putStrLnErr ("  " ++ unwords (D.getConflicts resAB))
+                     >> putStrLnErr (unlines (map ("  - " ++) (D.getConflicts resAB)))
                      >> putStrLnErr " !! Conflicts O->B/O->A !!"
-                     >> putStrLnErr ("  " ++ unwords (D.getConflicts resBA))
+                     >> putStrLnErr (unlines (map ("  - " ++) (D.getConflicts resBA)))
                      >> return (ExitFailure 1)
       Just (ab , ba) -> do
         whenLoud (putStrLnErr "!! apply ba fa")
