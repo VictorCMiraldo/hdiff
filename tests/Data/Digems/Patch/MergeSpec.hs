@@ -93,6 +93,14 @@ doMerge a o b
 mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
 mustMerge = expectMerge MergeOk
 
+xexpectMerge :: MergeOutcome -> String -> String -> RTree -> RTree -> RTree
+             -> SpecWith (Arg Property)
+xexpectMerge expt reason lbl a o b = do
+  it (lbl ++ ": " ++ show expt) $
+    pendingWith reason
+
+
+
 ----------------------
 -- Example 1
 
@@ -268,7 +276,14 @@ a19 = "c" :>: ["c" :>: []]
 o19 = "c" :>: ["m" :>: ["a" :>: []]]
 b19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []]
 
+------------------------
+-- Example 20
 
+a20 , o20 , b20 :: RTree
+
+a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
+o20 = "x" :>: ["a" :>: [] , "b" :>: []]
+b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
@@ -309,6 +324,9 @@ ob18 = digemRTree o18 b18
 oa19 = digemRTree o19 a19
 ob19 = digemRTree o19 b19
 
+oa20 = digemRTree o20 a20
+ob20 = digemRTree o20 b20
+
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3
@@ -344,6 +362,7 @@ spec = do
 
     mustMerge "18" a18 o18 b18
     mustMerge "19" a19 o19 b19
+    xexpectMerge MergeOk "What to do with self-contained ins-ins?" "20" a20 o20 b20
 
   describe "merge: conflict or ok" $ do
     it "contains no apply fail or merge differs" $ property $
