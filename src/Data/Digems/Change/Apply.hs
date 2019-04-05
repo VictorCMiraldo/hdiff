@@ -111,13 +111,7 @@ pmatch' :: (Applicable ki codes phi)
    -> UTx ki codes phi ix
    -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 pmatch' s (UTxHole var) x  = substInsert s var x
-pmatch' s pa (UTxHole var) 
-  -- When we are trying to match a pattern @pa@ against a hole
-  -- we must make some occurs check over this pattern and make
-  -- sure @pa@ does not bind any variable. Otherwise, we'll
-  -- end up with an 'UndefinedVariable' in the transport phase.
-  -- | utxArity pa == 0 = return s
-  | otherwise        = throwError (IncompatibleHole pa var)
+pmatch' s pa (UTxHole var) = throwError (IncompatibleHole pa var)
 pmatch' s (UTxOpq oa) (UTxOpq ox)
   | eqHO oa ox = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)
