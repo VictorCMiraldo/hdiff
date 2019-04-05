@@ -262,7 +262,7 @@ process sp sq =
     -- fixed value and the denominator performs any change other
     -- than a copy, this is a del/mod conflict.
     step1 (UTxOpq _) (UTxHole chg)
-      | rawCpy varmap chg = Just True
+      | simpleCopy chg = Just True
       | otherwise      = Nothing
     -- If the numerator imposes no restriction in what it accepts here,
     -- we return true for this hole
