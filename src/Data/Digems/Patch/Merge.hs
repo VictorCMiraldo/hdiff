@@ -35,7 +35,6 @@ import Data.Digems.Patch
 import Data.Digems.Patch.Diff
 import Data.Digems.Change
 import Data.Digems.Change.Apply
-import Data.Digems.Change.Unify
 import Data.Digems.MetaVar
 
 import Debug.Trace
