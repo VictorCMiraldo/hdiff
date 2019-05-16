@@ -624,9 +624,8 @@ a change is found and applying that change to the \emph{local}
 subtrees in question.  Besides a having a localized application
 function, this representation with minimized changes enables us to
 trivially identify when two patches are working over disjoint parts of
-a tree. This will be particularly interesting when trying to
-\emph{merge} different patches, as we will see shortly
-(\Cref{sec:merging}).
+a tree. This will be particularly usefull when we explore
+\emph{merging} patches (\Cref{sec:merging}).
 
 %% For one, we are not trying to
 %% minimize the changes after we |extract| a context from the source or
@@ -642,15 +641,14 @@ a tree. This will be particularly interesting when trying to
 
 \subsection{Defining the Oracle for |Tree23|}
 
-  The last missing piece for a fully functional differencing algorithm
-for |Tree23| is to define the |ics| -- \emph{is common subtree} -- oracle.
-Recall its type: |Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar|, that is,
-given two trees |s| and |d|, supposed to be the full source and destination
-trees, |ics s d x| will return |Just x_i| if |x| is a common subtree, or |Nothing|
-if it isn't. One obvious implementation for this function is to enumerate all
-possible subtrees, then search for the |x| above in said lists.
-
-  Enumerating all possible subtrees is easy,
+  In order to have a working version of our diff algorithm for
+|Tree23| we must provide the |ics| implementation. Recall that the
+|ics| function, \emph{is common subtree}, has type |Tree23 -> Tree23
+-> Tree23 -> Maybe MetaVar| and given a fixed |s| and |d|, |ics s d x|
+returns |Just i| if |x| is the $i^{\textrm{th}}$ subtree of |s| and
+|d| and |Nothing| if |x| does not appear in |s| or |d|.  One obvious
+implementation for this function is to enumerate all possible
+subtrees, then search for the |x| above in said lists.
 
 \begin{myhs}
 \begin{code}
@@ -661,68 +659,134 @@ subtrees (Node3 x y z)  = Node3 x y z  : (subtrees x ++ subtrees y ++ subtrees z
 \end{code}
 \end{myhs}
 
-\victor{TODO: check the type of |indexOf|}
-  Searching in the list can be done with the |indexOf| function, that returns
+  Searching in the list can be done with the |elemIndex| function, that returns
 the index of an element in the specified list. This enables us to write
-a naive, inefficient, implementation for |ics|.
+a simple, yet inefficient, implementation for |ics| in just a few lines of code.
 
 \begin{myhs}
 \begin{code}
-ics :: Tree23 -> Tree23 -> Tree23 -> Maybe Int
+ics :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
 ics s d x =  if x `elem` subtrees s
-             then indexOf x (subtrees d)
+             then elemIndex x (subtrees d)
              else Nothing
 \end{code}
 \end{myhs}
 
-  The inefficiency comes from two main factors: checking trees for equality is
-linear, and enumeratinr all subtrees is exponential. If we want our algorithm 
-to be efficient we need to have an amortized constant-time |ics|.
+  The inefficiency comes from two places: checking trees for equality
+is linear, and enumerating all subtrees is exponential. If we want our
+algorithm to be efficient we \emph{must} have an amortized
+constant-time |ics|.
 
-\victor{blah blah blah}
-\victor{Talk about merkle trees and hash-consing; study hash consing}
+  In order to tackle the first issue and efficiently compare trees for
+equality we will be using cryptohtaphic hash
+functions~\cite{Menezes1997} to construct a fixed length bitstring
+that uniquely identifies a tree modulo hash collisions.  Said
+identifier will be the hash of the root of the tree, which will depend
+on the hash of every subtree, much like a \emph{merkle
+tree}~\cite{Merkle1998}.
+
+\begin{myhs}
+\begin{code}
+merkleRoot :: Tree23 -> Digest
+merkleRoot Leaf           = emptyDigest
+merkleRoot (Node2 x y)    = hash (concat ["node2" , merkleRoot x , merkleRoot y])
+merkleRoot (Node3 x y z)  = hash (concat ["node3" , merkleRoot x , merkleRoot y , merkleRoot z])
+\end{code}
+\end{myhs}
+
+  Given a value |t :: Tree23|, the digest computed by |merkleRoot t|
+uniquely identify |t| and can be used to define the |Eq| instance,
+below. Note that although it is theoretically possible to have false
+positives, when using a cryptographic hash function the chance of
+collision is negligible and hence, in practice, they never
+happen~\cite{Menezes1997} and we chose to ignore it.
+
+\begin{myhs}
+\begin{code}
+instance Eq Tree23 where
+  t == u = merkleRoot t == merkleRoot u
+\end{code}
+\end{myhs}
+
+  Recall we are striving for a constant time |(==)| implementation, but the |(==)| definition
+above is still linear. We fix this by annotating every node of a |Tree23| with its merkle
+root. This is done by the |prepare| function, \Cref{fig:merkelized-tree}. 
 
 \begin{myhs}
 \begin{code}
 data Tree23H  = LeafH
               | Node2H (Tree23H , Digest)  (Tree23H , Digest)
               | Node3H (Tree23H , Digest)  (Tree23H , Digest) (Tree23H , Digest)
+
+prepare :: Tree23 -> Tree23H
 \end{code}
 \end{myhs}
+
+\begin{figure}
+\includegraphics[scale=0.35]{src/img/merkle-tree.pdf}
+\caption{Example of a merkelized |Tree23|, where |n_2| is some fixed
+identifier and |h| is a hash function.}
+\label{fig:merkelized-tree}
+\end{figure}
+
+  We ommit the implementation of |prepare| for brevity, moreover, a
+generic version is introduced in \Cref{sec:oracle}. This enables us to
+define a constant time |merkleRoot| function, shown below, which maked
+the |(==)| function run in constant time.
 
 \begin{myhs}
 \begin{code}
-root :: Tree23H -> Digest
-root LeafH                                = emptyDigest
-root (Node2H (_ , hx) (_ , hy))           = hash (encode "2" ++ hx ++ hy)
-root (Node3H (_ , hx) (_ , hy)) (_, hz))  = hash (encode "3" ++ hx ++ hy ++ hz)
+merkleRoot :: Tree23H -> Digest
+merkleRoot LeafH                                = emptyDigest
+merkleRoot (Node2H (_ , hx) (_ , hy))           = hash (encode "2" ++ hx ++ hy)
+merkleRoot (Node3H (_ , hx) (_ , hy)) (_, hz))  = hash (encode "3" ++ hx ++ hy ++ hz)
 \end{code}
 \end{myhs}
 
-  Now, we can write an efficient |Eq| instance for |Tree23H|:
+  The second source of inefficiency can be nulified by the correct
+datastructure.  In order to check whether a tree |x| is a subtree of a
+fixed |s| and |d|, it suffices to check whether the merkle root of |x|
+appears in a ``database'' of the common merkle roots of |s| and
+|d|. Given that a |Digest| is just a |[Word]|, the optimal choice for
+such ``database'' is a Trie~\cite{Brass2008} mapping a |[Word]| to a
+|MetaVar|. Trie lookups are efficient and hardly depends on the number
+of elements in the trie. In fact, our lookups run in amortized
+constant time here, for the length of a |Digest| is fixed.
+
+  Finally, we are able to write our efficient |ics| oracle that
+concludes the implementation of our algorithm for the concrete
+|Tree23| type.  The |ics| oracle will now receive |Tree23H|, i.e.,
+trees annotated with their merkle roots at every node, and will
+populate the ``database'' of common digests.
 
 \begin{myhs}
 \begin{code}
-instance Eq Tree23H where
-  t == u = root t == root u
+ics :: Tree23H -> Tree23H -> Tree23H -> Maybe MetaVar
+ics s d = lookup (mkTrie s `intersect` mkTrie d) . merkleRoot
+  where
+    intersect  :: Trie k v  -> Trie k u  -> Trie k v
+    lookup     :: Trie k v  -> [k]       -> Maybe v
+
+    mkTrie     :: Tree23H   -> Trie Word MetaVar
 \end{code}
 \end{myhs}
 
-  This rules our the first inefficiency point. Next, we need to be able to
-efficiently compute whether a given tree's merkle root appears within
-another, as this indicates that one is the subtree of the other modulo cryptographic
-hash collisions.
+  This is similar to \emph{hash-consing}~\cite{Filliatre2006} in
+spirit. Hash-consing is a technique to share values that are
+structurally equal. It is done by maintaining a global hash-table
+during run-time, which keeps track of the values that have already
+been created and can be shared. There are two main differences to our
+situation, however: (A) we cannot use hash tables for it would use too
+much space, and, (B) we must detect which subtrees are shared within
+two fixed trees instead of sharing the values in memory, which is the
+main objective of \emph{hash-consing}.
 
-
-
-\begin{myhs}
-\begin{code}
-data Tree23  =  Leaf
-             |  Node2 Tree23 Tree23
-             |  Node3 Tree23 Tree23 Tree23
-\end{code}
-\end{myhs}
-
+  The use of cryptographic hashes is unsurprising. They are almost
+folklore for speeing up a variety of computations. It is important to
+notice that the efficiency of our algorithm comes from our novel
+representation of patches combined with a amortized constant time
+|ics| function. Without being able to duplicate or permute subtrees,
+the algorithm would have to backtrack in a number of situations.
 
 \section{Tree Diffing Generically}
 \label{sec:generic-diff}
