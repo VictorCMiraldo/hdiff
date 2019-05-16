@@ -309,7 +309,7 @@ ins (Hole i)        m  = lookup i m
 destination, defining a |changeTree23| function. This function will
 exploit as many copy opportunities as possible. For now, we delegate
 the decision of whether a subtree should be copied or not to an
-oracle: assume we have access a function |ics : Tree23 -> Tree23 ->
+oracle: assume we have access a function |ics :: Tree23 -> Tree23 ->
 Tree23 -> Maybe MetaVar|, short for \emph{``is common subtree''}.  The
 call |ics s d x| returns |Nothing| when |x| is \emph{not} a subtree of
 |s| and |d|; if |x| is a subtree of both |s| and |d|, it returns |Just
@@ -467,9 +467,10 @@ deletion contexts. When |x| and |y| resemble one another these
 contexts may store a great deal of redundant information as many
 constructors appearing in both contexts will be `deleted', and then
 `inserted'.  To address this, we want to share information between the
-deletion and insertion contexts, where possible. Moreover, it is much
-easier to handle small and isolated changes when considering merging
-changes, as we will see in \Cref{sec:merging}.
+deletion and insertion contexts, where possible. This makes it much simpler
+to merge patches, \Cref{sec:merging}, for the changes will be small and isolated.
+We must be careful to make sure that the domain of the patch after minimizing
+changes is a superset of the original.
 
 \subsection{Minimizing Changes: Computing Patches}
 %todo I think I understand why you want to minimize these changes -- but
@@ -486,11 +487,11 @@ changes, as we will see in \Cref{sec:merging}.
 
   The process of minimizing and isolating the changes starts by
 identifying the redundant part of the contexts. That is, the
-constructors that show up as a prefix in \emph{both} the deletion and the
-insertion context. They are essentially being copied over and we want
-to make this fact explicit by separating them into what we call the
-\emph{spine} of the patch. The spine will then contain changes---pairs of an insertion and deletion context---in its
-leaves:
+constructors that show up as a prefix in \emph{both} the deletion and
+the insertion context. They are essentially being copied over and we
+want to make this fact explicit by separating them into what we call
+the \emph{spine} of the patch. The spine will then contain
+changes---pairs of an insertion and deletion context---in its leaves:
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-example.pdf}
@@ -638,6 +639,90 @@ a tree. This will be particularly interesting when trying to
 %% will be shared under the same metavariable. This restriction does not
 %% impact the correctness of the algorithm but is an important point on
 %% the design space: how to \emph{drive} this algorithm, \Cref{sec:sharing}.
+
+\subsection{Defining the Oracle for |Tree23|}
+
+  The last missing piece for a fully functional differencing algorithm
+for |Tree23| is to define the |ics| -- \emph{is common subtree} -- oracle.
+Recall its type: |Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar|, that is,
+given two trees |s| and |d|, supposed to be the full source and destination
+trees, |ics s d x| will return |Just x_i| if |x| is a common subtree, or |Nothing|
+if it isn't. One obvious implementation for this function is to enumerate all
+possible subtrees, then search for the |x| above in said lists.
+
+  Enumerating all possible subtrees is easy,
+
+\begin{myhs}
+\begin{code}
+subtrees :: Tree23 -> [Tree23]
+subtrees Leaf           = []
+subtrees (Node2 x y)    = Node2 x y    : (subtrees x ++ subtrees y)
+subtrees (Node3 x y z)  = Node3 x y z  : (subtrees x ++ subtrees y ++ subtrees z)
+\end{code}
+\end{myhs}
+
+\victor{TODO: check the type of |indexOf|}
+  Searching in the list can be done with the |indexOf| function, that returns
+the index of an element in the specified list. This enables us to write
+a naive, inefficient, implementation for |ics|.
+
+\begin{myhs}
+\begin{code}
+ics :: Tree23 -> Tree23 -> Tree23 -> Maybe Int
+ics s d x =  if x `elem` subtrees s
+             then indexOf x (subtrees d)
+             else Nothing
+\end{code}
+\end{myhs}
+
+  The inefficiency comes from two main factors: checking trees for equality is
+linear, and enumeratinr all subtrees is exponential. If we want our algorithm 
+to be efficient we need to have an amortized constant-time |ics|.
+
+\victor{blah blah blah}
+\victor{Talk about merkle trees and hash-consing; study hash consing}
+
+\begin{myhs}
+\begin{code}
+data Tree23H  = LeafH
+              | Node2H (Tree23H , Digest)  (Tree23H , Digest)
+              | Node3H (Tree23H , Digest)  (Tree23H , Digest) (Tree23H , Digest)
+\end{code}
+\end{myhs}
+
+\begin{myhs}
+\begin{code}
+root :: Tree23H -> Digest
+root LeafH                                = emptyDigest
+root (Node2H (_ , hx) (_ , hy))           = hash (encode "2" ++ hx ++ hy)
+root (Node3H (_ , hx) (_ , hy)) (_, hz))  = hash (encode "3" ++ hx ++ hy ++ hz)
+\end{code}
+\end{myhs}
+
+  Now, we can write an efficient |Eq| instance for |Tree23H|:
+
+\begin{myhs}
+\begin{code}
+instance Eq Tree23H where
+  t == u = root t == root u
+\end{code}
+\end{myhs}
+
+  This rules our the first inefficiency point. Next, we need to be able to
+efficiently compute whether a given tree's merkle root appears within
+another, as this indicates that one is the subtree of the other modulo cryptographic
+hash collisions.
+
+
+
+\begin{myhs}
+\begin{code}
+data Tree23  =  Leaf
+             |  Node2 Tree23 Tree23
+             |  Node3 Tree23 Tree23 Tree23
+\end{code}
+\end{myhs}
+
 
 \section{Tree Diffing Generically}
 \label{sec:generic-diff}
