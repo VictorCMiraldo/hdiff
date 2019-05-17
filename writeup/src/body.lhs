@@ -644,6 +644,7 @@ a tree. This will be particularly usefull when we explore
 %% the design space: how to \emph{drive} this algorithm, \Cref{sec:sharing}.
 
 \subsection{Defining the Oracle for |Tree23|}
+\label{sec:concreteoracle}
 
   In order to have a working version of our diff algorithm for
 |Tree23| we must provide the |ics| implementation. Recall that the
@@ -1527,97 +1528,97 @@ apply patch el = txZipEl patch el >>= return . txMapM (uncurry' applyChange)
 |apply p x| returns |Just y| for some |y|, we say that |p| is \emph{applicable}
 to |x|.
 
-\section{Defining the Oracle}
+\subsection{Defining the Generic Oracle}
 \label{sec:oracle}
 
-  In the previous sections we have implemented a generic diffing
-algorithm assuming the existence of \emph{an
-oracle}, that determines whether a given subtree should be copied or
-not. We have seen that the overall performance of our algorithm depends
-on answering that question efficiently: we perform one query per
-constructor in the source and destination of the diff. In this section
-we provide an efficient construction for this oracle.  Yet, it is
-worthwhile to define the inefficient, naive version first. Besides
-providing important intuition to what this function is doing it is an
-interesting generic programming exercise in its own right.
+%%   In the previous sections we have implemented a generic diffing
+%% algorithm assuming the existence of \emph{an
+%% oracle}, that determines whether a given subtree should be copied or
+%% not. We have seen that the overall performance of our algorithm depends
+%% on answering that question efficiently: we perform one query per
+%% constructor in the source and destination of the diff. In this section
+%% we provide an efficient construction for this oracle.  Yet, it is
+%% worthwhile to define the inefficient, naive version first. Besides
+%% providing important intuition to what this function is doing it is an
+%% interesting generic programming exercise in its own right.
+%% 
+%%   When deciding whether a given tree |x| is a subtree of two
+%% fixed trees |s| and |d|, a naive oracle would check every
+%% single subtree of |s| and |d| for equality against |x|.  Upon finding
+%% a match, it would return which of the subtrees in the list of all
+%% subtrees was matched. We enumerate all possible subtrees in a list with
+%% the help of |Exists| since the trees might have different type indices.
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% subtrees :: Fix codes i -> [ Exists (Fix codes) ]
+%% subtrees x = Ex x : case sop x of
+%%   Tag _ pt -> concat (elimNP (elimNA (const []) subtrees) pt)
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   Next, we define an equality over |Exist (Fix codes)| and search
+%% through the list of all possible subtrees for a match. The comparison
+%% function starts by comparing the indexes of the |Fix codes| values
+%% wrapped within |Ex| with |testEquality|. If they agree, we pattern
+%% match on |Refl|, which in turn allows us to compare the values for
+%% propositional equality.
+%% 
+%% \begin{myhs}
+%% \begin{code}
+%% heqFix :: Exists (Fix codes) -> Exists (Fix codes) -> Bool
+%% heqFix (Ex x) (Ex y) = case testEquality x y of
+%%                          Nothing    -> False
+%%                          Just Refl  -> x == y
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   Finally, we put it all together in |buildOracle|: start
+%% by looking for our target, |t|, in the subtrees of |x|. Upon finding something,
+%% we proceed to check whether |t| also belongs in the subtrees of |y|. Since
+%% we are in the |Maybe| monad, if either of those steps fail, the entire function
+%% will return  |Nothing|.
+%%  
+%% \begin{myhs}
+%% \begin{code}
+%% type Oracle codes = forall j dot Fix codes j -> Maybe Int
+%% 
+%% idx :: (a -> Bool) -> [a] -> Maybe Int
+%% idx f  []     = Nothing
+%% idx f  (x:xs) = if f x then Just 0 else (1+) <$$> idx f xs
+%% 
+%% buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
+%% buildOracle x y t = do
+%%   ix <- idx (heqFix t) (subtrees x)
+%%   iy <- idx (heqFix t) (subtrees y)
+%%   return ix
+%% \end{code}
+%% \end{myhs}
+%% 
+%%   There are two points of inefficiency this naive
+%% |buildOracle|. First, we build the |subtrees| list twice, once for the
+%% source and once for the destination. This is inherent to this
+%% approach and cannot be avoided. We then proceed to compare a
+%% third tree, |t|, for equality with every subtree in the 
+%% lists of subtrees. The performance of this operation can be significantly improved.
 
-  When deciding whether a given tree |x| is a subtree of two
-fixed trees |s| and |d|, a naive oracle would check every
-single subtree of |s| and |d| for equality against |x|.  Upon finding
-a match, it would return which of the subtrees in the list of all
-subtrees was matched. We enumerate all possible subtrees in a list with
-the help of |Exists| since the trees might have different type indices.
+  We conclude the generic algorithm with the implementation of the generic oracle
+which answers whether a tree is a common subtree of the source and destination
+of a patch. In this section we take the example from \Cref{sec:concreteoracle} 
+and implement it generically.
 
-\begin{myhs}
-\begin{code}
-data Exists :: (Atom -> Star) -> Star where
-  Ex :: f at -> Exists f
-
-subtrees :: Fix codes i -> [ Exists (Fix codes) ]
-subtrees x = Ex x : case sop x of
-  Tag _ pt -> concat (elimNP (elimNA (const []) subtrees) pt)
-\end{code}
-\end{myhs}
-
-  Next, we define an equality over |Exist (Fix codes)| and search
-through the list of all possible subtrees for a match. The comparison
-function starts by comparing the indexes of the |Fix codes| values
-wrapped within |Ex| with |testEquality|. If they agree, we pattern
-match on |Refl|, which in turn allows us to compare the values for
-propositional equality.
-
-\begin{myhs}
-\begin{code}
-heqFix :: Exists (Fix codes) -> Exists (Fix codes) -> Bool
-heqFix (Ex x) (Ex y) = case testEquality x y of
-                         Nothing    -> False
-                         Just Refl  -> x == y
-\end{code}
-\end{myhs}
-
-  Finally, we put it all together in |buildOracle|: start
-by looking for our target, |t|, in the subtrees of |x|. Upon finding something,
-we proceed to check whether |t| also belongs in the subtrees of |y|. Since
-we are in the |Maybe| monad, if either of those steps fail, the entire function
-will return  |Nothing|.
- 
-\begin{myhs}
-\begin{code}
-type Oracle codes = forall j dot Fix codes j -> Maybe Int
-
-idx :: (a -> Bool) -> [a] -> Maybe Int
-idx f  []     = Nothing
-idx f  (x:xs) = if f x then Just 0 else (1+) <$$> idx f xs
-
-buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
-buildOracle x y t = do
-  ix <- idx (heqFix t) (subtrees x)
-  iy <- idx (heqFix t) (subtrees y)
-  return ix
-\end{code}
-\end{myhs}
-
-  There are two points of inefficiency this naive
-|buildOracle|. First, we build the |subtrees| list twice, once for the
-source and once for the destination. This is inherent to this
-approach and cannot be avoided. We then proceed to compare a
-third tree, |t|, for equality with every subtree in the 
-lists of subtrees. The performance of this operation can be significantly improved.
-
-  In order to compare trees for equality in constant time we can
-annotate them with cryptographic hashes~\cite{Menezes1997} and compare
-these hashes instead. This technique transforms our trees into
-\emph{merkle trees}~\cite{Merkle1988} and is more commonly seen in the
-security and authentication context~\cite{Miller2014,Miraldo2018HAMM}.
-The generic programming machinery that is already at our disposal
-enables us to create \emph{merkle trees} generically quite easily.
-The \texttt{generics-mrsop} provide some attribute
-grammar~\cite{Knuth1990} functionality, in particular the computation of synthesized
-attributes arising from a fold.  The |synthesize| function is just like a catamorphism, but
-we decorate the tree with the intermediate results at each node, rather than
-only using them to compute the final outcome. This enables us to decorate each node of
-a |Fix codes| with a unique identifier (as shown in Figure~\ref{fig:merkelized-tree}) 
-by running the |prepare| function, defined below.
+  The first step is annotating our trees with cryptographic hashes~\cite{Menezes1997}.
+Essentially transforming our trees into \emph{merkle trees}~\cite{Merkle1988}. 
+This technique is more commonly seen in the security and authentication context~\cite{Miller2014,Miraldo2018HAMM}, and is similar in spirit to \emph{hash-consing}~\cite{Filliatre2006}. 
+Lucklily, the generic programming machinery that is already at our disposal
+enables us to create \emph{merkle trees} generically quite easily. The \texttt{generics-mrsop} 
+provide some attribute grammar~\cite{Knuth1990} functionality, in particular the computation 
+of synthesized attributes arising from a fold.  The |synthesize| function is just like 
+a catamorphism, but we decorate the tree with the intermediate results at each node, 
+rather than only using them to compute the final outcome. This enables us to decorate 
+each node of a |Fix codes| with a unique identifier (as shown in 
+Figure~\ref{fig:merkelized-tree}, for example) by running the generic |prepare| function, 
+defined below.
 
 \begin{myhs}
 \begin{code}
@@ -1627,13 +1628,6 @@ prepare :: Fix codes i -> AnnFix (Const Digest) codes i
 prepare = synthesize authAlgebra
 \end{code}
 \end{myhs}
-
-\begin{figure}
-\includegraphics[scale=0.4]{src/img/merkle-tree.pdf}
-\caption{Example of a merkelized |Tree23|, where |n_2| is some fixed
-identifier and |h| is a hash function.}
-\label{fig:merkelized-tree}
-\end{figure}
 
   Here, |AnnFix| is the cofree comonad, used to add a label to each
 recursive branch of our generic trees. In our case, this label will be
@@ -1656,25 +1650,20 @@ authAlgebra rep = case sop rep of
   We must append the index of the type in question, in this case
 |getSNat (TApp iy)|, to our hash computation to differentiate
 constructors of different types in the family represented by the same
-number.  
+number.  In the real implementation we must also pass around a 
+constraint stating that constructors can be encoded and opaque 
+values can be hashed. We ommit these details for brevity.
 
-  Once we have a tree fully annotated with the hashes for its
-subtrees, we store them in a search-efficient structure.  Given that a
-hash is just a |[Word]|, the optimal choice is a Trie~\cite{Brass2008}
-mapping a |Word| to |Int|, where the |Int| is the value of the
-\emph{metavariable} that will be assigned to the tree, in case it is a
-common subtree. Looking up whether a tree |x| is a subtree of some tree
-|s| can be done by looking up |x|'s topmost hash, also called the
-\emph{merkle root}, against the trie generated from |s|.  This is a
-very fast operation and hardly depends on the number of elements in
-the trie. In fact, this lookup runs in amortized constant time.
+  Following the guidelines in \Cref{sec:concreteoracle},
+we now must traverse our merkelized tree and store all the digests
+we see in a Trie~\cite{Brass2008}.
 
-In this situation, however, we have to determine whether or not a tree
-|x| occurs as a subtree of \emph{both} the source and destination
-trees. This is no harder, as we can efficiently compute the
-intersection of the tries arising from the source and target trees.
-Querying this trie will tell us whether or not a |x| occurs
-as a subtree of both trees.
+\begin{myhs}
+\begin{code}
+mkSharingTrie :: AnnFix (Const Digest) codes j -> Trie Word MetaVar
+\end{code}
+\end{myhs}
+
 %Wouter: split the 'construction of tries' from the 'intersection of tries' paragraphs
 
 %% The depth of our trie is always |4| or |8| for a |sha256| hash can be
@@ -1706,27 +1695,20 @@ buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 buildOracle s d = let  s'  = prepare s
                        d'  = prepare d
                    in lookup (mkSharingTrie s' `intersect` mkSharingTrie d')
-  where
-    -- insert all digests in a trie
-    mkSharingTrie :: AnnFix (Const Digest) codes j -> Trie Word Int
 \end{code}
 \end{myhs}
 
-  Where the |mkSharingTrie| function will maintain a counter and traverse
-its argument. At every node it will insert an entry with that node's hash and
-the counter value. It then increases the counter and recurses over the children.
-The same subtree might appear in different places in |s| and |d|, for the
-|Int| associated with it will differ from |mkSharingTrie s'| and |mkSharingTrie d'|.
-This is not an issue if we take an |intersect| function with type |Trie k v -> Trie k t -> Trie k v|,
-hence, keeping only the assignments from the first trie such that the key is
-also an element of the second.
-
-  We can easily get around hash collisions by computing an intermediate
-|Trie| from |Word| to |Exists (Fix codes)| in the |mkSharingTrie| function and every time
-we find a potential collision we check the trees for equality.
-If equality check fails, a hash collision is found and the entry would be
-removed from the map. When using a cryptographic hash, the chance of
-collision is negligible and we chose to ignore it.
+  It is true that the |buildOracle|, as defined above, could give us
+false positives caused by hash collisions. It is worth mentioning that
+when using a cryptographic hash, the chance of collision is
+negligible~\cite{Menezes2006} and we chose to ignore it. Regardless, it is not
+difficult to work around the possibility for collisions if we wanted. 
+We could compute an intermediate |Trie| from |Word| to |Exists (Fix codes)| in the
+|mkSharingTrie| function and every time we find a potential collision
+we check the trees for structural equality.  If equality check fails, a hash
+collision is found and the entry would be removed from the map. The |Exist| 
+datatype simply encapsulate the |ix| type index from a |Fix codes ix| into
+an existential.
 
 \section{Merging Patches}
 \label{sec:merging}

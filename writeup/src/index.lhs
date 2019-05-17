@@ -60,7 +60,7 @@
 \begin{document}
 
 %% Title information
-\title{An Efficient Algorithm for Type-Directed Structural Diffing}
+\title{An Efficient Algorithm for Type-Safe Structural Diffing}
 %Wouter: How about 'An Efficient Datatype Generic Algorithm for Structural Diffing'
 %That makes the generic programming aspect more obvious...
 
