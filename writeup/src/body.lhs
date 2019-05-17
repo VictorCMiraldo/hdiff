@@ -1355,7 +1355,7 @@ isClosed (Change del ins)
 
 \begin{myhs}
 \begin{code}
-txMap isClosed p :: Tx codes (Sum (Change codes) (Change codes)) at
+txMap isClosed p :: Tx codes (Sum (Change codes MetaVar) (Change codes MetaVar)) at
 \end{code} 
 \end{myhs}
 
@@ -1369,8 +1369,8 @@ constructor that binds all variables, it tags the patch as an
 
 \begin{myhs}
 \begin{code}
-closure'  ::  Tx codes (Sum (Change codes) (Change codes)) at
-          ->  Sum (Change codes) (Tx codes (Change codes)) at
+closure'  ::  Tx codes (Sum (Change codes MetaVar) (Change codes MetaVar)) at
+          ->  Sum (Change codes MetaVar) (Tx codes (Change codes MetaVar)) at
 closure' (TxOpq x)          = InR (TxOpq x)
 closure' (TxHole (InL oc))  = InL oc
 closure' (TxHole (InR cc))  = InR cc
