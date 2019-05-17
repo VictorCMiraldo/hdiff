@@ -771,6 +771,9 @@ ics s d = lookup (mkTrie s `intersect` mkTrie d) . merkleRoot
 \end{code}
 \end{myhs}
 
+
+\victor{Cobine the paragraphs below in some sort of ``discussion'' subsect}
+\victor{move the actual discussion to the end}
   This is similar to \emph{hash-consing}~\cite{Filliatre2006} in
 spirit. Hash-consing is a technique to share values that are
 structurally equal. It is done by maintaining a global hash-table
