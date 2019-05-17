@@ -23,7 +23,8 @@ They reference the comments they address.
   * Expanded the "minimizing changes" section. As pointed out by
     Reviewer A, there exists a corner case that deserves explanation. 
     We did not understand the remark on the original review, thanks for 
-    clarifying.
+    clarifying. The need mor minimizing changes really is to make a simple
+    merging algorithm possible. We have stressed this throughout the text.
 
       A>  2. I found the need for minimizing changes (section 2.3) is not
       A>     well-motivated, especially as it not only reduces the size of the diffs (which
@@ -86,10 +87,10 @@ They reference the comments they address.
       D>   changes... can be applied locally.") But why can we not use a global
       D>   environment that remembers the value of $Hole 0$?
 
-  * Expanded section 4 to include an example construction of
-    the Oracle. It now includes a complete Oracle construction for 
-    2-3-Trees, which serves as a pedagogical example to the 
-    generic construction.
+  * Expanded on the Oracle construction. Section 2.4 now implements
+    an oracle for 2-3-Trees and Section 4 was demoted to Section 3.3, and only
+    handles the generic construction. The 2-3-Trees oracle already serves as a 
+    pedagogical example to the generic construction.
 
       A>  3. In Section 4 I am missing a discussion of how to hash the data in the tree,
       A>     but this may be due to my limited knowledge about generic programming.
@@ -111,7 +112,13 @@ They reference the comments they address.
       C> negligible and we chose to ignore it." Citation needed.
 
   * Referenced the hash-consing work mentioned by the reviewers,
-    in comment A2. [TODO: study this! What's the relation with minimizing acyclic automata?]
+    in comment A2. It is worthwhile to mention that hash-consing is different
+    than what we do. In hash-consing, one keeps a global hash table in order
+    to share values as they are constructed (in memory). This allows one to
+    use pointer equality instead of structural equality. Our data structure
+    is different (we use Tries) to allow for faster intersection operation.
+    Moreover, we are not interested in sharing values in memory, we are interested
+    in knowing which trees are shared among two fixed trees. 
 
       R2> (More serious remark.) The problem addressed in Section 4 (Defining
       R2> the Oracle) seems to be solved by **hash-consing**, a well-known

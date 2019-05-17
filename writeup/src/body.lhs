@@ -468,10 +468,13 @@ deletion contexts. When |x| and |y| resemble one another these
 contexts may store a great deal of redundant information as many
 constructors appearing in both contexts will be `deleted', and then
 `inserted'.  To address this, we want to share information between the
-deletion and insertion contexts, where possible. This makes it much simpler
-to merge patches, \Cref{sec:merging}, for the changes will be small and isolated.
-We must be careful to make sure that the domain of the patch after minimizing
-changes is a superset of the original.
+deletion and insertion contexts, where possible. This makes it much
+simpler to merge patches, \Cref{sec:merging}, for the changes will be
+small and isolated.  For example, while merging a patch if we see a
+change that looks like |Change (Hole i) (Hole i)| we can be sure it is
+a copy and this subtree is not being duplicated anywhere else. We must
+be careful to make sure that the domain of the patch after minimizing
+changes is superset of the original.
 
 \subsection{Minimizing Changes: Computing Patches}
 %todo I think I understand why you want to minimize these changes -- but
@@ -544,7 +547,7 @@ gcp a                  b                  = Hole (a , b)
 \end{myhs}
 
   In the last case of the |gcp| function either |a| and |b|
-are both holes  or the constructors disagree,
+are both holes or the constructors disagree,
 hence they do \emph{not} belong in the common prefix.
 
   One might be tempted to take the results of |changeTree23C|, pipe
@@ -586,7 +589,7 @@ below.
 context. Moreover, the |closure| functions only bubbles up the minimal
 number of constructors to ensure all changes are closed.  In
 particular, the |Node2| constructor at the root is still part of the
-spine after the call to |closure|.
+spine after the call to |closure|. 
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-03.pdf}
@@ -605,13 +608,19 @@ its implementation might fail if there exists no way of closing all
 the changes. In our case, this will never happen as we know that
 |changeTree23| outputs a closed change. In the worst case, the
 resulting spine will be empty---but the change will certainly be
-closed.  That is due to |postprocess|, which could have been
-merged with |closure|. We keep them separate for clarity.
-We will come back to the |closure| function in more detail on
-its generic incarnation (\Cref{sec:representing-changes}). For now, it
-is more important to understand the problem that it solves.  As soon
-as every change within the spine has been closed, we have a
-\emph{patch}. The final |diff| function for |Tree23| is then defined
+closed.  That is due to |postprocess|, which could have been merged
+with |closure|. We kept them separate for clarity.
+\Cref{sec:representing-changes} comes back to the |closure| function
+in more detail on its generic incarnation. For now, it is more
+important to understand that it facilitates merging our patches, later on (\Cref{sec:merging}).
+It is worth mentioning that the result of |closure p| should be a patch that
+can be applied to \emph{at least as many elements as |p|}. In some corner
+cases |closure| will enlarge the domain of a patch by breaking some contractions.
+
+\victor{should we draw the reviewer's example here?}
+
+  As soon as every change within the spine has been closed, we have a
+\emph{patch}.  The final |diff| function for |Tree23| is then defined
 as follows:
 
 \begin{myhs}
@@ -621,7 +630,7 @@ diffTree23 s d = closure $$ gcp $$ changeTree23 s d
 \end{code}
 \end{myhs}
  
-  We could define the |applyPatch23| function that applies a
+  We could now define the |applyPatch23| function that applies a
 \emph{patch}, rather than the |applyChange23| we saw previously.  This
 is done by traversing the object tree and the spine of the patch until
 a change is found and applying that change to the \emph{local}
@@ -658,7 +667,7 @@ subtrees, then search for the |x| above in said lists.
 \begin{myhs}
 \begin{code}
 subtrees :: Tree23 -> [Tree23]
-subtrees Leaf           = []
+subtrees Leaf           = [Leaf]
 subtrees (Node2 x y)    = Node2 x y    : (subtrees x ++ subtrees y)
 subtrees (Node3 x y z)  = Node3 x y z  : (subtrees x ++ subtrees y ++ subtrees z)
 \end{code}
@@ -777,24 +786,14 @@ ics s d = lookup (mkTrie s `intersect` mkTrie d) . merkleRoot
 \end{myhs}
 
 
-\victor{Cobine the paragraphs below in some sort of ``discussion'' subsect}
-\victor{move the actual discussion to the end}
   This is similar to \emph{hash-consing}~\cite{Filliatre2006} in
-spirit. Hash-consing is a technique to share values that are
-structurally equal. It is done by maintaining a global hash-table
-during run-time, which keeps track of the values that have already
-been created and can be shared. There are two main differences to our
-situation, however: (A) we cannot use hash tables for it would use too
-much space, and, (B) we must detect which subtrees are shared within
-two fixed trees instead of sharing the values in memory, which is the
-main objective of \emph{hash-consing}.
-
-  The use of cryptographic hashes is unsurprising. They are almost
+spirit. The use of cryptographic hashes is unsurprising. They are almost
 folklore for speeing up a variety of computations. It is important to
 notice that the efficiency of our algorithm comes from our novel
 representation of patches combined with a amortized constant time
 |ics| function. Without being able to duplicate or permute subtrees,
 the algorithm would have to backtrack in a number of situations.
+
 
 \section{Tree Diffing Generically}
 \label{sec:generic-diff}
@@ -2001,11 +2000,21 @@ our algorithm to handle mutually recursive families that have
 \subsection*{Related Work}
 \label{sec:related-work}
 
-  Related work can be classified in the treatment of types.  The
-untyped tree differencing problem was introduced in 1979
-\cite{Tai1979} as a generalization of the longest common subsequence
-problem~\cite{Bergroth2000}. There has been a significant body of work
-on the untyped tree differencing
+  The hashing techniques used in this paper can resemble
+\emph{hash-consing}~\cite{Filliatre2006}, a technique to share values that are
+structurally equal. Hash-consing is done by maintaining a global hash-table
+during run-time, which keeps track of the values that have already
+been created and can be shared. There are two main differences to our
+situation, however: (A) we cannot use hash tables for it would use too
+much space, and, (B) we must detect which subtrees are shared within
+two fixed trees instead of sharing the values in memory, which is the
+main objective of \emph{hash-consing}. 
+
+  On the diffing side, related work can be classified in the treatment
+of types.  The untyped tree differencing problem was introduced in
+1979 \cite{Tai1979} as a generalization of the longest common
+subsequence problem~\cite{Bergroth2000}. There has been a significant
+body of work on the untyped tree differencing
 problem~\cite{Demaine2007,Klein1998,Akutsu2010}, but these results do
 not transport to the typed setting: the transformations that are
 computed are not guaranteed to produce well-typed trees.
