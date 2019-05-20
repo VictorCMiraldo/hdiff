@@ -10,6 +10,10 @@ default : src/index.lhs src/body.lhs src/definitions.lhs src/stylish.lhs
 	export TEXMFHOME=".:$(TEXMFHOME)" && \
 	$(LATEX) src/$(TGT).tex 
 
+nolhs: src/$(TGT).tex
+	export TEXMFHOME=".:$(TEXMFHOME)" && \
+	$(LATEX) src/$(TGT).tex 
+
 dist/$(TGT).aux: default
 
 bib: references.bib dist/$(TGT).aux
@@ -19,3 +23,4 @@ bib: references.bib dist/$(TGT).aux
 
 clean :
 	cd dist && rm -rf * && cd ..
+

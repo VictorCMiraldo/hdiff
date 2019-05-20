@@ -1,0 +1,25 @@
+#! /bin/bash
+set -uo pipefail
+
+if [[ "$#" -ne "2" ]]; then
+  echo "I need two git-revisions to get you a latex diff"
+  exit 1
+fi
+
+old=$1
+new=$2
+
+git checkout $old
+make
+cp src/index.tex ./old-index.tex
+git checkout $new
+make
+cp src/index.tex ./new-index.tex
+
+#We exclude myhs enviroments, sections, subsections and titles from
+#diffing as they usually break stuff
+latexdiff --exclude-textcmd="section,subsection,title"\
+          --config="PICTUREENV=(?:picture|DIFnomarkup|myhs)[\w\d*@]*"\
+          old-index.tex new-index.tex > src/index.tex 
+make nolhs
+make nolhs # need to make twice for bibliography
