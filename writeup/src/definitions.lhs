@@ -125,6 +125,7 @@
 %% Words with wrong kerning
 %format LeafC = "\HT{Lea\!f\!C}"
 %format Leaf  = "\HT{Lea\!f}"
+%format Refl  = "\HT{\mathit{Refl}}"
 %format NAE   = "\HT{NAE}"
 %format MetaVarIK = "\HT{MetaV\!ar}"
 %format MetaVar = "\HT{MetaV\!ar}"

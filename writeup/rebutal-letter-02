@@ -20,8 +20,8 @@ They reference the comments they address.
       C> precise to say that the produced patches are type-safe?
 
 
-  * Expanded the "minimizing changes" section. As pointed out by
-    Reviewer A, there exists a corner case that deserves explanation. 
+  * Added the necessary pieces to the "minimizing changes" section. As pointed 
+    out by Reviewer A, there exists a corner case that deserves explanation. 
     We did not understand the remark on the original review, thanks for 
     clarifying. The need mor minimizing changes really is to make a simple
     merging algorithm possible. We have stressed this throughout the text.
@@ -131,7 +131,9 @@ They reference the comments they address.
       R2> are, could they be used? If there aren't, then Section 4 should
       R2> indicate that it proposes a datatype-generic implementation of
       R2> hash-consing.
-      R2> 
+
+  * Referenced minimizing acyclic determinisitc finite automata.
+
       R2> On the same theme, it may be worth noting that minimizing acyclic
       R2> deterministic finite automata (ADFAs) can be done in linear time; see
       R2> the papers by Revuz (1992) or Bubenzer (2011). So the problem of
@@ -176,53 +178,45 @@ They reference the comments they address.
 
 ## Minor Comments
 
-[TODO: Mark these as done one-by-one]
+Below is the list of minor comments we have received from the 
+rounds of review. They have been addressed in the final version.
 
-Below is the list of minor comments we have addressed in the final version.
-These are in the order they appear on the respective reviews.
+X C> L321: "When x and y resemble one another these contexts may store a
+X C> great deal of redundant information as many constructors appearing in
+X C> both contexts will be ‘deleted’, and then ‘inserted’."  This is quite
+X C> abstract without an example.
 
-A> Section “future work“: I think you can cut this down. It is a nice wishlish,
-A> but doesn’t really contribute to the paper.
+X A> Section “future work“: I think you can cut this down. It is a nice wishlish,
+X A> but doesn’t really contribute to the paper.
 
-C> At the end of Sec 2.1 I was wondering how a change from `Node2 a b` to
-C> `Node3 a b c` would look like, i.e., how a changed node looks like? Of
-C> course this became clear, but maybe it is worthwhile to help the
-C> reader by adding to (or replacing) the example of Figure 2?
+X D> * p19, l912, "... in amortized constant time."  This is the first time
+X D>     you mention that you meant amortized constant time rather than
+X D>     ordinary "constant time". Made that clear earlier, for example on
+X D>     p6 and p7 when you claimed that $ics$ is a constant time function.
 
-C> L321: "When x and y resemble one another these contexts may store a
-C> great deal of redundant information as many constructors appearing in
-C> both contexts will be ‘deleted’, and then ‘inserted’."  This is quite
-C> abstract without an example.
+X D> * p18, l843-847. Mention that $testEquality$ is defined in
+X D>     `Data.Type.Equality`, and describe its purpose (in one sentence,
+X D>     perhaps), as well as "propositional equality" in Haskell, since I
+X D>     do not think all readers are familiar with it.
+X D> 
+X D>     The use of the symbol $\equiv$ in l847 is confusing, since
+X D>     $\equiv$ denotes propositional equality (which you just
+X D>     mentioned!) in Agda, while in here you meant the usual equality
+X D>     check that returns a $Bool$.
+X D> 
 
-D> * p16, and S3.2 in general. It would be helpful if you give the reader
-D>     the types of $mapNP$, $mapNPM$, $txMap$, $txGCP$, etc.
+X D>     Use mathit to prevent the wide kerning in $Refl$.
 
-D> * p19, l912, "... in amortized constant time."  This is the first time
-D>     you mention that you meant amortized constant time rather than
-D>     ordinary "constant time". Made that clear earlier, for example on
-D>     p6 and p7 when you claimed that $ics$ is a constant time function.
+X D> * p22, last paragraph. "... even a naive merge algorithm .. manages to
+X D>     outperform the current state of the art."  Is it because that the
+X D>     former is tree-based while the latter is line-based? If so please
+X D>     make it clear. If not, it would be nice if you briefly provide
+X D>     some insight why the naive algorithm is that good.
 
-D> * p18, l843-847. Mention that $testEquality$ is defined in
-D>     `Data.Type.Equality`, and describe its purpose (in one sentence,
-D>     perhaps), as well as "propositional equality" in Haskell, since I
-D>     do not think all readers are familiar with it.
-D> 
-D>     The use of the symbol $\equiv$ in l847 is confusing, since
-D>     $\equiv$ denotes propositional equality (which you just
-D>     mentioned!) in Agda, while in here you meant the usual equality
-D>     check that returns a $Bool$.
-D> 
-D>     Use mathit to prevent the wide kerning in $Refl$.
-
-D> * p22, last paragraph. "... even a naive merge algorithm .. manages to
-D>     outperform the current state of the art."  Is it because that the
-D>     former is tree-based while the latter is line-based? If so please
-D>     make it clear. If not, it would be nice if you briefly provide
-D>     some insight why the naive algorithm is that good.
-
-
-
-
+X C> At the end of Sec 2.1 I was wondering how a change from `Node2 a b` to
+X C> `Node3 a b c` would look like, i.e., how a changed node looks like? Of
+X C> course this became clear, but maybe it is worthwhile to help the
+X C> reader by adding to (or replacing) the example of Figure 2?
 
 X A> line 50: missing space after comma after “Patch”
 

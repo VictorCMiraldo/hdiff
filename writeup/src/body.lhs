@@ -119,7 +119,7 @@ richly structured data beyond lines of text, this becomes especially
 problematic.
 
 \begin{figure}
-\includegraphics[scale=0.3]{src/img/patch-00.pdf}
+\includegraphics[scale=0.35]{src/img/patch-00.pdf}
 \caption{Visualization of a |diff (Bin t u) (Bin u t)| using insertions, deletions and copies only}
 \label{fig:linear-patch}
 \end{figure}
@@ -146,7 +146,7 @@ More specifically, this paper makes the following novel contributions:
   of an oracle capable of detecting all possible copying
   opportunities. We give a practical implementation of this oracle
   that is correct modulo cryptographic hash collisions and runs in
-  constant time (Section~\ref{sec:oracle}). 
+  amortized constant time (Section~\ref{sec:oracle}). 
 \item We show how the representation for patches used in this paper
   enables \emph{disjoint} patches to be
   \emph{merged} automatically (Section~\ref{sec:merging}). 
@@ -226,8 +226,10 @@ type Change23 phi = (Tree23C phi , Tree23C phi)
 \end{myhs}
 
 \begin{figure}
-\includegraphics[scale=0.3]{src/img/patch-01.pdf}
-\caption{Visualization of a |diff (Node2 t u) (Node2 u t)|, metavariables are shown in red}
+\includegraphics[scale=0.35]{src/img/patch-01.pdf}\hspace{2em}
+\includegraphics[scale=0.35]{src/img/patch-01b.pdf}
+\caption{Visualization of |diff (Node2 t u) (Node2 u t)| to the left and |diff (Node2 t u) (Node3 t x u)| 
+         on the right. Metavariables are shown in red}
 \label{fig:first-patch}
 \end{figure}
 
@@ -267,29 +269,33 @@ a subtree of the input |tree|.
 \begin{code}
 del :: Tree23C MetaVar -> Tree23 -> Maybe (Map MetaVar Tree23)
 del ctx tree = go ctx tree empty 
-  where
-    go :: Tree23C -> Tree23 -> Map MetaVar Tree23 -> Maybe (Map MetaVar Tree23)
-    go LeafC           Leaf           m = return m
-    go (Node2C x y)    (Node2 a b)    m = go x a m >>= go y b
-    go (Node3C x y z)  (Node3 a b c)  m = go x a m >>= go y b >>= go z c
-    go (Hole i)        t              m = case lookup i m of
-                                            Nothing  -> return (M.insert i t m)
-                                            Just t'  -> guard (t == t') >> return m
-    go _               _              m = Nothing
 \end{code}
 \end{myhs}
 
-  The |go| function above closely follows the structure of trees and
+  The |go| function, defined below, closely follows the structure of trees and
 contexts. Only when we reach a |Hole|, do we check whether we have
 already instantiated the metavariable stored there or not. If we have
 encountered this metavariable before, we check that both occurrences
 of the metavariable correspond to the same tree; if this is the first
 time we have encountered this metavariable, we simply instantiate the
-metavariable with the current tree. We will refer to the result of
-|del ctx tree| as the \emph{valuation} that instantiates the
-metavariables of |ctx| with subtrees of |tree|.
+metavariable with the current tree. 
 
-  Once we have obtained a such valuation, we substitute the variables
+\begin{myhs}
+\begin{code}
+go :: Tree23C -> Tree23 -> Map MetaVar Tree23 -> Maybe (Map MetaVar Tree23)
+go LeafC           Leaf           m = return m
+go (Node2C x y)    (Node2 a b)    m = go x a m >>= go y b
+go (Node3C x y z)  (Node3 a b c)  m = go x a m >>= go y b >>= go z c
+go (Hole i)        t              m = case lookup i m of
+                                        Nothing  -> return (M.insert i t m)
+                                        Just t'  -> guard (t == t') >> return m
+go _               _              m = Nothing
+\end{code}
+\end{myhs}
+
+  We will refer to the result of |del ctx tree| as the \emph{valuation}
+that instantiates the metavariables of |ctx| with subtrees of |tree|.
+Once we have obtained a such valuation, we substitute the variables
 in the insertion context with their respective values, to obtain the
 final tree.  This phase fails when the change contains unbound
 variables.
@@ -449,10 +455,10 @@ in the introduction:
     \[ |forall x y dot applyTree23 (changeTree23 x x) y == Just y| \]
   \item[Time Efficiency] 
     On the worst case, we perform one query to the oracle per
-    constructor in our trees. Assuming |ics| to be a constant time
+    constructor in our trees. Assuming |ics| to be a amortized constant time
     function, our algorithm is linear on the number of constructors
     in the source and destination trees. We will define a version of
-    |ics| in \Cref{sec:oracle} that requires constant time.
+    |ics| in \Cref{sec:oracle} that runs in amortized constant time.
   \item[Space Efficiency] 
     The size of a |Change23 MetaVar| is, on average, smaller than 
     storing its source and destination tree completely. On the worst case,
@@ -461,13 +467,21 @@ in the introduction:
     not share a single line of text.
 \end{description}
 
+\begin{figure}
+\includegraphics[scale=0.35]{src/img/patch-01c.pdf}
+\caption{A |Change23| with a redundant |Node2 t| in both the deletion
+and insertion contexts.}
+\label{fig:redundant-info-patch}
+\end{figure}
+
   Although correct with respect to our specification, there is still
 room for improvement.  A call to |changeTree23 x y| yields a
 \emph{single} |Change23|, consisting of a pair of insertion and
 deletion contexts. When |x| and |y| resemble one another these
 contexts may store a great deal of redundant information as many
 constructors appearing in both contexts will be `deleted', and then
-`inserted'.  To address this, we want to share information between the
+`inserted', \Cref{fig:redundant-info-patch}. 
+To address this, we want to share information between the
 deletion and insertion contexts, where possible. This makes it much
 simpler to merge patches, \Cref{sec:merging}, for the changes will be
 small and isolated.  For example, while merging a patch if we see a
@@ -494,8 +508,12 @@ identifying the redundant part of the contexts. That is, the
 constructors that show up as a prefix in \emph{both} the deletion and
 the insertion context. They are essentially being copied over and we
 want to make this fact explicit by separating them into what we call
-the \emph{spine} of the patch. The spine will then contain
-changes---pairs of an insertion and deletion context---in its leaves:
+the \emph{spine} of the patch. This step helps us reason about
+patches.  If a constructor is in the \emph{spine}, we know it has been
+copied, if it shows up in a change, we know it was either deleted or
+inserted.  Without this knowledge, writing a merge function becomes
+significantly harder.  The spine will then contain changes---pairs of
+an insertion and deletion context---in its leaves:
 
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-example.pdf}
@@ -785,15 +803,21 @@ ics s d = lookup (mkTrie s `intersect` mkTrie d) . merkleRoot
 \end{code}
 \end{myhs}
 
-
-  This is similar to \emph{hash-consing}~\cite{Filliatre2006} in
-spirit. The use of cryptographic hashes is unsurprising. They are almost
+  The use of cryptographic hashes is unsurprising. They are almost
 folklore for speeing up a variety of computations. It is important to
 notice that the efficiency of our algorithm comes from our novel
 representation of patches combined with a amortized constant time
 |ics| function. Without being able to duplicate or permute subtrees,
 the algorithm would have to backtrack in a number of situations.
 
+  Our technique for detecting shared subtrees is similar to
+\emph{hash-consing}~\cite{Filliatre2006} in spirit. We come back to a
+more detailed description in \Cref{secsec:related-work}.  Another
+similar line of work is the minimization of finite automata, which can
+be done in linear time~\cite{Bubenzer2014}, hence, one could imagine
+adapting such techniques for detecting shared trees without the use of
+cryptographic hashes. Nevertheless, the details are non-trivial and
+further exploration is left for future work.
 
 \section{Tree Diffing Generically}
 \label{sec:generic-diff}
@@ -1288,7 +1312,10 @@ type Patch codes at = Tx codes (Change codes MetaVar) at
 constructors that are present in both the deletion and insertion
 contexts. This is done by splitting a big change into the
 \emph{greatest common prefix} of the insertion and deletion contexts
-and the smaller changes inside:
+and the smaller changes inside. When going over two |TxPeel| we must
+check that the constructors are the same, i.e., have the same index.
+We use |testEquality| from |Data.Type.Equality| to check for type
+index equality and inform the compiler of that fact by matching on |Refl|.
 
 \begin{myhs}
 \begin{code}
@@ -1812,6 +1839,17 @@ whereas the second branch follows the third identity law, which states
 that |p // p == id|, meaning that applying a patch over something that
 has been modified by this very patch amounts to not changing anything.
 
+
+\begin{figure}
+\includegraphics[scale=0.3]{src/img/merge-01.pdf}
+\includegraphics[scale=0.3]{src/img/merge-02.pdf}
+\caption{Example of a merge square where the first residual is obtained by
+not changing the patch and the second is computed by applying a patch
+to another patch, transporting the changes.}
+\label{fig:merging-AB}
+\end{figure}
+
+
   Our trivial merge algorithm returns a conflict for non-disjoint
 patches, but this does not mean that it is impossible to merge them in
 general. Although a full discussion is out of the scope of this paper,
@@ -1832,16 +1870,6 @@ The `denominator' patch must be applied to the `nominator' -- yielding
 a new patch that has the expected behavior. In future work, we hope
 to identify the precise conditions under which two non-disjoint
 patches can be merged in this way.
-
-
-\begin{figure}
-\includegraphics[scale=0.3]{src/img/merge-01.pdf}
-\includegraphics[scale=0.3]{src/img/merge-02.pdf}
-\caption{Example of a merge square where the first residual is obtained by
-not changing the patch and the second is computed by applying a patch
-to another patch, transporting the changes.}
-\label{fig:merging-AB}
-\end{figure}
 
 \section{Experiments}
 \label{sec:experiments}
@@ -1874,17 +1902,25 @@ on the right we show the full plot. The results were expected
 given that we seen how |diff x y| runs in $\bigO{n + m}$ where |n| and |m| are the
 number of constructors in |x| and |y| abstract syntax trees, respectively.
 Confirming our analysis with empirical results further strengthens our 
-algorithm as a practical implementation of structured differencing.
+algorithm as a practical implementation of structured differencing, even though
+it stands about one order or magnitude slower than purely textual differencing tools.
+One could combine both approaches and only fallback to the more expensive 
+structural merging tool when the textual merging fails. In \Cref{fig:performance-plot} 
+we see that around 90\% of our dataset falls within a one second runtime.
 
-\paragraph{Merging Evaluation} We have also performed a preliminary evaluation of the simple merging
-algorithm presented in \Cref{sec:merging}. After collecting all the conflicts from the GitHub
-repositories, we attempted to merge the structured diffs that our algorithm computes.
-When this merge succeeded, we checked that the resulting merge
-square (\Cref{fig:merge-square}) commutes as expected.
-In this way, we were able to solve a total of 66 conflicts automatically, amounting to 11\% of
-all the conflicts we encountered. We consider these initial numbers to be encouraging:
-even a naive merge algorithm on structured changes manages to outperform the current
-state of the art. We expect that a more refined notion of merging may improve these results further.
+\paragraph{Merging Evaluation} We have also performed a preliminary
+evaluation of the simple merging algorithm presented in
+\Cref{sec:merging}. After collecting all the merge commits from the GitHub
+repositories, we selected those that \texttt{git merge} failed to solve
+automatically, which we call a conflict, and attempted to 
+use our structured merge instead. When this merge succeeded, we checked that the
+resulting merge square (\Cref{fig:merge-square}) commutes as expected.
+In this way, we were able to solve a total of 66 conflicts
+automatically, amounting to 11\% of all the conflicts we
+encountered. We consider these initial numbers to be encouraging: even
+a naive merge algorithm on structured changes manages to outperform
+the current state of the art. We expect that a more refined notion of
+merging may improve these results further.
 
 \begin{figure}\centering
 \ra{1.1} % better spacing
@@ -1935,59 +1971,54 @@ to rebase their branches instead of merging them. Therefore, we may have
 missed a number of important merge conflicts that are no longer recorded,
 as rebasing erases history. Our merge algorithm might be able to resolve
 some of these conflicts automatically---but there is no way to establish this.
+Nevertheless, we could still have gathered the \emph{Pull Requests} merged using
+\texttt{rebase} or \texttt{squash} on GitHub. This is because GitHub keeps
+a hidden branch that refers to the state before the merge available. 
 
 \section{Discussion and Conclusion}
 \label{sec:discussion}
 
-  The results from \Cref{sec:experiments} are very encouraging. 
-We see that our diffing algorithm has competitive performance 
-and our trivial merging operation is  capable of merging
-changes where \texttt{diff3} fails. Yet there is still plenty of work to be done.
+  The results from \Cref{sec:experiments} are very encouraging.  We
+see that our diffing algorithm has competitive performance and our
+trivial merging operation is capable of merging changes where
+\texttt{git merge} fails. Yet there is still plenty of work to be
+done.
 
 \subsection*{Future Work}  
 %Wouter: I've made the subsections here subsection* -- you never need to refer to them by number
 
 \paragraph{Controlling Sharing}
-One interesting direction for further work is how to control
-the sharing of subtrees. As it stands, the differencing algorithm will share every
-subtree that occurs in both the source and destination files. This can lead to undesirable
-behavior. For example, we may not want to share \emph{all} occurrences
-of a variable within a program, but rather only share occurrences of a variable with the same binder.  That
-is, sharing should respect the scope variables. A similar question arises with
-constants -- should all occurrences of the number |1| be shared?
+One interesting direction for further work is how to control the
+sharing of subtrees. As it stands, the differencing algorithm will
+share every subtree that occurs in both the source and destination
+files. This can lead to undesirable behavior. For example, we may not
+want to share \emph{all} occurrences of a variable within a program,
+but rather only share occurrences of a variable with the same binder.
+That is, sharing should respect the scope variables. A similar
+question arises with constants -- should all occurrences of the number
+|1| be shared?
 
-There are a variety of options to customize the sharing behavior of our algorithm.
-One way to do so would allow the definition of a custom oracle
-that is scope-aware. By hashing both the identifier name and its binder,
-we can ensure that variables are not shared over scope boundaries.
-Another option would be to consider abstract syntax trees
+There are a variety of options to customize the sharing behavior of
+our algorithm.  One way to do so would allow the definition of a
+custom oracle that is scope-aware. By hashing both the identifier name
+and its binder, we can ensure that variables are not shared over scope
+boundaries.  Another option would be to consider abstract syntax trees
 that make the binding structure of variables explicit.
 
 \paragraph{Better Merge Algorithm}
-The merging algorithm presented in \Cref{sec:merging} only handles trivial cases.
-Being able to merge patches that are not disjoint is the subject of ongoing research.
-The problem seems related to unification,
-residual systems, and rewriting systems. We hope that relating the merging problem to these
-settings might help nail down the necessary conditions for merging to succeed.
-One would expect that it would
-have some resemblance to a pushout, as in pointed out by Mimram and Di Giusto~\cite{Mimram2013}. 
-
-\paragraph{Automatic Merge Strategies}
-We would like to
-develop a language to specify domain specific strategies for conflict resolution.
-For instance, whenever the merging tool finds a conflict in the \texttt{build-depends}
-section of a cabal file, it might try sorting the packages alphabetically and keeping
-the conflicting packages with the higher version number. Ideally, these rules should be simple to
-write, yet still allow a high degree of customization.
-
-\paragraph{Formalization and Meta-theory}
-We would be happy to engage in a formalization of our work with the
-help of a proof assistant.  This would help to develop the meta-theory
-and provide definite confidence that our algorithms are correct with
-respect to their specification.  This could be achieved by rewriting
-our code in Agda~\cite{Norell2009} whilst proving the correctness
-properties we desire. This process would provide invaluable insight
-into developing the meta-theory of our system.
+The merging algorithm presented in \Cref{sec:merging} only handles
+trivial cases.  Being able to merge patches that are not disjoint is
+the subject of ongoing research.  The problem seems related to
+unification, residual systems, and rewriting systems. We hope that
+relating the merging problem to these settings might help nail down
+the necessary conditions for merging to succeed.  One would expect
+that it would have some resemblance to a pushout, as in pointed out by
+Mimram and Di Giusto~\cite{Mimram2013}. This would come hand-in-hand
+with more meta-theoretical work of formalizing our representation
+of patches and our algorithms in dependently typed language.
+Another interesting addendum to a better merging algorithm is
+the hability to define domain specific strategies to solve 
+conflicts.
 
 \paragraph{Extending the Generic Universe.}
 Our prototype is built on top of \texttt{generics-mrsop}, a generic
@@ -2008,7 +2039,10 @@ been created and can be shared. There are two main differences to our
 situation, however: (A) we cannot use hash tables for it would use too
 much space, and, (B) we must detect which subtrees are shared within
 two fixed trees instead of sharing the values in memory, which is the
-main objective of \emph{hash-consing}. 
+main objective of \emph{hash-consing}. On another hand, the problem
+of minimizing finite acyclic deterministic automata has efficient
+solutions in the literature~\cite{Bubenzer2014}, which could be seen
+as a different way of defining the \emph{is common subtree} oracle.
 
   On the diffing side, related work can be classified in the treatment
 of types.  The untyped tree differencing problem was introduced in
@@ -2052,7 +2086,7 @@ of work, but uses its own algorithm for computing graph
 transformations between untyped representations of abstract syntax
 trees.
 
-There have been several different approaches to formalizing a theory
+  There have been several different approaches to formalizing a theory
 of patches.  The version control system \texttt{darcs}~\cite{Darcs}
 was one of the first to present a more formal theory of patches, but
 the patches themselves were still line-based.  Mimram and De
@@ -2064,6 +2098,19 @@ separation logic to define a meta-theory of patches and merging.
 Finally, Angiuli et al.~\cite{Angiuli2014} describe a patch theory
 based on homotopy type theory.
 
+  Shifting to the language-theoretic point of view, two lines of
+similar research must be mentioned here. Firstly, incremental
+parsing~\cite{Wagner1998} must also represent a change within a tree.
+It is different from structured differencing for incremental parsing
+does not have a notion of \emph{change}. The change always happen
+at the point the user is editting the file, and its representation is trivial.
+The hard challenge is in applying parsing rules to partial input.
+Secondly, the work on Grammar-Based Tree Compression~\cite{Lohrey2015}
+could be seen as a variant of the differencing problem. There are significant
+differences, however. In GBTC one must maintain one copy of every subtree,
+by definition. In our case, we want to abstract away the common subtrees
+and keep this information at hand.
+ 
 \subsection*{Conclusions}
 \label{sec:conclusions}
 
@@ -2077,7 +2124,8 @@ We have validated our implementation by computing diffs between
 Lua~\cite{Lua} source files obtained from various repositories on
 GitHub; the algorithm's run-time is competitive, and even a naive
 merging algorithm already offers a substantial improvement over
-existing technology.  Together, these results demonstrate both a
+existing technology, for the former is tree-based and the latter
+is line-based.  Together, these results demonstrate both a
 promising direction for further research and a novel application of
 the generic programming technology that is readily available in
 today's functional languages.
