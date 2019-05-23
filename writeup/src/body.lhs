@@ -487,7 +487,7 @@ insertion contexts of \Cref{fig:redundant-info-patch}, we do not know
 whether a constructor is being copied over or not, which hinders our
 capacity to easily merge patches (\Cref{sec:merging}).  For example,
 while merging a patch if we see a change that looks like |Change (Hole
-i) (Hole i)|, we would like to merge it imediately.
+i) (Hole i)|, we would like to merge it immediately.
 
 We must
 be careful to make sure that the domain of the patch after minimizing
@@ -726,7 +726,7 @@ instance Eq Tree23 where
 important that we use the |merkleRoot| of the parts of a |Tree23|
 to compute the |merkleRoot| of the whole. This construction,
 when coupled with a cryptographic hash function, call it |hash|, 
-is what guarantee injectivity modulo hash colisions.
+is what guarantee injectivity modulo hash collisions.
 
 \begin{myhs}
 \begin{code}
@@ -742,7 +742,7 @@ merkleRoot (Node3 x y z)  = hash (concat ["node3" , merkleRoot x , merkleRoot y 
 positives, when using a cryptographic hash function the chance of
 collision is negligible and hence, in practice, they never
 happen~\cite{Menezes1997}. In spite of that, it would be easy to check
-that a colission occured anyway, consequently, we chose to ignore it.
+that a collision occured anyway, consequently, we chose to ignore it.
 
   Recall we are striving for a constant time |(==)| implementation, but the |(==)| definition
 above is still linear, we recompute the hash on every comparison. We fix this by caching the hash associated with every node of a |Tree23|. 
@@ -768,7 +768,7 @@ identifier and |h| is a hash function.}
   We omit the implementation of |decorate| for brevity even if it is
 straightforward. Moreover, a generic version is introduced in
 \Cref{sec:oracle}. This enables us to define a constant time
-|merkleRoot| function, shown below, which maked the |(==)| function
+|merkleRoot| function, shown below, which makes the |(==)| function
 run in constant time.
 
 \begin{myhs}
@@ -781,7 +781,7 @@ merkleRoot (Node3H (_ , hx) (_ , hy)) (_, hz))  = hash (encode "3" ++ hx ++ hy +
 \end{myhs}
 
   The second source of inefficiency, enumerating all possible
-subtrees, can be addressed by choosing a better datastructure.  In order to
+subtrees, can be addressed by choosing a better data structure.  In order to
 check whether a tree |x| is a subtree of a fixed |s| and |d|, it
 suffices to check whether the merkle root of |x| appears in a
 ``database'' of the common merkle roots of |s| and |d|. Given that a
@@ -2028,7 +2028,7 @@ Mimram and Di Giusto~\cite{Mimram2013}. This would come hand-in-hand
 with more meta-theoretical work of formalizing our representation
 of patches and our algorithms in dependently typed language.
 Another interesting addendum to a better merging algorithm is
-the hability to define domain specific strategies to solve 
+the ability to define domain specific strategies to solve 
 conflicts. 
 
 \paragraph{Extending the Generic Universe.}
@@ -2042,7 +2042,7 @@ our algorithm to handle mutually recursive families that have
 \subsection*{Related Work}
 \label{sec:related-work}
 
-  The hashing techniques used in this paper is reminescent of
+  The hashing techniques used in this paper is reminiscent of
 \emph{hash-consing}~\cite{Filliatre2006}, a technique to share values that are
 structurally equal. Hash-consing is done by maintaining a global hash-table
 during run-time, which keeps track of the values that have already
@@ -2114,7 +2114,7 @@ similar research must be mentioned here. Firstly, incremental
 parsing~\cite{Wagner1998} must also represent a change within a tree.
 It is different from structured differencing for incremental parsing
 does not have a notion of \emph{change}. The change always happen
-at the point the user is editting the file, and its representation is trivial.
+at the point the user is editing the file, and its representation is trivial.
 The hard challenge is in applying parsing rules to partial input.
 Secondly, the work on Grammar-Based Tree Compression~\cite{Lohrey2015}
 could be seen as a variant of the differencing problem. There are significant
