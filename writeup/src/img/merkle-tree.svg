@@ -14,7 +14,7 @@
    viewBox="0 0 322.69146 97.170627"
    version="1.1"
    id="svg8"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)"
+   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
    sodipodi:docname="merkle-tree.svg">
   <defs
      id="defs2">
@@ -266,14 +266,14 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.49497475"
-     inkscape:cx="504.20549"
-     inkscape:cy="539.25971"
+     inkscape:zoom="1.979899"
+     inkscape:cx="559.97722"
+     inkscape:cy="257.08351"
      inkscape:document-units="mm"
-     inkscape:current-layer="layer2"
+     inkscape:current-layer="g3672"
      showgrid="false"
-     inkscape:window-width="1920"
-     inkscape:window-height="1033"
+     inkscape:window-width="958"
+     inkscape:window-height="1031"
      inkscape:window-x="0"
      inkscape:window-y="28"
      inkscape:window-maximized="0"
@@ -318,7 +318,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -1135,15 +1135,15 @@
            style="fill:none;stroke:#000000;stroke-width:0.62606531;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker3696-7)" />
         <text
            id="text5026"
-           y="21.552378"
-           x="-48.746422"
-           style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+           y="20.651165"
+           x="-45.776443"
+           style="font-style:normal;font-weight:normal;font-size:8.16593456px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.20414837"
            xml:space="preserve"><tspan
-             style="stroke-width:0.26458332"
-             y="21.552378"
-             x="-48.746422"
+             style="stroke-width:0.20414837"
+             y="20.651165"
+             x="-45.776443"
              id="tspan5024"
-             sodipodi:role="line">prepare</tspan></text>
+             sodipodi:role="line">decorate</tspan></text>
       </g>
     </g>
   </g>

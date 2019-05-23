@@ -6,312 +6,197 @@ our paper.
 
 ## Revisions
 
-The revisions we have made for the final version of our paper
-are listed below, in the same order they appear in the paper.
-They reference the comments they address.
+The majot changes made are summarized by:
 
-  * We have changed 'type-directed' into 'type-safe' on the title
-    of our paper.
+  * Added example oracle for 2-3-trees. [lines: ....]
+  * Included discussion of related work suggested by Reviewers. [lines: ...]
 
-      C> Paper title: The paper didn't explain what makes the presented
-      C> algorithms "type-directed". I understand that the algorithms consume
-      C> and produce data belonging to a datatype, but I couldn't see where the
-      C> algorithm is directed by the type of the tree. Wouldn't it be more
-      C> precise to say that the produced patches are type-safe?
+It goes without saying we have processed the minor changes the reviewers
+have suggested to the best of our ability.
 
+### Detailed Revisions
 
-  * Added the necessary pieces to the "minimizing changes" section. As pointed 
-    out by Reviewer A, there exists a corner case that deserves explanation. 
-    We did not understand the remark on the original review, thanks for 
-    clarifying. The need mor minimizing changes really is to make a simple
-    merging algorithm possible. We have stressed this throughout the text.
+Below we address the comments related to those major changes
+one by one, in the order they show up in the final paper.
 
-      A>  2. I found the need for minimizing changes (section 2.3) is not
-      A>     well-motivated, especially as it not only reduces the size of the diffs (which
-      A>     is nice, but not critical), but changes the semantics of a patch. Before
-      A>     minimizing. It changes a change like
-      A> 
-      A>         (Node2C (Node3C t1 1 2) (Node3C t2 1 2), Node2C (Node3C t3 2 1) (Node3c t4 2 1))
-      A> 
-      A>     where we swap subtrees in two positions, assuming they are identical, to
-      A> 
-      A>         (Node2C (Node3C t1 1 2) (Node3C t2 3 4), Node2C (Node3C t3 2 1) (Node3c t4 4 3))
-      A> 
-      A>     where we now still do the same swapping, but the subtrees do not have to be
-      A>     related.
-      A> 
-      A>     > *Authors write*:
-      A>     > Just to clarify, minimizing changes does not introduce new variables. In
-      A>     > fact, the change illustrated above,
-      A>     >
-      A>     >     (Node2C (Node3C t1 1 2) (Node3C t2 1 2), Node2C (Node3C t3 2 1) (Node3c t4 2 1))
-      A>     >
-      A>     > is already in minimal form. The closure function would return this
-      A>     > without further modifications.
-      A> 
-      A>     I used fresh names to indicate variables bound in separate `Change23`. Here
-      A>     is my argument again, phrased a bit more elaborately:
-      A> 
-      A>     You say that
-      A> 
-      A>         (Node2C (Node3C t1 1 2) (Node3C t2 1 2), Node2C (Node3C t3 2 1) (Node3c t4 2 1))
-      A> 
-      A>     is already in minimal form, but it seems that gcp would return
-      A> 
-      A>         (Node2C (Node3C (Hole (t1,t3)) (Hole (1,2)) (Hole (2,1))) (Node3C (Hole (t2,t4)) (Hole (1,2)) (Hole (2,1))))
-      A> 
-      A>     and `closure` would then change that back to
-      A> 
-      A>         (Node2C (Hole (Node3C t1 1 2, Node3C t3 2 1)) (Hole (Node3C t2 1 2, Node3C t4 2 1)))
-      A> 
-      A>     because `(Node3C t1 1 2, Node3C t3 2 1)` is closed. But (assuming that the
-      A>     variables a local to each `Change23`) that patch has a different semantics
-      A>     than the original one: It applies to *more* input as before (because the
-      A>     `1` in the first `Change23` no longer need to be identical to the `1` in
-      A>     the second `Change23`.
-      A> 
-      A>     Presumably, having the patch apply to *more* inputs is a good thing, but
-      A>     Section 2.3 does not contain any significant discussion of this (besides
-      A>     “This keeps changes small and isolated”.) If the algorithm is the main
-      A>     focus of the paper, then this deserves more discussion, in particular
-      A>     stating propositions like “a minimizing a patch only extends its domain,
-      A>     and does not change its effect on the domain of the original patch”.
+  C> Paper title: The paper didn't explain what makes the presented
+  C> algorithms "type-directed". I understand that the algorithms consume
+  C> and produce data belonging to a datatype, but I couldn't see where the
+  C> algorithm is directed by the type of the tree. Wouldn't it be more
+  C> precise to say that the produced patches are type-safe?
 
-      D> * S2.3. I do not understand why the $closure$ phase is necessary. In
-      D>   the example in S2.1, $del$ computes an environment (a mapping)
-      D>   between $MetaVar$ and $Tree23$. The environment is then used
-      D>   globally by $ins$. It is not stated clearly how a patch is used in
-      D>   S2.3, after the spine is introduced, but it seems that an
-      D>   environment is computed for each local $Change23$, thus the problem
-      D>   shown between l365-l370. (There is also a hint on p17, l791, "Our
-      D>   changes... can be applied locally.") But why can we not use a global
-      D>   environment that remembers the value of $Hole 0$?
-
-  * Expanded on the Oracle construction. Section 2.4 now implements
-    an oracle for 2-3-Trees and Section 4 was demoted to Section 3.3, and only
-    handles the generic construction. The 2-3-Trees oracle already serves as a 
-    pedagogical example to the generic construction.
-
-      A>  3. In Section 4 I am missing a discussion of how to hash the data in the tree,
-      A>     but this may be due to my limited knowledge about generic programming.
-      A>     Shouldn't there be some type-class constraints somewhere that ensure that the
-      A>     leafs of the data type support an `encode` function?
-
-      C> L917: "Looking up whether a tree x is a subtree of some tree s can be
-      C> done by looking up x’s topmost hash, also called the merkle root,
-      C> against the trie generated from s." Explain: Why is comparing to the
-      C> root only meaningful? Why is it not necessary to do a regular trie
-      C> lookup?  What is the integer associated to the hash? How to make sure
-      C> the two tries agree on that integer?
-
-      C> L955: "The same subtree might appear in different places in s and d,
-      C> for the Int associated with it will differ from mkSharingTrie s′ and
-      C> mkSharingTrie d′." unclear
-
-      C> L962: "When using a cryptographic hash, the chance of collision is
-      C> negligible and we chose to ignore it." Citation needed.
-
-  * Referenced the hash-consing work mentioned by the reviewers,
-    in comment A2. It is worthwhile to mention that hash-consing is different
-    than what we do. In hash-consing, one keeps a global hash table in order
-    to share values as they are constructed (in memory). This allows one to
-    use pointer equality instead of structural equality. Our data structure
-    is different (we use Tries) to allow for faster intersection operation.
-    Moreover, we are not interested in sharing values in memory, we are interested
-    in knowing which trees are shared among two fixed trees. 
-
-      R2> (More serious remark.) The problem addressed in Section 4 (Defining
-      R2> the Oracle) seems to be solved by **hash-consing**, a well-known
-      R2> technique which predates Merkle trees and which should not be
-      R2> rediscovered or reexplained in an ICFP paper. See e.g. [Filliatre and
-      R2> Conchon's
-      R2> paper](https://www.lri.fr/~filliatr/ftp/publis/hash-consing2.pdf) for
-      R2> an OCaml implementation of hash-consing. Aren't there generic,
-      R2> re-usable Haskell implementations of hash-consing out there? If there
-      R2> are, could they be used? If there aren't, then Section 4 should
-      R2> indicate that it proposes a datatype-generic implementation of
-      R2> hash-consing.
-
-  * Referenced minimizing acyclic determinisitc finite automata.
-
-      R2> On the same theme, it may be worth noting that minimizing acyclic
-      R2> deterministic finite automata (ADFAs) can be done in linear time; see
-      R2> the papers by Revuz (1992) or Bubenzer (2011). So the problem of
-      R2> "defining an oracle" has efficient solutions in the literature, which
-      R2> should be cited.
-
-  * Added more details about our experiments, particularly about 
-    what we consider a merge.
-
-      A>  5. Re evaluation: What constitutes a “conflict” (line 1071). Conflicts are not
-      A>     a native concept in Git... so presumably you looked at all merge commits,
-      A>     and tried to recreate the merge uthem sing a naive `git merge` command, and
-      A>     checked if that succeeds? Please be more precise there. (You hint at
-      A>     `diff3` in line 1133, but more details would be welcome.)
-
-      C> L1068: The authors don't discuss the performance requirements for
-      C> diffing algorithms in practice. A ballpark comparison to textual diff
-      C> tools would greatly help put the performance numbers into context.
-
-  * Added another threat to validity on how we could have used Reviewer's A
-    suggestion to gather more data.
-
-      A>     BTW, did you know that even when a Pull Request is merged using rebase or
-      A>     squash on GitHub, the `refs/pulls/123/head` reference (i.e. a hidden
-      A>     branch) is still available and refers to the state before the rebase/merge.
-      A>     You might find more interesting merge commits on these branches.
+  We have changed 'type-directed' into 'type-safe' on the title
+  of our paper.
 
 
-  * Discussed the relation of our patches to Grammar-Based compression and how this
-    leaves room for reducing the patch size. We'd like to thank the clarification
-    made by Reviewer B. We have also added related work to incremental parsing.
 
-      B> I do not intend to argue that the proposed algorithm is the same as
-      B> grammar-based compression. My intention is that the proposed
-      B> algorithm can be understood as a variant of grammar-based compression,
-      B> and from this viewpoint, the proposed method leaves some room for
-      B> reducing the size of patch.
 
-      C> Related work: The authors should relate their work to incremental
-      C> parsers and how these represent changed trees (see for example the
-      C> work by Wagner and Graham).
+  A>  2. I found the need for minimizing changes (section 2.3) is not
+  A>     well-motivated, especially as it not only reduces the size of the diffs (which
+  A>     is nice, but not critical), but changes the semantics of a patch. Before
+  A>     minimizing. It changes a change like
+  A> 
+  A>         (Node2C (Node3C t1 1 2) (Node3C t2 1 2), Node2C (Node3C t3 2 1) (Node3c t4 2 1))
+  A> 
+  A>     where we swap subtrees in two positions, assuming they are identical, to
+  A> 
+  A>         (Node2C (Node3C t1 1 2) (Node3C t2 3 4), Node2C (Node3C t3 2 1) (Node3c t4 4 3))
+  A> 
+  A>     where we now still do the same swapping, but the subtrees do not have to be
+  A>     related.
+  A> 
+  A>     > *Authors write*:
+  A>     > Just to clarify, minimizing changes does not introduce new variables. In
+  A>     > fact, the change illustrated above,
+  A>     >
+  A>     >     (Node2C (Node3C t1 1 2) (Node3C t2 1 2), Node2C (Node3C t3 2 1) (Node3c t4 2 1))
+  A>     >
+  A>     > is already in minimal form. The closure function would return this
+  A>     > without further modifications.
+  A> 
+  A>     I used fresh names to indicate variables bound in separate `Change23`. Here
+  A>     is my argument again, phrased a bit more elaborately:
+  A> 
+  A>     You say that
+  A> 
+  A>         (Node2C (Node3C t1 1 2) (Node3C t2 1 2), Node2C (Node3C t3 2 1) (Node3c t4 2 1))
+  A> 
+  A>     is already in minimal form, but it seems that gcp would return
+  A> 
+  A>         (Node2C (Node3C (Hole (t1,t3)) (Hole (1,2)) (Hole (2,1))) (Node3C (Hole (t2,t4)) (Hole (1,2)) (Hole (2,1))))
+  A> 
+  A>     and `closure` would then change that back to
+  A> 
+  A>         (Node2C (Hole (Node3C t1 1 2, Node3C t3 2 1)) (Hole (Node3C t2 1 2, Node3C t4 2 1)))
+  A> 
+  A>     because `(Node3C t1 1 2, Node3C t3 2 1)` is closed. But (assuming that the
+  A>     variables a local to each `Change23`) that patch has a different semantics
+  A>     than the original one: It applies to *more* input as before (because the
+  A>     `1` in the first `Change23` no longer need to be identical to the `1` in
+  A>     the second `Change23`.
+  A> 
+  A>     Presumably, having the patch apply to *more* inputs is a good thing, but
+  A>     Section 2.3 does not contain any significant discussion of this (besides
+  A>     “This keeps changes small and isolated”.) If the algorithm is the main
+  A>     focus of the paper, then this deserves more discussion, in particular
+  A>     stating propositions like “a minimizing a patch only extends its domain,
+  A>     and does not change its effect on the domain of the original patch”.
 
-## Minor Comments
+  D> * S2.3. I do not understand why the $closure$ phase is necessary. In
+  D>   the example in S2.1, $del$ computes an environment (a mapping)
+  D>   between $MetaVar$ and $Tree23$. The environment is then used
+  D>   globally by $ins$. It is not stated clearly how a patch is used in
+  D>   S2.3, after the spine is introduced, but it seems that an
+  D>   environment is computed for each local $Change23$, thus the problem
+  D>   shown between l365-l370. (There is also a hint on p17, l791, "Our
+  D>   changes... can be applied locally.") But why can we not use a global
+  D>   environment that remembers the value of $Hole 0$?
 
-Below is the list of minor comments we have received from the 
-rounds of review. They have been addressed in the final version.
+  Added the necessary pieces to the "minimizing changes" section. As pointed 
+  out by Reviewer A, there exists a corner case that deserves explanation. 
+  We did not understand the remark on the original review, thanks for 
+  clarifying. The need mor minimizing changes really is to make a simple
+  merging algorithm possible. We have stressed this throughout the text.
 
-X C> L321: "When x and y resemble one another these contexts may store a
-X C> great deal of redundant information as many constructors appearing in
-X C> both contexts will be ‘deleted’, and then ‘inserted’."  This is quite
-X C> abstract without an example.
 
-X A> Section “future work“: I think you can cut this down. It is a nice wishlish,
-X A> but doesn’t really contribute to the paper.
 
-X D> * p19, l912, "... in amortized constant time."  This is the first time
-X D>     you mention that you meant amortized constant time rather than
-X D>     ordinary "constant time". Made that clear earlier, for example on
-X D>     p6 and p7 when you claimed that $ics$ is a constant time function.
+  A>  3. In Section 4 I am missing a discussion of how to hash the data in the tree,
+  A>     but this may be due to my limited knowledge about generic programming.
+  A>     Shouldn't there be some type-class constraints somewhere that ensure that the
+  A>     leafs of the data type support an `encode` function?
 
-X D> * p18, l843-847. Mention that $testEquality$ is defined in
-X D>     `Data.Type.Equality`, and describe its purpose (in one sentence,
-X D>     perhaps), as well as "propositional equality" in Haskell, since I
-X D>     do not think all readers are familiar with it.
-X D> 
-X D>     The use of the symbol $\equiv$ in l847 is confusing, since
-X D>     $\equiv$ denotes propositional equality (which you just
-X D>     mentioned!) in Agda, while in here you meant the usual equality
-X D>     check that returns a $Bool$.
-X D> 
+  C> L917: "Looking up whether a tree x is a subtree of some tree s can be
+  C> done by looking up x’s topmost hash, also called the merkle root,
+  C> against the trie generated from s." Explain: Why is comparing to the
+  C> root only meaningful? Why is it not necessary to do a regular trie
+  C> lookup?  What is the integer associated to the hash? How to make sure
+  C> the two tries agree on that integer?
 
-X D>     Use mathit to prevent the wide kerning in $Refl$.
+  C> L955: "The same subtree might appear in different places in s and d,
+  C> for the Int associated with it will differ from mkSharingTrie s′ and
+  C> mkSharingTrie d′." unclear
 
-X D> * p22, last paragraph. "... even a naive merge algorithm .. manages to
-X D>     outperform the current state of the art."  Is it because that the
-X D>     former is tree-based while the latter is line-based? If so please
-X D>     make it clear. If not, it would be nice if you briefly provide
-X D>     some insight why the naive algorithm is that good.
+  C> L962: "When using a cryptographic hash, the chance of collision is
+  C> negligible and we chose to ignore it." Citation needed.
 
-X C> At the end of Sec 2.1 I was wondering how a change from `Node2 a b` to
-X C> `Node3 a b c` would look like, i.e., how a changed node looks like? Of
-X C> course this became clear, but maybe it is worthwhile to help the
-X C> reader by adding to (or replacing) the example of Figure 2?
+  Expanded on the Oracle construction. Section 2.4 now implements
+  an oracle for 2-3-Trees and Section 4 was demoted to Section 3.3, and only
+  handles the generic construction. The 2-3-Trees oracle already serves as a 
+  pedagogical example to the generic construction.
 
-X A> line 50: missing space after comma after “Patch”
 
-X A> line 76: Use ’ not ‘ to close the quotes.
 
-X A> line 632: Why are you using a state monad when it looks like a reader monad
-X A> would suffice? In fact, why are you using a monad when it seems you could just
-X A> pass a fixed set of `okvars` down? Maybe I am missing something, in that case,
-X A> please explain better.
+  R2> (More serious remark.) The problem addressed in Section 4 (Defining
+  R2> the Oracle) seems to be solved by **hash-consing**, a well-known
+  R2> technique which predates Merkle trees and which should not be
+  R2> rediscovered or reexplained in an ICFP paper. See e.g. [Filliatre and
+  R2> Conchon's
+  R2> paper](https://www.lri.fr/~filliatr/ftp/publis/hash-consing2.pdf) for
+  R2> an OCaml implementation of hash-consing. Aren't there generic,
+  R2> re-usable Haskell implementations of hash-consing out there? If there
+  R2> are, could they be used? If there aren't, then Section 4 should
+  R2> indicate that it proposes a datatype-generic implementation of
+  R2> hash-consing.
 
-X A> line 684: unresolved reference (??)
+  Referenced the hash-consing work mentioned by the reviewers,
+  in comment A2. It is worthwhile to mention that hash-consing is different
+  than what we do. In hash-consing, one keeps a global hash table in order
+  to share values as they are constructed (in memory). This allows one to
+  use pointer equality instead of structural equality. Our data structure
+  is different (we use Tries) to allow for faster intersection operation.
+  Moreover, we are not interested in sharing values in memory, we are interested
+  in knowing which trees are shared among two fixed trees. 
 
-X A> line 917: missing period after “subtree”.
 
-X A> line 1068: missing noun after “empirical”
 
-X B> p6., correctness and preciseness:
-X B> While they refer to diffTree23, diffTree23 is not introduced yet.
+  R2> On the same theme, it may be worth noting that minimizing acyclic
+  R2> deterministic finite automata (ADFAs) can be done in linear time; see
+  R2> the papers by Revuz (1992) or Bubenzer (2011). So the problem of
+  R2> "defining an oracle" has efficient solutions in the literature, which
+  R2> should be cited.
 
-X B> p14., last paragraph:
-X B> A strange "??" exists.
+  Referenced minimizing acyclic determinisitc finite automata.
 
-X B> p23. last paragraph:
-X B> "one might expect expect" --- remove one "expect".
 
-X C> L44: "using xml or json […] a patch may produce ill-typed results." Do
-X C> you mean ill-balanced? or schema violations?
 
-X C> L336: "Note that the changes encompass only the minimum number of
-X C> constructor necessary to bind and use all metavariables." unclear
+  A>  5. Re evaluation: What constitutes a “conflict” (line 1071). Conflicts are not
+  A>     a native concept in Git... so presumably you looked at all merge commits,
+  A>     and tried to recreate the merge uthem sing a naive `git merge` command, and
+  A>     checked if that succeeds? Please be more precise there. (You hint at
+  A>     `diff3` in line 1133, but more details would be welcome.)
 
-X C> L382: "In the worst case, the resulting spine will be empty—but the
-X C> change will certainly be closed." that's because of
-X C> post-process. Could post-process have been merged with closure?
+  C> L1068: The authors don't discuss the performance requirements for
+  C> diffing algorithms in practice. A ballpark comparison to textual diff
+  C> tools would greatly help put the performance numbers into context.
 
-X C> L967: "In the past, structural merging has proven to be a difficult
-X C> task [23, 30] even for the easiest cases."  summarize why
+  Added more details about our experiments, particularly about 
+  what we consider a merge.
 
-X R1> (Minor remark.) The paper says (line 216): "This function will exploit
-X R1> as many copy opportunities as possible." Is this proved somewhere?
-X R1> Because some copy opportunities can be blocked (as explained on lines
-X R1> 267-268), this property could be false -- depending on how exactly it
-X R1> is stated. So, should the sentence on line 216 be interpreted
-X R1> literally (as a formal claim), or is it just a rough intuition? Please
-X R1> clarify.
 
-X D> * p9, l404: "how to compute a $Patch23$ given... in the spine."  This
-X D>     sentence starts with a small letter, without a verb.
 
-X D> * p9, l405: "On this section" -> "In this section"?
+  A>     BTW, did you know that even when a Pull Request is merged using rebase or
+  A>     squash on GitHub, the `refs/pulls/123/head` reference (i.e. a hidden
+  A>     branch) is still available and refers to the state before the rebase/merge.
+  A>     You might find more interesting merge commits on these branches.
 
-X D> * p9, l431-432: "$Tree23Code$ is the codes for the mutually recursive
-X D>     family."  codes -> code.  To avoid confusion, mention that this
-X D>     "family" has only one type.
+  Added another threat to validity on how we could have used Reviewer's A
+  suggestion to gather more data.
 
-X D> * p10, l486 & p11, l510, $Lkup$. In this section, you wrote both $Lkup
-X D>     codes~ix$ and $Lkup~i~codes$. Which is the correct order of
-X D>     arguments?
 
-X D> * p13, l622, "we can extract and post-processed...".  post-processed
-X D>     -> post-process.
 
-X D> * p14, l684, remove "??" or fill in what should have been there.
+  B> I do not intend to argue that the proposed algorithm is the same as
+  B> grammar-based compression. My intention is that the proposed
+  B> algorithm can be understood as a variant of grammar-based compression,
+  B> and from this viewpoint, the proposed method leaves some room for
+  B> reducing the size of patch.
 
-X D> * p15, l697-701, l704. $Tx codes$ expect an argument of type $Atom
-X D>     \rightarrow *$ while $Change codes$ has type $(Atom \rightarrow *)
-X D>     \rightarrow Atom \rightarrow *$. Is an argument to $Change$
-X D>     missing? It also happens at p21, l982.
+  C> Related work: The authors should relate their work to incremental
+  C> parsers and how these represent changed trees (see for example the
+  C> work by Wagner and Graham).
 
-X D> * p15, l702, "The $Sum$.. can be passed as an argument to $Tx$, of
-X D>     kind $Atom \rightarrow *$."  I guess you mean $Sum$ (given
-X D>     arguments) has kind $Atom \rightarrow *$, but it sounds like $Tx$
-X D>     has kind $Atom \rightarrow *$.
-
-X D> * p17, S4, l829-833. You seem to have overloaded the word "index" for
-X D>     two things: index into a list ("return the index of such subtrees
-X D>     in the list") and index of a type family ("with the help of
-X D>     $Exists$ since the trees might have different indices"). This is
-X D>     confusing.
-
-X D> * p18, l834, "$Atom~n \rightarrow *$". $Atom$ as defined before does
-X D>     not take an argument. (The type of this argument of $Exists$ in
-X D>     the supplementary material is $k \rightarrow *$.)
-
-X D> * p20, l973, "... potentially adapted to work on a value ... modified
-X D>     by $p$."  With "potentially" it sounds like that the patch works
-X D>     on value that may or may not have been modified by $p$. Is that
-X D>     what you meant?
-
-X D> * p24, l1146, ".. would be consider ..."  two verbs.
-
-X D> * p25, 1187, "The number of patches grows explosively.."  But most of
-X D>     these algorithms use dynamic programming or memorization. Does the
-X D>     number of patches still grows "explosively" (which is a strong but
-X D>     vague term) this way?
+  Discussed the relation of our patches to Grammar-Based compression and how this
+  leaves room for reducing the patch size. We'd like to thank the clarification
+  made by Reviewer B. We have also added related work to incremental parsing.
 
 
 [END OF THE LETTER]

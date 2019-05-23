@@ -9,7 +9,7 @@ modern software development. It has seen a number of use cases ever
 since it was created and lies at the heart of today's Software Version
 Control Systems.  Tools such as git, mercurial and darcs, that enable
 multiple developers to collaborate effectively, are all built around the
-UNIX \texttt{diff} utility, which is used to compute a patch between two
+UNIX \texttt{diff} utility, that computes a patch between two
 versions of a file. It compares files on a line-by-line basis
 attempting to share as many lines as possible between the source and
 the destination files.
@@ -34,7 +34,7 @@ trivially merged, even if they appear to be on the same line in the
 source file.  We have implemented our algorithm in Haskell and make
 heavy use of its datatype generic programming capabilities.
 
-  In general, we intend to compute the difference between two values
+  In general, we aim to compute the difference between two values
 of type |a|, and represent these changes in some type, |Patch a|.  The
 |diff| function computes these differences between two values of type
 |a|, and |apply| attempts to transform one value according to the
@@ -79,18 +79,20 @@ must be applicable to any value.
 
   Finally, the last important properties stem from a practical perspective.
 We need both the |diff| and |apply| functions to be computationally
-efficient. Lastly, when stored in disk, a value of type |Patch a| must
-use less space then storing both elements of type |a|.  Otherwise, one
-could argue that |Patch a = (a,a)| is a perfectly fine solution. Yet,
-storing all revisions of every file under version control is clearly
-not an acceptable solution.
+efficient. 
+
+%% When stored in disk, a value of type |Patch a| must
+%% use less space then storing both elements of type |a|.  Otherwise, one
+%% could argue that |Patch a = (a,a)| is a perfectly fine solution. Yet,
+%% storing all revisions of every file under version control is clearly
+%% not an acceptable solution.
 
   The UNIX \texttt{diff}~\cite{McIlroy1976} satisfies these properties
 for the specific type of lines of text, or, |a == [String]|.  It
 represents patches as a series of insertions, deletions and copies of
 lines and works by enumerating all possible patches that transform the
 source into the destination and chooses the `best' such patch.  There
-have been several attempts at a generalizing these results to handle
+have been several attempts at generalizing these results to handle
 arbitrary datatypes~\cite{Loh2009,Miraldo2017}, but following the
 same recipe: enumerate all combinations of insertions, deletions and
 copies that transform the source into the destination and choose the
@@ -113,10 +115,9 @@ algorithms intractably slow.
 
   The central design decision underlying the UNIX \texttt{diff} tool
 is to \emph{copy data whenever possible}. Yet this example shows that
-using only insertions, deletions and copies as the set of operations
-also limits the opportunities for copying data. In the presence of
-richly structured data beyond lines of text, this becomes especially
-problematic.
+using only insertions, deletions and copies \emph{limits} the
+opportunities for copying data. In the presence of richly structured
+data beyond lines of text, this becomes especially problematic.
 
 \begin{figure}
 \includegraphics[scale=0.35]{src/img/patch-00.pdf}
@@ -144,7 +145,7 @@ More specifically, this paper makes the following novel contributions:
   datatypes (Section~\ref{sec:generic-diff}).
 \item Initially, we present our diff algorithm assuming the existence
   of an oracle capable of detecting all possible copying
-  opportunities. We give a practical implementation of this oracle
+  opportunities. We give a practical, generic, implementation of this oracle
   that is correct modulo cryptographic hash collisions and runs in
   amortized constant time (Section~\ref{sec:oracle}). 
 \item We show how the representation for patches used in this paper
@@ -229,7 +230,7 @@ type Change23 phi = (Tree23C phi , Tree23C phi)
 \includegraphics[scale=0.35]{src/img/patch-01.pdf}\hspace{2em}
 \includegraphics[scale=0.35]{src/img/patch-01b.pdf}
 \caption{Visualization of |diff (Node2 t u) (Node2 u t)| to the left and |diff (Node2 t u) (Node3 t x u)| 
-         on the right. Metavariables are shown in red}
+         on the right. Metavariables are shown inside a square. Entire trees are shown inside a triangle.}
 \label{fig:first-patch}
 \end{figure}
 
@@ -238,7 +239,7 @@ represented by a pair of |Tree23C|, |(Node2C (Hole 0) (Hole 1) ,
 Node2C (Hole 1) (Hole 0))|, as seen in \Cref{fig:first-patch}.
 This change works on any tree built using the |Node2| constructor
 and swaps the children of the root. Note that it is impossible to define
-such swap operations using insertions and deletions---as
+such swap operations in terms of insertions and deletions---as
 used by most diff algorithms.
 
 \subsection{Applying Changes}
@@ -298,7 +299,7 @@ that instantiates the metavariables of |ctx| with subtrees of |tree|.
 Once we have obtained a such valuation, we substitute the variables
 in the insertion context with their respective values, to obtain the
 final tree.  This phase fails when the change contains unbound
-variables.
+variables. The |ins| function is defined below.
 
 \begin{myhs}
 \begin{code}
@@ -326,10 +327,10 @@ j|, then |x == y|. In other words, equal metavariables correspond to
 equal subtrees.
   
   There is an obvious inefficient implementation for |ics|, that
-traverses both trees searching for shared subtrees---hence assuming
+traverses both trees searching for shared subtrees---hence postulating
 the existence of such an oracle is not a particularly strong
-assumption to make.  In \Cref{sec:oracle}, we provide an efficient and
-generic implementation. For now, assuming the oracle exists allows for
+assumption to make.  In \Cref{sec:concreteoracle}, we provide an efficient
+implementation for |Tree23|. For now, assuming the oracle exists allows for
 a clear separation of concerns.  The |changeTree23| function merely
 has to compute the deletion and insertion contexts, using said
 oracle---the inner workings of the oracle are abstracted away cleanly.
@@ -480,13 +481,15 @@ room for improvement.  A call to |changeTree23 x y| yields a
 deletion contexts. When |x| and |y| resemble one another these
 contexts may store a great deal of redundant information as many
 constructors appearing in both contexts will be `deleted', and then
-`inserted', \Cref{fig:redundant-info-patch}. 
-To address this, we want to share information between the
-deletion and insertion contexts, where possible. This makes it much
-simpler to merge patches, \Cref{sec:merging}, for the changes will be
-small and isolated.  For example, while merging a patch if we see a
-change that looks like |Change (Hole i) (Hole i)| we can be sure it is
-a copy and this subtree is not being duplicated anywhere else. We must
+`inserted', as shown in \Cref{fig:redundant-info-patch}.  More
+importantly, however, is the fact that when looking at the deletion or
+insertion contexts of \Cref{fig:redundant-info-patch}, we do not know
+whether a constructor is being copied over or not, which hinders our
+capacity to easily merge patches (\Cref{sec:merging}).  For example,
+while merging a patch if we see a change that looks like |Change (Hole
+i) (Hole i)|, we would like to merge it imediately.
+
+We must
 be careful to make sure that the domain of the patch after minimizing
 changes is superset of the original.
 
@@ -508,11 +511,10 @@ identifying the redundant part of the contexts. That is, the
 constructors that show up as a prefix in \emph{both} the deletion and
 the insertion context. They are essentially being copied over and we
 want to make this fact explicit by separating them into what we call
-the \emph{spine} of the patch. This step helps us reason about
-patches.  If a constructor is in the \emph{spine}, we know it has been
+the \emph{spine} of the patch. This step will help us reason about
+patches later on.  If a constructor is in the \emph{spine}, we know it has been
 copied, if it shows up in a change, we know it was either deleted or
-inserted.  Without this knowledge, writing a merge function becomes
-significantly harder.  The spine will then contain changes---pairs of
+inserted.  The spine will then contain changes---pairs of
 an insertion and deletion context---in its leaves:
 
 \begin{figure}
@@ -539,12 +541,13 @@ type Patch23 = Tree23C (Change23 MetaVar)
 \end{code}
 \end{myhs}
 
+  A \emph{patch} consists in a spine with \emph{changes} inside of it. 
 \Cref{fig:patch-example} illustrates a value of type |Patch23|, where the
 \emph{changes} are visualized with a shaded background in the
 leaves of the spine. Note that the changes contains only the necessary
-constructor to make sure that all metavariables that are used in the insertion
+constructors to make sure that all metavariables that are used in the insertion
 context are defined in the deletion context.
-This keeps changes small and isolated. 
+This keeps changes small and isolated, making them easier to merge. 
 
   In this section we will discuss how to take the results of
 |changeTree23| and transform them into a |Patch23|. The first step to
@@ -598,7 +601,7 @@ occur in the deletion context, and is hence \emph{unbound}. To address
 this problem, we go over the result from our call to |gcp|, pulling
 changes up the tree until each change is closed, that is, the set of
 variables in both contexts is identical. We call this process the
-\emph{closure} of a patch and declare a function to compute that
+\emph{closure} of a patch and declare a function to compute this
 below.
 
   We have illustrated the process of |closure| in
@@ -633,9 +636,9 @@ in more detail on its generic incarnation. For now, it is more
 important to understand that it facilitates merging our patches, later on (\Cref{sec:merging}).
 It is worth mentioning that the result of |closure p| should be a patch that
 can be applied to \emph{at least as many elements as |p|}. In some corner
-cases |closure| will enlarge the domain of a patch by breaking some contractions.
-
-\victor{should we draw the reviewer's example here?}
+cases |closure| might enlarge the domain of a patch by breaking some contractions.
+This is not an issue, however, as being able to apply a patch to more
+elements is a good thing.
 
   As soon as every change within the spine has been closed, we have a
 \emph{patch}.  The final |diff| function for |Tree23| is then defined
@@ -652,11 +655,7 @@ diffTree23 s d = closure $$ gcp $$ changeTree23 s d
 \emph{patch}, rather than the |applyChange23| we saw previously.  This
 is done by traversing the object tree and the spine of the patch until
 a change is found and applying that change to the \emph{local}
-subtrees in question.  Besides a having a localized application
-function, this representation with minimized changes enables us to
-trivially identify when two patches are working over disjoint parts of
-a tree. This will be particularly usefull when we explore
-\emph{merging} patches (\Cref{sec:merging}).
+subtrees in question.  
 
 %% For one, we are not trying to
 %% minimize the changes after we |extract| a context from the source or
@@ -691,16 +690,14 @@ subtrees (Node3 x y z)  = Node3 x y z  : (subtrees x ++ subtrees y ++ subtrees z
 \end{code}
 \end{myhs}
 
-  Searching in the list can be done with the |elemIndex| function, that returns
-the index of an element in the specified list. This enables us to write
-a simple, yet inefficient, implementation for |ics| in just a few lines of code.
+  The |ics| function is simple: if |x| is a subtree of the source, we check whether 
+it is also a subtree of the destination. This second check is done with |elemIndex|
+which returns the index of the element, in case it belongs in the list.
 
 \begin{myhs}
 \begin{code}
 ics :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
-ics s d x =  if x `elem` subtrees s
-             then elemIndex x (subtrees d)
-             else Nothing
+ics s d x =  if x `elem` subtrees s then elemIndex x (subtrees d) else Nothing
 \end{code}
 \end{myhs}
 
@@ -710,12 +707,26 @@ algorithm to be efficient we \emph{must} have an amortized
 constant-time |ics|.
 
   In order to tackle the first issue and efficiently compare trees for
-equality we will be using cryptohtaphic hash
+equality we will be using cryptographic hash
 functions~\cite{Menezes1997} to construct a fixed length bitstring
 that uniquely identifies a tree modulo hash collisions.  Said
 identifier will be the hash of the root of the tree, which will depend
 on the hash of every subtree, much like a \emph{merkle
-tree}~\cite{Merkle1998}.
+tree}~\cite{Merkle1988}. Let |merkleRoot t| denote such
+identifier for a tree |t|.
+
+\begin{myhs}
+\begin{code}
+instance Eq Tree23 where
+  t == u = merkleRoot t == merkleRoot u
+\end{code}
+\end{myhs}
+
+  The definition of |merkleRoot| function is straight forward. It is
+important that we use the |merkleRoot| of the parts of a |Tree23|
+to compute the |merkleRoot| of the whole. This construction,
+when coupled with a cryptographic hash function, call it |hash|, 
+is what guarantee injectivity modulo hash colisions.
 
 \begin{myhs}
 \begin{code}
@@ -726,23 +737,16 @@ merkleRoot (Node3 x y z)  = hash (concat ["node3" , merkleRoot x , merkleRoot y 
 \end{code}
 \end{myhs}
 
-  Given a value |t :: Tree23|, the digest computed by |merkleRoot t|
-uniquely identify |t| and can be used to define the |Eq| instance,
-below. Note that although it is theoretically possible to have false
+
+  Note that although it is theoretically possible to have false
 positives, when using a cryptographic hash function the chance of
 collision is negligible and hence, in practice, they never
-happen~\cite{Menezes1997} and we chose to ignore it.
-
-\begin{myhs}
-\begin{code}
-instance Eq Tree23 where
-  t == u = merkleRoot t == merkleRoot u
-\end{code}
-\end{myhs}
+happen~\cite{Menezes1997}. In spite of that, it would be easy to check
+that a colission occured anyway, consequently, we chose to ignore it.
 
   Recall we are striving for a constant time |(==)| implementation, but the |(==)| definition
-above is still linear. We fix this by annotating every node of a |Tree23| with its merkle
-root. This is done by the |prepare| function, \Cref{fig:merkelized-tree}. 
+above is still linear, we recompute the hash on every comparison. We fix this by caching the hash associated with every node of a |Tree23|. 
+This is done by the |decorate| function, \Cref{fig:merkelized-tree}. 
 
 \begin{myhs}
 \begin{code}
@@ -750,7 +754,7 @@ data Tree23H  = LeafH
               | Node2H (Tree23H , Digest)  (Tree23H , Digest)
               | Node3H (Tree23H , Digest)  (Tree23H , Digest) (Tree23H , Digest)
 
-prepare :: Tree23 -> Tree23H
+decorate :: Tree23 -> Tree23H
 \end{code}
 \end{myhs}
 
@@ -761,10 +765,11 @@ identifier and |h| is a hash function.}
 \label{fig:merkelized-tree}
 \end{figure}
 
-  We ommit the implementation of |prepare| for brevity, moreover, a
-generic version is introduced in \Cref{sec:oracle}. This enables us to
-define a constant time |merkleRoot| function, shown below, which maked
-the |(==)| function run in constant time.
+  We omit the implementation of |decorate| for brevity even if it is
+straightforward. Moreover, a generic version is introduced in
+\Cref{sec:oracle}. This enables us to define a constant time
+|merkleRoot| function, shown below, which maked the |(==)| function
+run in constant time.
 
 \begin{myhs}
 \begin{code}
@@ -775,15 +780,16 @@ merkleRoot (Node3H (_ , hx) (_ , hy)) (_, hz))  = hash (encode "3" ++ hx ++ hy +
 \end{code}
 \end{myhs}
 
-  The second source of inefficiency can be nulified by the correct
-datastructure.  In order to check whether a tree |x| is a subtree of a
-fixed |s| and |d|, it suffices to check whether the merkle root of |x|
-appears in a ``database'' of the common merkle roots of |s| and
-|d|. Given that a |Digest| is just a |[Word]|, the optimal choice for
-such ``database'' is a Trie~\cite{Brass2008} mapping a |[Word]| to a
-|MetaVar|. Trie lookups are efficient and hardly depends on the number
-of elements in the trie. In fact, our lookups run in amortized
-constant time here, for the length of a |Digest| is fixed.
+  The second source of inefficiency, enumerating all possible
+subtrees, can be addressed by choosing a better datastructure.  In order to
+check whether a tree |x| is a subtree of a fixed |s| and |d|, it
+suffices to check whether the merkle root of |x| appears in a
+``database'' of the common merkle roots of |s| and |d|. Given that a
+|Digest| is just a |[Word]|, the optimal choice for such ``database''
+is a Trie~\cite{Brass2008} mapping a |[Word]| to a |MetaVar|. Trie
+lookups are efficient and hardly depend on the number of elements in
+the trie. In fact, our lookups run in amortized constant time here,
+as the length of a |Digest| is fixed.
 
   Finally, we are able to write our efficient |ics| oracle that
 concludes the implementation of our algorithm for the concrete
@@ -804,35 +810,35 @@ ics s d = lookup (mkTrie s `intersect` mkTrie d) . merkleRoot
 \end{myhs}
 
   The use of cryptographic hashes is unsurprising. They are almost
-folklore for speeing up a variety of computations. It is important to
+folklore for speeding up a variety of computations. It is important to
 notice that the efficiency of our algorithm comes from our novel
 representation of patches combined with a amortized constant time
 |ics| function. Without being able to duplicate or permute subtrees,
 the algorithm would have to backtrack in a number of situations.
 
-  Our technique for detecting shared subtrees is similar to
-\emph{hash-consing}~\cite{Filliatre2006} in spirit. We come back to a
-more detailed description in \Cref{secsec:related-work}.  Another
-similar line of work is the minimization of finite automata, which can
-be done in linear time~\cite{Bubenzer2014}, hence, one could imagine
-adapting such techniques for detecting shared trees without the use of
-cryptographic hashes. Nevertheless, the details are non-trivial and
-further exploration is left for future work.
+%   Our technique for detecting shared subtrees is similar to
+% \emph{hash-consing}~\cite{Filliatre2006} in spirit. We come back to a
+% more detailed description in \Cref{secsec:related-work}.  Another
+% similar line of work is the minimization of finite automata, which can
+% be done in linear time~\cite{Bubenzer2014}, hence, one could imagine
+% adapting such techniques for detecting shared trees without the use of
+% cryptographic hashes. Nevertheless, the details are non-trivial and
+% further exploration is left for future work.
 
 \section{Tree Diffing Generically}
 \label{sec:generic-diff}
 
  In \Cref{sec:concrete-changes} we provided a simple algorithm to
 solve the differencing problem for 2-3-trees. We began by creating the
-type of contexts over |Tree23|, which consisted in annotating a
+type of contexts over |Tree23|, which consisted of annotating a
 |Tree23| with a \emph{metavariable} constructor. Later, assuming the
 existence of an oracle that determines whether or not an arbitrary
 tree is a subtree of the source and the destination, we compute a
 value of type |Change23 MetaVar| from a |Tree23|.  
 How to compute a |Patch23| given a |Change23| by \emph{minimizing} the
-changes and isolating them in the \emph{spine}. On this section we
+changes and isolating them in the \emph{spine}. In this section we
 show how can we write that same algorithm in a generic fashion,
-working over any mutually recursive family.  The code in this section
+working over any mutually recursive family of datatypes.  The code in this section
 generalizes the example from the previous section, but we assume some
 familiarity with generic programming in modern Haskell.
 Readers unfamiliar with these concepts may safely skip this section
@@ -1457,6 +1463,11 @@ intuition.
 \bigskip
 \par}
 
+  It is worth mentioning that in some corner cases, |closure'| will
+\emph{forget} about certain contractions, producing a patch that has
+a larger domain than the original. This is arguable a good thing, as
+we want patches that can be applied to more things.
+
   To finish it up, we wrap |closure'| within a larger function that
 always returns a |Tx| with all changes being \emph{closed}.  The
 necessary observation is that if we pass a given |tx| to |closure'|
@@ -1631,27 +1642,27 @@ to |x|.
   We conclude the generic algorithm with the implementation of the generic oracle
 which answers whether a tree is a common subtree of the source and destination
 of a patch. In this section we take the example from \Cref{sec:concreteoracle} 
-and implement it generically.
+and generalize the construction.
 
   The first step is annotating our trees with cryptographic hashes~\cite{Menezes1997}.
 Essentially transforming our trees into \emph{merkle trees}~\cite{Merkle1988}. 
 This technique is more commonly seen in the security and authentication context~\cite{Miller2014,Miraldo2018HAMM}, and is similar in spirit to \emph{hash-consing}~\cite{Filliatre2006}. 
-Lucklily, the generic programming machinery that is already at our disposal
+Luckily, the generic programming machinery that is already at our disposal
 enables us to create \emph{merkle trees} generically quite easily. The \texttt{generics-mrsop} 
 provide some attribute grammar~\cite{Knuth1990} functionality, in particular the computation 
 of synthesized attributes arising from a fold.  The |synthesize| function is just like 
 a catamorphism, but we decorate the tree with the intermediate results at each node, 
 rather than only using them to compute the final outcome. This enables us to decorate 
 each node of a |Fix codes| with a unique identifier (as shown in 
-Figure~\ref{fig:merkelized-tree}, for example) by running the generic |prepare| function, 
+Figure~\ref{fig:merkelized-tree}, for example) by running the generic |decorate| function, 
 defined below.
 
 \begin{myhs}
 \begin{code}
 newtype AnnFix x codes i = AnnFix (x i , Rep (AnnFix x codes) (Lkup codes i))
 
-prepare :: Fix codes i -> AnnFix (Const Digest) codes i
-prepare = synthesize authAlgebra
+decorate :: Fix codes i -> AnnFix (Const Digest) codes i
+decorate = synthesize authAlgebra
 \end{code}
 \end{myhs}
 
@@ -1659,7 +1670,7 @@ prepare = synthesize authAlgebra
 recursive branch of our generic trees. In our case, this label will be
 the cryptographic hash of the concatenation of its subtree's hashes.
 \Cref{fig:merkelized-tree} shows an example of an input and corresponding
-output of the |prepare| function, producing a \emph{merkelized} |Tree23|.
+output of the |decorate| function, producing a \emph{merkelized} |Tree23|.
 The |synthesize| generic combinator annotates each node of the tree
 with the result of the catamorphism called at that point with the
 given algebra. Our algebra is sketched in pseudo-Haskell below:
@@ -1678,7 +1689,7 @@ authAlgebra rep = case sop rep of
 constructors of different types in the family represented by the same
 number.  In the real implementation we must also pass around a 
 constraint stating that constructors can be encoded and opaque 
-values can be hashed. We ommit these details for brevity.
+values can be hashed. 
 
   Following the guidelines in \Cref{sec:concreteoracle},
 we now must traverse our merkelized tree and store all the digests
@@ -1718,8 +1729,8 @@ define the efficient |buildOracle| function.
 type Oracle codes = forall j dot AnnFix (Const Digest) codes j -> Maybe Int
 
 buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
-buildOracle s d = let  s'  = prepare s
-                       d'  = prepare d
+buildOracle s d = let  s'  = decorate s
+                       d'  = decorate d
                    in lookup (mkSharingTrie s' `intersect` mkSharingTrie d')
 \end{code}
 \end{myhs}
@@ -2018,7 +2029,7 @@ with more meta-theoretical work of formalizing our representation
 of patches and our algorithms in dependently typed language.
 Another interesting addendum to a better merging algorithm is
 the hability to define domain specific strategies to solve 
-conflicts.
+conflicts. 
 
 \paragraph{Extending the Generic Universe.}
 Our prototype is built on top of \texttt{generics-mrsop}, a generic
@@ -2031,7 +2042,7 @@ our algorithm to handle mutually recursive families that have
 \subsection*{Related Work}
 \label{sec:related-work}
 
-  The hashing techniques used in this paper can resemble
+  The hashing techniques used in this paper is reminescent of
 \emph{hash-consing}~\cite{Filliatre2006}, a technique to share values that are
 structurally equal. Hash-consing is done by maintaining a global hash-table
 during run-time, which keeps track of the values that have already
@@ -2109,7 +2120,7 @@ Secondly, the work on Grammar-Based Tree Compression~\cite{Lohrey2015}
 could be seen as a variant of the differencing problem. There are significant
 differences, however. In GBTC one must maintain one copy of every subtree,
 by definition. In our case, we want to abstract away the common subtrees
-and keep this information at hand.
+and identify copy opportunities without storing the subtrees involved.
  
 \subsection*{Conclusions}
 \label{sec:conclusions}
