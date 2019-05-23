@@ -8,8 +8,8 @@ our paper.
 
 The majot changes made are summarized by:
 
-  * Added example oracle for 2-3-trees. [lines: ....]
-  * Included discussion of related work suggested by Reviewers. [lines: ...]
+  * Added example oracle for 2-3-trees. [Section 2.4 (line 424)]
+  * Included discussion of related work suggested by Reviewers. [line 1220-1228; 1261-1269]
 
 It goes without saying we have processed the minor changes the reviewers
 have suggested to the best of our ability.

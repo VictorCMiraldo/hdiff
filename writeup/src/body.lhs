@@ -1738,7 +1738,7 @@ buildOracle s d = let  s'  = decorate s
   It is true that the |buildOracle|, as defined above, could give us
 false positives caused by hash collisions. It is worth mentioning that
 when using a cryptographic hash, the chance of collision is
-negligible~\cite{Menezes2006} and we chose to ignore it. Regardless, it is not
+negligible~\cite{Menezes1997} and we chose to ignore it. Regardless, it is not
 difficult to work around the possibility for collisions if we wanted. 
 We could compute an intermediate |Trie| from |Word| to |Exists (Fix codes)| in the
 |mkSharingTrie| function and every time we find a potential collision
