@@ -1331,8 +1331,8 @@ txGCP (TxOpq x) (TxOpq y)
   | otherwise  = TxHole (TxOpq x :*: TxOpq y)
 txGCP (TxPeel cx px) (TxPeel cy py)
   = case testEquality cx px of
-      Nothing   -> TxHole (TxPeel cx px :*: TxPeel cy py)
-      Jus Refl  -> TxPeel cx (mapNP (uncurry' txGCP) (zipNP px py))
+      Nothing    -> TxHole (TxPeel cx px :*: TxPeel cy py)
+      Just Refl  -> TxPeel cx (mapNP (uncurry' txGCP) (zipNP px py))
 txGCP a b = TxHole (a :*: b)
 \end{code}
 \end{myhs}
