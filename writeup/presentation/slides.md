@@ -14,6 +14,24 @@ monofont: Ubuntu Mono
 monofontoptions: Scale=0.8
 ---
 
+# Intro
+
+## Contributions
+
+. . .
+
+* Efficient Algorithm for structured diffing (and merging)
+  - Think of `UNIX` diff, but for AST's.
+
+. . .
+
+* Wrote it in Haskell, generically
+
+. . .
+
+* Tested against dataset from GitHub
+  - mined Lua repositories
+
 # Line-by-Line Differencing
 
 ## The `UNIX` diff
@@ -87,6 +105,8 @@ Example,
 
 `UNIX` diff works for `[String]`{.haskell}. 
 
+. . .
+
 Abstractly, `diff` computes differences between two objects:
 
 ```haskell
@@ -111,6 +131,8 @@ apply (diff x y) x == Just y
 
 ## The `UNIX` diff Generalized: Edit Scripts
 
+. . .
+
 Modify edit scripts
 
 ```haskell
@@ -123,18 +145,18 @@ data ES = Ins Tree | Del | Cpy
 
 \columnsbegin
 \column{.25\textwidth}
-```{=latex}
+
 \begin{forest}
 [, rootchange [Bin [T] [U]] [T] ]
 \end{forest}
-```
+
 \column{.58\textwidth}
  
 . . .
 
-Source tree preorder: `[Bin , T , U]`{.haskell}
+src tree preorder: `[Bin , T , U]`{.haskell}
 
-Destination tree preorder: `[T]`{.haskell}
+dst tree preorder: `[T]`{.haskell}
 
 . . .
 
@@ -146,32 +168,51 @@ diff [Bin , T , U] [T] = [Del , Cpy , Del]
 
 \vfill
 
+Not ideal
 
 ## Edit Scripts: The Problem
 
+
 Which subtree to copy?
 
-```{=latex}
 \begin{center}
 \begin{forest}
 [, rootchange [Bin [T] [U]] [Bin [U] [T]] ]
 \end{forest}
 \end{center}
-```
 
 \vfill
 
 . . .
 
-Copy `T`? `[Cpy , Del , Cpy , Ins T]`{.haskell}
+\columnsbegin
+
+\column{.48\textwidth}
+Copy `U` : `[Cpy , Del , Cpy , Ins T]`{.haskell}
 
 . . .
 
-Copy `U`? `[Cpy , Ins U , Cpy , Del]`{.haskell}
+\column{.48\textwidth}
+Copy `T` : `[Cpy , Ins U , Cpy , Del]`{.haskell}
+
+\columnsend
+
+
+* Choice is __arbitrary__!
 
 . . .
 
-Choice is __arbitrary__!
+* Counting Copies:
+  - List case: corresponds to _longest common subseq._
+  - Tree case: Not so simple, most copies can be bad.
+    
+\begin{center}
+\pause
+\begin{forest} [, rootchange [Bin [A] [A]] [Bin [A] [A]]] 
+\end{forest}
+\end{center}
+
+
 
 ## Edit Scripts: The Problem
 
@@ -189,16 +230,14 @@ Drawbacks:
 
 . . .
 
-Why not copy both?
+\alert{Solution:} don't chose, copy both trees!
 
-```{=latex}
 \begin{center}
 \begin{forest}
 [, rootchange [Bin [0, metavar] [1, metavar]] 
               [Bin [1, metavar] [0, metavar]] ]
 \end{forest}
 \end{center}
-```
 
 # New Structure for Changes
 
@@ -210,13 +249,13 @@ Why not copy both?
 diff (Node2 (Node2 t u) t) (Node3 t u x) =
 ```
 \column{.4\textwidth}
-```{=latex}
+
 \begin{forest}
 [,rootchange
   [Node2C [Node2C [0 , metavar] [1 , metavar]] [0 , metavar]] 
   [Node3C [0, metavar] [1 , metavar] [x , triang]] ]
 \end{forest}
-```
+
 \columnsend
 
 . . .
@@ -233,9 +272,9 @@ diff (Node2 (Node2 t u) t) (Node3 t u x) =
 
 ## Changes
 
-* Two _contexts_:
- - deletion context matches variables
- - insertion context instantiates variables
+Two _contexts_
+ : * deletion: matching 
+ * insertion: instantiation
 
 
 ```haskell 
@@ -253,6 +292,7 @@ data Tree23 = Leaf
 
 Context are datatypes annotated with holes.
 
+. . .
 
 ```haskell
 data T23C h = LeafC
@@ -263,11 +303,13 @@ data T23C h = LeafC
 
 ## Computing Changes 
 
-Idea: copy as many subtrees as possible
+. . .
+
+Can _copy as much as possible_
 
 . . .
 
-Computation proceeds in two parts
+Computation of `diff x y` divided:
 
 . . .
 
@@ -275,24 +317,21 @@ Hard
  : Identify the common subtrees in `x` and `y`
 
 Easy
- : Extract the context around the copies
+ : Extract the context around the common subtrees
 
 . . .
 
 Consequence of definition of `Change23`{.haskell}
 
-## Computing Changes: The Easy Part
-
-Consider:
-
-```haskell
-ics :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
-ics s d x = elemIndex x (subtrees s `intersect` subtrees y)
-```
-
 . . .
 
-Then write:
+Postpone the _hard_ part for now
+
+* Oracle: `wcs :: Tree23 -> Tree23 -> (Tree23 -> Maybe MetaVar)`{.haskell}
+
+## Computing Changes: The Easy Part
+
+Extracting the context:
 
 ```haskell
 extract :: (Tree23 -> Maybe MetaVar) -> Tree23 -> Tree23C
@@ -304,5 +343,120 @@ extract f x = maybe (extract' x) Hole $ f x
 
 . . .
 
-Finally, `diff s d = (extract (ics s d) s , extract (ics s d) d)`{.haskell}
 
+Finally, with `wcs s d` as an _oracle_ \pause (reads: _which common subtree_)
+
+```haskell
+diff :: Tree23 -> Tree23 -> Change23 MetaVar
+diff s d = (extract (wcs s d) s , extract (wcs s d) d)
+```
+
+. . .
+
+`diff s d` is efficient __iff__ `wcs s d` is efficient
+
+## Computing Changes: Defining the Oracle
+
+. . .
+
+Defining an _inefficient_ `wcs s d` is easy:
+
+```haskell
+wcs :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
+wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
+```
+
+. . .
+
+\vfill
+
+Efficient `wcs`:
+
+* annotates `Tree23` with cryptographic hashes, akin to a _Merkle Tree_
+* store those in a `Trie` (amortized const. time search)
+* uses topmost hash to compare trees for equality.
+
+. . .
+
+Runs in amortized $\mathcal{O}(1)$
+
+\vfill
+
+# Experiments
+
+## Computing Changes: But how fast?
+
+Diffed files from $\approx\!1200$ commits from top Lua repos
+
+. . .
+
+\columnsbegin
+
+\column{.48\textwidth}
+\centerbegin
+![](plots/runtimes-less-than-10000.pdf)
+\centerend
+
+. . .
+
+\column{.48\textwidth}
+\centerbegin
+![](plots/runtimes-all.pdf)
+\centerend
+
+\columnsend
+
+## Merging Changes
+
+Merging is a constant motivation for structured diffing
+
+. . .
+
+We defined a (very!) simple merging algorithm:
+
+. . .
+
+```haskell
+merge :: Change23 -> Change23 -> Either Conflict Change23
+merge p q = if p `disjoint` q then p else Conflict
+```
+\begin{displaymath}
+\xymatrix{ & o \ar[dl]_{p} \ar[dr]^{q} & \\
+          a \ar[dr]_{\texttt{merge q p}} & & b \ar[dl]^{\texttt{merge p q}} \\
+            & c &}
+\end{displaymath}
+
+. . .
+
+11% of mined merge commits could be _merged_
+
+## Summary
+
+New representation enables:
+
+* Clear division of tasks ( `wcs` oracle + context extraction) \pause
+* Express more changes than edit scripts \pause
+* Faster algorithm altogether
+
+## Merging Changes
+
+\begin{forest}
+[Node2C 
+  [ Node2C [, change [Node2C [0 , metavar] [0 , metavar]] [0 , metavar] ] [x, triang] ]
+  [ t , triang ]
+]
+\end{forest}
+
+## Technical Details
+
+We can make
+
+
+Consider:
+
+```haskell
+ics :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
+ics s d x = elemIndex x (subtrees s `intersect` subtrees y)
+```
+
+. . .
