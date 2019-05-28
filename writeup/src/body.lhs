@@ -675,11 +675,13 @@ subtrees in question.
   In order to have a working version of our diff algorithm for
 |Tree23| we must provide the |ics| implementation. Recall that the
 |ics| function, \emph{is common subtree}, has type |Tree23 -> Tree23
--> Tree23 -> Maybe MetaVar| and given a fixed |s| and |d|, |ics s d x|
+-> Tree23 -> Maybe MetaVar|. Given a fixed |s| and |d|, |ics s d x|
 returns |Just i| if |x| is the $i^{\textrm{th}}$ subtree of |s| and
-|d| and |Nothing| if |x| does not appear in |s| or |d|.  One obvious
-implementation for this function is to enumerate all possible
-subtrees, then search for the |x| above in said lists.
+|d| and |Nothing| if |x| does not appear in |s| or |d|.  One 
+implementation of this function computes the intersection of
+all the
+subtrees in |s| and |d|, and then search for the subtree |x| the resulting list.
+Enumerating all the subtrees of any |Tree23| is straightforward:
 
 \begin{myhs}
 \begin{code}
@@ -690,9 +692,10 @@ subtrees (Node3 x y z)  = Node3 x y z  : (subtrees x ++ subtrees y ++ subtrees z
 \end{code}
 \end{myhs}
 
-  The |ics| function is simple: if |x| is a subtree of the source, we check whether 
-it is also a subtree of the destination. This second check is done with |elemIndex|
-which returns the index of the element, in case it belongs in the list.
+It is now straightforward to implement the |ics| function: we compute the intersection
+of all the subtrees of |s| and |d| and use this list to determine whether the argument tree
+occurs in both |s| and |d|. This check is done with |elemIndex|
+which returns the index of the element, when it occurs in the list.
 
 \begin{myhs}
 \begin{code}
@@ -701,19 +704,22 @@ ics s d x =  if x `elem` subtrees s then elemIndex x (subtrees d) else Nothing
 \end{code}
 \end{myhs}
 
-  The inefficiency comes from two places: checking trees for equality
-is linear, and enumerating all subtrees is exponential. If we want our
+This implementation, however, is not particularly efficient.
+The inefficiency comes from two places: firstly, checking trees for equality
+is linear in the size of the tree; furthermore, enumerating all subtrees is exponential.
+If we want our
 algorithm to be efficient we \emph{must} have an amortized
 constant-time |ics|.
 
-  In order to tackle the first issue and efficiently compare trees for
+  To tackle the first issue and efficiently compare trees for
 equality we will be using cryptographic hash
 functions~\cite{Menezes1997} to construct a fixed length bitstring
 that uniquely identifies a tree modulo hash collisions.  Said
 identifier will be the hash of the root of the tree, which will depend
 on the hash of every subtree, much like a \emph{merkle
-tree}~\cite{Merkle1988}. Let |merkleRoot t| denote such
-identifier for a tree |t|.
+  tree}~\cite{Merkle1988}. Suppose we have a function |merkleRoot| that computes
+some suitable identifier for every tree, we can compare trees efficiently by comparing
+their associated identifiers:
 
 \begin{myhs}
 \begin{code}
@@ -722,7 +728,7 @@ instance Eq Tree23 where
 \end{code}
 \end{myhs}
 
-  The definition of |merkleRoot| function is straight forward. It is
+  The definition of |merkleRoot| function is straightforward. It is
 important that we use the |merkleRoot| of the parts of a |Tree23|
 to compute the |merkleRoot| of the whole. This construction,
 when coupled with a cryptographic hash function, call it |hash|, 
@@ -741,8 +747,8 @@ merkleRoot (Node3 x y z)  = hash (concat ["node3" , merkleRoot x , merkleRoot y 
   Note that although it is theoretically possible to have false
 positives, when using a cryptographic hash function the chance of
 collision is negligible and hence, in practice, they never
-happen~\cite{Menezes1997}. In spite of that, it would be easy to check
-that a collision occured anyway, consequently, we chose to ignore it.
+happen~\cite{Menezes1997}. Nonetheless, it is easy to detect
+when a collision has occured in our algorithm; consequently, we chose to ignore this issue.
 
   Recall we are striving for a constant time |(==)| implementation, but the |(==)| definition
 above is still linear, we recompute the hash on every comparison. We fix this by caching the hash associated with every node of a |Tree23|. 
