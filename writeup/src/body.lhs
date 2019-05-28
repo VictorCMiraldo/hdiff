@@ -317,16 +317,16 @@ ins (Hole i)        m  = lookup i m
 destination, defining a |changeTree23| function. Intuitively, this function will
 try to exploit as many copy opportunities as possible. For now, we delegate
 the decision of whether a subtree should be copied or not to an
-oracle: assume we have access a function |ics :: Tree23 -> Tree23 ->
-Tree23 -> Maybe MetaVar|, short for \emph{``is common subtree''}.  The
-call |ics s d x| returns |Nothing| when |x| is \emph{not} a subtree of
+oracle: assume we have access a function |wcs :: Tree23 -> Tree23 ->
+Tree23 -> Maybe MetaVar|, short for \emph{``which common subtree''}.  The
+call |wcs s d x| returns |Nothing| when |x| is \emph{not} a subtree of
 |s| and |d|; if |x| is a subtree of both |s| and |d|, it returns |Just
 i|, for some metavariable |i|.  The only condition we impose is
-injectivity of |ics s d|: that is, if |ics s d x == ics s d y == Just
+injectivity of |wcs s d|: that is, if |wcs s d x == wcs s d y == Just
 j|, then |x == y|. In other words, equal metavariables correspond to
 equal subtrees.
   
-  There is an obvious inefficient implementation for |ics|, that
+  There is an obvious inefficient implementation for |wcs|, that
 traverses both trees searching for shared subtrees---hence postulating
 the existence of such an oracle is not a particularly strong
 assumption to make.  In \Cref{sec:concreteoracle}, we provide an efficient
@@ -338,7 +338,7 @@ oracle---the inner workings of the oracle are abstracted away cleanly.
 \begin{myhs}
 \begin{code}
 changeTree23 :: Tree23 -> Tree23 -> Change23 MetaVar
-changeTree23 s d = (extract (ics s d) s , extract (ics s d) d)
+changeTree23 s d = (extract (wcs s d) s , extract (wcs s d) d)
 \end{code}
 \end{myhs}
 
@@ -363,7 +363,7 @@ extract o t = maybe (peel t) Hole (o t)
 \end{code}
 \end{myhs}
 
-  Note that had we used a version of |ics| that only returns a boolean
+  Note that had we used a version of |wcs| that only returns a boolean
 value we would not know what metavariable to use when a subtree is
 shared.  Returning a value that uniquely identifies a subtree allows
 us to keep the |extract| function linear in the number of constructors
@@ -373,12 +373,12 @@ in |x| (disregarding the calls to our oracle for the moment).
 all common subtrees can be copied.  In particular, we cannot copy a
 tree |t| that occurs as a subtree of the source and destination, but
 also appears as a subtree of another, larger common subtree. One such
-example is shown in \Cref{fig:problematic-ics}, where the oracle
+example is shown in \Cref{fig:problematic-wcs}, where the oracle
 claims that both |Node2 t k| and |t| are common subtrees. As |t| also
 occurs by itself one of the extracted contexts will contain an unbound
 metavariable. This will trigger an error when trying to apply the
 corresponding change. In this example, applying the change from
-\Cref{fig:problematic-ics} would trigger such error when the |ins|
+\Cref{fig:problematic-wcs} would trigger such error when the |ins|
 function branch for the |Hole| constructor and attempts to lookup the
 tree associated with metavariable |1|.
 
@@ -394,8 +394,8 @@ b  = Node2 (Node2 t k) t
 \begin{minipage}[t]{.5\textwidth}
 \begin{myhs}
 \begin{code}
-extract (ics a b) a  = Node2C (Hole 0) u
-extract (ics a b) b  = Node2C (Hole 0) (Hole 1)
+extract (wcs a b) a  = Node2C (Hole 0) u
+extract (wcs a b) b  = Node2C (Hole 0) (Hole 1)
 \end{code}
 \end{myhs}
 \end{minipage}
@@ -403,14 +403,14 @@ extract (ics a b) b  = Node2C (Hole 0) (Hole 1)
 \begin{minipage}[t]{.5\textwidth}
 \begin{myhs}
 \begin{code}
-postprocess a b (extract (ics a b) a) (extract (ics a b) b)
+postprocess a b (extract (wcs a b) a) (extract (wcs a b) b)
   = (Node2C (Hole 0) u , Node2C (Hole 0) t)
 \end{code}
 \end{myhs}
 \end{minipage}
 \end{centering}
 \caption{Example of erroneous context extraction due to nested common subtrees}
-\label{fig:problematic-ics}
+\label{fig:problematic-wcs}
 \end{figure}
 
   One way to solve this is to introduce an additional postprocessing
@@ -440,26 +440,26 @@ that is declared is used and vice-versa.
 \begin{myhs}
 \begin{code}
 changeTree23 :: Tree23 -> Tree23 -> Change23 MetaVar
-changeTree23 s d = postprocess s d (extract (ics s d) s) (extract (ics s d) d)
+changeTree23 s d = postprocess s d (extract (wcs s d) s) (extract (wcs s d) d)
 \end{code}
 \end{myhs}
 
-  Assuming that |ics s d| correctly assigns metavariables to \emph{all}
+  Assuming that |wcs s d| correctly assigns metavariables to \emph{all}
 common subtrees of |s| and |d|, it is not hard to see that our
 implementation already satisfies the specification we formulated
 in the introduction:
 
 \begin{description}
-  \item[Correctness] Assuming |ics| is correct, 
+  \item[Correctness] Assuming |wcs| is correct, 
     \[ |forall x y dot applyTree23 (changeTree23 x y) x == Just y| \]
-  \item[Preciseness] Assuming |ics| is correct,
+  \item[Preciseness] Assuming |wcs| is correct,
     \[ |forall x y dot applyTree23 (changeTree23 x x) y == Just y| \]
   \item[Time Efficiency] 
     On the worst case, we perform one query to the oracle per
-    constructor in our trees. Assuming |ics| to be a amortized constant time
+    constructor in our trees. Assuming |wcs| to be a amortized constant time
     function, our algorithm is linear on the number of constructors
     in the source and destination trees. We will define a version of
-    |ics| in \Cref{sec:oracle} that runs in amortized constant time.
+    |wcs| in \Cref{sec:oracle} that runs in amortized constant time.
   \item[Space Efficiency] 
     The size of a |Change23 MetaVar| is, on average, smaller than 
     storing its source and destination tree completely. On the worst case,
@@ -673,9 +673,9 @@ subtrees in question.
 \label{sec:concreteoracle}
 
   In order to have a working version of our diff algorithm for
-|Tree23| we must provide the |ics| implementation. Recall that the
-|ics| function, \emph{is common subtree}, has type |Tree23 -> Tree23
--> Tree23 -> Maybe MetaVar|. Given a fixed |s| and |d|, |ics s d x|
+|Tree23| we must provide the |wcs| implementation. Recall that the
+|wcs| function, \emph{which common subtree}, has type |Tree23 -> Tree23
+-> Tree23 -> Maybe MetaVar|. Given a fixed |s| and |d|, |wcs s d x|
 returns |Just i| if |x| is the $i^{\textrm{th}}$ subtree of |s| and
 |d| and |Nothing| if |x| does not appear in |s| or |d|.  One 
 implementation of this function computes the intersection of
@@ -692,15 +692,15 @@ subtrees (Node3 x y z)  = Node3 x y z  : (subtrees x ++ subtrees y ++ subtrees z
 \end{code}
 \end{myhs}
 
-It is now straightforward to implement the |ics| function: we compute the intersection
+It is now straightforward to implement the |wcs| function: we compute the intersection
 of all the subtrees of |s| and |d| and use this list to determine whether the argument tree
 occurs in both |s| and |d|. This check is done with |elemIndex|
 which returns the index of the element, when it occurs in the list.
 
 \begin{myhs}
 \begin{code}
-ics :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
-ics s d x =  if x `elem` subtrees s then elemIndex x (subtrees d) else Nothing
+wcs :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
+wcs s d x = elemIndex x (subtrees s intersect sutrees d)
 \end{code}
 \end{myhs}
 
@@ -709,7 +709,7 @@ The inefficiency comes from two places: firstly, checking trees for equality
 is linear in the size of the tree; furthermore, enumerating all subtrees is exponential.
 If we want our
 algorithm to be efficient we \emph{must} have an amortized
-constant-time |ics|.
+constant-time |wcs|.
 
   To tackle the first issue and efficiently compare trees for
 equality we will be using cryptographic hash
@@ -797,21 +797,21 @@ lookups are efficient and hardly depend on the number of elements in
 the trie. In fact, our lookups run in amortized constant time here,
 as the length of a |Digest| is fixed.
 
-  Finally, we are able to write our efficient |ics| oracle that
+  Finally, we are able to write our efficient |wcs| oracle that
 concludes the implementation of our algorithm for the concrete
-|Tree23| type.  The |ics| oracle will now receive |Tree23H|, i.e.,
+|Tree23| type.  The |wcs| oracle will now receive |Tree23H|, i.e.,
 trees annotated with their merkle roots at every node, and will
 populate the ``database'' of common digests.
 
 \begin{myhs}
 \begin{code}
-ics :: Tree23H -> Tree23H -> Tree23H -> Maybe MetaVar
-ics s d = lookup (mkTrie s `intersect` mkTrie d) . merkleRoot
+wcs :: Tree23H -> Tree23H -> Tree23H -> Maybe MetaVar
+wcs s d = lookup (mkTrie s intersect mkTrie d) . merkleRoot
   where
-    intersect  :: Trie k v  -> Trie k u  -> Trie k v
-    lookup     :: Trie k v  -> [k]       -> Maybe v
+    (intersect)  :: Trie k v  -> Trie k u  -> Trie k v
+    lookup       :: Trie k v  -> [k]       -> Maybe v
 
-    mkTrie     :: Tree23H   -> Trie Word MetaVar
+    mkTrie       :: Tree23H   -> Trie Word MetaVar
 \end{code}
 \end{myhs}
 
@@ -819,7 +819,7 @@ ics s d = lookup (mkTrie s `intersect` mkTrie d) . merkleRoot
 folklore for speeding up a variety of computations. It is important to
 notice that the efficiency of our algorithm comes from our novel
 representation of patches combined with a amortized constant time
-|ics| function. Without being able to duplicate or permute subtrees,
+|wcs| function. Without being able to duplicate or permute subtrees,
 the algorithm would have to backtrack in a number of situations.
 
 %   Our technique for detecting shared subtrees is similar to
@@ -1210,7 +1210,7 @@ and insertion contexts (|extract| function,
 \Cref{sec:concrete-changes}).  We must take care to avoid the problem
 we encountered in our previous implementation: a subtree that occurs
 in both the source and destination trees, but also occurs as the
-subtree of another common subtree (\Cref{fig:problematic-ics}) may
+subtree of another common subtree (\Cref{fig:problematic-wcs}) may
 result in unbound metavariables.  We have shown how to fix this with a
 postprocessing step of the resulting change.  That is still the case,
 but we now collect additional information from the context extraction
@@ -1242,10 +1242,10 @@ over its recursive positions.
 txExtract  ::  Oracle codes
            ->  Fix codes ix 
            ->  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
-txExtract ics x = case ics x of
+txExtract wcs x = case wcs x of
     Just i   -> TxHole (ForceI (Const i :*: x))
     Nothing  ->  let Tag c p = sop (unFix x)
-                 in TxPeel c (mapNP (elimNA TxOpq (txExtract ics)) p)
+                 in TxPeel c (mapNP (elimNA TxOpq (txExtract wcs)) p)
 \end{code}
 \end{myhs}
 %todo: Victor I'm up to here with my edits.
@@ -1269,7 +1269,7 @@ txPostprocess  ::  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
                ->  Tx codes (ForceI (Const Int :*: Fix codes)) (I ix)
                ->  Change (ForceI (Const Int)) (I ix)
 txPostprocess del ins =
-  let okvars = varsOf del `intersect` varsOf ins
+  let okvars = varsOf del intersect varsOf ins
      -- We have to txJoin the results since keepOrDrop returns a Tx
   in Change  (txJoin (utxMap (keepOrDrop okvars) del))
              (txJoin (utxMap (keepOrDrop okvars) ins))
@@ -1298,8 +1298,8 @@ of the |changeTree23| function presented in
 \begin{myhs}
 \begin{code}
 change :: Fix codes ix -> Fix codes ix -> Change codes (ForceI (Const Int)) (I ix)
-change x y =  let  ics = buildOracle x y
-              in txPostprocess (txExtract ics x) (txExtract ics y)
+change x y =  let  wcs = buildOracle x y
+              in txPostprocess (txExtract wcs x) (txExtract wcs y)
 \end{code}
 \end{myhs}
 
@@ -1737,7 +1737,7 @@ type Oracle codes = forall j dot AnnFix (Const Digest) codes j -> Maybe Int
 buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
 buildOracle s d = let  s'  = decorate s
                        d'  = decorate d
-                   in lookup (mkSharingTrie s' `intersect` mkSharingTrie d')
+                   in lookup (mkSharingTrie s' intersect mkSharingTrie d')
 \end{code}
 \end{myhs}
 
@@ -2059,7 +2059,7 @@ two fixed trees instead of sharing the values in memory, which is the
 main objective of \emph{hash-consing}. On another hand, the problem
 of minimizing finite acyclic deterministic automata has efficient
 solutions in the literature~\cite{Bubenzer2014}, which could be seen
-as a different way of defining the \emph{is common subtree} oracle.
+as a different way of defining the \emph{which common subtree} oracle.
 
   On the diffing side, related work can be classified in the treatment
 of types.  The untyped tree differencing problem was introduced in

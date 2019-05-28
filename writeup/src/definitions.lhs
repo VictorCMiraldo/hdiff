@@ -122,6 +122,8 @@
 %% Formatting type-applications
 %format (TApp iy) = "{\HS{@\!}" iy "}"
 
+%format intersect = "\mathbin{\HS{\cap}}"
+
 %% Words with wrong kerning
 %format LeafC = "\HT{Lea\!f\!C}"
 %format Leaf  = "\HT{Lea\!f}"
