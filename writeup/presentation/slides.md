@@ -198,10 +198,7 @@ Copy `T` : `[Cpy , Ins U , Cpy , Del]`{.haskell}
 \columnsend
 
 
-* Choice is __arbitrary__!
-
-. . .
-
+* Choice is __arbitrary__! \pause
 * Counting Copies:
   - List case: corresponds to _longest common subseq._
   - Tree case: Not so simple, most copies can be bad.
@@ -530,13 +527,13 @@ diff s d = let s' = decorate s; d' = decorate d
 
 . . .
 
-Subtle "bug"! Let `a = Node2 (Node2 t k) u`{.haskell}; `b = Node2 (Node2 t k) t`{.haskell}
+Subtle issue: `a = Node2 (Node2 t k) u`{.haskell}; `b = Node2 (Node2 t k) t`{.haskell}
 
-Three options for `diff a b`:
+. . .
 
 \columnsbegin
 \column{.30\textwidth}
-The wrong one!
+Wrong
 \begin{center}
 \begin{forest}
 [, rootchange
@@ -547,7 +544,7 @@ The wrong one!
 \end{center}
 
 \column{.30\textwidth}
-The easy one:
+Easy option:
 \begin{center}
 \begin{forest}
 [, rootchange
@@ -558,7 +555,7 @@ The easy one:
 \end{center}
 
 \column{.36\textwidth}
-The hard one:
+Hard option:
 \begin{center}
 \vspace{-1.6em}
 \begin{forest}
@@ -571,14 +568,21 @@ The hard one:
 
 \columnsend
 
-
-
 ## In Depth: Merging
 
 Hard to reason with `Change23`{.haskell} \pause
 
 * Redundant Info
 * Metavariable Scope
+
+. . .
+
+un-_distribute_ the redundant constructors.
+
+
+```haskell
+type Patch23 = Tree23C Change23
+```
 
 . . .
 
@@ -603,14 +607,6 @@ Hard to reason with `Change23`{.haskell} \pause
         [t , triang] ]
 \end{forest}
 \columnsend
-
-\vfill
- 
-. . .
-
-```haskell
-type Patch23 = Tree23C Change23
-```
 
 ## In Depth: Merging and Anti-unification
 
@@ -654,6 +650,7 @@ Problematic. Can break scoping:
 \end{forest}
 \columnsend
 
+## In Depth: Merging and Anti-unification
 
 
 
