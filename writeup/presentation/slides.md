@@ -295,10 +295,10 @@ Context are datatypes annotated with holes.
 . . .
 
 ```haskell
-data T23C h = LeafC
-            | Node2C Tree23C Tree23C
-            | Node3C Tree23C Tree23C Tree23C
-            | Hole h
+data Tree23C h = LeafC
+               | Node2C Tree23C Tree23C
+               | Node3C Tree23C Tree23C Tree23C
+               | Hole h
 ```
 
 ## Computing Changes 
@@ -437,6 +437,225 @@ New representation enables:
 * Clear division of tasks ( `wcs` oracle + context extraction) \pause
 * Express more changes than edit scripts \pause
 * Faster algorithm altogether
+
+# In Greater Depth
+
+## In Depth: The Efficient Oracle
+
+Recall,
+
+```haskell
+wcs :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
+wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
+```
+
+. . .
+
+Two inefficiency points:\pause
+
+* Comparing trees for equality\pause
+* Searching for a subtree in all enumerated subtrees
+
+## In Depth: The Efficient Oracle (Inefficiency #1)
+
+\centerbegin
+![](merkle-tree.pdf)
+\centerend
+
+## In Depth: The Efficient Oracle (Merkle Trees)
+. . .
+
+Annotate Trees with `Digest`{.haskll}s:
+
+```haskell
+decorate :: Tree23 -> Tree23H
+data Tree23H = LeafH
+             | Node2H (Tree23H, Digest) (Tree23H, Digest)
+             | Node3H (Tree23H, Digest) (Tree23H, Digest) (Tree23H, Digest)
+```
+
+. . .
+
+
+```haskell
+root :: Tree23H -> Digest
+root LeafH                      = hash "leaf"
+root (Node2H (_ , dx) (_ , dy)) = hash ("node2" ++ dx ++ dy)
+...
+```
+
+. . .
+
+Compare roots:
+
+```haskell 
+instance Eq Tree23H where
+  t == u = root t == root u
+```
+
+
+## In Depth: The Efficient Oracle (Inefficiency #2)
+
+. . .
+
+Good structure to lookup hashes: __Tries__!
+
+. . .
+
+```haskell
+wcs :: Tree23H -> Tree23H -> (Tree23H -> Maybe MetaVar)
+wcs s d = lookup (tr empty s `intersect` tr empty d) . root
+```
+
+. . .
+
+```haskell
+tr :: Trie -> Tree23H -> Trie
+tr db t = insert (root t) 
+        $ case t of
+            LeafH                  -> db
+            Node2H (x , _) (y , _) -> tr (tr db x) y
+            ...
+```
+
+## In Depth: The Efficient Oracle: The `diff` function
+
+One could write:
+
+```haskell
+diff :: Tree23 -> Tree23 -> Change23
+diff s d = let s' = decorate s; d' = decorate d
+            in (extract (wcs s' d') s' , extract (wcs s' d') d')
+```
+
+. . .
+
+Subtle "bug"! Let `a = Node2 (Node2 t k) u`{.haskell}; `b = Node2 (Node2 t k) t`{.haskell}
+
+Three options for `diff a b`:
+
+\columnsbegin
+\column{.30\textwidth}
+The wrong one!
+\begin{center}
+\begin{forest}
+[, rootchange
+  [Node2 [0 , metavar] [t , triang]]
+  [Node2 [0 , metavar] [1 , metavar]]
+]
+\end{forest} \pause
+\end{center}
+
+\column{.30\textwidth}
+The easy one:
+\begin{center}
+\begin{forest}
+[, rootchange
+  [Node2 [0 , metavar] [u , triang]]
+  [Node2 [0 , metavar] [t , triang]]
+]
+\end{forest} \pause
+\end{center}
+
+\column{.36\textwidth}
+The hard one:
+\begin{center}
+\vspace{-1.6em}
+\begin{forest}
+[, rootchange
+  [Node2 [Node2 [0 , metavar] [1 , metavar]] [u , triang]  ]
+  [Node2 [Node2 [0 , metavar] [1 , metavar]] [0 , metavar] ]
+]
+\end{forest}
+\end{center}
+
+\columnsend
+
+
+
+## In Depth: Merging
+
+Hard to reason with `Change23`{.haskell} \pause
+
+* Redundant Info
+* Metavariable Scope
+
+. . .
+
+\vfill
+
+\columnsbegin
+\column{.48\textwidth}
+\begin{forest}
+[,rootchange
+  [Node2C [Node2C [0 , metavar] [1 , metavar]]
+          [t , triang] ]
+  [Node2C [Node2C [1 , metavar] [0 , metavar]]
+          [t , triang] ]
+]
+\end{forest} \pause
+
+\column{.48\textwidth}
+\begin{forest}
+[Node2C [, change 
+           [Node2C [0 , metavar] [1 , metavar]]
+           [Node2C [1 , metavar] [0 , metavar]] ]
+        [t , triang] ]
+\end{forest}
+\columnsend
+
+\vfill
+ 
+. . .
+
+```haskell
+type Patch23 = Tree23C Change23
+```
+
+## In Depth: Merging and Anti-unification
+
+. . .
+
+Extract the _greatest common prefix_ from two `Tree23C`{.haskell}:
+
+```haskell
+gcp :: Tree23C a -> Tree23C b -> Tree23C (Tree23C a , Tree23C b)
+gcp LeafC LeafC                   = LeafC
+gcp (Node2C x y) (Node2C u v)     = Node2C (gcp x u) (gcp y v)
+gcp (Node3C x y z) (Node3C u v w) = Node3C (gcp x u) (gcp y v) (gcp z w)
+```
+
+. . .
+
+Problematic. Can break scoping:
+
+
+\columnsbegin
+\column{.25\textwidth}
+\begin{forest}
+[,rootchange
+ [Node2C [t , triang]  [0 , metavar]]
+ [Node2C [0 , metavar] [0 , metavar]]
+]
+\end{forest} \pause
+\column{.13\textwidth}
+\vspace{1em}
+\begin{tikzpicture}
+  \node (A) at (-0.8 , -0.2) {};
+  \node (B) at (0.8  , -0.2) {};
+  \node at (0 , 0) {\texttt{gcp}};
+  \draw [arrows=->] (A) -> (B);
+\end{tikzpicture}
+
+\column{.38\textwidth}
+\begin{forest}
+[Node2C [, change [t , triang]  [0 , metavar]]
+        [, change [0 , metavar] [0 , metavar]] ]
+\end{forest}
+\columnsend
+
+
+
 
 ## Merging Changes
 
