@@ -12,6 +12,7 @@ sansfont: Open Sans
 sansfontoptions: Scale=0.8
 monofont: Ubuntu Mono
 monofontoptions: Scale=0.8
+handout: true
 ---
 
 # Intro
@@ -229,7 +230,11 @@ Drawbacks:
 
 . . .
 
-\alert{Solution:} don't chose, copy both trees!
+_Generalizations can break specifications!_
+
+. . .
+
+\alert{Solution:} Detach from _edit-scripts_
 
 \begin{center}
 \begin{forest}
@@ -458,6 +463,14 @@ New representation enables:
 * Express more changes than edit scripts \pause
 * Faster algorithm altogether
 
+. . .
+
+We have learned:
+
+1. Generalizations can break specs \pause
+2. More expressiveness does not mean higher complexity \pause
+3. Thinking extensionally is very helpful
+
 # In Greater Depth
 
 ## In Depth: The Efficient Oracle
@@ -676,5 +689,16 @@ Problematic. Can break scoping. \pause
 
 Define `closure :: Patch23 -> Patch23` to fix scopes.
 
-# Conclusion
+# Discussion
 
+## Discussion
+
+Performance of structural diffing: \pause Fixed \pause
+
+Now what?
+
+* Metatheory \pause
+* Sharing Control \pause
+* Merge Strategies \pause
+* Domain-specific conflict resolution\pause
+* Bigger univeses \pause
