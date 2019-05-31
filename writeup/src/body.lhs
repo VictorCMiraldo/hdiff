@@ -1669,12 +1669,16 @@ newtype AnnFix x codes i = AnnFix (x i , Rep (AnnFix x codes) (Lkup codes i))
 
 decorate :: Fix codes i -> AnnFix (Const Digest) codes i
 decorate = synthesize authAlgebra
+
+merkleRoot :: AnnFix (Const Digest) codes i -> Digest
+merkleRoot (AnnFix (Const r , _)) = r
 \end{code}
 \end{myhs}
 
   Here, |AnnFix| is the cofree comonad, used to add a label to each
 recursive branch of our generic trees. In our case, this label will be
 the cryptographic hash of the concatenation of its subtree's hashes.
+We can easily fetch these hashes with the |merkleRoot| function. 
 \Cref{fig:merkelized-tree} shows an example of an input and corresponding
 output of the |decorate| function, producing a \emph{merkelized} |Tree23|.
 The |synthesize| generic combinator annotates each node of the tree
@@ -1735,9 +1739,9 @@ define the efficient |buildOracle| function.
 type Oracle codes = forall j dot AnnFix (Const Digest) codes j -> Maybe Int
 
 buildOracle :: Fix codes i -> Fix codes i -> Oracle codes
-buildOracle s d = let  s'  = decorate s
-                       d'  = decorate d
-                   in lookup (mkSharingTrie s' intersect mkSharingTrie d')
+buildOracle s d =  let  s'  = decorate s
+                        d'  = decorate d
+                   in lookup (mkSharingTrie s' intersect mkSharingTrie d') . merkleRoot
 \end{code}
 \end{myhs}
 

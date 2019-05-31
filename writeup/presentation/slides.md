@@ -21,7 +21,7 @@ monofontoptions: Scale=0.8
 . . .
 
 * Efficient Algorithm for structured diffing (and merging)
-  - Think of `UNIX` diff, but for AST's.
+    + Think of `UNIX` diff, over AST's.
 
 . . .
 
@@ -30,7 +30,7 @@ monofontoptions: Scale=0.8
 . . .
 
 * Tested against dataset from GitHub
-  - mined Lua repositories
+    + mined Lua repositories
 
 # Line-by-Line Differencing
 
@@ -168,6 +168,8 @@ diff [Bin , T , U] [T] = [Del , Cpy , Del]
 
 \vfill
 
+. . .
+
 Not ideal
 
 ## Edit Scripts: The Problem
@@ -195,13 +197,13 @@ Copy `U` : `[Cpy , Del , Cpy , Ins T]`{.haskell}
 \column{.48\textwidth}
 Copy `T` : `[Cpy , Ins U , Cpy , Del]`{.haskell}
 
-\columnsend
+\columnsend \pause
 
 
 * Choice is __arbitrary__! \pause
 * Counting Copies:
-  - List case: corresponds to _longest common subseq._
-  - Tree case: Not so simple, most copies can be bad.
+    + List case: corresponds to _longest common subseq._ \pause
+    + Tree case: Not so simple, most copies can be bad.
     
 \begin{center}
 \pause
@@ -260,23 +262,18 @@ diff (Node2 (Node2 t u) t) (Node3 t u x) =
 \vfill
 
 * Arbitrary duplications, contractions, permutations
-  - Can explore all copy opportunities
+    + Can explore all copy opportunities
 
 . . .
 
 * Faster to compute 
-  - Our `diff x y`{.haskell} runs in $\mathcal{O}(\textrm{size x}+\textrm{size y})$
+    + Our `diff x y`{.haskell} runs in $\mathcal{O}(\textrm{size x}+\textrm{size y})$
 
 ## Changes
 
 Two _contexts_
  : * deletion: matching 
  * insertion: instantiation
-
-
-```haskell 
-type Change23 = (Tree23C MetaVar , Tree23C MetaVar)
-```
 
 . . .
 
@@ -296,7 +293,32 @@ data Tree23C h = LeafC
                | Node2C Tree23C Tree23C
                | Node3C Tree23C Tree23C Tree23C
                | Hole h
+
+type Change23 = (Tree23C MetaVar , Tree23C MetaVar)
 ```
+
+## Applying Changes
+
+\begin{forest}
+[, rootchange
+  [Node2C [0, metavar] [Node2C [1 , metavar] [t , triang]]]
+  [Node2C [0, metavar] [1 , metavar]]
+]
+\end{forest}
+
+. . .
+
+Call it `c`, \pause application function sketch:
+
+```haskell
+apply c = \x -> case x of
+                  Node2 a (Node2 b c) -> if c == t then Just (Node2 a b)
+                                                   else Nothing
+                  _                   -> Nothing
+```
+
+
+
 
 ## Computing Changes 
 
@@ -325,6 +347,7 @@ Consequence of definition of `Change23`{.haskell}
 Postpone the _hard_ part for now
 
 * Oracle: `wcs :: Tree23 -> Tree23 -> (Tree23 -> Maybe MetaVar)`{.haskell}
+    + stands for _which common subtree_
 
 ## Computing Changes: The Easy Part
 
@@ -341,7 +364,7 @@ extract f x = maybe (extract' x) Hole $ f x
 . . .
 
 
-Finally, with `wcs s d` as an _oracle_ \pause (reads: _which common subtree_)
+Finally, with `wcs s d` as an _oracle_ 
 
 ```haskell
 diff :: Tree23 -> Tree23 -> Change23 MetaVar
@@ -350,7 +373,7 @@ diff s d = (extract (wcs s d) s , extract (wcs s d) d)
 
 . . .
 
-`diff s d` is efficient __iff__ `wcs s d` is efficient
+if `wcs s d` is efficient, then so is `diff s d`
 
 ## Computing Changes: Defining the Oracle
 
@@ -537,7 +560,7 @@ Wrong
 \begin{center}
 \begin{forest}
 [, rootchange
-  [Node2 [0 , metavar] [t , triang]]
+  [Node2 [0 , metavar] [u , triang]]
   [Node2 [0 , metavar] [1 , metavar]]
 ]
 \end{forest} \pause
@@ -623,7 +646,7 @@ gcp (Node3C x y z) (Node3C u v w) = Node3C (gcp x u) (gcp y v) (gcp z w)
 
 . . .
 
-Problematic. Can break scoping:
+Problematic. Can break scoping. \pause
 
 
 \columnsbegin
@@ -649,30 +672,9 @@ Problematic. Can break scoping:
         [, change [0 , metavar] [0 , metavar]] ]
 \end{forest}
 \columnsend
+\pause
 
-## In Depth: Merging and Anti-unification
+Define `closure :: Patch23 -> Patch23` to fix scopes.
 
+# Conclusion
 
-
-## Merging Changes
-
-\begin{forest}
-[Node2C 
-  [ Node2C [, change [Node2C [0 , metavar] [0 , metavar]] [0 , metavar] ] [x, triang] ]
-  [ t , triang ]
-]
-\end{forest}
-
-## Technical Details
-
-We can make
-
-
-Consider:
-
-```haskell
-ics :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
-ics s d x = elemIndex x (subtrees s `intersect` subtrees y)
-```
-
-. . .
