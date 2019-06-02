@@ -37,36 +37,50 @@ class Monad m => MonadScope m where
 
 -----------------------------
 
--- Simple implementation of MonadScope
-type Scope = State [(Int , S.Set String)]
+-- |A 'ScopeInfo' will keep track of the current scope stack, the
+--  current scope id together with a 'fresh' scope id for newly defined
+--  scopes.
+data ScopeInfo = ScopeInfo
+  { stack :: [(ScopeId , S.Set String)]
+  , fresh :: ScopeId
+  } deriving (Eq , Show)
+
+pushEmptyScope :: ScopeInfo -> ScopeInfo
+pushEmptyScope (ScopeInfo st f)
+  = ScopeInfo ((f , S.empty) : st) (f + 1)
+
+popScope :: ScopeInfo -> ScopeInfo
+popScope (ScopeInfo []     _) = error "no scope to pop"
+popScope (ScopeInfo (_:st) f) = ScopeInfo st f
+
+registerName :: String -> ScopeInfo -> ScopeInfo
+registerName x s@(ScopeInfo [] _) = registerName x (pushEmptyScope s)
+registerName x (ScopeInfo ((sid , xs):st) f)
+  = ScopeInfo ((sid , S.insert x xs) : st) f
+
+lookupName :: String -> ScopeInfo -> Maybe ScopeId
+lookupName name = asum . map aux . stack
+  where
+    aux (sid , s) = if name `S.member` s then Just sid else Nothing
+    
+-- |Simple implementation of MonadScope, using a 'ScopeInfo' in a state monad.
+type Scope = State ScopeInfo
 
 instance MonadScope Scope where
   currScope = do
-    st <- get
+    st <- gets stack
     return $ case st of
       []       -> (0 , S.empty)
       (sids:_) -> sids
   
-  onFresh p = do
-    (sid , _) <- currScope
-    modify ((sid + 1 , S.empty) :)
-    res <- p
-    modify tail
-    return res
+  onFresh p     = modify pushEmptyScope *> p <* modify popScope
 
-  declName name = do
-    st <- get
-    case st of
-      []             -> put [(0 , S.singleton name)]
-      ((sid , s):ss) -> put ((sid , S.insert name s):ss)
+  declName      = modify . registerName
 
-  lkupName name = asum . map lkup0 <$> get
-    where lkup0 (sid , s) = if name `S.member` s
-                            then Just sid
-                            else Nothing
+  lkupName name = lookupName name <$> get
     
 runScope :: Scope a -> a
-runScope = flip evalState []
+runScope = flip evalState (ScopeInfo [] 0)
 
 
 -------------------------

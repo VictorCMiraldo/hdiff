@@ -59,6 +59,7 @@ data Lambda
 deriveFamilyWith ''W [t| Lambda |]
 
 -------------------------------
+-- Veerle
 
 varName :: W k -> String
 varName (W_String s) = s
@@ -76,7 +77,7 @@ instance {-# OVERLAPPING #-} Scoped W CodesLambda where
 test :: Lambda
 test = let x = Var "x"
            y = Var "y"
-        in Abs "x" (Abs "y" (App (App x y) (Abs "y" y)))
+        in (App (Abs "y" y) (Abs "y" y))
 
 instance (ShowHO ki , ShowHO phi) => ShowHO (AnnFix ki codes phi) where
   showHO (AnnFix phi rest) = case sop rest of
