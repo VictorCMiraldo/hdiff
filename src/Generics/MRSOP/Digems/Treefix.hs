@@ -120,6 +120,13 @@ utxRefineM _ g (UTxOpq k)  = g k
 utxRefineM f g (UTxPeel c utxnp)
   = UTxPeel c <$> mapNPM (utxRefineM f g) utxnp
 
+-- |Just like 'utxRefineM', but only refines variables.
+utxRefineVarsM :: (Monad m)
+               => (forall ix . f ix -> m (UTx ki codes g ix))
+               -> UTx ki codes f at
+               -> m (UTx ki codes g at)
+utxRefineVarsM f = utxRefineM f (return . UTxOpq)
+
 -- |Pure version of 'utxRefineM'
 utxRefine :: (forall ix . f ix -> UTx ki codes g ix)
           -> (forall k  . ki k -> UTx ki codes g ('K k))
