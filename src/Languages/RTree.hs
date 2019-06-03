@@ -107,5 +107,8 @@ instance Arbitrary RTree where
 genSimilarTrees' :: Gen (RTree , RTree)
 genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
  
+genSimilarTrees'' :: Gen (RTree , RTree , RTree)
+genSimilarTrees'' = choose (0 , 4) >>= genSimilarTreesN 3
+                                   >>= \[t1 , t2 , t3] -> return (t1 , t2 , t3)
 
 

@@ -25,6 +25,8 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Treefix
 
+import Debug.Trace
+
 -- * Generic Application
 --
 -- $genapply
@@ -184,6 +186,6 @@ lookupVar var subst = do
     cast :: Exists (UTx ki codes phi)
          -> Except (ApplicationErr ki codes phi) (UTx ki codes phi ix)
     cast (Exists res) = case idxDecEq res var of
-      Nothing   -> throwError IncompatibleTypes
+      Nothing   -> trace (show var) $ throwError IncompatibleTypes
       Just Refl -> return res
 

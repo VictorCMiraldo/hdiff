@@ -15,9 +15,10 @@ import Data.Exists
 import Data.Digems.Patch
 import Data.Digems.Patch.Diff
 import Data.Digems.Patch.Show
+import Data.Digems.Patch.Thinning as PT
+import qualified Data.Digems.Change.Thinning as CT
 import Data.Digems.MetaVar
 import Data.Digems.Change
-import Data.Digems.Change.Thinning
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -28,28 +29,52 @@ import Control.Monad.Except
 import Control.Monad.State
 import qualified Data.Map as M
 
----------
+thin_respect_spans :: Property
+thin_respect_spans = forAll genSimilarTrees'' $ \(a , o , b)
+  -> let oa = digemRTree o a
+         ob = digemRTree o b
+      in case PT.thin oa ob of
+           Left err -> counterexample ("Thinninh failed with: " ++ show err) False
+           Right oa' -> property $ applyRTree oa' o == Right a
+               
+-------------------------------
 
-type ContextRTree = UTx W CodesRTree (MetaVarIK W) ('I 'Z)
+lf :: String -> RTree
+lf x = x :>: []
 
-bin :: ContextRTree -> ContextRTree -> ContextRTree
-bin l r = UTxPeel CZ (UTxOpq (W_String "bin") :* bin' :* NP0)
-  where bin' = UTxPeel (CS CZ) (l :* (UTxPeel (CS CZ)
-                                        (r :* UTxPeel CZ NP0 :* NP0)
-                                  :* NP0))
+bin :: RTree -> RTree -> RTree
+bin l r = "bin" :>: [l , r]
 
-mvar :: Int -> ContextRTree
-mvar = UTxHole . NA_I . Const
+a1 , o1 , b1 :: RTree
+a1 = bin (bin (lf "w") (lf "z")) (bin (lf "x") (lf "y")) 
+o1 = bin (bin (lf "x") (lf "y")) (bin (lf "w") (lf "z"))
+b1 = bin (bin (lf "y") (lf "x")) (bin (lf "w") (lf "z"))
 
-p1, q1 :: ContextRTree
-p1 = bin (mvar 0) (mvar 0)
-q1 = bin (bin (mvar 1)                (mvar 2))
-         (bin (bin (mvar 3) (mvar 4)) (mvar 2))
-         
-run x y = runExcept $ runStateT (thin' x y) M.empty
+oa1 = digemRTree o1 a1
+ob1 = digemRTree o1 b1
+
+coa1 = distrCChange oa1
+cob1 = distrCChange ob1 `withDisjNamesFrom` coa1
+
+---------------------
+
+a2 , o2 , b2 :: RTree
+a2 = "e" :>: ["j" :>: []]
+o2 = "e" :>: ["a" :>: ["j" :>: []],"a" :>: ["j" :>: []]]
+b2 = "a" :>: ["j" :>: [],"e" :>: []]
+
+oa2 = digemRTree o2 a2
+ob2 = digemRTree o2 b2
+
+coa2 = distrCChange oa2
+cob2 = distrCChange ob2 `withDisjNamesFrom` coa2
+
 
 
 spec :: Spec
-spec = undefined
+spec = do
+  describe "thin" $
+    it "respects spans" $
+      property thin_respect_spans
 
 

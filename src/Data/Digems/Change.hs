@@ -52,6 +52,14 @@ cmatch' del ins =
       then Just $ CMatch vi del ins
       else Nothing
 
+-- |A 'Domain' is just a deletion context. Type-synonym helps us
+-- identify what's what on the algorithms below.
+type Domain ki codes = UTx ki codes (MetaVarIK ki) 
+
+domain :: CChange ki codes at -> Domain ki codes at
+domain = cCtxDel
+
+
 unCMatch :: CChange ki codes at -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
 unCMatch (CMatch _ del ins) = del :*: ins
 
@@ -130,22 +138,17 @@ makeCopyFrom chg = case cCtxDel chg of
   UTxPeel _ _ -> changeCopy (NA_I (Const 0))
   UTxOpq k    -> changeCopy (NA_K (Annotate 0 k))
   
-{-
 -- |Renames all changes within a 'UTx' so that their
 --  variable names will not clash.
-alphaRenameChanges :: UTx ki codes (CChange ki codes) at
-                   -> UTx ki codes (CChange ki codes) at
-alphaRenameChanges = flip evalState 0 . utxMapM rename1                   
-  where
-    rename1 :: CChange ki codes at -> State Int (CChange ki codes at)
-    rename1 (CMatch vars del ins) =
-      let localMax = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
-       in do globalMax <- get
-             put (globalMax + localMax)
-             return (CMatch (S.map (exMap (metavarAdd localMax)) vars)
-                            (utxMap (metavarAdd localMax) del)
-                            (utxMap (metavarAdd localMax) ins))
--}
+withDisjNamesFrom :: CChange ki codes at
+                  -> CChange ki codes at
+                  -> CChange ki codes at
+withDisjNamesFrom (CMatch vs del ins) q
+  = let vmax = cMaxVar q + 1
+     in CMatch (S.map (exMap $ metavarAdd vmax) vs)
+               (utxMap (metavarAdd vmax) del)
+               (utxMap (metavarAdd vmax) ins)
+
 
 -- |A Utx with closed changes distributes over a closed change
 --
