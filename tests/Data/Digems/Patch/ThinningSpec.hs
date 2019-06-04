@@ -60,15 +60,6 @@ context_alpha_eq x y = aux
                    else return (Const ())
     check exitF _ _ = lift exitF
 
-thin_respect_spans :: Property
-thin_respect_spans = forAll genSimilarTrees'' $ \(a , o , b)
-  -> let oa = digemRTree o a
-         ob = digemRTree o b
-      in case PT.thin oa ob of
-           Left err -> counterexample ("Thinning failed with: " ++ show err) False
-           Right oa' -> property $ applyRTree oa' o == Right a
-               
-
 thin_domain_eq :: Property
 thin_domain_eq = forAll genSimilarTrees'' $ \(a , o , b)
   -> let oa = digemRTree o a
@@ -79,7 +70,27 @@ thin_domain_eq = forAll genSimilarTrees'' $ \(a , o , b)
              property $ context_alpha_eq
                           (domain $ distrCChange oa')
                           (domain $ distrCChange ob')
+
+-----------------------------
                
+thin_respect_spans :: Property
+thin_respect_spans = forAll genSimilarTrees'' $ \(a , o , b)
+  -> let oa = digemRTree o a
+         ob = digemRTree o b
+      in case PT.thin oa ob of
+           Left err -> counterexample ("Thinning failed with: " ++ show err) False
+           Right oa' -> property $ applyRTree oa' o == Right a
+               
+---------------------------
+
+thin_pp_is_p :: Property
+thin_pp_is_p = forAll genSimilarTrees' $ \(a , b)
+  -> let ab = digemRTree a b
+      in case PT.thin ab ab of
+           Left err -> counterexample ("Thinning failed with: " ++ show err) False
+           Right ab' -> property $ patchEq ab ab'
+               
+
 -------------------------------
 
 lf :: String -> RTree
@@ -143,5 +154,6 @@ spec = do
   describe "thin" $ do
     it "is always possible for spans" $ property thin_respect_spans
     it "is symmetric w.r.t. domains"  $ property thin_domain_eq
+    it "respects: thin p p == p"      $ property thin_pp_is_p
 
 
