@@ -43,8 +43,8 @@ thin :: (ShowHO ki , TestEquality ki, EqHO ki)
 thin c@(CMatch _ del ins) dom = runExcept $ do
   sigma  <- flip execStateT M.empty $ utxThin del dom
   sigma' <- minimize sigma
-  del'   <- refine del sigma
-  ins'   <- refine ins sigma
+  del'   <- refine del sigma'
+  ins'   <- refine ins sigma'
   return $ cmatch del' ins'
 
 -- |The @thin' p q@ function is where work where we produce the
@@ -65,23 +65,34 @@ utxThin p q = void $ utxMapM (uncurry' go) $ utxLCP p q
        -> StateT (Subst ki codes (MetaVarIK ki))
                  (Except (ThinningErr ki codes))
                  (UTx ki codes (MetaVarIK ki) at)
-    go p (UTxHole _) = return p
-    go p@(UTxHole var) q = do
+    go p q@(UTxHole var) = record_eq var p >> return p
+    go p@(UTxHole var) q = record_eq var q >> return p
+    go p q | eqHO p q    = return p
+           | otherwise   = throwError (IncompatibleTerms p q)
+
+    -- Whenever we see a variable being matched against a term
+    -- we record the equivalence. First we make sure we did not
+    -- record such equivalence yet, otherwise, we recursively thin
+    record_eq :: (ShowHO ki , TestEquality ki, EqHO ki)
+              => MetaVarIK ki at
+              -> UTx ki codes (MetaVarIK ki) at
+              -> StateT (Subst ki codes (MetaVarIK ki))
+                        (Except (ThinningErr ki codes))
+                        ()
+    record_eq var q = do
       sigma <- get
       mterm <- lift (lookupVar var sigma)
       case mterm of
         -- First time we see 'var', we instantiate it and get going.
-        Nothing ->
-          if p /= q
-          then modify (M.insert (metavarGet var) (Exists q)) >> return p
-          else return p
+        Nothing -> when (q /= UTxHole var)
+                 $ modify (M.insert (metavarGet var) (Exists q))
         -- It's not the first time we thin 'var'; previously, we had
         -- that 'var' was supposed to be p'. We will check whether it
         -- is the same as q, if not, we will have to thin p' with q.
-        Just p' | eqHO p' q -> return p
-                | otherwise -> utxThin p' q >> return p'
-    go p q | eqHO p q  = return p
-           | otherwise = trace (showHO p ++ "\n$$$\n" ++ showHO q) $ throwError (IncompatibleTerms p q)
+        Just q' -> unless (eqHO q' q)
+                 $ void $ utxThin q' q
+          
+
 
 -- |The minimization step performs the 'occurs' check and removes
 --  unecessary steps. For example;

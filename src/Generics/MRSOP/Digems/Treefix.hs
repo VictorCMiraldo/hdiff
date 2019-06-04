@@ -243,7 +243,6 @@ utxPretty pfam sty sx utx@(UTxPeel c rest)
 --
 -- Are two treefixes indexes over the same atom?
 
-
 -- TODO: remove this class too!
 --       this is the same hack as Data.Digems.Diff.MetaVar.Annotate
 --       All we need is a class 'IsOpq' comming from mrsop that
