@@ -16,7 +16,6 @@ import Data.Digems.Patch.Show
 import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
 import Data.Digems.Change
-import Data.Digems.Change.Unify
 import Languages.RTree
 import Languages.RTree.Diff
 

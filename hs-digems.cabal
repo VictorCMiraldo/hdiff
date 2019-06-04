@@ -79,6 +79,7 @@ test-suite tests
   other-modules: Data.Digems.PatchSpec
                , Data.Digems.Patch.DiffSpec
                , Data.Digems.Patch.MergeSpec
+               , Data.Digems.Patch.ThinningSpec
                , Data.Digems.Change.ClassifySpec
   build-depends: base >= 4.10 && <5
                , hs-digems
@@ -86,3 +87,4 @@ test-suite tests
                , QuickCheck
                , hspec
                , containers
+               , mtl

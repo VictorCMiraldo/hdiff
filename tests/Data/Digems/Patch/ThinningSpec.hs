@@ -25,7 +25,6 @@ import Languages.RTree.Diff
 import Test.QuickCheck
 import Test.Hspec
 
-import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Cont
 import qualified Data.Map as M
