@@ -13,7 +13,7 @@ library
   exposed-modules: Data.Digems.Change
                  , Data.Digems.Change.Apply
                  , Data.Digems.Change.Classify
-                 , Data.Digems.Change.Specialize
+                 , Data.Digems.Change.Thinning
                  , Data.Digems.Example
                  , Data.Digems.MetaVar
                  , Data.Digems.Patch
@@ -21,7 +21,7 @@ library
                  , Data.Digems.Patch.Merge
                  , Data.Digems.Patch.Preprocess
                  , Data.Digems.Patch.Show
-                 , Data.Digems.Patch.Specialize
+                 , Data.Digems.Patch.Thinning
                  , Data.Exists
                  , Data.WordTrie
                  , Generics.MRSOP.Digems.Digest
@@ -53,6 +53,7 @@ executable digem
   main-is:             Digem.hs
   other-modules:       Languages.While
                ,       Languages.Lua
+               ,       Languages.ELisp
                ,       Languages.Interface
                ,       Languages.Clojure
                ,       Languages.Clojure.AST
@@ -67,6 +68,7 @@ executable digem
                ,       prettyprinter
                ,       text 
                ,       language-lua
+               ,       hs-elisp
                ,       mtl
                ,       QuickCheck
 
