@@ -11,13 +11,12 @@
 {-# LANGUAGE TypeApplications      #-}
 module Languages.While where
 
-import System.IO
-import Control.Monad
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
+import           Control.Monad
 import           Data.Proxy
 import           Data.Functor.Const
 import           Data.Functor.Sum
