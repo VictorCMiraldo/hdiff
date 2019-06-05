@@ -67,10 +67,6 @@ unCMatch (CMatch _ del ins) = del :*: ins
 cMaxVar :: CChange ki codes at -> Int
 cMaxVar = maybe 0 id . S.lookupMax . S.map (exElim metavarGet) . cCtxVars
 
-instance (ShowHO ki) => Show (CChange ki codes at) where
-  show (CMatch _ del ins)
-    = "{- " ++ showHO del ++ " -+ " ++ showHO ins ++ " +}"
-
 instance HasIKProjInj ki (CChange ki codes) where
   konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
   varProj pk (CMatch _ (UTxHole h) _)   = varProj pk h

@@ -16,6 +16,7 @@ import Data.Digems.Patch.Show
 import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
 import Data.Digems.Change
+import Data.Digems.Change.Thinning
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -283,6 +284,20 @@ a20 , o20 , b20 :: RTree
 a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
 o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
+
+cc :: RTree -> RTree -> RTree -> Bool
+cc a o b =
+  let p = distrCChange $ digemRTree o a
+      q = distrCChange $ digemRTree o b
+   in case (,) <$> thin p (domain q) <*> thin q (domain p) of
+        Left err -> error "imp; its a span!"
+        Right (p' , q')
+          -> (     changeEq q q'  &&      changeEq p p')
+          || (     changeEq q q'  && not (changeEq p p'))
+          || (not (changeEq q q') &&      changeEq p p')
+
+p = distrCChange $ digemRTree o3 a3
+q = distrCChange $ digemRTree o3 b3
 
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9

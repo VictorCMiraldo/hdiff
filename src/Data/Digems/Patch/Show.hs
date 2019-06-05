@@ -121,6 +121,13 @@ instance (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (UTx ki codes (D.CChange ki codes) at) where
   show = unlines . showRawPatch
 
+instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
+      => Show (D.CChange ki codes at) where
+  show (D.CMatch _ del ins) = unlines $ doubleColumn 75
+    (utxPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred))   del)
+    (utxPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) ins)
+
+
 instance (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (UTx ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at) where
   show = unlines . showPatchC
