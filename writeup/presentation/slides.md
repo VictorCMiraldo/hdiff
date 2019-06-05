@@ -12,7 +12,6 @@ sansfont: Open Sans
 sansfontoptions: Scale=0.8
 monofont: Ubuntu Mono
 monofontoptions: Scale=0.8
-handout: true
 ---
 
 # Intro
