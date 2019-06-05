@@ -248,16 +248,16 @@ _Generalizations can break specifications!_
 ## Changes
 
 \columnsbegin
-\column{.54\textwidth}
+\column{.42\textwidth}
+\vspace{1.5em}
 ```haskell
-diff (Node2 (Node2 t u) t) (Node3 t u x) =
+diff (Bin (Bin t u) t) (Tri t u x) =
 ```
 \column{.4\textwidth}
-
 \begin{forest}
 [,rootchange
-  [Node2C [Node2C [0 , metavar] [1 , metavar]] [0 , metavar]] 
-  [Node3C [0, metavar] [1 , metavar] [x , triang]] ]
+  [BinC [BinC [0 , metavar] [1 , metavar]] [0 , metavar]] 
+  [TriC [0, metavar] [1 , metavar] [x , triang]] ]
 \end{forest}
 
 \columnsend
@@ -284,9 +284,9 @@ Two _contexts_
 
 
 ```haskell
-data Tree23 = Leaf
-            | Node2 Tree23 Tree23
-            | Node3 Tree23 Tree23 Tree23
+data Tree = Leaf
+          | Bin Tree Tree
+          | Tri Tree Tree Tree
 ```
 
 Context are datatypes annotated with holes.
@@ -294,22 +294,117 @@ Context are datatypes annotated with holes.
 . . .
 
 ```haskell
-data Tree23C h = LeafC
-               | Node2C Tree23C Tree23C
-               | Node3C Tree23C Tree23C Tree23C
-               | Hole h
+data TreeC h = LeafC
+             | BinC TreeC TreeC
+             | TriC TreeC TreeC TreeC
+             | Hole h
 
-type Change23 = (Tree23C MetaVar , Tree23C MetaVar)
+type Change = (TreeC MetaVar , TreeC MetaVar)
 ```
+
+## Relation to Edit Scripts
+
+`Change`{.haskell} represents families of `ES`{.haskell}:
+
+. . .
+
+\vspace{-2em}
+
+\begin{center}
+\[ \texttt{\color{forest-digems-constr} Change} \approx \texttt{\color{forest-digems-constr} Tree} \rightarrow \texttt{\color{forest-digems-constr}Maybe}\; \texttt{[{\color{forest-digems-constr}ES}]} \]
+\end{center}
+
+. . .
+
+\columnsbegin
+\column{.25\textwidth}
+\begin{forest}
+[, rootchange
+  [Bin [A] [0 , metavar]]
+  [Tri [A] [0 , metavar] [0, metavar]]]
+\end{forest}
+
+\column{.001\textwidth}
+\vspace{2em}=
+\column{.03\textwidth}
+\begin{forest}
+[Bin [A] [B]]
+\end{forest}
+
+\column{.001\textwidth}
+\vspace{2em}$\mapsto$
+
+\vspace{5.6em}\bgroup \color{white} $\mapsto$ \egroup
+\column{.5\textwidth}
+\vspace{-0.8em}
+```haskell
+Just [ 
+  [Del, Ins Tri, Cpy, Ins B, Cpy],
+  [Del, Ins Tri, Cpy, Cpy, Ins B],
+ ...]
+```
+
+\columnsend
+
+\vfill
+
+## Relation to Edit Scripts
+
+`Change`{.haskell} represents families of `ES`{.haskell}:
+
+\vspace{-2em}
+
+\begin{center}
+\[ \texttt{\color{forest-digems-constr} Change} \approx \texttt{\color{forest-digems-constr} Tree} \rightarrow \texttt{\color{forest-digems-constr}Maybe}\; \texttt{[{\color{forest-digems-constr}ES}]} \]
+\end{center}
+
+\columnsbegin
+\column{.25\textwidth}
+\begin{forest}
+[, rootchange
+  [Bin [A] [0 , metavar]]
+  [Tri [A] [0 , metavar] [0, metavar]]]
+\end{forest}
+
+\column{.001\textwidth}
+\vspace{2em}=
+\column{.03\textwidth}
+\begin{forest}
+[Bin [A] [x,triang]]
+\end{forest}
+\vspace{3em}
+_
+
+\column{.001\textwidth}
+\vspace{2em}$\mapsto$
+
+\vspace{5em}$\mapsto$
+\column{.5\textwidth}
+\vspace{-0.8em}
+```haskell
+Just [ 
+  [Del, Ins Tri, Cpy, Ins x, Cpy],
+  [Del, Ins Tri, Cpy, Cpy, Ins x],
+ ...]
+
+Nothing
+```
+
+\columnsend
+
+\vfill
+
 
 ## Applying Changes
 
+\begin{center}
 \begin{forest}
 [, rootchange
-  [Node2C [0, metavar] [Node2C [1 , metavar] [t , triang]]]
-  [Node2C [0, metavar] [1 , metavar]]
+  [BinC [0, metavar] [BinC [1 , metavar] [t , triang]]]
+  [BinC [0, metavar] [1 , metavar]]
 ]
 \end{forest}
+\end{center}
 
 . . .
 
@@ -317,7 +412,7 @@ Call it `c`, \pause application function sketch:
 
 ```haskell
 apply c = \x -> case x of
-                  Node2 a (Node2 b c) -> if c == t then Just (Node2 a b)
+                  Bin a (Bin b c) -> if c == t then Just (Bin a b)
                                                    else Nothing
                   _                   -> Nothing
 ```
@@ -345,13 +440,13 @@ Easy
 
 . . .
 
-Consequence of definition of `Change23`{.haskell}
+Consequence of definition of `Change`{.haskell}
 
 . . .
 
 Postpone the _hard_ part for now
 
-* Oracle: `wcs :: Tree23 -> Tree23 -> (Tree23 -> Maybe MetaVar)`{.haskell}
+* Oracle: `wcs :: Tree -> Tree -> (Tree -> Maybe MetaVar)`{.haskell}
     + stands for _which common subtree_
 
 ## Computing Changes: The Easy Part
@@ -359,10 +454,10 @@ Postpone the _hard_ part for now
 Extracting the context:
 
 ```haskell
-extract :: (Tree23 -> Maybe MetaVar) -> Tree23 -> Tree23C
+extract :: (Tree -> Maybe MetaVar) -> Tree -> TreeC
 extract f x = maybe (extract' x) Hole $ f x
   where
-    extract' (Node2 a b) = Node2C (extract f a) (extract f b)
+    extract' (Bin a b) = BinC (extract f a) (extract f b)
     ... 
 ```
 
@@ -372,7 +467,7 @@ extract f x = maybe (extract' x) Hole $ f x
 Finally, with `wcs s d` as an _oracle_ 
 
 ```haskell
-diff :: Tree23 -> Tree23 -> Change23 MetaVar
+diff :: Tree -> Tree -> Change MetaVar
 diff s d = (extract (wcs s d) s , extract (wcs s d) d)
 ```
 
@@ -387,7 +482,7 @@ if `wcs s d` is efficient, then so is `diff s d`
 Defining an _inefficient_ `wcs s d` is easy:
 
 ```haskell
-wcs :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
+wcs :: Tree -> Tree -> Tree -> Maybe MetaVar
 wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
 ```
 
@@ -397,7 +492,7 @@ wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
 
 Efficient `wcs`:
 
-* annotates `Tree23` with cryptographic hashes, akin to a _Merkle Tree_
+* annotates `Tree` with cryptographic hashes, akin to a _Merkle Tree_
 * store those in a `Trie` (amortized const. time search)
 * uses topmost hash to compare trees for equality.
 
@@ -442,7 +537,7 @@ We defined a (very!) simple merging algorithm:
 . . .
 
 ```haskell
-merge :: Change23 -> Change23 -> Either Conflict Change23
+merge :: Change -> Change -> Either Conflict Change
 merge p q = if p `disjoint` q then p else Conflict
 ```
 \begin{displaymath}
@@ -478,7 +573,7 @@ We have learned:
 Recall,
 
 ```haskell
-wcs :: Tree23 -> Tree23 -> Tree23 -> Maybe MetaVar
+wcs :: Tree -> Tree -> Tree -> Maybe MetaVar
 wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
 ```
 
@@ -501,19 +596,19 @@ Two inefficiency points:\pause
 Annotate Trees with `Digest`{.haskll}s:
 
 ```haskell
-decorate :: Tree23 -> Tree23H
-data Tree23H = LeafH
-             | Node2H (Tree23H, Digest) (Tree23H, Digest)
-             | Node3H (Tree23H, Digest) (Tree23H, Digest) (Tree23H, Digest)
+decorate :: Tree -> TreeH
+data TreeH = LeafH
+             | BinH (TreeH, Digest) (TreeH, Digest)
+             | TriH (TreeH, Digest) (TreeH, Digest) (TreeH, Digest)
 ```
 
 . . .
 
 
 ```haskell
-root :: Tree23H -> Digest
+root :: TreeH -> Digest
 root LeafH                      = hash "leaf"
-root (Node2H (_ , dx) (_ , dy)) = hash ("node2" ++ dx ++ dy)
+root (BinH (_ , dx) (_ , dy)) = hash ("node2" ++ dx ++ dy)
 ...
 ```
 
@@ -522,7 +617,7 @@ root (Node2H (_ , dx) (_ , dy)) = hash ("node2" ++ dx ++ dy)
 Compare roots:
 
 ```haskell 
-instance Eq Tree23H where
+instance Eq TreeH where
   t == u = root t == root u
 ```
 
@@ -536,18 +631,18 @@ Good structure to lookup hashes: __Tries__!
 . . .
 
 ```haskell
-wcs :: Tree23H -> Tree23H -> (Tree23H -> Maybe MetaVar)
+wcs :: TreeH -> TreeH -> (TreeH -> Maybe MetaVar)
 wcs s d = lookup (tr empty s `intersect` tr empty d) . root
 ```
 
 . . .
 
 ```haskell
-tr :: Trie -> Tree23H -> Trie
+tr :: Trie -> TreeH -> Trie
 tr db t = insert (root t) 
         $ case t of
             LeafH                  -> db
-            Node2H (x , _) (y , _) -> tr (tr db x) y
+            BinH (x , _) (y , _) -> tr (tr db x) y
             ...
 ```
 
@@ -556,14 +651,14 @@ tr db t = insert (root t)
 One could write:
 
 ```haskell
-diff :: Tree23 -> Tree23 -> Change23
+diff :: Tree -> Tree -> Change
 diff s d = let s' = decorate s; d' = decorate d
             in (extract (wcs s' d') s' , extract (wcs s' d') d')
 ```
 
 . . .
 
-Subtle issue: `a = Node2 (Node2 t k) u`{.haskell}; `b = Node2 (Node2 t k) t`{.haskell}
+Subtle issue: `a = Bin (Bin t k) u`{.haskell}; `b = Bin (Bin t k) t`{.haskell}
 
 . . .
 
@@ -573,8 +668,8 @@ Wrong
 \begin{center}
 \begin{forest}
 [, rootchange
-  [Node2 [0 , metavar] [u , triang]]
-  [Node2 [0 , metavar] [1 , metavar]]
+  [Bin [0 , metavar] [u , triang]]
+  [Bin [0 , metavar] [1 , metavar]]
 ]
 \end{forest} \pause
 \end{center}
@@ -584,8 +679,8 @@ Easy option:
 \begin{center}
 \begin{forest}
 [, rootchange
-  [Node2 [0 , metavar] [u , triang]]
-  [Node2 [0 , metavar] [t , triang]]
+  [Bin [0 , metavar] [u , triang]]
+  [Bin [0 , metavar] [t , triang]]
 ]
 \end{forest} \pause
 \end{center}
@@ -596,8 +691,8 @@ Hard option:
 \vspace{-1.6em}
 \begin{forest}
 [, rootchange
-  [Node2 [Node2 [0 , metavar] [1 , metavar]] [u , triang]  ]
-  [Node2 [Node2 [0 , metavar] [1 , metavar]] [0 , metavar] ]
+  [Bin [Bin [0 , metavar] [1 , metavar]] [u , triang]  ]
+  [Bin [Bin [0 , metavar] [1 , metavar]] [0 , metavar] ]
 ]
 \end{forest}
 \end{center}
@@ -606,7 +701,7 @@ Hard option:
 
 ## In Depth: Merging
 
-Hard to reason with `Change23`{.haskell} \pause
+Hard to reason with `Change`{.haskell} \pause
 
 * Redundant Info
 * Metavariable Scope
@@ -617,7 +712,7 @@ un-_distribute_ the redundant constructors.
 
 
 ```haskell
-type Patch23 = Tree23C Change23
+type Patch = TreeC Change
 ```
 
 . . .
@@ -628,18 +723,18 @@ type Patch23 = Tree23C Change23
 \column{.48\textwidth}
 \begin{forest}
 [,rootchange
-  [Node2C [Node2C [0 , metavar] [1 , metavar]]
+  [BinC [BinC [0 , metavar] [1 , metavar]]
           [t , triang] ]
-  [Node2C [Node2C [1 , metavar] [0 , metavar]]
+  [BinC [BinC [1 , metavar] [0 , metavar]]
           [t , triang] ]
 ]
 \end{forest} \pause
 
 \column{.48\textwidth}
 \begin{forest}
-[Node2C [, change 
-           [Node2C [0 , metavar] [1 , metavar]]
-           [Node2C [1 , metavar] [0 , metavar]] ]
+[BinC [, change 
+           [BinC [0 , metavar] [1 , metavar]]
+           [BinC [1 , metavar] [0 , metavar]] ]
         [t , triang] ]
 \end{forest}
 \columnsend
@@ -648,13 +743,13 @@ type Patch23 = Tree23C Change23
 
 . . .
 
-Extract the _greatest common prefix_ from two `Tree23C`{.haskell}:
+Extract the _greatest common prefix_ from two `TreeC`{.haskell}:
 
 ```haskell
-gcp :: Tree23C a -> Tree23C b -> Tree23C (Tree23C a , Tree23C b)
-gcp LeafC LeafC                   = LeafC
-gcp (Node2C x y) (Node2C u v)     = Node2C (gcp x u) (gcp y v)
-gcp (Node3C x y z) (Node3C u v w) = Node3C (gcp x u) (gcp y v) (gcp z w)
+gcp :: TreeC a -> TreeC b -> TreeC (TreeC a , TreeC b)
+gcp LeafC        LeafC        = LeafC
+gcp (BinC x y)   (BinC u v)   = BinC (gcp x u) (gcp y v)
+gcp (TriC x y z) (TriC u v w) = TriC (gcp x u) (gcp y v) (gcp z w)
 ```
 
 . . .
@@ -666,8 +761,8 @@ Problematic. Can break scoping. \pause
 \column{.25\textwidth}
 \begin{forest}
 [,rootchange
- [Node2C [t , triang]  [0 , metavar]]
- [Node2C [0 , metavar] [0 , metavar]]
+ [BinC [t , triang]  [0 , metavar]]
+ [BinC [0 , metavar] [0 , metavar]]
 ]
 \end{forest} \pause
 \column{.13\textwidth}
@@ -681,13 +776,13 @@ Problematic. Can break scoping. \pause
 
 \column{.38\textwidth}
 \begin{forest}
-[Node2C [, change [t , triang]  [0 , metavar]]
+[BinC [, change [t , triang]  [0 , metavar]]
         [, change [0 , metavar] [0 , metavar]] ]
 \end{forest}
 \columnsend
 \pause
 
-Define `closure :: Patch23 -> Patch23` to fix scopes.
+Define `closure :: Patch -> Patch` to fix scopes.
 
 # Discussion
 
