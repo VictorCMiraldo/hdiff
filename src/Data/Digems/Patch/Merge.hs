@@ -32,12 +32,31 @@ import Generics.MRSOP.Digems.Digest
 import Data.Exists
 import qualified Data.WordTrie as T
 import Data.Digems.Patch
-import Data.Digems.Patch.Diff
 import Data.Digems.Change
+import Data.Digems.Change.Thinning
 import Data.Digems.Change.Apply
 import Data.Digems.MetaVar
 
 import Debug.Trace
+
+type UTx2 ki codes
+  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
+type UTxUTx2 ki codes
+  = UTx ki codes (UTx2 ki codes)
+
+fst' :: (f :*: g) x -> f x
+fst' (Pair a _) = a
+
+snd' :: (f :*: g) x -> g x
+snd' (Pair _ b) = b
+
+instance (TestEquality f) => TestEquality (f :*: g) where
+  testEquality x y = testEquality (fst' x) (fst' y)
+
+instance HasIKProjInj ki (UTx2 ki codes) where
+  konInj  ki = (konInj ki :*: konInj ki)
+  varProj p (Pair f _) = varProj p f
+
 
 
 -- * Merging Treefixes
@@ -124,14 +143,26 @@ reconcile :: forall ki codes fam at
           -> FreshM (UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at)
 reconcile p q
   -- If both patches are alpha-equivalent, we return a copy.
-  | patchEq p q  = return $ UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  | patchEq p q = return $ UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  | otherwise =
+    let cp = distrCChange p
+        cq = distrCChange q
+     in case (,) <$> thin cp (domain cq) <*> thin cq (domain cp) of
+       Left err          -> return $ UTxHole $ InL $ Conflict "chg" p q
+       Right (cp' , cq')
+         | changeEq cp' cp && not (changeEq cq' cq) -> return $ utxMap InR p
+         | changeEq cq' cq && not (changeEq cp' cp) -> wrapExcept $ do
+             sd <- pmatch (cCtxDel cp') (cCtxDel cq')
+             si <- pmatch (cCtxDel cp') (cCtxIns cq')
+             rd <- transport (cCtxIns cp') sd 
+             ri <- transport (cCtxIns cp') si
+             return $ cmatch rd ri
+  where
+    wrapExcept f = case runExcept f of
+                    Left err -> return $ UTxHole $ InL $ Conflict (show err) p q
+                    Right r  -> return $ UTxHole $ InR r
+       
 {-
-  -- TODO: check that these are guaranteed by the algo below
-  -- When one of the patches is a copy, this is easy. We borrow
-  -- from residual theory and return the first one.
-  | patchIsCpy p = trace "1" $ utxMap InR p
-  | patchIsCpy q = trace "2" $ utxMap InR p
--}
 -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
     -- First we translate both patches to a 'spined change' representation.
@@ -148,11 +179,6 @@ reconcile p q
               Right r  -> case utx2change r of
                             Nothing  -> InL $ Conflict "chg" p q
                             Just res -> InR res 
-
-type UTx2 ki codes
-  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
-type UTxUTx2 ki codes
-  = UTx ki codes (UTx2 ki codes)
 
 utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
 utx2distr x = (scDel x :*: scIns x)
@@ -328,3 +354,4 @@ refinedFor varmap s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
 
     rawCpyVar (UTxHole v :*: _) = metavarGet v
          
+-}
