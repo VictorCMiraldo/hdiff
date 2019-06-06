@@ -305,7 +305,7 @@ oa8 = digemRTree o8 a8
 ob8 = digemRTree o8 b8
 
 p = distrCChange oa8
-q = distrCChange ob8 `withDisjNamesFrom` p
+q = distrCChange ob8 
 thinned = uncurry' cmatch <$> thin (cCtxIns p :*: cCtxDel p) (domain q)
 
 oa2 = digemRTree o2 a2
