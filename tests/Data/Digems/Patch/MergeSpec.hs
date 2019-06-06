@@ -16,7 +16,6 @@ import Data.Digems.Patch.Show
 import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
 import Data.Digems.Change
-import Data.Digems.Change.Thinning
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -79,8 +78,8 @@ doMerge a o b
         o' = dfrom $ into @FamRTree o
         oa = diff 1 o' a'
         ob = diff 1 o' b'
-        oaob = (oa // ob)
-        oboa = (ob // oa)
+        oaob = oa // ob
+        oboa = ob // oa
      in case (,) <$> noConflicts oaob <*> noConflicts oboa of
              Just (ab , ba)
                -> case (,) <$> apply ab b' <*> apply ba a' of
@@ -285,6 +284,7 @@ a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
 o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 
+{-
 cc :: RTree -> RTree -> RTree -> Bool
 cc a o b =
   let p = distrCChange $ digemRTree o a
@@ -295,6 +295,7 @@ cc a o b =
           -> (     changeEq q q'  &&      changeEq p p')
           || (     changeEq q q'  && not (changeEq p p'))
           || (not (changeEq q q') &&      changeEq p p')
+-}
 
 p = distrCChange $ digemRTree o3 a3
 q = distrCChange $ digemRTree o3 b3

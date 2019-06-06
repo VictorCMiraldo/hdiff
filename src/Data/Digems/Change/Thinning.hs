@@ -37,15 +37,16 @@ lift' :: (Monad m) => m a -> StateT (Subst ki codes (MetaVarIK ki)) m a
 lift' = lift
 
 thin :: (ShowHO ki , TestEquality ki, EqHO ki)
-     => CChange ki codes at
+     => UTx2 ki codes at
      -> Domain ki codes at
-     -> Either (ApplicationErr ki codes (MetaVarIK ki)) (CChange ki codes at)
-thin c@(CMatch _ del ins) dom = runExcept $ do
+     -> Either (ApplicationErr ki codes (MetaVarIK ki))
+               (UTx2 ki codes at)
+thin (del :*: ins) dom = runExcept $ do
   sigma  <- flip execStateT M.empty $ utxThin del dom
   sigma' <- minimize sigma
   del'   <- refine del sigma'
   ins'   <- refine ins sigma'
-  return $ cmatch del' ins'
+  return $ del' :*: ins'
 
 -- |The @thin' p q@ function is where work where we produce the
 --  map that will be applied to 'p' in order to thin it.

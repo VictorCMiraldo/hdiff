@@ -38,3 +38,9 @@ thin p q = utxMapM (uncurry' go) $ utxLCP p q
     go cp cq = let cp' = distrCChange cp
                    cq' = distrCChange cq `withDisjNamesFrom` cp'
                 in CT.thin cp' (domain cq')
+
+unsafeThin :: (ShowHO ki , TestEquality ki, EqHO ki)
+           => RawPatch ki codes at
+           -> RawPatch ki codes at
+           -> RawPatch ki codes at
+unsafeThin p q = either (error . show) id $ thin p q

@@ -33,31 +33,11 @@ import Data.Exists
 import qualified Data.WordTrie as T
 import Data.Digems.Patch
 import Data.Digems.Change
-import Data.Digems.Change.Thinning
 import Data.Digems.Change.Apply
+import Data.Digems.Change.Thinning
 import Data.Digems.MetaVar
 
 import Debug.Trace
-
-type UTx2 ki codes
-  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
-type UTxUTx2 ki codes
-  = UTx ki codes (UTx2 ki codes)
-
-fst' :: (f :*: g) x -> f x
-fst' (Pair a _) = a
-
-snd' :: (f :*: g) x -> g x
-snd' (Pair _ b) = b
-
-instance (TestEquality f) => TestEquality (f :*: g) where
-  testEquality x y = testEquality (fst' x) (fst' y)
-
-instance HasIKProjInj ki (UTx2 ki codes) where
-  konInj  ki = (konInj ki :*: konInj ki)
-  varProj p (Pair f _) = varProj p f
-
-
 
 -- * Merging Treefixes
 --
@@ -144,7 +124,25 @@ reconcile :: forall ki codes fam at
 reconcile p q
   -- If both patches are alpha-equivalent, we return a copy.
   | patchEq p q = return $ UTxHole $ InR $ makeCopyFrom (distrCChange p)
-  | otherwise =
+  -- Otherwise, this is slightly more involved, but it is intuitively simple.
+  | otherwise    =
+    -- First we translate both patches to a 'spined change' representation.
+    let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
+        sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
+     in do
+      res0 <- process sp sq
+      case res0 of
+          CantReconcile err -> trace err $ return $ UTxHole $ InL $ Conflict err p q
+          ReturnNominator   -> return $ utxMap InR p
+          InstDenominator v -> return $ UTxHole $
+            case runExcept $ transport (scIns sq) v of
+              Left err -> InL $ Conflict (show err) p q
+              Right r  -> case utx22change r of
+                            Nothing  -> InL $ Conflict "chg" p q
+                            Just res -> InR res 
+
+
+  {-
     let cp = distrCChange p
         cq = distrCChange q
      in case (,) <$> thin cp (domain cq) <*> thin cq (domain cp) of
@@ -161,56 +159,12 @@ reconcile p q
     wrapExcept f = case runExcept f of
                     Left err -> return $ UTxHole $ InL $ Conflict (show err) p q
                     Right r  -> return $ UTxHole $ InR r
+-}
        
-{-
--- Otherwise, this is slightly more involved, but it is intuitively simple.
-  | otherwise    =
-    -- First we translate both patches to a 'spined change' representation.
-    let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
-        sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
-     in do
-      res0 <- process sp sq
-      case res0 of
-          CantReconcile err -> return $ UTxHole $ InL $ Conflict err p q
-          ReturnNominator   -> return $ utxMap InR p
-          InstDenominator v -> return $ UTxHole $
-            case runExcept $ transport (scIns sq) v of
-              Left err -> InL $ Conflict (show err) p q
-              Right r  -> case utx2change r of
-                            Nothing  -> InL $ Conflict "chg" p q
-                            Just res -> InR res 
-
-utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
-utx2distr x = (scDel x :*: scIns x)
-
-instance (TestEquality f) => TestEquality (f :*: g) where
-  testEquality x y = testEquality (fst' x) (fst' y)
-
-instance HasIKProjInj ki (UTx2 ki codes) where
-  konInj  ki = (konInj ki :*: konInj ki)
-  varProj p (Pair f _) = varProj p f
-
-utx2change :: UTxUTx2 ki codes at -> Maybe (CChange ki codes at)
-utx2change x = cmatch' (scDel x) (scIns x)
-
 data ProcessOutcome ki codes
   = ReturnNominator
   | InstDenominator (Subst ki codes (UTx2 ki codes))
   | CantReconcile String
-
-fst' :: (f :*: g) x -> f x
-fst' (Pair a _) = a
-
-snd' :: (f :*: g) x -> g x
-snd' (Pair _ b) = b
-
-scDel :: UTxUTx2 ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scDel = utxJoin . utxMap fst' 
-
-scIns :: UTxUTx2 ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scIns = utxJoin . utxMap snd'
 
 -- |Checks whether a variable is a rawCpy, note that we need
 --  a map that checks occurences of this variable.
@@ -307,10 +261,15 @@ process sp sq =
     step2 pp qq = do
       s <- lift get
       let del = scDel qq
-      pp' <- lift $ lift (refinedFor varmap pp del)
-      case runExcept (pmatch' s del pp') of
-        Left  e  -> throwError (show e)
-        Right s' -> put s' >> return ()
+      let pp' = pp
+      -- pp' <- lift $ lift (refinedFor varmap pp del)
+      case thin (utx2distr pp) del of
+        Left e    -> throwError ("th: " ++ show e)
+        Right pp0 -> do
+          let pp' = uncurry' utxLCP pp0
+          case runExcept (pmatch' s del pp') of
+            Left  e  -> throwError (show e)
+            Right s' -> put s' >> return ()
 
     insins :: UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
     insins (UTxHole pp) (UTxHole qq) = isLocalIns pp && isLocalIns qq
@@ -353,5 +312,3 @@ refinedFor varmap s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
     delta x = (x :*: x)
 
     rawCpyVar (UTxHole v :*: _) = metavarGet v
-         
--}

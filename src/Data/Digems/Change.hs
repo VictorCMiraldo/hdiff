@@ -178,3 +178,42 @@ change utx uty = let vx = utxGetHolesWith Exists utx
                   in if vx == vy
                      then InR $ CMatch vx utx uty
                      else InL $ OMatch vx vy utx uty
+
+-----------------------------
+-- Alternate representations
+
+type UTx2 ki codes
+  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
+type UTxUTx2 ki codes 
+  = UTx ki codes (UTx2 ki codes)
+
+fst' :: (f :*: g) x -> f x
+fst' (Pair a _) = a
+
+snd' :: (f :*: g) x -> g x
+snd' (Pair _ b) = b
+
+scDel :: UTxUTx2 ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scDel = utxJoin . utxMap fst' 
+
+scIns :: UTxUTx2 ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scIns = utxJoin . utxMap snd'
+
+utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
+utx2distr x = (scDel x :*: scIns x)
+
+utx22change :: UTxUTx2 ki codes at -> Maybe (CChange ki codes at)
+utx22change x = cmatch' (scDel x) (scIns x)
+
+change2utx2 :: (EqHO ki) => CChange ki codes at -> UTxUTx2 ki codes at 
+change2utx2 (CMatch _ del ins) = utxLCP del ins
+
+instance (TestEquality f) => TestEquality (f :*: g) where
+  testEquality x y = testEquality (fst' x) (fst' y)
+
+instance HasIKProjInj ki (UTx2 ki codes) where
+  konInj  ki = (konInj ki :*: konInj ki)
+  varProj p (Pair f _) = varProj p f
+
