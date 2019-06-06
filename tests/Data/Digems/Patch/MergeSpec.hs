@@ -16,6 +16,7 @@ import Data.Digems.Patch.Show
 import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
 import Data.Digems.Change
+import Data.Digems.Change.Thinning
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -297,14 +298,15 @@ cc a o b =
           || (not (changeEq q q') &&      changeEq p p')
 -}
 
-p = distrCChange $ digemRTree o3 a3
-q = distrCChange $ digemRTree o3 b3
-
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
 
 oa8 = digemRTree o8 a8
 ob8 = digemRTree o8 b8
+
+p = distrCChange oa8
+q = distrCChange ob8 `withDisjNamesFrom` p
+thinned = uncurry' cmatch <$> thin (cCtxIns p :*: cCtxDel p) (domain q)
 
 oa2 = digemRTree o2 a2
 ob2 = digemRTree o2 b2

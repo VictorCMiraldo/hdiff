@@ -75,13 +75,13 @@ getConflicts = snd . runWriter . utxMapM go
 -- |We might need to issue new variables, hence we need a 'FreshM'
 -- monad do issue them correctly;
 type FreshM = State Int
-
--- |runs a 'FreshM' computation over the names of a patch
-withFreshNamesFrom :: FreshM a -> Patch ki codes ix -> a
-withFreshNamesFrom comp p = evalState comp maxVar
-  where
-    maxVar = let vs = S.unions $ utxGetHolesWith' (S.map (exElim metavarGet) . cCtxVars) p
-              in maybe 0 id $ S.lookupMax vs 
+--
+-- -- |runs a 'FreshM' computation over the names of a patch
+-- withFreshNamesFrom :: FreshM a -> Patch ki codes ix -> a
+-- withFreshNamesFrom comp p = evalState comp maxVar
+--   where
+--     maxVar = let vs = S.unions $ utxGetHolesWith' (S.map (exElim metavarGet) . cCtxVars) p
+--               in maybe 0 id $ S.lookupMax vs 
 
 freshMetaVar :: FreshM Int
 freshMetaVar = modify (+1) >> get
@@ -106,8 +106,8 @@ withUnifiedDelCtx p q = undefined
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = utxJoin $ (utxMapM (uncurry' reconcile) $ utxLCP p q)
-                   `withFreshNamesFrom` p
+p // q = utxJoin $ flip evalState 0 $ utxMapM (uncurry' reconcile)
+                            $ utxLCP p $ q `withFreshNamesFrom` p
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.

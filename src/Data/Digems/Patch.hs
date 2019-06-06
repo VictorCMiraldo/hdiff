@@ -63,13 +63,26 @@ patchIsCpy = and . utxGetHolesWith' isCpy
 
 -- ** Functionality over a 'Patch'
 
-{-# DEPRECATED patchMaxVar "don't use this!" #-}
 patchMaxVar :: RawPatch ki codes at -> Int
 patchMaxVar = flip execState 0 . utxMapM localMax
   where
     localMax r@(CMatch vars _ _)
       = let m = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
          in modify (max m) >> return r
+
+-- |Calling @p `withFreshNamesFrom` q@ will return an alpha equivalent
+-- version of @p@ that has no name clasehs with @q@.
+withFreshNamesFrom :: RawPatch ki codes at
+                   -> RawPatch ki codes at
+                   -> RawPatch ki codes at
+withFreshNamesFrom p q = utxMap (changeAdd (patchMaxVar q + 1)) p
+  where
+    changeAdd :: Int -> CChange ki codes at -> CChange ki codes at
+    changeAdd n (CMatch vs del ins)
+      = CMatch (S.map (exMap (metavarAdd n)) vs)
+               (utxMap (metavarAdd n) del)
+               (utxMap (metavarAdd n) ins)
+      
 
 -- ** Applying a Patch
 --

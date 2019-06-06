@@ -136,15 +136,14 @@ makeCopyFrom chg = case cCtxDel chg of
   
 -- |Renames all changes within a 'UTx' so that their
 --  variable names will not clash.
-withDisjNamesFrom :: CChange ki codes at
-                  -> CChange ki codes at
-                  -> CChange ki codes at
-withDisjNamesFrom (CMatch vs del ins) q
+cWithDisjNamesFrom :: CChange ki codes at
+                   -> CChange ki codes at
+                   -> CChange ki codes at
+cWithDisjNamesFrom (CMatch vs del ins) q
   = let vmax = cMaxVar q + 1
      in CMatch (S.map (exMap $ metavarAdd vmax) vs)
                (utxMap (metavarAdd vmax) del)
                (utxMap (metavarAdd vmax) ins)
-
 
 -- |A Utx with closed changes distributes over a closed change
 --
