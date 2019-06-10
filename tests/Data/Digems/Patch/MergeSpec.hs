@@ -302,11 +302,12 @@ oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
 
 oa8 = digemRTree o8 a8
-ob8 = digemRTree o8 b8
+ob8 = digemRTree o8 b8 `withFreshNamesFrom` oa8
 
 p = distrCChange oa8
 q = distrCChange ob8 
-thinned = uncurry' cmatch <$> thin (cCtxIns p :*: cCtxDel p) (domain q)
+thinned p q = uncurry' cmatch <$> thin' (cCtxDel p :*: cCtxIns p)
+                                        (cCtxDel q :*: cCtxIns q)
 
 oa2 = digemRTree o2 a2
 ob2 = digemRTree o2 b2

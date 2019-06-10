@@ -48,6 +48,24 @@ thin (del :*: ins) dom = runExcept $ do
   ins'   <- refine ins sigma'
   return $ del' :*: ins'
 
+thin' :: (ShowHO ki , TestEquality ki, EqHO ki)
+     => UTx2 ki codes at
+     -> UTx2 ki codes at
+     -> Either (ApplicationErr ki codes (MetaVarIK ki))
+               (UTx2 ki codes at)
+thin' (delP :*: insP) (delQ :*: insQ) = runExcept $ do
+  sigma  <- flip execStateT M.empty $ utxThin delP delQ
+  sigma' <- minimize sigma
+  del    <- refine delP sigma'
+  insP'  <- refine insP sigma'
+  insQ'  <- refine insQ sigma'
+  qi     <- trace "b" $ (pmatch del insQ' >>= transport insP')
+  return $ insP' :*: qi
+
+
+
+
+
 -- |The @thin' p q@ function is where work where we produce the
 --  map that will be applied to 'p' in order to thin it.
 --  This function does /NOT/ minimize this map.
