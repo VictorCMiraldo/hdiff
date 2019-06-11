@@ -77,14 +77,6 @@ type Patch = [ES]
 
 . . .
 
-Computes changes by enumeration.
-```haskell
-diff :: [String] -> [String] -> Patch
-diff x y = head $ sortBy mostCopies $ enumerate_all x y 
-```
-
-. . .
-
 Example,
 
 \columnsbegin
@@ -99,6 +91,14 @@ Example,
 [Cpy , Cpy , Del , Ins "it's some ..."]
 ```
 \columnsend
+
+. . .
+
+Computes changes by enumeration.
+```haskell
+diff :: [String] -> [String] -> Patch
+diff x y = head $ sortBy mostCopies $ enumerate_all x y 
+```
 
 
 ## The `UNIX` diff: Abstractly
@@ -301,6 +301,28 @@ data TreeC h = LeafC
 type Change = (TreeC MetaVar , TreeC MetaVar)
 ```
 
+## Applying Changes
+
+\begin{center}
+\begin{forest}
+[, rootchange
+  [BinC [0, metavar] [BinC [1 , metavar] [t , triang]]]
+  [BinC [0, metavar] [1 , metavar]]
+]
+\end{forest}
+\end{center}
+
+. . .
+
+Call it `c`, \pause application function sketch:
+
+```haskell
+apply c = \x -> case x of
+   Bin a (Bin b c) -> if c == t then Just (Bin a b) else Nothing
+   _               -> Nothing
+```
+
+
 ## Relation to Edit Scripts
 
 `Change`{.haskell} represents families of `ES`{.haskell}:
@@ -392,31 +414,6 @@ Nothing
 \columnsend
 
 \vfill
-
-
-## Applying Changes
-
-\begin{center}
-\begin{forest}
-[, rootchange
-  [BinC [0, metavar] [BinC [1 , metavar] [t , triang]]]
-  [BinC [0, metavar] [1 , metavar]]
-]
-\end{forest}
-\end{center}
-
-. . .
-
-Call it `c`, \pause application function sketch:
-
-```haskell
-apply c = \x -> case x of
-                  Bin a (Bin b c) -> if c == t then Just (Bin a b)
-                                                   else Nothing
-                  _                   -> Nothing
-```
-
-
 
 
 ## Computing Changes 
