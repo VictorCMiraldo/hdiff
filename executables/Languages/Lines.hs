@@ -28,7 +28,13 @@ import Debug.Trace
 -----------------------
 -- * Parser
 
-data Stmt = Stmt [String]
+-- |We must have a dedicated type 'Line' to make sure
+-- we duplicate lines. If we use just @Stmt [String]@ 
+-- the content of the lines will be seen as an opaque type.
+-- Opaque values are NOT shared by design.
+data Stmt = Stmt [Line]
+
+data Line = Line String
 
 -- |Custom Opaque type
 data WKon = WString 
@@ -61,5 +67,5 @@ instance TestEquality W where
 parseFile :: String -> IO Stmt
 parseFile file =
   do program  <- readFile file
-     return (Stmt $ lines program)
+     return (Stmt $ map Line $ lines program)
 

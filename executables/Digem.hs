@@ -65,9 +65,7 @@ mainParsers
 #ifdef ENABLE_CLOJURE_SUPPORT
     ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
 #endif
-#ifdef ENABLE_LINES_SUPPORT
     ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
-#endif
     ]
 
 ---------------------------
