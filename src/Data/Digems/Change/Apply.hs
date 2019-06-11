@@ -113,7 +113,7 @@ pmatch' :: (Applicable ki codes phi)
    -> UTx ki codes phi ix
    -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 pmatch' s (UTxHole var) x  = substInsert s var x
-pmatch' s pa (UTxHole var) = throwError (IncompatibleHole pa var)
+pmatch' s pa (UTxHole var) = trace (showHO pa ++ "\n%%%\n") $ throwError (IncompatibleHole pa var)
 pmatch' s (UTxOpq oa) (UTxOpq ox)
   | eqHO oa ox = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)

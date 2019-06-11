@@ -15,6 +15,7 @@ import           Data.Proxy
 import           Data.Type.Equality
 import           Data.Functor.Const
 import qualified Data.Map as M
+import qualified Data.Set as S
 import           Control.Monad.Writer
 import           Control.Monad.Except
 import           Control.Monad.State
@@ -37,11 +38,36 @@ lift' :: (Monad m) => m a -> StateT (Subst ki codes (MetaVarIK ki)) m a
 lift' = lift
 
 thin :: (ShowHO ki , TestEquality ki, EqHO ki)
-     => UTx2 ki codes at
-     -> Domain ki codes at
+     => CChange ki codes at
+     -> Domain  ki codes at
      -> Either (ApplicationErr ki codes (MetaVarIK ki))
-               (UTx2 ki codes at)
-thin (del :*: ins) dom = runExcept $ do
+               (CChange ki codes at)
+thin chg dom = uncurry' cmatch <$> thinUTx2 (cCtxDel chg :*: cCtxIns chg) dom
+
+tr :: (ShowHO ki , TestEquality ki, EqHO ki)
+   => CChange ki codes at
+   -> CChange ki codes at
+   -> Either (ApplicationErr ki codes (UTx2 ki codes))
+             (CChange ki codes at)
+tr (CMatch _ pd pi) q = do
+  xx <- genericApply q (utxLCP pd pi)
+  let xd = utxJoin $ utxMap fst' xx
+  let xi = utxJoin $ utxMap snd' xx
+  return $ CMatch S.empty xd xi
+{-
+  sigmaD <- pmatch qd pd
+  sigmaI <- pmatch qd pi
+  resD   <- transport qi sigmaD
+  resI   <- transport qi sigmaI
+  return (cmatch resD resI)
+-}
+
+thinUTx2 :: (ShowHO ki , TestEquality ki, EqHO ki)
+         => UTx2 ki codes at
+         -> Domain ki codes at
+         -> Either (ApplicationErr ki codes (MetaVarIK ki))
+                   (UTx2 ki codes at)
+thinUTx2 (del :*: ins) dom = runExcept $ do
   sigma  <- flip execStateT M.empty $ utxThin del dom
   sigma' <- minimize sigma
   del'   <- refine del sigma'

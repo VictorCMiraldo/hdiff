@@ -217,7 +217,7 @@ process sp sq =
       let del = scDel qq
       let pp' = pp
       -- pp' <- lift $ lift (refinedFor varmap pp del)
-      case thin (utx2distr pp) del of
+      case thinUTx2 (utx2distr pp) del of
         Left e    -> throwError ("th: " ++ show e)
         Right pp0 -> do
           let pp' = uncurry' utxLCP pp0
