@@ -66,7 +66,6 @@ it's some ugly code."
 + it's some ugly code."
 ```
 
-
 ## The `UNIX` diff: In a Nutshell
 
 Encodes changes as an _edit script_
@@ -78,7 +77,6 @@ type Patch = [ES]
 . . .
 
 Example,
-
 \columnsbegin
 \column{.30\textwidth}
 ```
@@ -92,7 +90,8 @@ Example,
 ```
 \columnsend
 
-. . .
+\vspace{1em}
+\pause
 
 Computes changes by enumeration.
 ```haskell
@@ -102,8 +101,6 @@ diff x y = head $ sortBy mostCopies $ enumerate_all x y
 
 
 ## The `UNIX` diff: Abstractly
-
-`UNIX` diff works for `[String]`{.haskell}. 
 
 . . .
 
@@ -128,6 +125,11 @@ such that,
 ```haskell
 apply (diff x y) x == Just y
 ```
+
+. . .
+
+`UNIX` diff works for `[String]`{.haskell}. 
+
 
 ## The `UNIX` diff Generalized: Edit Scripts
 
@@ -343,7 +345,7 @@ apply c = \x -> case x of
 [, rootchange
   [Bin [A] [0 , metavar]]
   [Tri [A] [0 , metavar] [0, metavar]]]
-\end{forest}
+\end{forest} \pause
 
 \column{.001\textwidth}
 \vspace{2em}=
@@ -594,8 +596,8 @@ Annotate Trees with `Digest`{.haskll}s:
 ```haskell
 decorate :: Tree -> TreeH
 data TreeH = LeafH
-             | BinH (TreeH, Digest) (TreeH, Digest)
-             | TriH (TreeH, Digest) (TreeH, Digest) (TreeH, Digest)
+           | BinH (TreeH, Digest) (TreeH, Digest)
+           | TriH (TreeH, Digest) (TreeH, Digest) (TreeH, Digest)
 ```
 
 . . .
@@ -603,7 +605,7 @@ data TreeH = LeafH
 
 ```haskell
 root :: TreeH -> Digest
-root LeafH                      = hash "leaf"
+root LeafH                    = hash "leaf"
 root (BinH (_ , dx) (_ , dy)) = hash ("node2" ++ dx ++ dy)
 ...
 ```
@@ -671,7 +673,7 @@ Wrong
 \end{center}
 
 \column{.30\textwidth}
-Easy option:
+Correct:
 \begin{center}
 \begin{forest}
 [, rootchange
@@ -682,7 +684,7 @@ Easy option:
 \end{center}
 
 \column{.36\textwidth}
-Hard option:
+Why not?
 \begin{center}
 \vspace{-1.6em}
 \begin{forest}
@@ -694,6 +696,51 @@ Hard option:
 \end{center}
 
 \columnsend
+
+## In Depth: The "best" change
+
+. . .
+
+* The "best" change is the one with the largest domain.
+* least specific
+
+. . .
+
+Let $c$ and $d$ be changes that transform $x$ into $y$.
+
+. . .
+
+$c \subseteq d \Leftrightarrow \exists \sigma \;.\;\mathrm{dom}\;c \sqsubseteq_\sigma \mathrm{dom}\;d$
+
+. . .
+
+\columnsbegin
+\column{.12\textwidth}
+\begin{prooftree}
+\AxiomC{ {\color{white} x} }
+\UnaryInfC{$x \sqsubseteq_\sigma x$} %_
+\end{prooftree}
+
+\column{.12\textwidth}
+\begin{prooftree}
+\AxiomC{$t = \sigma\,x$}
+\UnaryInfC{$x \sqsubseteq_\sigma t$} %_
+\end{prooftree}
+
+\column{.48\textwidth}
+\begin{prooftree}
+\AxiomC{$ x_1 \sqsubseteq_\sigma y_1 $}
+\AxiomC{$ x_2 \sqsubseteq_\sigma y_2 $}
+\AxiomC{$ \cdots $}
+\TrinaryInfC{$\mathrm{C}\, \vec{x} \sqsubseteq_\sigma \mathrm{C}\, \vec{y}$}
+\end{prooftree}
+
+\columnsend
+
+. . .
+
+This makes a preorder (reflexive; transitive)
+
 
 ## In Depth: Merging
 
@@ -746,6 +793,7 @@ gcp :: TreeC a -> TreeC b -> TreeC (TreeC a , TreeC b)
 gcp LeafC        LeafC        = LeafC
 gcp (BinC x y)   (BinC u v)   = BinC (gcp x u) (gcp y v)
 gcp (TriC x y z) (TriC u v w) = TriC (gcp x u) (gcp y v) (gcp z w)
+gcp x            w            = Hole (x , y)
 ```
 
 . . .
