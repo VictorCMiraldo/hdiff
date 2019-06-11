@@ -13,6 +13,7 @@ library
   exposed-modules: Data.Digems.Change
                  , Data.Digems.Change.Apply
                  , Data.Digems.Change.Classify
+                 , Data.Digems.Change.LCS
                  , Data.Digems.Change.Specialize
                  , Data.Digems.Example
                  , Data.Digems.MetaVar

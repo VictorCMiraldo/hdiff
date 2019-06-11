@@ -47,6 +47,7 @@ import qualified Data.Digems.Patch.Diff  as D
 import qualified Data.Digems.Patch.Merge as D
 import           Data.Digems.Patch.Show
 import qualified Data.Digems.Change      as D
+import qualified Data.Digems.Change.LCS  as D
 
 import           Languages.Interface
 import qualified Languages.While   as While
@@ -78,6 +79,7 @@ data Options
           , optFileB     :: FilePath
           , minHeight    :: Int
           , testApply    :: Bool
+          , showLCS      :: Bool
           }
   | Merge { optFileA     :: FilePath
           , optFileO     :: FilePath
@@ -124,6 +126,10 @@ diff = Diff
       &= typ "BOOL"
       &= help "Attempts applying the patch and checks the result for equality"
       &= explicit &= name "a" &= name "apply"
+  , showLCS = False
+      &= typ "BOOL"
+      &= help "Shows the length of the longest common subsequence"
+      &= explicit &= name "lcs"
   } 
   &= help "Computes the diff between two programs. The resulting diff is displayed"
 
@@ -139,7 +145,7 @@ data OptionMode
 
 optionMode :: Options -> OptionMode
 optionMode (AST _) = OptAST
-optionMode (Diff _ _ _ _) = OptDiff
+optionMode (Diff _ _ _ _ _) = OptDiff
 optionMode (Merge _ _ _ _ _) = OptMerge
 
 main :: IO ()
@@ -184,6 +190,8 @@ mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     let patch = D.diff (minHeight opts) fa fb
     displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
+    when (showLCS opts)   $ void (putStr "lcs: "
+                               >> putStrLn (show $ D.lcs (D.distrCChange patch)))
     return ExitSuccess
 
 mainMerge :: Options -> IO ExitCode
