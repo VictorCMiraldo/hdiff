@@ -11,8 +11,18 @@ import Languages.RTree
 import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Patch.Diff
+import Data.Digems.Patch.Show
 
 type PatchRTree = Patch W CodesRTree Z
+
+rbin :: RTree -> RTree -> RTree
+rbin l r = "bin" :>: [l , r]
+
+rlf :: String -> RTree
+rlf = (:>: [])
+
+x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "k")
+y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "t")
 
 digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
