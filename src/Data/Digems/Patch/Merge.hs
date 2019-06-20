@@ -37,8 +37,6 @@ import Data.Digems.Change.Apply
 import Data.Digems.Change.Thinning
 import Data.Digems.MetaVar
 
-import Debug.Trace
-
 -- * Merging Treefixes
 --
 -- $mergingtreefixes
@@ -215,8 +213,6 @@ process sp sq =
     step2 pp qq = do
       s <- lift get
       let del = scDel qq
-      let pp' = pp
-      -- pp' <- lift $ lift (refinedFor varmap pp del)
       case thinUTx2 (utx2distr pp) del of
         Left e    -> throwError ("th: " ++ show e)
         Right pp0 -> do
