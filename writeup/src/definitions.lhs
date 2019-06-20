@@ -64,7 +64,7 @@
 
 %% Repository
 %%   https://github.com/VictorCMiraldo/hs-digems
-\newcommand{\hsdigemsgit}[0]{Address has been ommited to preserve double-blindness. Code has been submitted as suplementary material}
+\newcommand{\hsdigemsgit}[0]{https://github.com/VictorCMiraldo/hs-digems}
 
 \newcommand{\bigO}[1]{\mathcal{O}(#1)}
 

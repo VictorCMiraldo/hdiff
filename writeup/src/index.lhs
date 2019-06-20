@@ -1,44 +1,9 @@
-\documentclass[acmsmall,10pt,review=true,anonymous=true]{acmart}%
-\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,screen]{acmart}%
+\settopmatter{}
 
 %%%%%%%%%%%%%%
 %%%%%%%%%%%%%%
 %% Template 
-
-%% Conference information
-%% Supplied to authors by publisher for camera-ready submission;
-%% use defaults for review submission.
-\acmConference[PL'17]{ACM SIGPLAN Conference on Programming Languages}{January 01--03, 2017}{New York, NY, USA}
-\acmYear{2017}
-\acmISBN{} % \acmISBN{978-x-xxxx-xxxx-x/YY/MM}
-\acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
-\startPage{1}
-
-%% Copyright information
-%% Supplied to authors (based on authors' rights management selection;
-%% see authors.acm.org) by publisher for camera-ready submission;
-%% use 'none' for review submission.
-\setcopyright{none}
-%\setcopyright{acmcopyright}
-%\setcopyright{acmlicensed}
-%\setcopyright{rightsretained}
-%\copyrightyear{2017}           %% If different from \acmYear
-
-%% Bibliography style
-\bibliographystyle{acmart/ACM-Reference-Format}
-%% Citation style
-%\citestyle{acmauthoryear}  %% For author/year citations
-%\citestyle{acmnumeric}     %% For numeric citations
-%\setcitestyle{nosort}      %% With 'acmnumeric', to disable automatic
-                            %% sorting of references within a single citation;
-                            %% e.g., \cite{Smith99,Carpenter05,Baker12}
-                            %% rendered as [14,5,2] rather than [2,5,14].
-%\setcitesyle{nocompress}   %% With 'acmnumeric', to disable automatic
-                            %% compression of sequential references within a
-                            %% single citation;
-                            %% e.g., \cite{Baker12,Baker14,Baker16}
-                            %% rendered as [2,3,4] rather than [2-4].
-
 
 %% END TEMPLATE
 %%%%%%%%%%%%%%%%%%%%
@@ -55,7 +20,20 @@
 %%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%
 
-\usepackage{multirow}
+%% Conference information
+%% Supplied to authors by publisher for camera-ready submission;
+%% use defaults for review submission.
+\setcopyright{rightsretained}
+\acmPrice{}
+\acmDOI{10.1145/3341717}
+\acmYear{2019}
+\copyrightyear{2019}
+\acmJournal{PACMPL}
+\acmVolume{3}
+\acmNumber{ICFP}
+\acmArticle{113}
+\acmMonth{8}
+
 
 \begin{document}
 
@@ -75,7 +53,6 @@
 %% extraction tools.
 
 \author{Victor Cacciari Miraldo}
-\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
 \affiliation{
   \position{PhD candidate}
   \department{Information and Computing Sciences}
@@ -89,7 +66,6 @@
 \email{v.cacciarimiraldo@@uu.nl}
 
 \author{Wouter Swierstra}
-\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
 \affiliation{
   \position{Assistant Professor}
   \department{Information and Computing Sciences}
@@ -136,17 +112,21 @@ merged automatically, even when existing technology has failed.
 <concept_desc>Software and its engineering~General programming languages</concept_desc>
 <concept_significance>500</concept_significance>
 </concept>
-<concept>
+</ccs2012>
 \end{CCSXML}
 
 \ccsdesc[500]{Software and its engineering~General programming languages}
-\ccsdesc[300]{Social and professional topics~History of programming languages}
 %% End of generated code
 
 
 %% Keywords
 %% comma separated list
 \keywords{Generic Programming, diff, Version Control, Haskell}
+
+
+%% Bibliography style
+\bibliographystyle{acmart/ACM-Reference-Format}
+\citestyle{acmauthoryear}  %% For author/year citations
 
 
 %% \maketitle

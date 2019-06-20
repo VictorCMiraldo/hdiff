@@ -16,6 +16,16 @@ nolhs: src/$(TGT).tex
 
 dist/$(TGT).aux: default
 
+camerardy: bib default
+	rm -rf camera-rdy/ && \
+	mkdir camera-rdy && \
+	cp acmart/acmart.cls camera-rdy/ && \
+	cp acmart/ACM-Reference-Format.bst camera-rdy/ && \
+	cp src/index.tex camera-rdy/ && \
+	cp references.bib camera-rdy/ && \
+	cp -R src/img camera-rdy/ && \
+	cd camera-rdy && zip -r camera-rdy.zip *
+
 bib: references.bib dist/$(TGT).aux
 	bibtex dist/$(TGT).aux
 	export TEXMFHOME=".:$(TEXMFHOME)" && \

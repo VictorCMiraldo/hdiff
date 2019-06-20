@@ -1903,10 +1903,10 @@ a performance test and a merging test. We chose the Lua programming language
 for two reasons. First, there is a Haskell parser for Lua readily available
 on Hackage and, secondly, due to a performance bug~\cite{ghc-performance-bug} in GHC
 we are not able to instantiate our generic algorithm to more complex abstract syntax trees,
-such as that of C.
+such as that of C. 
 
 \paragraph{Performance Evaluation} In order to evaluate the
-performance of our implementation we have timed the computation of the
+performance of our implementation\footnote{\hsdigemsgit} we have timed the computation of the
 two diffs, |diff o a| and |diff o b|, for each merge conflict |a,o,b|
 in our dataset.  In order to ensure that the numbers we obtained
 are valid and representative of a real execution trace we timed the
