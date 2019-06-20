@@ -104,10 +104,10 @@ o1 = bin (bin (lf "x") (lf "y")) (bin (lf "w") (lf "z"))
 b1 = bin (bin (lf "y") (lf "x")) (bin (lf "w") (lf "z"))
 
 oa1 = digemRTree o1 a1
-ob1 = digemRTree o1 b1
+ob1 = digemRTree o1 b1 `withFreshNamesFrom` oa1
 
 coa1 = distrCChange oa1
-cob1 = distrCChange ob1 `withDisjNamesFrom` coa1
+cob1 = distrCChange ob1 
 
 ---------------------
 
@@ -117,10 +117,10 @@ o2 = "e" :>: ["a" :>: ["j" :>: []],"a" :>: ["j" :>: []]]
 b2 = "a" :>: ["j" :>: [],"e" :>: []]
 
 oa2 = digemRTree o2 a2
-ob2 = digemRTree o2 b2
+ob2 = digemRTree o2 b2 `withFreshNamesFrom` oa2
 
 coa2 = distrCChange oa2
-cob2 = distrCChange ob2 `withDisjNamesFrom` coa2
+cob2 = distrCChange ob2 
 
 -----------------------
 --

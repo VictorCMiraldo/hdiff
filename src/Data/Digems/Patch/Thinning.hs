@@ -33,10 +33,10 @@ thin :: (ShowHO ki , TestEquality ki, EqHO ki)
      => RawPatch ki codes at
      -> RawPatch ki codes at
      -> Either (CT.ThinningErr ki codes) (RawPatch ki codes at)
-thin p q = utxMapM (uncurry' go) $ utxLCP p q
+thin p q = utxMapM (uncurry' go) $ utxLCP p (q `withFreshNamesFrom` p)
   where
     go cp cq = let cp' = distrCChange cp
-                   cq' = distrCChange cq `withDisjNamesFrom` cp'
+                   cq' = distrCChange cq 
                 in CT.thin cp' (domain cq')
 
 unsafeThin :: (ShowHO ki , TestEquality ki, EqHO ki)

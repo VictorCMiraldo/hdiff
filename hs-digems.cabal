@@ -21,6 +21,7 @@ library
                  , Data.Digems.Patch.Merge
                  , Data.Digems.Patch.Preprocess
                  , Data.Digems.Patch.Show
+                 , Data.Digems.Patch.Thinning
                  , Data.Exists
                  , Data.WordTrie
                  , Generics.MRSOP.Digems.Digest

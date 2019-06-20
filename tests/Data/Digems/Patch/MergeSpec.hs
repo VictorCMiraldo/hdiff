@@ -305,6 +305,7 @@ ob9 = digemRTree o9 b9
 oa8 = digemRTree o8 a8
 ob8 = digemRTree o8 b8 `withFreshNamesFrom` oa8
 
+{-
 p = distrCChange oa8
 q = distrCChange ob8 
 thinned p q = uncurry' cmatch <$> thin' (cCtxDel p :*: cCtxIns p)
@@ -318,6 +319,7 @@ mymerge p q = do
   else case tr p' q' of
     Left err -> error $ show err
     Right r  -> return r
+-}
 
 oa2 = digemRTree o2 a2
 ob2 = digemRTree o2 b2
