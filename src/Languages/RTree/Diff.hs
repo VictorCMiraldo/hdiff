@@ -16,7 +16,7 @@ type PatchRTree = Patch W CodesRTree Z
 
 digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
-                          (dfrom $ into @FamRTree b)
+                        (dfrom $ into @FamRTree b)
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree
 applyRTree p x = either Left (Right . unEl . dto @Z . unFix)

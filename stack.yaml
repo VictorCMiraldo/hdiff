@@ -4,13 +4,18 @@ resolver: lts-12.2
 packages:
   - .
   - location:
-      git: git@github.com:VictorCMiraldo/generics-mrsop.git
-      commit: 9cee726fef18ca7fe380409244bce0cd9ef8ade0
+      git: git@github.com:VictorCMiraldo/hs-elisp.git
+      commit: f3da1702fe7338e48a0a114ff49d1601d6ebea27
     extra-dep: true
+##  - location:
+##      git: git@github.com:VictorCMiraldo/generics-mrsop.git
+##      commit: 9cee726fef18ca7fe380409244bce0cd9ef8ade0
+##    extra-dep: true
 
 extra-deps:
   - language-lua-0.11.0
   - alex-tools-0.4
+  - generics-mrsop-2.0.0
 #  - generics-mrsop-1.2.2@sha256:9c5a7ebbf36c82d0009cc8e66b5d780a1a908579aa00357d15dda02eb88022b9
  
 

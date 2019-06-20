@@ -16,7 +16,8 @@ import Data.Digems.Patch.Show
 import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
 import Data.Digems.Change
-import Data.Digems.Change.Unify
+import Data.Digems.Change.Thinning
+import Data.Digems.Change.Apply
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -72,6 +73,7 @@ expectMerge expt lbl a o b = do
   it (lbl ++ ": " ++ show expt) $
     doMerge a o b `shouldBe` expt
 
+{-
 doMerge :: RTree -> RTree -> RTree -> MergeOutcome
 doMerge a o b
   = let a' = dfrom $ into @FamRTree a
@@ -79,8 +81,8 @@ doMerge a o b
         o' = dfrom $ into @FamRTree o
         oa = diff 1 o' a'
         ob = diff 1 o' b'
-        oaob = (oa // ob)
-        oboa = (ob // oa)
+        oaob = oa // ob
+        oboa = ob // oa
      in case (,) <$> noConflicts oaob <*> noConflicts oboa of
              Just (ab , ba)
                -> case (,) <$> apply ab b' <*> apply ba a' of
@@ -89,6 +91,31 @@ doMerge a o b
                      | otherwise        -> MergeDiffers
                    Left err             -> ApplyFailed
              Nothing                    -> HasConflicts
+-}
+
+doMerge :: RTree -> RTree -> RTree -> MergeOutcome
+doMerge a o b
+  = let a' = dfrom $ into @FamRTree a
+        b' = dfrom $ into @FamRTree b
+        o' = dfrom $ into @FamRTree o
+        oa' = diff 1 o' a'
+        oa  = distrCChange oa'
+        ob  = distrCChange $ (diff 1 o' b' `withFreshNamesFrom` oa')
+        oaob = mymerge oa ob
+        oboa = mymerge ob oa
+     in case (,) <$> oaob <*> oboa of
+             Right (ab , ba)
+               -> case (,) <$> termApply ab (NA_I b') <*> termApply ba (NA_I a') of
+                   Right (c1 , c2)
+                     | eqFix eqHO (unNA_I c1) (unNA_I c2) -> MergeOk
+                     | otherwise        -> MergeDiffers
+                   Left err             -> ApplyFailed
+             Left _                     -> HasConflicts
+ where
+   unNA_I :: NA f g (I i) -> g i
+   unNA_I (NA_I x) = x
+ 
+
 
 mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
 mustMerge = expectMerge MergeOk
@@ -285,11 +312,38 @@ a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
 o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 
+{-
+cc :: RTree -> RTree -> RTree -> Bool
+cc a o b =
+  let p = distrCChange $ digemRTree o a
+      q = distrCChange $ digemRTree o b
+   in case (,) <$> thin p (domain q) <*> thin q (domain p) of
+        Left err -> error "imp; its a span!"
+        Right (p' , q')
+          -> (     changeEq q q'  &&      changeEq p p')
+          || (     changeEq q q'  && not (changeEq p p'))
+          || (not (changeEq q q') &&      changeEq p p')
+-}
+
 oa9 = digemRTree o9 a9
 ob9 = digemRTree o9 b9
 
 oa8 = digemRTree o8 a8
-ob8 = digemRTree o8 b8
+ob8 = digemRTree o8 b8 `withFreshNamesFrom` oa8
+
+p = distrCChange oa8
+q = distrCChange ob8 
+thinned p q = uncurry' cmatch <$> thin' (cCtxDel p :*: cCtxIns p)
+                                        (cCtxDel q :*: cCtxIns q)
+
+mymerge p q = do
+  p' <- thin p (domain q)
+  q' <- thin q (domain p)
+  if changeEq q' q
+  then return p
+  else case tr p' q' of
+    Left err -> error $ show err
+    Right r  -> return r
 
 oa2 = digemRTree o2 a2
 ob2 = digemRTree o2 b2

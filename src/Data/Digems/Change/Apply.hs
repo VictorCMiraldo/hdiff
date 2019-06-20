@@ -25,6 +25,8 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Digems.Treefix
 
+import Debug.Trace
+
 -- * Generic Application
 --
 -- $genapply
@@ -111,7 +113,7 @@ pmatch' :: (Applicable ki codes phi)
    -> UTx ki codes phi ix
    -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 pmatch' s (UTxHole var) x  = substInsert s var x
-pmatch' s pa (UTxHole var) = throwError (IncompatibleHole pa var)
+pmatch' s pa (UTxHole var) = trace (showHO pa ++ "\n%%%\n") $ throwError (IncompatibleHole pa var)
 pmatch' s (UTxOpq oa) (UTxOpq ox)
   | eqHO oa ox = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)
@@ -184,6 +186,6 @@ lookupVar var subst = do
     cast :: Exists (UTx ki codes phi)
          -> Except (ApplicationErr ki codes phi) (UTx ki codes phi ix)
     cast (Exists res) = case idxDecEq res var of
-      Nothing   -> throwError IncompatibleTypes
+      Nothing   -> trace (show var) $ throwError IncompatibleTypes
       Just Refl -> return res
 

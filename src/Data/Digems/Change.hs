@@ -52,16 +52,20 @@ cmatch' del ins =
       then Just $ CMatch vi del ins
       else Nothing
 
+-- |A 'Domain' is just a deletion context. Type-synonym helps us
+-- identify what's what on the algorithms below.
+type Domain ki codes = UTx ki codes (MetaVarIK ki) 
+
+domain :: CChange ki codes at -> Domain ki codes at
+domain = cCtxDel
+
+
 unCMatch :: CChange ki codes at -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
 unCMatch (CMatch _ del ins) = del :*: ins
 
 -- |Returns the maximum variable in a change
 cMaxVar :: CChange ki codes at -> Int
 cMaxVar = maybe 0 id . S.lookupMax . S.map (exElim metavarGet) . cCtxVars
-
-instance (ShowHO ki) => Show (CChange ki codes at) where
-  show (CMatch _ del ins)
-    = "{- " ++ showHO del ++ " -+ " ++ showHO ins ++ " +}"
 
 instance HasIKProjInj ki (CChange ki codes) where
   konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
@@ -130,22 +134,16 @@ makeCopyFrom chg = case cCtxDel chg of
   UTxPeel _ _ -> changeCopy (NA_I (Const 0))
   UTxOpq k    -> changeCopy (NA_K (Annotate 0 k))
   
-{-
 -- |Renames all changes within a 'UTx' so that their
 --  variable names will not clash.
-alphaRenameChanges :: UTx ki codes (CChange ki codes) at
-                   -> UTx ki codes (CChange ki codes) at
-alphaRenameChanges = flip evalState 0 . utxMapM rename1                   
-  where
-    rename1 :: CChange ki codes at -> State Int (CChange ki codes at)
-    rename1 (CMatch vars del ins) =
-      let localMax = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
-       in do globalMax <- get
-             put (globalMax + localMax)
-             return (CMatch (S.map (exMap (metavarAdd localMax)) vars)
-                            (utxMap (metavarAdd localMax) del)
-                            (utxMap (metavarAdd localMax) ins))
--}
+cWithDisjNamesFrom :: CChange ki codes at
+                   -> CChange ki codes at
+                   -> CChange ki codes at
+cWithDisjNamesFrom (CMatch vs del ins) q
+  = let vmax = cMaxVar q + 1
+     in CMatch (S.map (exMap $ metavarAdd vmax) vs)
+               (utxMap (metavarAdd vmax) del)
+               (utxMap (metavarAdd vmax) ins)
 
 -- |A Utx with closed changes distributes over a closed change
 --
@@ -179,3 +177,42 @@ change utx uty = let vx = utxGetHolesWith Exists utx
                   in if vx == vy
                      then InR $ CMatch vx utx uty
                      else InL $ OMatch vx vy utx uty
+
+-----------------------------
+-- Alternate representations
+
+type UTx2 ki codes
+  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
+type UTxUTx2 ki codes 
+  = UTx ki codes (UTx2 ki codes)
+
+fst' :: (f :*: g) x -> f x
+fst' (Pair a _) = a
+
+snd' :: (f :*: g) x -> g x
+snd' (Pair _ b) = b
+
+scDel :: UTxUTx2 ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scDel = utxJoin . utxMap fst' 
+
+scIns :: UTxUTx2 ki codes at
+      -> UTx ki codes (MetaVarIK ki) at
+scIns = utxJoin . utxMap snd'
+
+utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
+utx2distr x = (scDel x :*: scIns x)
+
+utx22change :: UTxUTx2 ki codes at -> Maybe (CChange ki codes at)
+utx22change x = cmatch' (scDel x) (scIns x)
+
+change2utx2 :: (EqHO ki) => CChange ki codes at -> UTxUTx2 ki codes at 
+change2utx2 (CMatch _ del ins) = utxLCP del ins
+
+instance (TestEquality f) => TestEquality (f :*: g) where
+  testEquality x y = testEquality (fst' x) (fst' y)
+
+instance HasIKProjInj ki (UTx2 ki codes) where
+  konInj  ki = (konInj ki :*: konInj ki)
+  varProj p (Pair f _) = varProj p f
+
