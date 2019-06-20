@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE TypeApplications      #-}
 module Languages.RTree.Diff where
@@ -18,15 +19,31 @@ type PatchRTree = Patch W CodesRTree Z
 rbin :: RTree -> RTree -> RTree
 rbin l r = "bin" :>: [l , r]
 
+rblock :: RTree -> RTree -> RTree
+rblock l r = "ZZZ" :>: [l , r]
+
 rlf :: String -> RTree
 rlf = (:>: [])
 
-x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "k")
-y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "t")
+x1 = rbin (rblock (rlf "t") (rbin (rlf "u") (rlf "l"))) (rlf "k")
+y1 = rbin (rblock (rlf "t") (rbin (rlf "u") (rlf "l"))) (rlf "t")
 
 digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
                         (dfrom $ into @FamRTree b)
+
+block :: (IsNat ix) => Fix W CodesRTree ix -> Maybe String
+block xo@(Fix x) = case getFixSNat xo of
+  IdxRTree -> case sop x of
+                Tag CZ (NA_K (W_String str) :* _)
+                  -> if str == "ZZZ" then Just str else Nothing
+  _        -> Nothing
+
+digemRTree' :: RTree -> RTree -> PatchRTree
+digemRTree' a b = diff' 1 block
+                          (dfrom $ into @FamRTree a)
+                          (dfrom $ into @FamRTree b)
+
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree
 applyRTree p x = either Left (Right . unEl . dto @Z . unFix)

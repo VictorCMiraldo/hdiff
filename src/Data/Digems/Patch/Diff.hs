@@ -221,17 +221,25 @@ close utx = case closure utx of
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
-diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
-     => MinHeight
-     -> Fix ki codes ix
-     -> Fix ki codes ix
-     -> Patch ki codes ix
-diff mh x y
-  = let dx      = preprocess x
-        dy      = preprocess y
+diff' :: (EqHO ki , DigestibleHO ki , IsNat ix)
+      => MinHeight
+      -> SharingControl ki codes
+      -> Fix ki codes ix
+      -> Fix ki codes ix
+      -> Patch ki codes ix
+diff' mh ctl x y
+  = let dx      = preprocess ctl x
+        dy      = preprocess ctl y
         (i, sh) = buildSharingTrie mh dx dy
         dx'     = tagProperShare sh dx
         dy'     = tagProperShare sh dy
         del     = extractUTx mh sh dx'
         ins     = extractUTx mh sh dy'
      in close (extractSpine metavarI2IK i del ins)
+
+diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
+     => MinHeight
+     -> Fix ki codes ix
+     -> Fix ki codes ix
+     -> Patch ki codes ix
+diff mh x y = diff' mh noSharingControl x y

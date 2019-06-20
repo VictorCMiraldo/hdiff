@@ -18,8 +18,71 @@ import qualified Data.ByteArray.Mapping as BA
 import qualified Crypto.Hash            as Hash
 import qualified Crypto.Hash.Algorithms as Hash (Blake2s_256)
 
+import Control.Monad.Reader
+
 import Generics.MRSOP.Base
-import Generics.MRSOP.AG (AnnFix(..) , synthesize)
+import Generics.MRSOP.AG (AnnFix(..) , synthesize, getAnn)
+
+-------------------------
+-- To be sent to mrsop
+
+cataM' :: (Monad m , IsNat ix)
+       => (forall iy a. IsNat iy => Fix ki codes iy -> m a -> m a)
+       -> (forall iy  . IsNat iy => Rep ki phi (Lkup iy codes) -> m (phi iy))
+       -> Fix ki codes ix
+       -> m (phi ix)
+cataM' p f xo@(Fix x) = mapRepM (p xo . cataM' p f) x >>= f
+
+synthesizeM' :: forall ki phi codes ix m a
+              . (Monad m , IsNat ix)
+             => (forall iy a. IsNat iy => Fix ki codes iy -> m a -> m a)
+             -> (forall iy  . IsNat iy => Rep ki phi (Lkup iy codes) -> m (phi iy))
+             -> Fix ki codes ix
+             -> m (AnnFix ki codes phi ix)
+synthesizeM' p f = cataM' p alg
+  where
+    alg :: forall iy
+         . (IsNat iy)
+        => Rep ki (AnnFix ki codes phi) (Lkup iy codes)
+        -> m (AnnFix ki codes phi iy)
+    alg xs = flip AnnFix xs <$> f (mapRep getAnn xs)
+
+-- End of 'to be sent to mrsop'
+----------------------------
+
+---------------------------
+-- Sharing info
+
+type SharingControl ki codes
+  = forall ix . (IsNat ix) => (Fix ki codes ix -> Maybe String)
+
+noSharingControl :: SharingControl ki codes
+noSharingControl = const Nothing
+
+newtype SharingBarrier = SharingBarrier { sharingStack :: [String] }
+  deriving (Eq , Show)
+
+pushName :: String -> SharingBarrier -> SharingBarrier
+pushName name (SharingBarrier xs) = SharingBarrier $ name : xs
+
+type SharingM = Reader SharingBarrier
+
+runSharingM = flip runReader (SharingBarrier [])
+
+decideSharing :: (IsNat iy)
+              => SharingControl ki codes
+              -> Fix ki codes iy
+              -> SharingM a -> SharingM a
+decideSharing sh f = case sh f of
+                    Nothing      -> id
+                    Just scopeId -> local (pushName scopeId)
+
+hashSharingBarrier :: SharingBarrier -> Digest
+hashSharingBarrier = hashStr . concat . sharingStack
+
+-------------------------
+
+
 
 -- |Our digests come from Blake2s_256 
 newtype Digest
@@ -68,15 +131,17 @@ class DigestibleHO (f :: k -> *) where
   digestHO :: forall ki . f ki -> Digest
 
 -- |Type synonym for fixpoints annotated with their digest.
-type DigFix ki codes = AnnFix ki codes (Const Digest)
+type DigFix ki cOdes = AnnFix ki codes (Const Digest)
 
 -- |Given a generic fixpoint, annotate every recursive position
 --  with its cryptographic digests.
 auth :: forall ki codes ix
       . (IsNat ix , DigestibleHO ki)
-     => Fix ki codes ix
+     => SharingControl ki codes
+     -> Fix ki codes ix
      -> DigFix ki codes ix
-auth = synthesize (authAlgebra getConst)
+auth sh = flip runReader (SharingBarrier [])
+        . synthesizeM' (decideSharing sh) (authAlgebra getConst)
 
 -- |And a more general form of the algebra used
 --  to compute a merkelized fixpoint.
@@ -85,13 +150,15 @@ authAlgebra :: forall ki sum ann iy
              . (DigestibleHO ki , IsNat iy)
             => (forall ix . ann ix -> Digest)
             -> Rep ki ann sum
-            -> Const Digest iy
+            -> SharingM (Const Digest iy)
 authAlgebra proj rep
   = let siy = snat2W64 $ getSNat (Proxy :: Proxy iy)
-     in case sop rep of
-       Tag c p -> Const . digestConcat
-                $ ([digest (constr2W64 c) , digest siy] ++)
-                $ elimNP (elimNA digestHO proj) p
+     in do
+       scope <- ask
+       case sop rep of
+         Tag c p -> return . Const . digestConcat
+                  $ ([hashSharingBarrier scope , digest (constr2W64 c) , digest siy] ++)
+                  $ elimNP (elimNA digestHO proj) p
   where
     -- We are mapping Constr and SNat's to
     -- Word64 because these are better handled by the 'memory'

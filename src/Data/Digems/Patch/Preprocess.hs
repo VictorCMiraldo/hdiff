@@ -14,7 +14,7 @@ import Data.Proxy
 import Data.Functor.Const
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.AG (AnnFix(..) , synthesize)
+import Generics.MRSOP.AG (AnnFix(..) , synthesize, getAnn)
 
 import Generics.MRSOP.Digems.Digest
 
@@ -45,9 +45,10 @@ heightAlgebra proj = Const . (1+) . elimRep (const 0) proj safeMax
 --  'synthesize' an annotated fixpoint quite easily:
 preprocess :: forall ki codes ix
             . (IsNat ix , DigestibleHO ki)
-           => Fix ki codes ix
+           => SharingControl ki codes
+           -> Fix ki codes ix
            -> PrepFix () ki codes ix
-preprocess = synthesize alg
+preprocess sharing = runSharingM . synthesizeM' (decideSharing sharing) alg
   where
     cast :: (IsNat iy) => Proxy iy -> Const ann iy -> Const ann iy
     cast _ = id
@@ -55,12 +56,13 @@ preprocess = synthesize alg
     alg :: forall iy sum
          . (IsNat iy)
         => Rep ki (Const (PrepData ())) sum
-        -> Const (PrepData ()) iy
+        -> SharingM (Const (PrepData ()) iy)
     alg rep
       = let f         = cast (Proxy :: Proxy iy)
             -- we need to help the type-checker infer that we
             -- we want the SAME index from both algebras. We do
             -- that by the means of our f function above.
-            Const dig = f $ authAlgebra   (treeDigest . getConst) rep
-            Const h   = f $ heightAlgebra (treeHeight . getConst) rep
-         in Const (PrepData dig h ())
+            digM    = f <$> authAlgebra   (treeDigest . getConst) rep
+            Const h = f $ heightAlgebra (treeHeight . getConst) rep
+         in digM >>= \(Const dig) -> return (Const (PrepData dig h ()))
+
