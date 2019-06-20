@@ -131,7 +131,7 @@ class DigestibleHO (f :: k -> *) where
   digestHO :: forall ki . f ki -> Digest
 
 -- |Type synonym for fixpoints annotated with their digest.
-type DigFix ki cOdes = AnnFix ki codes (Const Digest)
+type DigFix ki codes = AnnFix ki codes (Const Digest)
 
 -- |Given a generic fixpoint, annotate every recursive position
 --  with its cryptographic digests.

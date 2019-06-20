@@ -22,11 +22,14 @@ rbin l r = "bin" :>: [l , r]
 rblock :: RTree -> RTree -> RTree
 rblock l r = "ZZZ" :>: [l , r]
 
+rblock1 :: RTree -> RTree -> RTree
+rblock1 l r = "ZXX" :>: [l , r]
+
 rlf :: String -> RTree
 rlf = (:>: [])
 
 x1 = rbin (rblock (rlf "t") (rbin (rlf "u") (rlf "l"))) (rlf "k")
-y1 = rbin (rblock (rlf "t") (rbin (rlf "u") (rlf "l"))) (rlf "t")
+y1 = rbin (rlf "a") $ rbin (rblock1 (rlf "t") (rbin (rlf "u") (rlf "l"))) (rlf "t")
 
 digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
@@ -36,7 +39,7 @@ block :: (IsNat ix) => Fix W CodesRTree ix -> Maybe String
 block xo@(Fix x) = case getFixSNat xo of
   IdxRTree -> case sop x of
                 Tag CZ (NA_K (W_String str) :* _)
-                  -> if str == "ZZZ" then Just str else Nothing
+                  -> if take 1 str == "Z" then Just str else Nothing
   _        -> Nothing
 
 digemRTree' :: RTree -> RTree -> PatchRTree
