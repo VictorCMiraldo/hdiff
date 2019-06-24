@@ -43,28 +43,23 @@ type PrePatch ki codes phi = UTx ki codes (UTx ki codes phi :*: UTx ki codes phi
 --  answer to the query: "is this tree shared?", it also gives a
 --  unique identifier to that tree, allowing us to easily
 --  build our n-holed treefix.
-type IsSharedMap = T.Trie MetavarAndArity
-
-data MetavarAndArity = MAA { getMetavar :: Int , getArity :: Int }
-  deriving (Eq , Show)
-           
+type IsSharedMap = T.Trie Int
 
 -- |A tree smaller than the minimum height will never be shared.
 type MinHeight = Int
 
 -- |Given a merkelized fixpoint, builds a trie of hashes of
 --  every subtree, as long as they are taller than
---  minHeight. This trie keeps track of the arity, so
---  we can later annotate the trees that can be propper shares.
-buildArityTrie :: MinHeight -> PrepFix a ki codes ix -> T.Trie Int
-buildArityTrie minHeight df = go df T.empty
+--  minHeight.
+buildTrie :: MinHeight -> PrepFix ki codes ix -> T.Trie ()
+buildTrie minHeight df = go df T.empty
   where
-    go :: PrepFix a ki codes ix -> T.Trie Int -> T.Trie Int
+    go :: PrepFix ki codes ix -> T.Trie () -> T.Trie ()
     go (AnnFix (Const prep) rep) t
       = case sop rep of
           Tag _ p -> (if (treeHeight prep <= minHeight)
                       then id
-                      else T.insertWith 1 (+1) (toW64s $ treeDigest prep))
+                      else T.insert () (toW64s $ treeDigest prep))
                    . getConst
                    $ cataNP (elimNA (const (Const . getConst))
                                     (\af -> Const . go af . getConst))
@@ -76,41 +71,18 @@ buildArityTrie minHeight df = go df T.empty
 --  @forall t . t `elem` buildSharingTrie x y
 --        ==> t `subtree` x && t `subtree` y@
 --
---  Moreover, we keep track of both the metavariable supposed
---  to be associated with a tree and the tree's arity.
+--  Moreover, the Int that the Trie maps to indicates
+--  the metavariable we should choose for that tree.
 --
 buildSharingTrie :: MinHeight
-                 -> PrepFix a ki codes ix
-                 -> PrepFix a ki codes ix
+                 -> PrepFix ki codes ix
+                 -> PrepFix ki codes ix
                  -> (Int , IsSharedMap)
 buildSharingTrie minHeight x y
-  = T.mapAccum (\i ar -> (i+1 , MAA i ar) ) 0
-  $ T.zipWith (+) (buildArityTrie minHeight x)
-                  (buildArityTrie minHeight y)
+  = T.mapAccum (\i _ -> (i+1 , i)) 0
+  $ T.zipWith (\_ _ -> ()) (buildTrie minHeight x)
+                           (buildTrie minHeight y)
 
-tagProperShare :: forall a ki codes ix
-                . (IsNat ix)
-               => IsSharedMap
-               -> PrepFix a ki codes ix
-               -> PrepFix (Int , Bool) ki codes ix
-tagProperShare ism = synthesizeAnn alg
-  where
-    alg :: Const (PrepData a) iy
-        -> Rep ki (Const (PrepData (Int , Bool))) sum
-        -> Const (PrepData (Int , Bool)) iy
-    alg (Const oldPD) withArity =
-      let -- First we lookup our current arity
-          myar  = maybe 0 getArity $ T.lookup (toW64s $ treeDigest oldPD) ism
-          -- then we get the maximum of the recursive arities
-          -- note we add a '0' there to make sure this doesn't crash
-          maxar = maximum (0 : elimRep (const 0) (fst . treeParm . getConst) id withArity)
-          -- Finally, we are at a proper share IFF its subtrees
-          -- show up at most as much as I do. The 'at most' is pretty
-          -- important here for not all subtrees might have been put
-          -- on the sharing map.
-          isPS  = myar >= maxar
-       in Const $ oldPD { treeParm = (max maxar myar , isPS) }
-     
 -- |Given the sharing mapping between source and destination,
 --  we extract a tree prefix from a tree substituting every
 --  shared subtree by a hole with its respective identifier.
@@ -121,24 +93,18 @@ tagProperShare ism = synthesizeAnn alg
 extractUTx :: (IsNat ix)
            => MinHeight
            -> IsSharedMap
-           -> PrepFix (Int , Bool) ki codes ix
-           -> UTx ki codes (ForceI (Const Int)) ('I ix)
+           -> PrepFix ki codes ix
+           -> UTx ki codes (ForceI (Const Int :*: (Fix ki codes))) ('I ix)
 extractUTx minHeight tr (AnnFix (Const prep) rep)
   -- TODO: if the tree's height is smaller than minHeight we don't
   --       even have to look it up on the map
-  = let isPS  = snd $ treeParm prep
-        isBig = minHeight < treeHeight prep
-     in if not (isPS && isBig)
-        then extractUTx' rep
-        else case T.lookup (toW64s $ treeDigest prep) tr of
-               Nothing -> extractUTx' rep
-               Just i  -> UTxHole (ForceI $ Const $ getMetavar i)
+  = case T.lookup (toW64s $ treeDigest prep) tr of
+      Nothing | Tag c p <- sop rep
+              -> UTxPeel c $ mapNP extractAtom p
+      Just i  -> UTxHole (ForceI $ Const i :*: Fix (mapRep forgetAnn rep))
   where
-    extractUTx' rep = case sop rep of
-                        Tag c p -> UTxPeel c $ mapNP extractAtom p
-    
-    extractAtom :: NA ki (PrepFix (Int , Bool) ki codes) at
-                  -> UTx ki codes (ForceI (Const Int)) at
+    extractAtom :: NA ki (PrepFix ki codes) at
+                  -> UTx ki codes (ForceI (Const Int :*: Fix ki codes)) at
     extractAtom (NA_I i) = extractUTx minHeight tr i
     extractAtom (NA_K k) = UTxOpq k
 
@@ -216,10 +182,10 @@ close utx = case closure utx of
 --
 --    i)   Annotate each tree with the info we need (digest and height)
 --    ii)  Build the sharing trie
---    iii) Identify the proper shares
---    iv)  Substitute the proper shares by a metavar in
---         both the source and deletion context
---    v)   Extract the spine and compute the closure.
+--    iii) traverse both trees substituting each subtree
+--         that is an element of the sharing trie by a hole
+--    iv)  keep the holes that appear both in the insertion and
+--         deletion treefixes
 --
 diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight
@@ -230,8 +196,25 @@ diff mh x y
   = let dx      = preprocess x
         dy      = preprocess y
         (i, sh) = buildSharingTrie mh dx dy
-        dx'     = tagProperShare sh dx
-        dy'     = tagProperShare sh dy
-        del     = extractUTx mh sh dx'
-        ins     = extractUTx mh sh dy'
+        del'    = extractUTx mh sh dx
+        ins'    = extractUTx mh sh dy
+        holes   = utxGetHolesWith unForceI' del'
+                    `S.intersection`
+                  utxGetHolesWith unForceI' ins'
+        ins     = utxRefine (refineHole holes) UTxOpq ins'
+        del     = utxRefine (refineHole holes) UTxOpq del'
      in close (extractSpine metavarI2IK i del ins)
+  where
+    unForceI' :: ForceI (Const Int :*: x) at -> Int
+    unForceI' (ForceI (Const i :*: _)) = i
+
+    -- Given a set of holes that show up in both the insertion
+    -- and deletion treefixes, we traverse a treefix and keep only
+    -- those. All other places where there could be a hole are
+    -- translated to a 'SolidI'
+    refineHole :: S.Set Int
+               -> ForceI (Const Int :*: Fix ki codes) ix
+               -> UTx ki codes MetaVarI ix
+    refineHole s (ForceI (Const i :*: f))
+      | i `S.member` s = UTxHole (ForceI $ Const i)
+      | otherwise      = utxStiff (NA_I f)
