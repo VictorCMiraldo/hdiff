@@ -14,6 +14,7 @@ library
                  , Data.Digems.Change.Apply
                  , Data.Digems.Change.Classify
                  , Data.Digems.Change.Thinning
+                 , Data.Digems.Change.TreeEditDistance
                  , Data.Digems.Example
                  , Data.Digems.MetaVar
                  , Data.Digems.Patch
@@ -33,6 +34,7 @@ library
   -- other-extensions:    
   build-depends:       base >=4.10 && <5
                ,       generics-mrsop >= 2.0.0
+               ,       generics-mrsop-gdiff
                ,       bytestring
                ,       cryptonite
                ,       memory

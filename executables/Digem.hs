@@ -49,6 +49,7 @@ import qualified Data.Digems.Patch.Diff  as D
 import qualified Data.Digems.Patch.Merge as D
 import           Data.Digems.Patch.Show
 import qualified Data.Digems.Change      as D
+import qualified Data.Digems.Change.TreeEditDistance as TED
 
 import           Languages.Interface
 import qualified Languages.While   as While
@@ -216,8 +217,8 @@ mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     let patch = D.diff (minHeight opts) fa fb
     displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
-    when (showLCS opts)   $ void (putStr "lcs: "
-                               >> putStrLn " not-yet-implemented. Run gdiff instead")
+    when (showLCS opts)   $ void (putStr "tree-edit-distance: "
+                               >> putStrLn (show $ TED.ted (D.distrCChange patch) (NA_I fa)))
     return ExitSuccess
 
 
