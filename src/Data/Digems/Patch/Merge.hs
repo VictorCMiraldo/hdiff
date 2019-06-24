@@ -32,13 +32,10 @@ import Generics.MRSOP.Digems.Digest
 import Data.Exists
 import qualified Data.WordTrie as T
 import Data.Digems.Patch
-import Data.Digems.Patch.Diff
 import Data.Digems.Change
 import Data.Digems.Change.Apply
+import Data.Digems.Change.Thinning
 import Data.Digems.MetaVar
-
-import Debug.Trace
-
 
 -- * Merging Treefixes
 --
@@ -73,31 +70,6 @@ getConflicts = snd . runWriter . utxMapM go
     go x@(InL (Conflict str _ _)) = tell [str] >> return x
     go x                          = return x
 
--- |We might need to issue new variables, hence we need a 'FreshM'
--- monad do issue them correctly;
-type FreshM = State Int
-
--- |runs a 'FreshM' computation over the names of a patch
-withFreshNamesFrom :: FreshM a -> Patch ki codes ix -> a
-withFreshNamesFrom comp p = evalState comp maxVar
-  where
-    maxVar = let vs = S.unions $ utxGetHolesWith' (S.map (exElim metavarGet) . cCtxVars) p
-              in maybe 0 id $ S.lookupMax vs 
-
-freshMetaVar :: FreshM Int
-freshMetaVar = modify (+1) >> get
-
-freshMetaVarFor :: MetaVarIK ki at -> FreshM (MetaVarIK ki at)
-freshMetaVarFor (NA_K (Annotate _ x)) = NA_K . flip Annotate x <$> freshMetaVar
-freshMetaVarFor (NA_I _)              = NA_I . Const           <$> freshMetaVar
-
-withUnifiedDelCtx :: (Applicable ki codes (MetaVarIK ki))
-                  => RawPatch ki codes at -> RawPatch ki codes at
-                  -> ( UTx ki codes (MetaVarIK ki) at
-                     , UTx ki codes (MetaVarIK ki) at
-                     , UTx ki codes (MetaVarIK ki) at)
-withUnifiedDelCtx p q = undefined
-
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
@@ -107,8 +79,9 @@ withUnifiedDelCtx p q = undefined
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = utxJoin $ (utxMapM (uncurry' reconcile) $ utxLCP p q)
-                   `withFreshNamesFrom` p
+p // q = utxJoin $ utxMap (uncurry' reconcile)
+                 $ utxLCP p
+                 $ q `withFreshNamesFrom` p
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.
@@ -121,70 +94,29 @@ reconcile :: forall ki codes fam at
              ) 
           => RawPatch ki codes at
           -> RawPatch ki codes at
-          -> FreshM (UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at)
+          -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 reconcile p q
   -- If both patches are alpha-equivalent, we return a copy.
-  | patchEq p q  = return $ UTxHole $ InR $ makeCopyFrom (distrCChange p)
-{-
-  -- TODO: check that these are guaranteed by the algo below
-  -- When one of the patches is a copy, this is easy. We borrow
-  -- from residual theory and return the first one.
-  | patchIsCpy p = trace "1" $ utxMap InR p
-  | patchIsCpy q = trace "2" $ utxMap InR p
--}
--- Otherwise, this is slightly more involved, but it is intuitively simple.
+  | patchEq p q = UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
     -- First we translate both patches to a 'spined change' representation.
     let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
         sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
-     in do
-      res0 <- process sp sq
-      case res0 of
-          CantReconcile err -> return $ UTxHole $ InL $ Conflict err p q
-          ReturnNominator   -> return $ utxMap InR p
-          InstDenominator v -> return $ UTxHole $
+     in case process sp sq of
+          CantReconcile err -> UTxHole $ InL $ Conflict err p q
+          ReturnNominator   -> utxMap InR p
+          InstDenominator v -> UTxHole $
             case runExcept $ transport (scIns sq) v of
               Left err -> InL $ Conflict (show err) p q
-              Right r  -> case utx2change r of
+              Right r  -> case utx22change r of
                             Nothing  -> InL $ Conflict "chg" p q
                             Just res -> InR res 
-
-type UTx2 ki codes
-  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
-type UTxUTx2 ki codes
-  = UTx ki codes (UTx2 ki codes)
-
-utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
-utx2distr x = (scDel x :*: scIns x)
-
-instance (TestEquality f) => TestEquality (f :*: g) where
-  testEquality x y = testEquality (fst' x) (fst' y)
-
-instance HasIKProjInj ki (UTx2 ki codes) where
-  konInj  ki = (konInj ki :*: konInj ki)
-  varProj p (Pair f _) = varProj p f
-
-utx2change :: UTxUTx2 ki codes at -> Maybe (CChange ki codes at)
-utx2change x = cmatch' (scDel x) (scIns x)
 
 data ProcessOutcome ki codes
   = ReturnNominator
   | InstDenominator (Subst ki codes (UTx2 ki codes))
   | CantReconcile String
-
-fst' :: (f :*: g) x -> f x
-fst' (Pair a _) = a
-
-snd' :: (f :*: g) x -> g x
-snd' (Pair _ b) = b
-
-scDel :: UTxUTx2 ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scDel = utxJoin . utxMap fst' 
-
-scIns :: UTxUTx2 ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scIns = utxJoin . utxMap snd'
 
 -- |Checks whether a variable is a rawCpy, note that we need
 --  a map that checks occurences of this variable.
@@ -226,18 +158,18 @@ instance ShowHO x => Show (Exists x) where
 --
 process :: (Applicable ki codes (UTx2 ki codes))
         => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-        -> FreshM (ProcessOutcome ki codes)
+        -> ProcessOutcome ki codes
 process sp sq =
   case and <$> mapM (exElim $ uncurry' step1) phiD of
-    Nothing    -> return (CantReconcile "p1n")
+    Nothing    -> CantReconcile "p1n"
     Just True  -> if any (exElim $ uncurry' insins) phiID
-                  then return (CantReconcile "p1ii")
-                  else return ReturnNominator
-    Just False -> do
-      partial <- runStateT (runExceptT $ mapM_ (exElim $ uncurry' step2) phiID) M.empty
-      case partial of
-        (Left err  , _) -> return (CantReconcile $ "p2n: " ++ err)
-        (Right ()  , s) -> return $ InstDenominator s
+                  then CantReconcile "p1ii"
+                  else ReturnNominator
+    Just False -> 
+      let partial = runState (runExceptT $ mapM_ (exElim $ uncurry' step2) phiID) M.empty
+       in case partial of
+            (Left err  , _) -> CantReconcile $ "p2n: " ++ err
+            (Right ()  , s) -> InstDenominator s
   where
     (delsp :*: _) = utx2distr sp
     phiD  = utxGetHolesWith' Exists $ utxLCP delsp sq
@@ -277,54 +209,19 @@ process sp sq =
     -- altogether from step 1!!!
     step2 :: (Applicable ki codes (UTx2 ki codes))
           => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-          -> ExceptT String (StateT (Subst ki codes (UTx2 ki codes)) FreshM) ()
+          -> ExceptT String (State (Subst ki codes (UTx2 ki codes))) ()
     step2 pp qq = do
       s <- lift get
       let del = scDel qq
-      pp' <- lift $ lift (refinedFor varmap pp del)
-      case runExcept (pmatch' s del pp') of
-        Left  e  -> throwError (show e)
-        Right s' -> put s' >> return ()
+      case thinUTx2 (utx2distr pp) del of
+        Left e    -> throwError ("th: " ++ show e)
+        Right pp0 -> do
+          let pp' = uncurry' utxLCP pp0
+          case runExcept (pmatch' s del pp') of
+            Left  e  -> throwError (show e)
+            Right s' -> put s' >> return ()
 
     insins :: UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
     insins (UTxHole pp) (UTxHole qq) = isLocalIns pp && isLocalIns qq
     insins _ _ = False
 
--- |Given a change in its spined-representation and a domain,
--- we attempt to refine the change to the domain in question.
--- The idea is that if the change copies information, but the domain
--- restricts the shape, we can also specialize the change.
---
--- > (Hole (Hole 0 :*: Hole 0)) `refinedFor` ((:) (Hole 1) [])
--- >   == ((:) (Hole 2 :*: Hole 2) [])
---
--- In the above example, the change was a copy, but the domain
--- required a `cons' node. No problem, if we copied anything, we can
--- copy cons nodes in particular.
---
-refinedFor :: (ShowHO ki , EqHO ki)
-           => M.Map Int Int
-           -> UTxUTx2 ki codes at
-           -> UTx ki codes (MetaVarIK ki) at
-           -> FreshM (UTxUTx2 ki codes at)
-refinedFor varmap s = fmap utxJoin . utxMapM (uncurry' go) . utxLCP s
-  where
-    go :: (ShowHO ki)
-       => UTxUTx2 ki codes at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> FreshM (UTxUTx2 ki codes at)
-    go (UTxHole chgP) codQ
-      -- breaks three tests! When is refinment ok when copying?
-      -- Feels like refinement should be a separate monster from merging
-      -- altogether
-
-      -- > | rawCpy varmap chgP = do v <- freshMetaVar
-      -- >                           return $ utxMap (delta . UTxHole . metavarAdd v) codQ
-      | simpleCopy chgP = utxMapM (\i -> delta . UTxHole <$> freshMetaVarFor i) codQ
-      | otherwise       = return $ UTxHole chgP
-    go sP      codQ     = return sP
-
-    delta x = (x :*: x)
-
-    rawCpyVar (UTxHole v :*: _) = metavarGet v
-         
