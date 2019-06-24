@@ -42,12 +42,13 @@ import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Treefix hiding (parens)
 
+import qualified Generics.MRSOP.GDiff    as GDiff
+
 import qualified Data.Digems.Patch       as D
 import qualified Data.Digems.Patch.Diff  as D
 import qualified Data.Digems.Patch.Merge as D
 import           Data.Digems.Patch.Show
 import qualified Data.Digems.Change      as D
-import qualified Data.Digems.Change.LCS  as D
 
 import           Languages.Interface
 import qualified Languages.While   as While
@@ -57,7 +58,7 @@ import qualified Languages.Lua     as Lua
 import qualified Languages.Clojure as Clj
 
 
--- |The parsers that we support
+   -- |The parsers that we support
 mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
@@ -76,6 +77,10 @@ mainParsers
 
 data Options
   = AST   { optFileA :: FilePath
+          }
+  | GDiff { optFileA     :: FilePath
+          , optFileB     :: FilePath
+          , showES       :: Bool
           }
   | Diff  { optFileA     :: FilePath
           , optFileB     :: FilePath
@@ -117,6 +122,15 @@ ast = AST
   { optFileA = def &= argPos 5 &= typ "FILE" }
   &= help ("Parses a program. We support *.while, *.lua and *.clj files" )
 
+gdiff = GDiff
+  { optFileA = def &= argPos 6 &= typ "OLDFILE"
+  , optFileB = def &= argPos 7 &= typ "NEWFILE"
+  , showES = False
+      &= typ "BOOL"
+      &= help "Shows the computed edit-script"
+      &= explicit &= name "show-es"
+  }
+
 diff = Diff
   { optFileA = def &= argPos 3 &= typ "OLDFILE"
   , optFileB = def &= argPos 4 &= typ "NEWFILE"
@@ -136,18 +150,19 @@ diff = Diff
   &= help "Computes the diff between two programs. The resulting diff is displayed"
 
 options :: Mode (CmdArgs Options)
-options = cmdArgsMode $ modes [merge , ast , diff &= auto]
+options = cmdArgsMode $ modes [merge , ast , diff &= auto , gdiff]
   &= summary ("v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
   &= verbosity
   &= program "digem"
 
 data OptionMode
-  = OptAST | OptDiff | OptMerge
+  = OptAST | OptDiff | OptMerge | OptGDiff
   deriving (Data, Typeable, Eq , Show)
 
 optionMode :: Options -> OptionMode
-optionMode (AST _) = OptAST
-optionMode (Diff _ _ _ _ _) = OptDiff
+optionMode (AST _)           = OptAST
+optionMode (Diff _ _ _ _ _)  = OptDiff
+optionMode (GDiff _ _ _)     = OptGDiff
 optionMode (Merge _ _ _ _ _) = OptMerge
 
 main :: IO ()
@@ -155,6 +170,7 @@ main = cmdArgsRun options >>= \opts
     -> case optionMode opts of
          OptAST   -> mainAST opts
          OptDiff  -> mainDiff  opts
+         OptGDiff -> mainGDiff opts
          OptMerge -> mainMerge opts
     >>= exitWith
 
@@ -186,6 +202,14 @@ tryApply patch fa fb
                >> exitFailure
       Right b' -> return $ maybe (Just b') (const Nothing) fb
 
+mainGDiff :: Options -> IO ExitCode
+mainGDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
+  $ \fa fb -> do
+    let es = GDiff.diff' fa fb
+    putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
+    when (showES opts) (putStrLn $ show es)
+    return ExitSuccess
+
 mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
@@ -193,8 +217,9 @@ mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
     when (showLCS opts)   $ void (putStr "lcs: "
-                               >> putStrLn (show $ D.lcs (D.distrCChange patch)))
+                               >> putStrLn " not-yet-implemented. Run gdiff instead")
     return ExitSuccess
+
 
 mainMerge :: Options -> IO ExitCode
 mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)

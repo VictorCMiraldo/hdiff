@@ -9,7 +9,7 @@ packages:
     extra-dep: true
   - location:
       git: git@github.com:arianvp/generics-mrsop-gdiff.git
-      commit: 96ec389a572e51d6750ce36a353e815b603cbf63
+      commit: e8d2ef8db225c60693084e1b3e83fffb2514ed12
     extra-dep: true
 ##  - location:
 ##      git: git@github.com:VictorCMiraldo/generics-mrsop.git

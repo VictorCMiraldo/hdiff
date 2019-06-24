@@ -13,7 +13,6 @@ library
   exposed-modules: Data.Digems.Change
                  , Data.Digems.Change.Apply
                  , Data.Digems.Change.Classify
-                 , Data.Digems.Change.LCS
                  , Data.Digems.Change.Thinning
                  , Data.Digems.Example
                  , Data.Digems.MetaVar
@@ -62,6 +61,7 @@ executable digem
                ,       Languages.Lines
   build-depends:       base >=4.10 && <5
                ,       generics-mrsop
+               ,       generics-mrsop-gdiff
                ,       hs-digems
                ,       parsec
                ,       cmdargs
