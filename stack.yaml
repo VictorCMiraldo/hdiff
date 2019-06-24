@@ -7,6 +7,10 @@ packages:
       git: git@github.com:VictorCMiraldo/hs-elisp.git
       commit: f3da1702fe7338e48a0a114ff49d1601d6ebea27
     extra-dep: true
+  - location:
+      git: git@github.com:arianvp/generics-mrsop-gdiff.git
+      commit: 96ec389a572e51d6750ce36a353e815b603cbf63
+    extra-dep: true
 ##  - location:
 ##      git: git@github.com:VictorCMiraldo/generics-mrsop.git
 ##      commit: 9cee726fef18ca7fe380409244bce0cd9ef8ade0
