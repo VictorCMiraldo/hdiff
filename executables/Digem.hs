@@ -88,6 +88,7 @@ data Options
           , minHeight    :: Int
           , testApply    :: Bool
           , showLCS      :: Bool
+          , showDist     :: Bool
           }
   | Merge { optFileA     :: FilePath
           , optFileO     :: FilePath
@@ -145,8 +146,12 @@ diff = Diff
       &= explicit &= name "a" &= name "apply"
   , showLCS = False
       &= typ "BOOL"
-      &= help "Shows the length of the longest common subsequence"
-      &= explicit &= name "lcs"
+      &= help "Shows the edit script got from translating the patch. Implies --ted"
+      &= explicit &= name "show-es"
+  , showDist = False
+      &= typ "BOOL"
+      &= help "Displays the tree edit distance using Ins,Del and Cpy only"
+      &= explicit &= name "ted"
   } 
   &= help "Computes the diff between two programs. The resulting diff is displayed"
 
@@ -161,10 +166,10 @@ data OptionMode
   deriving (Data, Typeable, Eq , Show)
 
 optionMode :: Options -> OptionMode
-optionMode (AST _)           = OptAST
-optionMode (Diff _ _ _ _ _)  = OptDiff
-optionMode (GDiff _ _ _)     = OptGDiff
-optionMode (Merge _ _ _ _ _) = OptMerge
+optionMode (AST _)              = OptAST
+optionMode (Diff _ _ _ _ _ _)   = OptDiff
+optionMode (GDiff _ _ _)        = OptGDiff
+optionMode (Merge _ _ _ _ _)    = OptMerge
 
 main :: IO ()
 main = cmdArgsRun options >>= \opts
@@ -215,10 +220,14 @@ mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
     let patch = D.diff (minHeight opts) fa fb
-    displayRawPatch stdout patch
+    v <- getVerbosity
+    unless (v == Quiet)   $ displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
-    when (showLCS opts)   $ void (putStr "tree-edit-distance: "
-                               >> putStrLn (show $ TED.ted (D.distrCChange patch) (NA_I fa)))
+    when (showLCS opts || showDist opts) $ do
+      case TED.toES (D.distrCChange patch) (NA_I fa) of
+        Left err -> putStrLn ("!! " ++ err)
+        Right es -> putStrLn ("tree-edit-distance: " ++ (show $ GDiff.cost es))
+                 >> when (showLCS opts) (putStrLn $ show es)
     return ExitSuccess
 
 

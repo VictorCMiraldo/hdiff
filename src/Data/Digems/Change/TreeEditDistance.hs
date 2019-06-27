@@ -8,9 +8,12 @@ module Data.Digems.Change.TreeEditDistance where
 import           Data.Functor.Const
 import qualified Data.Map as M
 import           Data.STRef
+import           Data.Proxy
 import           Data.Type.Equality
+import           Control.Arrow (second)
 import           Control.Monad.ST
 import           Control.Monad.Except
+import           Control.Monad.Reader
 
 import           Generics.MRSOP.Base
 import qualified Generics.MRSOP.GDiff as GD
@@ -39,6 +42,29 @@ cost LNil       = 0
 cost (LC c _ _) = c
 cost (LI c _ _) = c
 cost (LD c _ _) = c
+
+-- Will make sure to copy just the last bit on a row of things.
+-- For example, 
+--
+--   > λ> lcs [0,1,2] [0,1,1,1,2]
+--   > LC 0 (LC 1 (LI 1 (LI 1 (LC 2 LNil))))
+--
+-- Note how the 1 is copied to the first position, then
+-- the other ones are inserted.
+--
+--   > λ> pushCopiesIns $ lcsW (const 1) [0,1,2] [0,1,1,1,2]
+--   > LC 0 (LI 1 (LI 1 (LC 1 (LC 2 LNil))))
+--
+-- Here instead, we insert two 1's then copy the last one.
+-- This really helps with synchronization.
+pushCopiesIns :: (Eq a) => ListES a -> ListES a
+pushCopiesIns LNil = LNil
+pushCopiesIns (LC _ c (LI _ c' es))
+  | c == c'   = LI 0 c' (pushCopiesIns (LC 0 c es))
+  | otherwise = LC 0 c  (pushCopiesIns (LI 0 c' es))
+pushCopiesIns (LC _ c es) = LC 0 c (pushCopiesIns es)
+pushCopiesIns (LI _ c es) = LI 0 c (pushCopiesIns es)
+pushCopiesIns (LD _ c es) = LD 0 c (pushCopiesIns es)
 
 meet :: ListES a -> ListES a -> ListES a
 meet a b
@@ -86,10 +112,10 @@ utxSize (UTxHole x)   = 0
 utxSize (UTxOpq  k)   = 1
 utxSize (UTxPeel c p) = 1 + sum (elimNP utxSize p)
 
-ted :: (EqHO ki , ShowHO ki , TestEquality ki)
+toES :: (EqHO ki , ShowHO ki , TestEquality ki)
      => CChange ki codes at -> NA ki (Fix ki codes) at
-     -> Either String Int
-ted (CMatch _ del ins) elm =
+     -> Either String (GD.ES ki codes '[ at ] '[ at ])
+toES (CMatch _ del ins) elm =
   -- Since we can't have duplications or swaps in the edit-script
   -- world, we must decide which variables will be copied.
   -- To do that, we will run a least-common-subsequence weighting
@@ -100,24 +126,220 @@ ted (CMatch _ del ins) elm =
         Left err -> Left ("Element not in domain. " ++ show err)
         Right s  ->
           let sizes_s = M.map (exElim utxSize) s
-              ves     = lcsW (\v -> sizes_s M.! v) vd vi
-           in trace (show ves ++ "\n") $ return $ computeTed s ves
-                     + sum (utxGetHolesWith' getConst $ utxMap (Const . uncurry' di)
-                                                      $ utxLCP del ins)
-  where
-    di x y = utxSize x + utxSize y
+              ves     = pushCopiesIns $ lcsW (\v -> sizes_s M.! v) vd vi
+           in runExcept (runReaderT (compress <$> delPhase (del :* NP0) (ins :* NP0)) (s , ves))
 
-metavarSize :: (EqHO ki , TestEquality ki , ShowHO ki)
-            => Subst ki codes (MetaVarIK ki) -> Int -> Int
-metavarSize s v = case M.lookup v s of
-                    Nothing   -> error (show v ++ " [!] not found ")
-                    (Just vi) -> exElim utxSize vi
+type ToES ki codes = ReaderT (Subst ki codes (MetaVarIK ki) , ListES Int)
+                             (Except String)
 
-computeTed :: (EqHO ki , TestEquality ki , ShowHO ki)
-           => Subst ki codes (MetaVarIK ki)
-           -> ListES Int
-           -> Int
-computeTed sigma LNil = 0 
-computeTed sigma (LC _ _ ves) = computeTed sigma ves
-computeTed sigma (LD _ x ves) = metavarSize sigma x + computeTed sigma ves
-computeTed sigma (LI _ x ves) = metavarSize sigma x + computeTed sigma ves
+askSubst :: ToES ki codes (Subst ki codes (MetaVarIK ki))
+askSubst  = asks fst
+
+askListES :: ToES ki codes (ListES Int)
+askListES = asks snd
+
+gcpy :: GD.Cof ki codes at l
+     -> GD.ES ki codes (l :++: ds) (l :++: is)
+     -> GD.ES ki codes (at : ds)   (at : is)
+gcpy c e = GD.Cpy (GD.cost e) c e
+
+gins :: GD.Cof ki codes at l
+     -> GD.ES ki codes ds (l :++: is)
+     -> GD.ES ki codes ds (at : is)
+gins c e = GD.Ins (1 + GD.cost e) c e
+
+gdel :: GD.Cof ki codes at l
+     -> GD.ES ki codes (l :++: ds) is
+     -> GD.ES ki codes (at : ds) is
+gdel c e = GD.Del (1 + GD.cost e) c e
+
+compress :: (EqHO ki , TestEquality ki) => GD.ES ki codes is ds -> GD.ES ki codes is ds
+compress GD.ES0 = GD.ES0
+compress (GD.Del c v (GD.Ins c' v' e)) =
+  case GD.heqCof v v' of
+    Just (Refl , Refl) -> gcpy v (compress e)
+    Nothing            -> gdel v (compress $ GD.Ins c' v' e)
+compress (GD.Del c v e)
+  = gdel v $ compress e
+compress (GD.Ins c v (GD.Del c' v' e)) =
+  case GD.heqCof v v' of
+    Just (Refl , Refl) -> gcpy v (compress e)
+    Nothing            -> gins v (compress $ GD.Del c' v' e)
+compress (GD.Ins c v e)
+  = gins v $ compress e
+compress (GD.Cpy c v e)
+  = gcpy v (compress e)
+
+cpyOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
+        => NP (UTx ki codes (MetaVarIK ki)) xs
+        -> ToES ki codes (GD.ES ki codes xs xs)
+cpyOnly NP0 = return GD.ES0
+cpyOnly (UTxHole var :* xs) = fetch var >>= cpyOnly . (:* xs) 
+cpyOnly (UTxOpq k    :* xs) = gcpy (GD.ConstrK k)               <$> cpyOnly xs
+cpyOnly (UTxPeel c d :* xs) = gcpy (GD.ConstrI c (listPrfNP d)) <$> cpyOnly (appendNP d xs)
+
+delOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
+        => NP (UTx ki codes (MetaVarIK ki)) ds
+        -> ToES ki codes (GD.ES ki codes ds '[])
+delOnly NP0 = return GD.ES0
+delOnly (UTxHole var :* xs) = fetch var >>= delOnly . (:* xs) 
+delOnly (UTxOpq k    :* xs) = gdel (GD.ConstrK k)               <$> delOnly xs
+delOnly (UTxPeel c d :* xs) = gdel (GD.ConstrI c (listPrfNP d)) <$> delOnly (appendNP d xs)
+
+insOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
+        => NP (UTx ki codes (MetaVarIK ki)) is
+        -> ToES ki codes (GD.ES ki codes '[] is)
+insOnly NP0 = return GD.ES0
+insOnly (UTxHole var :* xs) = fetch var >>= insOnly . (:* xs) 
+insOnly (UTxOpq k    :* xs) = gins (GD.ConstrK k)               <$> insOnly xs
+insOnly (UTxPeel c d :* xs) = gins (GD.ConstrI c (listPrfNP d)) <$> insOnly (appendNP d xs)
+
+listAssoc :: ListPrf a -> Proxy b -> Proxy c
+          -> ListPrf ((a :++: b) :++: c) :~: ListPrf (a :++: (b :++: c))
+listAssoc Nil       pb pc = Refl
+listAssoc (Cons pa) pb pc = case listAssoc pa pb pc of
+                              Refl -> Refl
+
+listDrop :: ListPrf i -> ListPrf (i :++: t) -> ListPrf t
+listDrop Nil a             = a
+listDrop (Cons x) (Cons a) = listDrop x a
+
+esDelListPrf :: GD.ES ki codes ds is -> ListPrf ds
+esDelListPrf GD.ES0 = Nil
+esDelListPrf (GD.Cpy _ v e) = Cons $ listDrop (cofListPrf v) (esDelListPrf e)
+esDelListPrf (GD.Del _ v e) = Cons $ listDrop (cofListPrf v) (esDelListPrf e)
+esDelListPrf (GD.Ins _ _ e) = esDelListPrf e
+
+esInsListPrf :: GD.ES ki codes ds is -> ListPrf is
+esInsListPrf GD.ES0 = Nil
+esInsListPrf (GD.Cpy _ v e) = Cons $ listDrop (cofListPrf v) (esInsListPrf e)
+esInsListPrf (GD.Ins _ v e) = Cons $ listDrop (cofListPrf v) (esInsListPrf e)
+esInsListPrf (GD.Del _ _ e) = esInsListPrf e
+
+cofListPrf :: GD.Cof ki codes at l -> ListPrf l
+cofListPrf (GD.ConstrK k)   = Nil
+cofListPrf (GD.ConstrI _ p) = p
+
+esDelListProxy :: GD.ES ki codes ds is -> Proxy ds
+esDelListProxy _ = Proxy
+
+esDelListProxy' :: GD.ES ki codes (d : ds) is -> Proxy ds
+esDelListProxy' _ = Proxy
+
+esInsListProxy :: GD.ES ki codes ds is -> Proxy is
+esInsListProxy _ = Proxy
+
+esInsListProxy' :: GD.ES ki codes ds (i : is) -> Proxy is
+esInsListProxy' _ = Proxy
+
+esDelCong :: ListPrf ds :~: ListPrf ds' -> GD.ES ki codes ds is -> GD.ES ki codes ds' is
+esDelCong Refl = id
+
+esInsCong :: ListPrf is :~: ListPrf is' -> GD.ES ki codes ds is -> GD.ES ki codes ds is'
+esInsCong Refl = id
+
+appendES :: GD.ES ki codes ds  is
+         -> GD.ES ki codes ds' is'
+         -> GD.ES ki codes (ds :++: ds') (is :++: is')
+appendES GD.ES0 b = b
+appendES x@(GD.Del c v a) b = 
+  case appendES a b of
+    res -> case listAssoc (cofListPrf v) (esDelListProxy' x) (esDelListProxy b) of
+      prf -> gdel v $ esDelCong prf res
+appendES x@(GD.Ins c v a) b = 
+  case appendES a b of
+    res -> case listAssoc (cofListPrf v) (esInsListProxy' x) (esInsListProxy b) of
+      prf -> gins v $ esInsCong prf res
+appendES x@(GD.Cpy c v a) b = 
+  case appendES a b of
+    res -> case listAssoc (cofListPrf v) (esInsListProxy' x) (esInsListProxy b) of
+      prf -> case listAssoc (cofListPrf v) (esDelListProxy' x) (esDelListProxy b) of
+        prf' -> gcpy v $ esDelCong prf' $ esInsCong prf res
+
+fetch :: (EqHO ki , ShowHO ki , TestEquality ki)
+      => MetaVarIK ki at
+      -> ToES ki codes (UTx ki codes (MetaVarIK ki) at)
+fetch var = do
+  sigma <- askSubst
+  case runExcept (lookupVar var sigma) of
+    Left  err      -> throwError $ "fetch: " ++ show err
+    Right Nothing  -> throwError $ "fetch: var not found"
+    Right (Just t) -> return t
+
+delSync :: (EqHO ki , ShowHO ki , TestEquality ki)
+        => MetaVarIK ki at
+        -> NP (UTx ki codes (MetaVarIK ki)) ds
+        -> NP (UTx ki codes (MetaVarIK ki)) is
+        -> ToES ki codes (GD.ES ki codes (at ': ds) is)
+delSync var ds is = do
+  ls <- askListES
+  case ls of
+    -- This variable is meant to be 'deleted'; so we put the right
+    -- number of dels there.
+    LD _ var' es' -> if var' /= metavarGet var
+                     then throwError "delSync: var mismatch"
+                     else do
+                       t   <- fetch var
+                       es0 <- delOnly (t :* NP0)
+                       es1 <- local (second (const es'))
+                            $ delPhase ds is
+                       return (appendES es0 es1)
+    -- Otherwise, we delegate the sharing to the insertion phase
+    -- This is by convention.
+    _             -> insPhase (UTxHole var :* ds) is
+  
+insSync :: (EqHO ki , ShowHO ki , TestEquality ki)
+        => MetaVarIK ki at
+        -> NP (UTx ki codes (MetaVarIK ki)) ds
+        -> NP (UTx ki codes (MetaVarIK ki)) is
+        -> ToES ki codes (GD.ES ki codes ds (at ': is))
+insSync var ds is = do
+  ls <- askListES
+  case ls of
+    -- This variable is meant to be 'deleted'; so we put the right
+    -- number of ins there.
+    LI _ var' es' -> if var' /= metavarGet var
+                     then throwError "insSync: var mismatch"
+                     else do
+                       t   <- fetch var
+                       es0 <- insOnly (t :* NP0)
+                       es1 <- local (second (const es'))
+                            $ insPhase ds is
+                       return (appendES es0 es1)
+    -- Otherwise, if this is a deletion, we sent iy back to the delete phase
+    LD _ var' es' -> delPhase ds (UTxHole var :* is)
+
+    -- Last case, it's an actual share; we gotta remove the var from the deletion
+    -- list and proceed.
+    LC _ var' es' -> case ds of
+      (UTxHole var'' :* ds') ->
+        if var' /= metavarGet var
+        then throwError "insSync: var mismatch"
+        else do
+          t   <- fetch var
+          es0 <- cpyOnly (t :* NP0)
+          es1 <- local (second (const es'))
+               $ delPhase ds' is
+          case testEquality var var'' of
+            Just Refl -> return $ appendES es0 es1
+            Nothing   -> throwError "insSync: types mismatch"
+
+delPhase , insPhase
+  :: (EqHO ki , ShowHO ki , TestEquality ki)
+  => NP (UTx ki codes (MetaVarIK ki)) ds
+  -> NP (UTx ki codes (MetaVarIK ki)) is
+  -> ToES ki codes (GD.ES ki codes ds is)
+delPhase NP0 is  = insOnly is
+delPhase (d :* ds) is =
+  case d of
+    UTxHole var -> delSync var ds is
+    UTxOpq k    -> gdel (GD.ConstrK k)               <$> insPhase ds is
+    UTxPeel c p -> gdel (GD.ConstrI c (listPrfNP p)) <$> insPhase (appendNP p ds) is
+
+insPhase ds NP0 = delOnly ds
+insPhase ds (i :* is) = 
+  case i of
+    UTxHole var -> insSync var ds is
+    UTxOpq k    -> gins (GD.ConstrK k)               <$> delPhase ds is
+    UTxPeel c p -> gins (GD.ConstrI c (listPrfNP p)) <$> delPhase ds (appendNP p is) 
+
