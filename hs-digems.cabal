@@ -23,6 +23,7 @@ library
                  , Data.Digems.Patch.Preprocess
                  , Data.Digems.Patch.Show
                  , Data.Digems.Patch.Thinning
+                 , Data.Digems.Patch.TreeEditDistance
                  , Data.Exists
                  , Data.WordTrie
                  , Generics.MRSOP.Digems.Digest

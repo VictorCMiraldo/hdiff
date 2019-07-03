@@ -24,7 +24,7 @@ import           Data.Digems.MetaVar
 import           Data.Digems.Change
 import           Data.Digems.Change.Apply
 
-import Debug.Trace
+-- import Debug.Trace
 
 --------------------------------------------
 -- * Regular Longest Common Subsequence * --
@@ -312,6 +312,7 @@ insSync var ds is = do
     -- Last case, it's an actual share; we gotta remove the var from the deletion
     -- list and proceed.
     LC _ var' es' -> case ds of
+      -- If the copy is already there, we take it
       (UTxHole var'' :* ds') ->
         if var' /= metavarGet var
         then throwError "insSync: var mismatch"
@@ -323,6 +324,9 @@ insSync var ds is = do
           case testEquality var var'' of
             Just Refl -> return $ appendES es0 es1
             Nothing   -> throwError "insSync: types mismatch"
+      -- Otherwise, we must enter the deletion phase until
+      -- we find it.
+      _ -> delPhase ds (UTxHole var :* is)
 
 delPhase , insPhase
   :: (EqHO ki , ShowHO ki , TestEquality ki)

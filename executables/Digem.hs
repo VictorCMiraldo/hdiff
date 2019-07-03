@@ -28,6 +28,7 @@ import Development.GitRev
 import System.Console.CmdArgs.Implicit
 
 import           Data.Proxy
+import           Data.Maybe (isJust)
 import           Data.Functor.Const
 import           Data.Functor.Sum
 import           Data.Type.Equality
@@ -47,9 +48,10 @@ import qualified Generics.MRSOP.GDiff    as GDiff
 import qualified Data.Digems.Patch       as D
 import qualified Data.Digems.Patch.Diff  as D
 import qualified Data.Digems.Patch.Merge as D
+import qualified Data.Digems.Patch.TreeEditDistance as TED
 import           Data.Digems.Patch.Show
 import qualified Data.Digems.Change      as D
-import qualified Data.Digems.Change.TreeEditDistance as TED
+import qualified Data.Digems.Change.TreeEditDistance as TEDC
 
 import           Languages.Interface
 import qualified Languages.While   as While
@@ -76,6 +78,10 @@ mainParsers
 ---------------------------
 -- * Cmd Line Options
 
+data PatchOrChange
+  = Patch | Chg
+  deriving (Eq , Show, Data, Typeable)
+
 data Options
   = AST   { optFileA :: FilePath
           }
@@ -88,7 +94,7 @@ data Options
           , minHeight    :: Int
           , testApply    :: Bool
           , showLCS      :: Bool
-          , showDist     :: Bool
+          , showDist     :: Maybe PatchOrChange
           }
   | Merge { optFileA     :: FilePath
           , optFileO     :: FilePath
@@ -148,10 +154,12 @@ diff = Diff
       &= typ "BOOL"
       &= help "Shows the edit script got from translating the patch. Implies --ted"
       &= explicit &= name "show-es"
-  , showDist = False
-      &= typ "BOOL"
-      &= help "Displays the tree edit distance using Ins,Del and Cpy only"
-      &= explicit &= name "ted"
+  , showDist = Nothing
+      &= opt Patch
+      &= help "Displays the tree edit distance using Ins,Del and Cpy only; Optionally, decide at which level should we look into the ES. Using 'Chg' will use (TED.toES . distrCChange). 'Patch' is the default."
+      &= name "ted"
+      &= typ "Patch | Chg"
+      &= explicit
   } 
   &= help "Computes the diff between two programs. The resulting diff is displayed"
 
@@ -223,8 +231,11 @@ mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     v <- getVerbosity
     unless (v == Quiet)   $ displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
-    when (showLCS opts || showDist opts) $ do
-      case TED.toES (D.distrCChange patch) (NA_I fa) of
+    when (showLCS opts || isJust (showDist opts)) $ do
+      let ees = case showDist opts of
+                  Just Patch -> TED.toES  patch                  (NA_I fa)
+                  Just Chg   -> TEDC.toES (D.distrCChange patch) (NA_I fa)
+      case ees of
         Left err -> putStrLn ("!! " ++ err)
         Right es -> putStrLn ("tree-edit-distance: " ++ (show $ GDiff.cost es))
                  >> when (showLCS opts) (putStrLn $ show es)

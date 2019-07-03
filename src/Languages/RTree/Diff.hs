@@ -25,7 +25,7 @@ x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "k")
 y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "t")
 
 digemRTree :: RTree -> RTree -> PatchRTree
-digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
+digemRTree a b = diff 0 (dfrom $ into @FamRTree a)
                         (dfrom $ into @FamRTree b)
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree
