@@ -25,6 +25,16 @@ a1 , b1 :: RTree
 a1 = "m" :>: ["m" :>: [],"b" :>: [],"d" :>: [],"a" :>: []]
 b1 = "j" :>: ["m" :>: [],"l" :>: ["k" :>: [],"k" :>: [],"k" :>: [],"b" :>: []],"k" :>: [],"d" :>: ["f" :>: [],"i" :>: []]]
 
+a2 , b2 :: RTree
+a2 = "i" :>: []
+b2 = "h" :>: [ "i" :>: []]
+
+cost :: RawPatch ki codes at -> Int
+cost = sum . utxGetHolesWith' go
+  where
+    go :: CChange ki codes at -> Int
+    go (CMatch _ d i) = utxSize d + utxSize i
+
 is_the_same_as_gdiff :: Property
 is_the_same_as_gdiff = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = digemRTree t1 t2
@@ -33,8 +43,15 @@ is_the_same_as_gdiff = forAll genSimilarTrees' $ \(t1 , t2)
            Left err  -> counterexample err False
            Right es1 -> GDiff.cost es1 === GDiff.cost es0
 
+is_better_than_gdiff :: Property
+is_better_than_gdiff = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = digemRTree t1 t2
+         es0   = GDiff.diff @FamRTree @_ @CodesRTree t1 t2
+      in cost patch <= GDiff.cost es0
+
+
 spec :: Spec
 spec = do
   describe "Change.toES" $ do
     it "computes the same distance as generics-mrsop-gdiff" $
-      property is_the_same_as_gdiff
+      property is_better_than_gdiff

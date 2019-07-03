@@ -3,7 +3,7 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Data.Digems.Change.TreeEditDistance where
+module Data.Digems.Change.TreeEditDistance (toES) where
 
 import           Data.Functor.Const
 import qualified Data.Map as M
@@ -106,11 +106,6 @@ lcsW weight xs ys = runST $ do
 
 fromNA :: NA ki (Fix ki codes) at -> UTx ki codes (MetaVarIK ki) at
 fromNA = utxStiff
-
-utxSize :: UTx ki codes phi at -> Int
-utxSize (UTxHole x)   = 0
-utxSize (UTxOpq  k)   = 1
-utxSize (UTxPeel c p) = 1 + sum (elimNP utxSize p)
 
 toES :: (EqHO ki , ShowHO ki , TestEquality ki)
      => CChange ki codes at -> NA ki (Fix ki codes) at
