@@ -356,10 +356,9 @@ being computed and recurse over the remaining subtrees.
 \begin{code}
 extract :: (Tree23 -> Maybe MetaVar) -> Tree23 -> Tree23C MetaVar
 extract o t = maybe (peel t) Hole (o t)
-  where
-    peel Leaf           = LeafC
-    peel (Node2 a b)    = Node2C (extract o a) (extract o b)
-    peel (Node3 a b c)  = Node3C (extract o a) (extract o b) (extract o c)
+  where  peel Leaf           = LeafC
+         peel (Node2 a b)    = Node2C (extract o a) (extract o b)
+         peel (Node3 a b c)  = Node3C (extract o a) (extract o b) (extract o c)
 \end{code}
 \end{myhs}
 
@@ -456,10 +455,9 @@ in the introduction:
     \[ |forall x y dot applyTree23 (changeTree23 x x) y == Just y| \]
   \item[Time Efficiency] 
     On the worst case, we perform one query to the oracle per
-    constructor in our trees. Assuming |wcs| to be a amortized constant time
-    function, our algorithm is linear on the number of constructors
-    in the source and destination trees. We will define a version of
-    |wcs| in \Cref{sec:oracle} that runs in amortized constant time.
+    constructor in our trees. With a amortized constant time |wcs|,
+    \Cref{sec:oracle}, our algorithm is linear on the number of
+    constructors in the source and destination trees.
   \item[Space Efficiency] 
     The size of a |Change23 MetaVar| is, on average, smaller than 
     storing its source and destination tree completely. On the worst case,
@@ -517,6 +515,12 @@ copied, if it shows up in a change, we know it was either deleted or
 inserted.  The spine will then contain changes---pairs of
 an insertion and deletion context---in its leaves:
 
+\begin{myhs}
+\begin{code}
+type Patch23 = Tree23C (Change23 MetaVar)
+\end{code}
+\end{myhs}
+
 \begin{figure}
 \includegraphics[scale=0.3]{src/img/patch-example.pdf}
 \vspace{.4em}
@@ -534,12 +538,6 @@ value |Node3 t (Node2 v u) (Node2 w' x)|. The |tree23toC| function %
 converts a |Tree23| into a |Tree23C| in the canonical way.}
  \label{fig:patch-example}
 \end{figure}
-
-\begin{myhs}
-\begin{code}
-type Patch23 = Tree23C (Change23 MetaVar)
-\end{code}
-\end{myhs}
 
   A \emph{patch} consists in a spine with \emph{changes} inside of it. 
 \Cref{fig:patch-example} illustrates a value of type |Patch23|, where the
@@ -1980,7 +1978,7 @@ telegram-bot       & 729     & 50  & 5   & 0  \\
 \label{fig:performance-plot}
 \end{figure}
 
-\subsection*{Threats to Validity} There are two main threats to the
+\subsection{Threats to Validity} There are two main threats to the
 validity of our empirical results. Firstly, we are diffing and merging
 \emph{abstract} syntax trees, hence ignoring comments and formatting. There would
 be no extra effort in handling these issues, beyond recording them explicitly
@@ -2005,8 +2003,9 @@ trivial merging operation is capable of merging changes where
 \texttt{git merge} fails. Yet there is still plenty of work to be
 done.
 
-\subsection*{Future Work}  
+\subsection{Future Work}  
 %Wouter: I've made the subsections here subsection* -- you never need to refer to them by number
+%Victor: Doesn't matter... conference publishing people want the numbers there... lol
 
 \paragraph{Controlling Sharing}
 One interesting direction for further work is how to control the
@@ -2049,7 +2048,7 @@ programming~\cite{Serrano2018}, we might be able to extend
 our algorithm to handle mutually recursive families that have
 \texttt{GADTs}.
 
-\subsection*{Related Work}
+\subsection{Related Work}
 \label{sec:related-work}
 
   The hashing techniques used in this paper is reminiscent of
@@ -2132,7 +2131,7 @@ differences, however. In GBTC one must maintain one copy of every subtree,
 by definition. In our case, we want to abstract away the common subtrees
 and identify copy opportunities without storing the subtrees involved.
  
-\subsection*{Conclusions}
+\subsection{Conclusions}
 \label{sec:conclusions}
 
   Throughout this paper we have developed an efficient type-directed

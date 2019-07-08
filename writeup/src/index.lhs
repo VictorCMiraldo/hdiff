@@ -34,6 +34,11 @@
 \acmArticle{113}
 \acmMonth{8}
 
+%% Conference Publishing Team tells me to put this here
+%% to get rid of orphans
+\clubpenalty = 10000
+\widowpenalty = 10000
+\displaywidowpenalty = 10000
 
 \begin{document}
 
