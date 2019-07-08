@@ -5,6 +5,7 @@
 {-# LANGUAGE GADTs         #-}
 module Data.Digems.Patch.Diff where
 
+import           Data.Function (on)
 import qualified Data.Set as S
 import           Data.Proxy
 import           Data.Functor.Const
@@ -56,19 +57,24 @@ type MinHeight = Int
 --  every subtree, as long as they are taller than
 --  minHeight. This trie keeps track of the arity, so
 --  we can later annotate the trees that can be propper shares.
-buildArityTrie :: MinHeight -> PrepFix a ki codes ix -> T.Trie Int
+buildArityTrie :: (DigestibleHO ki)
+               => MinHeight -> PrepFix a ki codes ix -> T.Trie Int
 buildArityTrie minHeight df = go df T.empty
   where
-    go :: PrepFix a ki codes ix -> T.Trie Int -> T.Trie Int
+    go :: (DigestibleHO ki)
+       => PrepFix a ki codes ix -> T.Trie Int -> T.Trie Int
     go (AnnFix (Const prep) rep) t
       = case sop rep of
           Tag _ p -> (if (treeHeight prep <= minHeight)
                       then id
                       else T.insertWith 1 (+1) (toW64s $ treeDigest prep))
                    . getConst
-                   $ cataNP (elimNA (const (Const . getConst))
+                   $ cataNP (elimNA (\k  -> Const . insConst k . getConst)
                                     (\af -> Const . go af . getConst))
                             (Const t) p
+
+    insConst :: (DigestibleHO ki) => ki k -> T.Trie Int -> T.Trie Int
+    insConst opq = T.insertWith 1 (+1) $ toW64s (digestHO opq)
 
 -- |Given two merkelized trees, returns the trie that indexes
 --  the subtrees that belong in both, ie,
@@ -79,7 +85,8 @@ buildArityTrie minHeight df = go df T.empty
 --  Moreover, we keep track of both the metavariable supposed
 --  to be associated with a tree and the tree's arity.
 --
-buildSharingTrie :: MinHeight
+buildSharingTrie :: (DigestibleHO ki)
+                 => MinHeight
                  -> PrepFix a ki codes ix
                  -> PrepFix a ki codes ix
                  -> (Int , IsSharedMap)
@@ -118,11 +125,11 @@ tagProperShare ism = synthesizeAnn alg
 --  In this fist iteration, opaque values are not shared.
 --  This can be seen on the type-level since we are
 --  using the 'ForceI' type.
-extractUTx :: (IsNat ix)
+extractUTx :: (DigestibleHO ki , IsNat ix)
            => MinHeight
            -> IsSharedMap
            -> PrepFix (Int , Bool) ki codes ix
-           -> UTx ki codes (ForceI (Const Int)) ('I ix)
+           -> UTx ki codes (MetaVarIK ki) ('I ix)
 extractUTx minHeight tr (AnnFix (Const prep) rep)
   -- TODO: if the tree's height is smaller than minHeight we don't
   --       even have to look it up on the map
@@ -132,16 +139,20 @@ extractUTx minHeight tr (AnnFix (Const prep) rep)
         then extractUTx' rep
         else case T.lookup (toW64s $ treeDigest prep) tr of
                Nothing -> extractUTx' rep
-               Just i  -> UTxHole (ForceI $ Const $ getMetavar i)
+               Just i  -> UTxHole (NA_I $ Const $ getMetavar i)
   where
     extractUTx' rep = case sop rep of
                         Tag c p -> UTxPeel c $ mapNP extractAtom p
     
-    extractAtom :: NA ki (PrepFix (Int , Bool) ki codes) at
-                  -> UTx ki codes (ForceI (Const Int)) at
+    extractAtom :: (DigestibleHO ki)
+                => NA ki (PrepFix (Int , Bool) ki codes) at
+                -> UTx ki codes (MetaVarIK ki) at
     extractAtom (NA_I i) = extractUTx minHeight tr i
-    extractAtom (NA_K k) = UTxOpq k
+    extractAtom (NA_K k) = case T.lookup (toW64s $ digestHO k) tr of
+                             Just i  -> UTxHole (NA_K $ Annotate (getMetavar i) k)
+                             Nothing -> UTxOpq k
 
+{-
 -- |Copy every 'UTxOpq' value in the outermost 'UTx', aka, the spine
 issueOpqCopies :: forall ki codes phi at
                 . (forall ix . phi ix -> MetaVarIK ki ix)
@@ -159,22 +170,21 @@ issueOpqCopies meta maxvar
       put (i+1)
       let ann = NA_K . Annotate i $ ki
       return $ UTxHole (UTxHole ann :*: UTxHole ann)
+-}
 
 -- |Given two treefixes, we will compute the longest path from
 --  the root that they overlap and will factor it out.
 --  This is somehow analogous to a @zipWith@. Moreover, however,
 --  we also copy the opaque values present in the spine by issuing
 --  /"copy"/ changes
-extractSpine :: forall ki codes phi at
+extractSpine :: forall ki codes at
               . (EqHO ki)
-             => (forall ix . phi ix -> MetaVarIK ki ix)
-             -> Int
-             -> UTx ki codes phi at
-             -> UTx ki codes phi at
+             => UTx ki codes (MetaVarIK ki) at
+             -> UTx ki codes (MetaVarIK ki) at
              -> UTx ki codes (Sum (OChange ki codes) (CChange ki codes)) at
-extractSpine meta i dx dy
+extractSpine dx dy
   = utxMap (uncurry' change)
-  $ issueOpqCopies meta i
+  -- $ issueOpqCopies meta i
   $ utxLCP dx dy
 
 -- |Combines changes until they are closed
@@ -234,4 +244,4 @@ diff mh x y
         dy'     = tagProperShare sh dy
         del     = extractUTx mh sh dx'
         ins     = extractUTx mh sh dy'
-     in close (extractSpine metavarI2IK i del ins)
+     in close (extractSpine del ins)
