@@ -24,8 +24,12 @@ rlf = (:>: [])
 x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "k")
 y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "u"))) (rlf "t")
 
+digemRTreeH :: Int -> RTree -> RTree -> PatchRTree
+digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
+                           (dfrom $ into @FamRTree b)
+
 digemRTree :: RTree -> RTree -> PatchRTree
-digemRTree a b = diff 0 (dfrom $ into @FamRTree a)
+digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
                         (dfrom $ into @FamRTree b)
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree

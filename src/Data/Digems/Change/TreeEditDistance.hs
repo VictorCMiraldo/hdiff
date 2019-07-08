@@ -3,7 +3,7 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Data.Digems.Change.TreeEditDistance (toES) where
+module Data.Digems.Change.TreeEditDistance where
 
 import           Data.Functor.Const
 import qualified Data.Map as M

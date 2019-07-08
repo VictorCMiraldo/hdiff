@@ -94,6 +94,7 @@ data Options
           , minHeight    :: Int
           , testApply    :: Bool
           , showLCS      :: Bool
+          , showCost     :: Bool
           , showDist     :: Maybe PatchOrChange
           }
   | Merge { optFileA     :: FilePath
@@ -154,6 +155,10 @@ diff = Diff
       &= typ "BOOL"
       &= help "Shows the edit script got from translating the patch. Implies --ted"
       &= explicit &= name "show-es"
+  , showCost = False
+      &= typ "BOOL"
+      &= help "Dipslays the cost of the patch: number of consturctors being inserted and deleted. This does NOT translate the patch to edit-scripts"
+      &= explicit &= name "cost" &= name "c"
   , showDist = Nothing
       &= opt Patch
       &= help "Displays the tree edit distance using Ins,Del and Cpy only; Optionally, decide at which level should we look into the ES. Using 'Chg' will use (TED.toES . distrCChange). 'Patch' is the default."
@@ -175,9 +180,9 @@ data OptionMode
 
 optionMode :: Options -> OptionMode
 optionMode (AST _)              = OptAST
-optionMode (Diff _ _ _ _ _ _)   = OptDiff
 optionMode (GDiff _ _ _)        = OptGDiff
 optionMode (Merge _ _ _ _ _)    = OptMerge
+optionMode (Diff _ _ _ _ _ _ _) = OptDiff
 
 main :: IO ()
 main = cmdArgsRun options >>= \opts
@@ -231,6 +236,8 @@ mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     v <- getVerbosity
     unless (v == Quiet)   $ displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
+    when (showCost opts)  $ putStrLn ("digem-patch-cost: "
+                                       ++ show (D.patchCost patch))
     when (showLCS opts || isJust (showDist opts)) $ do
       let ees = case showDist opts of
                   Just Patch -> TED.toES  patch                  (NA_I fa)

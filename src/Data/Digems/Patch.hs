@@ -84,6 +84,16 @@ withFreshNamesFrom p q = utxMap (changeAdd (patchMaxVar q + 1)) p
                (utxMap (metavarAdd n) ins)
       
 
+-- |Computes the /cost/ of a 'Patch'. This is in the sense
+-- of edit-scripts where it counts how many constructors
+-- are being inserted and deleted.
+patchCost :: RawPatch ki codes at -> Int
+patchCost = sum . utxGetHolesWith' go
+  where
+    go :: CChange ki codes at -> Int
+    go (CMatch _ d i) = utxSize d + utxSize i
+
+
 -- ** Applying a Patch
 --
 -- $applyingapatch
