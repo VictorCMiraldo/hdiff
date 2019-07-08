@@ -9,8 +9,8 @@ exitonconflict=false
 logfile=""
 
 function showUsage() {
-  echo "usage: ./miner.sh [options] path/to/dataset"
-  echo "  Mines a folder for conflicts using '$mergetool'"
+  echo "usage: ./attempt-merges.sh [options] path/to/dataset"
+  echo "  Attempts to merge a number of conflicts using '$mergetool'"
   echo "  The 'dataset' folder must have the following structure:"
   echo ""
   echo "   $ tree path/to/dataset"
