@@ -201,7 +201,8 @@ putStrLnErr = hPutStrLn stderr
 mainAST :: Options -> IO ExitCode
 mainAST opts = withParsed1 mainParsers (optFileA opts)
   $ \fa -> do
-    putStrLn (show (renderFix renderHO fa))
+    v <- getVerbosity
+    unless (v == Quiet) $ putStrLn (show (renderFix renderHO fa))
     return ExitSuccess
 
 -- |Applies a patch to an element and either checks it is equal to
