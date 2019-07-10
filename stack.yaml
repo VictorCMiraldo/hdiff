@@ -3,10 +3,10 @@ resolver: lts-12.2
 
 packages:
   - .
-    #- location:
-    #-   git: git@github.com:VictorCMiraldo/hs-elisp.git
-    #-   commit: 6b96fa2ad49777d7e3e254d35614b8b3069b35d3
-    #- extra-dep: true
+  - location:
+      git: git@github.com:VictorCMiraldo/hs-elisp.git
+      commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
+    extra-dep: true
   - location:
       git: git@github.com:arianvp/generics-mrsop-gdiff.git
       commit: e8d2ef8db225c60693084e1b3e83fffb2514ed12
@@ -17,7 +17,6 @@ packages:
 ##    extra-dep: true
 
 extra-deps:
-  - ../hs-elisp
   - language-lua-0.11.0
   - alex-tools-0.4
   - generics-mrsop-2.0.0

@@ -14,5 +14,9 @@ for f in ${files[*]}; do
   digem ast --quiet "$f"
   if [[ "$?" -ne "0" ]]; then
     echo "Parse fail: $whereami"
+    read -p "(l)ess or continue?" opt
+    case $opt in
+      l) less $fa ;;
+    esac
   fi
 done
