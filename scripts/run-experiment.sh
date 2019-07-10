@@ -81,9 +81,6 @@ if [[ ! -f "$exp" ]]; then
   showUsage
 fi
 
-# limit to 8GiBs of memory per process
-ulimit -v 8589934592
-
 trap "exit" SIGINT SIGTERM
 
 ver=$(digem --version)

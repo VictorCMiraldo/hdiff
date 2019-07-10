@@ -15,7 +15,7 @@ function doOne () {
   b=$2
 
   n1=$(digem diff -q --cost --ted=Patch $a $b | cut -d':' -f 2 | paste -s -d' ')
-  n2=$(digem gdiff -q $a $b                   | cut -d':' -f 2)
+  n2=$(timeout 4s digem gdiff -q $a $b        | cut -d':' -f 2)
   echo "$prefix $(basename $a) $(basename $b) $n1 $n2"
 }
 

@@ -21,4 +21,6 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
+# limit to 8GiBs of memory per process
+ulimit -v 8589934592
 
