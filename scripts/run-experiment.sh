@@ -1,13 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 
-pushd () {
-    command pushd "$@" > /dev/null
-}
-
-popd () {
-    command popd "$@" > /dev/null
-}
+root="${BASH_SOURCE%/*}"
 
 interval=1
 verbose=false
@@ -78,7 +72,7 @@ if [[ ! -d "$dir" ]]; then
   showUsage
 fi
 
-exp=$(pwd)/"$1"
+exp="$root/experiments/$1"
 shift
 
 if [[ ! -f "$exp" ]]; then
@@ -94,6 +88,7 @@ trap "exit" SIGINT SIGTERM
 
 ver=$(digem --version)
 echo "[run-experiment; digem at version $ver]"
+$exp --header
 
 for d in ${dir}/*; do
   sleep "$interval"
@@ -106,14 +101,12 @@ for d in ${dir}/*; do
   else
     ## Everything was found alright, we jump in there and
     ## run whatever experiment we want.
-    pushd ${d}
-    res=$($exp "$@")
+    $exp --prefix "$(basename ${d})" --fa "$fa" --fb "$fb" --fo "$fo"
     ecode=$?
-    echo "$(basename $d) $res"
     if [[ "$ecode" -ne "0" ]]; then
+      echo "!!! ${d} !!! Abort($ecode)"
       exit 1
     fi
-    popd
   fi
 done
  
