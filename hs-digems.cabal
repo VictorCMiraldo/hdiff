@@ -85,9 +85,12 @@ test-suite tests
                , Data.Digems.Patch.MergeSpec
                , Data.Digems.Patch.ThinningSpec
                , Data.Digems.Change.ClassifySpec
+               , Data.Digems.Change.TreeEditDistanceSpec
   build-depends: base >= 4.10 && <5
                , hs-digems
+               , generics-mrsop-gdiff
                , generics-mrsop
                , QuickCheck
                , hspec
                , containers
+               , mtl
