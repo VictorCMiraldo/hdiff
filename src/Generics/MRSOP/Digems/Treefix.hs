@@ -199,6 +199,11 @@ utxMultiplicity k utx
       UTxPeel _ p -> sum $ elimNP (utxMultiplicity k) p
       _           -> 0
 
+-- |Returns the size of a treefix. Holes have size 0.
+utxSize :: UTx ki codes f at -> Int
+utxSize (UTxHole _) = 0
+utxSize (UTxOpq  _) = 1
+utxSize (UTxPeel _ p) = 1 + sum (elimNP utxSize p)
 
 -- * Show instances
 
