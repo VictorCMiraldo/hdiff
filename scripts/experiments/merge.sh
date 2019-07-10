@@ -17,5 +17,3 @@ case $res in
   2) echo "panic";         exit 1 ;;
   *) echo "unknown($res)"; exit 1 ;;
 esac
-
-exit 1
