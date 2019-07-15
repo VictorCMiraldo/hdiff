@@ -19,7 +19,6 @@ packages:
 extra-deps:
   - language-lua-0.11.0
   - alex-tools-0.4
-  - generics-mrsop-2.0.0
-#  - generics-mrsop-1.2.2@sha256:9c5a7ebbf36c82d0009cc8e66b5d780a1a908579aa00357d15dda02eb88022b9
+  - ../generics-mrsop
  
 

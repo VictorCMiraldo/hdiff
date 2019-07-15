@@ -18,7 +18,7 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 --------------------------------------
 import Data.Exists
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Digems.Holes
 
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
 --  by forcing the atom to be an 'I'.

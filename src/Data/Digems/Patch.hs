@@ -14,13 +14,13 @@ import           Data.Functor.Const
 ------------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+import Generics.MRSOP.Holes
 ------------------------------------
+import Generics.MRSOP.Digems.Holes
 import Data.Exists
-import Generics.MRSOP.Digems.Treefix
 import qualified Data.WordTrie as T
 import Data.Digems.MetaVar
 import Data.Digems.Change
-import Data.Digems.Change.Classify
 import Data.Digems.Change.Apply
 
 import Debug.Trace
@@ -44,27 +44,27 @@ import Debug.Trace
 -- |Instead of keeping unecessary information, a 'RawPatch' will
 --  factor out the common prefix before the actual changes.
 --
-type RawPatch ki codes = UTx ki codes (CChange ki codes)
+type RawPatch ki codes = Holes ki codes (CChange ki codes)
 
 -- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
-type Patch ki codes ix = UTx ki codes (CChange ki codes) (I ix)
+type Patch ki codes ix = Holes ki codes (CChange ki codes) (I ix)
 
 
 -- ** Patch Alpha Equivalence
 
 patchEq :: (EqHO ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
-patchEq p q = and $ utxGetHolesWith' (uncurry' go) $ utxLCP p q
+patchEq p q = and $ holesGetHolesAnnWith' (uncurry' go) $ holesLCP p q
   where
     go :: (EqHO ki) => RawPatch ki codes at -> RawPatch ki codes at -> Bool
     go c d = changeEq (distrCChange c) (distrCChange d)
 
 patchIsCpy :: (EqHO ki) => RawPatch ki codes at -> Bool
-patchIsCpy = and . utxGetHolesWith' isCpy
+patchIsCpy = and . holesGetHolesAnnWith' isCpy
 
 -- ** Functionality over a 'Patch'
 
 patchMaxVar :: RawPatch ki codes at -> Int
-patchMaxVar = flip execState 0 . utxMapM localMax
+patchMaxVar = flip execState 0 . holesMapM localMax
   where
     localMax r@(CMatch vars _ _)
       = let m = (1+) . maybe 0 id . S.lookupMax $ S.map (exElim metavarGet) vars
@@ -75,23 +75,23 @@ patchMaxVar = flip execState 0 . utxMapM localMax
 withFreshNamesFrom :: RawPatch ki codes at
                    -> RawPatch ki codes at
                    -> RawPatch ki codes at
-withFreshNamesFrom p q = utxMap (changeAdd (patchMaxVar q + 1)) p
+withFreshNamesFrom p q = holesMap (changeAdd (patchMaxVar q + 1)) p
   where
     changeAdd :: Int -> CChange ki codes at -> CChange ki codes at
     changeAdd n (CMatch vs del ins)
       = CMatch (S.map (exMap (metavarAdd n)) vs)
-               (utxMap (metavarAdd n) del)
-               (utxMap (metavarAdd n) ins)
+               (holesMap (metavarAdd n) del)
+               (holesMap (metavarAdd n) ins)
       
 
 -- |Computes the /cost/ of a 'Patch'. This is in the sense
 -- of edit-scripts where it counts how many constructors
 -- are being inserted and deleted.
 patchCost :: RawPatch ki codes at -> Int
-patchCost = sum . utxGetHolesWith' go
+patchCost = sum . holesGetHolesAnnWith' go
   where
     go :: CChange ki codes at -> Int
-    go (CMatch _ d i) = utxSize d + utxSize i
+    go (CMatch _ d i) = holesSize d + holesSize i
 
 
 -- ** Applying a Patch
@@ -109,6 +109,7 @@ patchCost = sum . utxGetHolesWith' go
 -- The only slight trick is that we need to
 -- wrap our trees in existentials inside our valuation.
 
+{-
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
 apply :: (TestEquality ki , EqHO ki , ShowHO ki, IsNat ix)
@@ -119,64 +120,24 @@ apply patch x
     -- since all our changes are closed, we can apply them locally
     -- over the spine.
     =   utxZipRep patch (NA_I x)
-    >>= utxMapM (uncurry' termApply)
+    >>= holesMapM (uncurry' termApply)
     >>= return . unNA_I . utxForget
   where
     unNA_I :: NA f g (I i) -> g i
     unNA_I (NA_I x) = x
+-}
 
 
 -- ** Specializing a Patch
 
--- |Specializing will attempt to adjust a spine with changes to be properly
--- adapted by a change.
-specialize :: ( ShowHO ki , EqHO ki , TestEquality ki)
-           => RawPatch ki codes at
-           -> UTx ki codes (MetaVarIK ki) at
-           -> RawPatch ki codes at
-specialize spine cc
-  = utxRefine (uncurry' go) UTxOpq $ utxLCP spine cc
-  where
-    vmax = patchMaxVar spine
-
-    go :: (EqHO ki , ShowHO ki , TestEquality ki)
-       => UTx ki codes (CChange ki codes) at
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (CChange ki codes) at
-    go (UTxHole c1) (UTxHole _) = UTxHole c1
-    go (UTxHole c@(CMatch _ (UTxHole var) ins)) c2
-      = let tgt = utxMap (metavarAdd vmax) c2
-         in case runExcept (transport ins $ M.singleton (metavarGet var) (Exists tgt)) of
-              Left err   -> error "invariant break"
-              Right ins' -> UTxHole $ cmatch tgt ins'
-      {-
-      | isCpy c1 || isIns c1 =
-        -- lemma: transporting over insertions or copies never fails
-        let Right res = genericApply c1 c2
-            del = utxMap (metavarAdd vmax) c2
-            ins = utxMap (metavarAdd vmax) res
-         -- problem: we should be either returning the GCP of del ins
-         -- or modify the transport function to allow it to match
-         -- Just using:  UTxHole $ CMatch S.empty del ins
-         -- does not cut it
-         in UTxHole $ CMatch S.empty del ins
-          -- close (extractSpine id (vmax + 100) del ins)
-
-          -- UTxHole (CMatch S.empty del ins) --  utxMap (uncurry' (CMatch S.empty)) $ utxLCP del ins
-          -- UTxHole $ _ $ utxTransport c1 c2 -- _ -- utxMap (changeCopy . metavarAdd vmax) c2
-      | otherwise = UTxHole c1
--}
-    go sp _ = sp
-
--- lemma: cpy encompasses everything
 -- |The predicate @composes qr pq@ checks whether @qr@ is immediatly applicable
 -- to the codomain of @pq@.
 composes   :: (ShowHO ki , EqHO ki , TestEquality ki)
            => RawPatch ki codes at
            -> RawPatch ki codes at
            -> Bool
-composes qr pq = and $ utxGetHolesWith' getConst
-               $ utxMap (uncurry' go) $ utxLCP qr pq
+composes qr pq = and $ holesGetHolesAnnWith' getConst
+               $ holesMap (uncurry' go) $ holesLCP qr pq
   where
     go :: (ShowHO ki , EqHO ki , TestEquality ki)
        => RawPatch ki codes at
@@ -188,8 +149,8 @@ composes qr pq = and $ utxGetHolesWith' getConst
          in Const $ applicableTo (cCtxDel cqr) (cCtxIns cpq)
 
 applicableTo :: (ShowHO ki , EqHO ki , TestEquality ki)
-       => UTx ki codes (MetaVarIK ki) ix
-       -> UTx ki codes (MetaVarIK ki) ix
+       => Holes ki codes (MetaVarIK ki) ix
+       -> Holes ki codes (MetaVarIK ki) ix
        -> Bool
 applicableTo pat = either (const False) (const True)
                  . runExcept
@@ -198,16 +159,16 @@ applicableTo pat = either (const False) (const True)
     go :: (ShowHO ki , EqHO ki , TestEquality ki) 
        => Subst ki codes (MetaVarIK ki)
        -> Subst ki codes (MetaVarIK ki)
-       -> UTx ki codes (MetaVarIK ki) ix
-       -> UTx ki codes (MetaVarIK ki) ix
+       -> Holes ki codes (MetaVarIK ki) ix
+       -> Holes ki codes (MetaVarIK ki) ix
        -> Except (ApplicationErr ki codes (MetaVarIK ki))
                  (Subst ki codes (MetaVarIK ki) , Subst ki codes (MetaVarIK ki))
-    go l r (UTxHole var) ex = (,r) <$> substInsert' "l" l var ex 
-    go l r pa (UTxHole var) = (l,) <$> substInsert' "r" r var pa
-    go l r (UTxOpq oa) (UTxOpq ox)
+    go l r (Hole _ var) ex = (,r) <$> substInsert' "l" l var ex 
+    go l r pa (Hole _ var) = (l,) <$> substInsert' "r" r var pa
+    go l r (HOpq _ oa) (HOpq _ ox)
       | eqHO oa ox = return (l , r)
       | otherwise = throwError (IncompatibleOpqs oa ox)
-    go l r pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
+    go l r pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
       case testEquality ca cx of
         Nothing   -> throwError (IncompatibleTerms pa x)
         Just Refl -> getConst <$>
@@ -220,7 +181,7 @@ substInsert' :: (ShowHO ki , EqHO ki , TestEquality ki)
              => String
              -> Subst ki codes (MetaVarIK ki)
              -> MetaVarIK ki ix
-             -> UTx ki codes (MetaVarIK ki) ix
+             -> Holes ki codes (MetaVarIK ki) ix
              -> Except (ApplicationErr ki codes (MetaVarIK ki)) (Subst ki codes (MetaVarIK ki))
 substInsert' lbl s var new = case M.lookup (metavarGet var) s of
   Nothing           -> return $ M.insert (metavarGet var)
@@ -232,14 +193,16 @@ substInsert' lbl s var new = case M.lookup (metavarGet var) s of
                    Nothing  -> throwError (FailedContraction (metavarGet var) old new)
   where
     specializesTo :: (EqHO ki)
-                  => UTx ki codes (MetaVarIK ki) ix
-                  -> UTx ki codes (MetaVarIK ki) ix
-                  -> Maybe (UTx ki codes (MetaVarIK ki) ix)
-    specializesTo m n = fmap utxJoin $ utxMapM (uncurry' go) $ utxLCP m n
+                  => Holes ki codes (MetaVarIK ki) ix
+                  -> Holes ki codes (MetaVarIK ki) ix
+                  -> Maybe (Holes ki codes (MetaVarIK ki) ix)
+    specializesTo m n = fmap holesJoin
+                      $ holesMapM (uncurry' go)
+                      $ holesLCP m n
 
-    go :: UTx ki codes (MetaVarIK ki) ix
-       -> UTx ki codes (MetaVarIK ki) ix
-       -> Maybe (UTx ki codes (MetaVarIK ki) ix)
-    go (UTxHole _) r = Just r
-    go l (UTxHole _) = Just l
+    go :: Holes ki codes (MetaVarIK ki) ix
+       -> Holes ki codes (MetaVarIK ki) ix
+       -> Maybe (Holes ki codes (MetaVarIK ki) ix)
+    go (Hole _ _) r = Just r
+    go l (Hole _ _) = Just l
     go _ _           = Nothing

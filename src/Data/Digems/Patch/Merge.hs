@@ -26,7 +26,7 @@ import Control.Monad.Except
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Holes
 import Generics.MRSOP.Digems.Digest
 
 import Data.Exists
@@ -53,22 +53,24 @@ data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
 
 -- |A 'PatchC' is a patch with potential conflicts inside
 type PatchC ki codes ix
-  = UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) (I ix)
+  = Holes ki codes (Sum (Conflict ki codes) (CChange ki codes)) (I ix)
 
 -- |Tries to cast a 'PatchC' back to a 'Patch'. Naturally,
 --  this is only possible if the patch has no conflicts.
 noConflicts :: PatchC ki codes ix -> Maybe (Patch ki codes ix)
-noConflicts = utxMapM rmvInL
+noConflicts = holesMapM rmvInL
   where
     rmvInL (InL _) = Nothing
     rmvInL (InR x) = Just x
 
 -- |Returns the labels of the conflicts ina a patch.
 getConflicts :: (ShowHO ki) => PatchC ki codes ix -> [String]
-getConflicts = snd . runWriter . utxMapM go
+getConflicts = snd . runWriter . holesMapM go
   where
     go x@(InL (Conflict str _ _)) = tell [str] >> return x
     go x                          = return x
+
+{-
 
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
@@ -225,3 +227,5 @@ process sp sq =
     insins (UTxHole pp) (UTxHole qq) = isLocalIns pp && isLocalIns qq
     insins _ _ = False
 
+
+-}

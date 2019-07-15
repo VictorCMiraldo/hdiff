@@ -10,11 +10,12 @@
 --  the structure.
 module Data.Digems.Patch.Preprocess where
 
+import Data.Void
 import Data.Proxy
 import Data.Functor.Const
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.AG (AnnFix(..) , synthesize)
+import Generics.MRSOP.Holes
 
 import Generics.MRSOP.Digems.Digest
 
@@ -27,40 +28,41 @@ data PrepData a = PrepData
   , treeParm   :: a
   } deriving (Eq , Show)
 
-type PrepFix a ki codes = AnnFix ki codes (Const (PrepData a))
+-- |A 'PrepFix' is a prepared fixpoint. In our case, it is
+-- just a 'HolesAnn' with the prepared data inside of it.
+type PrepFix a ki codes phi
+  = HolesAnn (Const (PrepData a)) ki codes phi
 
--- |And a more general form of the algebra used
---  to compute a merkelized fixpoint.
-heightAlgebra :: forall ki sum ann iy
-               . (DigestibleHO ki , IsNat iy)
-              => (forall ix . ann ix -> Int)
-              -> Rep ki ann sum
-              -> Const Int iy 
-heightAlgebra proj = Const . (1+) . elimRep (const 0) proj safeMax
+-- |Here we receive an expression with holes an annotate
+-- it with hashes and height information at every node.
+preprocess :: forall ki codes phi at
+            . (DigestibleHO ki, DigestibleHO phi)
+           => Holes ki codes phi at
+           -> PrepFix () ki codes phi at
+preprocess = holesSynthesize (const ppHole) (const ppOpq) ppPeel
   where
+    pCodes :: Proxy codes
+    pCodes = Proxy
+    
     safeMax [] = 0
     safeMax l  = maximum l
 
--- |Combining 'authAlgebra' with 'heightAlgebra' we can
---  'synthesize' an annotated fixpoint quite easily:
-preprocess :: forall ki codes ix
-            . (IsNat ix , DigestibleHO ki)
-           => Fix ki codes ix
-           -> PrepFix () ki codes ix
-preprocess = synthesize alg
-  where
-    cast :: (IsNat iy) => Proxy iy -> Const ann iy -> Const ann iy
-    cast _ = id
+    ppHole :: forall at' . phi at' -> Const (PrepData ()) at'
+    ppHole x = Const $ PrepData (digestHO x) 1 ()
+    
+    ppOpq :: forall k . ki k -> Const (PrepData ()) ('K k)
+    ppOpq x = Const $ PrepData (digestHO x) 1 ()
 
-    alg :: forall iy sum
-         . (IsNat iy)
-        => Rep ki (Const (PrepData ())) sum
-        -> Const (PrepData ()) iy
-    alg rep
-      = let f         = cast (Proxy :: Proxy iy)
-            -- we need to help the type-checker infer that we
-            -- we want the SAME index from both algebras. We do
-            -- that by the means of our f function above.
-            Const dig = f $ authAlgebra   (treeDigest . getConst) rep
-            Const h   = f $ heightAlgebra (treeHeight . getConst) rep
-         in Const (PrepData dig h ())
+    ppPeel :: forall i x
+            . IsNat x
+           => Const () ('I x)
+           -> Constr (Lkup x codes) i
+           -> NP (Const (PrepData ())) (Lkup i (Lkup x codes))
+           -> Const (PrepData ()) ('I x)
+    ppPeel ann c p
+      = let pix :: Proxy x
+            pix = Proxy
+            
+            dig = authPeel (treeDigest . getConst) pCodes pix c p
+            h   = 1 + safeMax (elimNP (treeHeight . getConst) p)
+         in Const $ PrepData dig h ()

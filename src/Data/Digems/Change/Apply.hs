@@ -23,7 +23,8 @@ import Data.Digems.Change
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Holes
+import Generics.MRSOP.Digems.Holes
 
 -- * Generic Application
 --
@@ -37,18 +38,18 @@ import Generics.MRSOP.Digems.Treefix
 data ApplicationErr :: (kon -> *) -> [[[Atom kon]]] -> (Atom kon -> *) -> * where
   UndefinedVar      :: Int -> ApplicationErr ki codes phi
   FailedContraction :: Int
-                    -> UTx ki codes phi ix
-                    -> UTx ki codes phi ix
+                    -> Holes ki codes phi ix
+                    -> Holes ki codes phi ix
                     -> ApplicationErr ki codes phi
   IncompatibleTypes :: ApplicationErr ki codes phi
   IncompatibleOpqs  :: ki k
                     -> ki k
                     -> ApplicationErr ki codes phi
-  IncompatibleHole  :: UTx ki codes (MetaVarIK ki) ix
+  IncompatibleHole  :: Holes ki codes (MetaVarIK ki) ix
                     -> phi ix
                     -> ApplicationErr ki codes phi
-  IncompatibleTerms :: UTx ki codes (MetaVarIK ki) ix
-                    -> UTx ki codes phi ix
+  IncompatibleTerms :: Holes ki codes (MetaVarIK ki) ix
+                    -> Holes ki codes phi ix
                     -> ApplicationErr ki codes phi
 
 instance Show (ApplicationErr ki codes phi) where
@@ -60,7 +61,7 @@ instance Show (ApplicationErr ki codes phi) where
   show (IncompatibleTypes)       = "IncompatibleTypes"
 
 -- |A instantiation substitution from metavariable numbers to some treefix
-type Subst ki codes phi = M.Map Int (Exists (UTx ki codes phi))
+type Subst ki codes phi = M.Map Int (Exists (Holes ki codes phi))
 
 type Applicable ki codes phi = (ShowHO ki , EqHO ki , TestEquality ki , TestEquality phi
                               , HasIKProjInj ki phi , EqHO phi)
@@ -73,10 +74,11 @@ type Applicable ki codes phi = (ShowHO ki , EqHO ki , TestEquality ki , TestEqua
 --  We are essentially applying 
 genericApply :: (Applicable ki codes phi)
              => CChange ki codes at
-             -> UTx ki codes phi at
-             -> Either (ApplicationErr ki codes phi) (UTx ki codes phi at)
+             -> Holes ki codes phi at
+             -> Either (ApplicationErr ki codes phi) (Holes ki codes phi at)
 genericApply chg x = runExcept (pmatch (cCtxDel chg) x >>= transport (cCtxIns chg))
 
+{-
 -- |Specializes 'genericApply' to work over terms of our language, ie, 'NA's
 termApply :: forall ki codes at
            . (ShowHO ki , EqHO ki , TestEquality ki)
@@ -85,37 +87,38 @@ termApply :: forall ki codes at
           -> Either String (NA ki (Fix ki codes) at)
 termApply chg = either (Left . show) (utxUnstiffM cast)
               . genericApply chg
-              . utxStiff 
+              . Stiff 
   where
     -- cast is used only to fool the compiler here! Since the
-    -- UTx comes from 'utxStiff', it has no occurence of 'UTxHole'
+    -- Holes comes from 'utxStiff', it has no occurence of 'HolesHole'
     -- and hence genericApply will return a term with no such
     -- occurence. Yet, it requires a EqHO instance for phi, so
     -- we provide one
     cast :: MetaVarIK ki ix
          -> Either String (NA ki (Fix ki codes) ix)
     cast _ = Left "Data.Digems.Change.Apply: impossible"
+-}
 
 
 -- |@pmatch pa x@ traverses @pa@ and @x@ instantiating the variables of @pa@.
 -- Upon sucessfully instantiating the variables, returns the substitution.
 pmatch :: (Applicable ki codes phi)
-       => UTx ki codes (MetaVarIK ki) ix
-       -> UTx ki codes phi ix
+       => Holes ki codes (MetaVarIK ki) ix
+       -> Holes ki codes phi ix
        -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 pmatch pat = pmatch' M.empty pat
 
 pmatch' :: (Applicable ki codes phi)
    => Subst ki codes phi
-   -> UTx ki codes (MetaVarIK ki) ix
-   -> UTx ki codes phi ix
+   -> Holes ki codes (MetaVarIK ki) ix
+   -> Holes ki codes phi ix
    -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
-pmatch' s (UTxHole var) x  = substInsert s var x
-pmatch' s pa (UTxHole var) = throwError (IncompatibleHole pa var)
-pmatch' s (UTxOpq oa) (UTxOpq ox)
+pmatch' s (Hole _ var) x  = substInsert s var x
+pmatch' s pa (Hole _ var) = throwError (IncompatibleHole pa var)
+pmatch' s (HOpq _ oa) (HOpq _ ox)
   | eqHO oa ox = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)
-pmatch' s pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
+pmatch' s pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
   case testEquality ca cx of
     Nothing   -> throwError (IncompatibleTerms pa x)
     Just Refl -> getConst <$>
@@ -123,11 +126,11 @@ pmatch' s pa@(UTxPeel ca ppa) x@(UTxPeel cx px) =
               (return $ Const s)
               (zipNP ppa px)
 
--- |Given a 'MetaVarIK' and a 'UTx', decide whether their indexes
+-- |Given a 'MetaVarIK' and a 'Holes', decide whether their indexes
 -- are equal.
 idxDecEq :: forall ki codes phi at ix
           . (TestEquality ki , TestEquality phi, HasIKProjInj ki phi)
-         => UTx ki codes phi at
+         => Holes ki codes phi at
          -> MetaVarIK ki ix
          -> Maybe (at :~: ix)
 idxDecEq utx (NA_K (Annotate _ k)) = testEquality utx (konInj k)
@@ -145,7 +148,7 @@ idxDecEq utx i@(NA_I _)
 substInsert :: (Applicable ki codes phi)
             => Subst ki codes phi
             -> MetaVarIK ki ix
-            -> UTx ki codes phi ix
+            -> Holes ki codes phi ix
             -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 substInsert s var new = case M.lookup (metavarGet var) s of
   Nothing           -> return $ M.insert (metavarGet var) (Exists new) s
@@ -158,14 +161,14 @@ substInsert s var new = case M.lookup (metavarGet var) s of
 -- |Instantiates the metavariables in the given term
 -- using the substitution in the state
 transport :: (Applicable ki codes phi)
-          => UTx ki codes (MetaVarIK ki) ix
+          => Holes ki codes (MetaVarIK ki) ix
           -> Subst ki codes phi
-          -> Except (ApplicationErr ki codes phi) (UTx ki codes phi ix)
-transport (UTxHole var)   s = lookupVar var s
+          -> Except (ApplicationErr ki codes phi) (Holes ki codes phi ix)
+transport (Hole _ var)   s = lookupVar var s
                           >>= maybe (throwError $ UndefinedVar $ metavarGet var)
                                       return
-transport (UTxOpq oy)     _ = return $ UTxOpq oy
-transport (UTxPeel cy py) s = UTxPeel cy <$> mapNPM (flip transport s) py
+transport (HOpq _ oy)     _ = return $ HOpq' oy
+transport (HPeel _ cy py) s = HPeel' cy <$> mapNPM (flip transport s) py
 
 -- |Looks for the value of a @MetaVarIK ki ix@ in the substitution
 -- in our state. Returns @Nothing@ when the variables is not found
@@ -175,14 +178,14 @@ lookupVar :: forall ki codes phi ix
            . (Applicable ki codes phi)
           => MetaVarIK ki ix
           -> Subst ki codes phi
-          -> Except (ApplicationErr ki codes phi) (Maybe (UTx ki codes phi ix))
+          -> Except (ApplicationErr ki codes phi) (Maybe (Holes ki codes phi ix))
 lookupVar var subst = do
   case M.lookup (metavarGet var) subst of
     Nothing -> return Nothing
     Just r  -> Just <$> cast r
   where
-    cast :: Exists (UTx ki codes phi)
-         -> Except (ApplicationErr ki codes phi) (UTx ki codes phi ix)
+    cast :: Exists (Holes ki codes phi)
+         -> Except (ApplicationErr ki codes phi) (Holes ki codes phi ix)
     cast (Exists res) = case idxDecEq res var of
       Nothing   -> throwError IncompatibleTypes
       Just Refl -> return res

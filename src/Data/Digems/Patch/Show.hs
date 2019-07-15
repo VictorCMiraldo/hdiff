@@ -17,10 +17,11 @@ import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.Util
+import Generics.MRSOP.Holes
 import Generics.MRSOP.TH
+import Generics.MRSOP.Digems.Holes
 import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Treefix hiding (parens)
 
 import qualified Data.Digems.Patch        as D
 import qualified Data.Digems.Change       as D
@@ -62,18 +63,18 @@ conflictPretty renderK (InR (D.Conflict l r))
 
 -- |Pretty prints a patch on the terminal
 showRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-             => UTx ki codes (D.CChange ki codes) v
+             => Holes ki codes (D.CChange ki codes) v
              -> [String]
 showRawPatch patch 
   = doubleColumn 75
-      (utxPretty (Proxy :: Proxy fam) id prettyCChangeDel patch)
-      (utxPretty (Proxy :: Proxy fam) id prettyCChangeIns patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyCChangeDel patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyCChangeIns patch)
   where
     prettyCChangeDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => D.CChange ki codes at
                     -> Doc AnsiStyle
     prettyCChangeDel (D.CMatch _ del ins)
-      = utxPretty (Proxy :: Proxy fam)
+      = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
                   (metavarPretty (annotate mydullred))
                   del
@@ -82,18 +83,18 @@ showRawPatch patch
                     => D.CChange ki codes at
                     -> Doc AnsiStyle
     prettyCChangeIns (D.CMatch _ del ins)
-      = utxPretty (Proxy :: Proxy fam)
+      = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)
                   (metavarPretty (annotate mydullgreen))
                   ins
 
 showPatchC :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-           => UTx ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
+           => Holes ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
            -> [String]
 showPatchC patch 
   = doubleColumn 75
-      (utxPretty (Proxy :: Proxy fam) id prettyConfDel patch)
-      (utxPretty (Proxy :: Proxy fam) id prettyConfIns patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyConfDel patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyConfIns patch)
   where
     prettyConfDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
@@ -101,7 +102,7 @@ showPatchC patch
     prettyConfDel (InL (D.Conflict lbl _ _))
       = annotate (color Blue) (pretty $ show lbl)
     prettyConfDel (InR (D.CMatch _ del ins))
-      = utxPretty (Proxy :: Proxy fam)
+      = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
                   (metavarPretty (annotate mydullred))
                   del
@@ -112,37 +113,37 @@ showPatchC patch
     prettyConfIns (InL (D.Conflict lbl _ _))
       = annotate (color Blue) (pretty $ show lbl)
     prettyConfIns (InR (D.CMatch _ del ins))
-      = utxPretty (Proxy :: Proxy fam)
+      = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)
                   (metavarPretty (annotate mydullgreen))
                   ins
 
 instance (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => Show (UTx ki codes (D.CChange ki codes) at) where
+      => Show (Holes ki codes (D.CChange ki codes) at) where
   show = unlines . showRawPatch
 
 instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (D.CChange ki codes at) where
   show (D.CMatch _ del ins) = unlines $ doubleColumn 75
-    (utxPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred))   del)
-    (utxPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) ins)
+    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred))   del)
+    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) ins)
 
 
 instance (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => Show (UTx ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at) where
+      => Show (Holes ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at) where
   show = unlines . showPatchC
 
 -- |Outputs the result of 'showPatchC' to the specified handle
 displayPatchC :: (HasDatatypeInfo ki fam codes , RendererHO ki)
               => Handle
-              -> UTx ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
+              -> Holes ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
               -> IO ()
 displayPatchC hdl = mapM_ (hPutStrLn hdl) . showPatchC
 
 -- |Outputs the result of 'showRawPatch' to the specified handle
 displayRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                 => Handle
-                -> UTx ki codes (D.CChange ki codes) at
+                -> Holes ki codes (D.CChange ki codes) at
                 -> IO ()
 displayRawPatch hdl = mapM_ (hPutStrLn hdl) . showRawPatch
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE PolyKinds           #-}
@@ -19,7 +19,7 @@ import qualified Crypto.Hash            as Hash
 import qualified Crypto.Hash.Algorithms as Hash (Blake2s_256)
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.AG (AnnFix(..) , synthesize)
+import Generics.MRSOP.Holes
 
 -- |Our digests come from Blake2s_256 
 newtype Digest
@@ -41,6 +41,11 @@ toW64s = map combine . chunksOf 8 . BA.unpack . getDigest
                        -> shiftL (fromIntegral next) (8*n) .|. acu) 0
             . zip [0,8,16,24,32,40,48,56]
     
+-- |Process an 'SNat' into a 'Word64'. This is useful
+-- in order to use type-level info as salt.
+snat2W64 :: SNat n -> Word64
+snat2W64 SZ     = 0
+snat2W64 (SS c) = 1 + snat2W64 c
 
 -- |Auxiliar hash function with the correct types instantiated.
 hash :: BS.ByteString -> Digest
@@ -67,31 +72,35 @@ instance Digestible Word64 where
 class DigestibleHO (f :: k -> *) where
   digestHO :: forall ki . f ki -> Digest
 
--- |Type synonym for fixpoints annotated with their digest.
-type DigFix ki codes = AnnFix ki codes (Const Digest)
-
--- |Given a generic fixpoint, annotate every recursive position
---  with its cryptographic digests.
-auth :: forall ki codes ix
-      . (IsNat ix , DigestibleHO ki)
-     => Fix ki codes ix
-     -> DigFix ki codes ix
-auth = synthesize (authAlgebra getConst)
-
--- |And a more general form of the algebra used
---  to compute a merkelized fixpoint.
+-- |Authenticates a 'HPeel' without caring for the type
+--  information. Only use this if you are sure of what you are
+--  doing, as there can be colissions. For example:
 --
-authAlgebra :: forall ki sum ann iy
-             . (DigestibleHO ki , IsNat iy)
-            => (forall ix . ann ix -> Digest)
-            -> Rep ki ann sum
-            -> Const Digest iy
-authAlgebra proj rep
-  = let siy = snat2W64 $ getSNat (Proxy :: Proxy iy)
-     in case sop rep of
-       Tag c p -> Const . digestConcat
-                $ ([digest (constr2W64 c) , digest siy] ++)
-                $ elimNP (elimNA digestHO proj) p
+--  > data A = A1 B | A2 Int Int
+--  > data B = B1 A | B2 Int Int 
+--
+--  > xA :: NP ann (Lkup 1 codesA)
+--  > xB :: NP ann (Lkup 1 codesB)
+--  >
+--  > authPeel' f 0 (CS CZ) xA == authPeel' f 0 (CS CZ) xB
+--
+--  That's because @A2@ and @B2@ have the exact same signature
+--  and are within the exact same position within the datatype.
+--  We must use the salt to pass type information:
+--
+--  > authPeel' f (snat2W64 IdxA) (CS CZ) xA
+--  >   =/ authPeel' f (snat2W64 IdxB) (CS CZ) xB
+--  
+--  One should stick to 'authPeel' whenever in doubt.
+authPeel' :: forall sum ann i
+           . (forall ix . ann ix -> Digest)
+          -> Word64
+          -> Constr sum i
+          -> NP ann (Lkup i sum)
+          -> Digest
+authPeel' proj salt c p 
+  = digestConcat $ ([digest (constr2W64 c) , digest salt] ++)
+                 $ elimNP proj p
   where
     -- We are mapping Constr and SNat's to
     -- Word64 because these are better handled by the 'memory'
@@ -100,7 +109,15 @@ authAlgebra proj rep
     constr2W64 CZ     = 0
     constr2W64 (CS c) = 1 + constr2W64 c
 
-    snat2W64 :: SNat n -> Word64
-    snat2W64 SZ     = 0
-    snat2W64 (SS c) = 1 + snat2W64 c
+-- |This function correctly salts 'authPeel'' and produces
+-- a unique hash per constructor.
+authPeel :: forall codes ix ann i
+          . IsNat ix
+         => (forall ix . ann ix -> Digest)
+         -> Proxy codes
+         -> Proxy ix
+         -> Constr (Lkup ix codes) i
+         -> NP ann (Lkup i (Lkup ix codes))
+         -> Digest
+authPeel proj pc pix = authPeel' proj (snat2W64 $ getSNat pix)
 

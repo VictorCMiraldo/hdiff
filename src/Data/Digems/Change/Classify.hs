@@ -11,17 +11,18 @@ import Data.Type.Equality
 -------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+import Generics.MRSOP.Holes
 -------------------------------
 import Data.Exists
 import Data.Digems.Change
 import Data.Digems.MetaVar
 import Data.Digems.Change.Apply
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Digems.Holes
 
 -----------------------------------------
 -- Change Classification algo
 
-instance (EqHO ki , TestEquality ki) => Eq (Exists (UTx ki codes (MetaVarIK ki))) where
+instance (EqHO ki , TestEquality ki) => Eq (Exists (Holes ki codes (MetaVarIK ki))) where
   (Exists v) == (Exists u) =
     case testEquality v u of
       Nothing   -> False
@@ -30,11 +31,11 @@ instance (EqHO ki , TestEquality ki) => Eq (Exists (UTx ki codes (MetaVarIK ki))
 getConstrSNat :: (IsNat n) => Constr sum n -> SNat n
 getConstrSNat _ = getSNat (Proxy :: Proxy n)
 
-utxGetMultiplicities :: Int -> UTx ki codes f at -> [Exists (UTx ki codes f)]
-utxGetMultiplicities k utx
-  | utxArity utx == k = [Exists utx]
+holesGetMultiplicities :: Int -> Holes ki codes f at -> [Exists (Holes ki codes f)]
+holesGetMultiplicities k utx
+  | holesArity utx == k = [Exists utx]
   | otherwise = case utx of
-      UTxPeel c p -> concat $ elimNP (utxGetMultiplicities k) p
+      HPeel _ c p -> concat $ elimNP (holesGetMultiplicities k) p
       _           -> []
 
 
@@ -47,10 +48,10 @@ changeClassify :: (EqHO ki , TestEquality ki)
 changeClassify c
   | isCpy c   = CId
   | otherwise =
-  let mis = utxGetMultiplicities 0 (cCtxIns c)
-      mds = utxGetMultiplicities 0 (cCtxDel c)
-      vi = utxGetHolesWith' metavarGet (cCtxIns c)
-      vd = utxGetHolesWith' metavarGet (cCtxDel c)
+  let mis = holesGetMultiplicities 0 (cCtxIns c)
+      mds = holesGetMultiplicities 0 (cCtxDel c)
+      vi = holesGetHolesAnnWith' metavarGet (cCtxIns c)
+      vd = holesGetHolesAnnWith' metavarGet (cCtxDel c)
       permutes = vi == vd
       dups     = vi /= nub vi || vd /= nub vd
    in case (length mis , length mds) of
