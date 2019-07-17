@@ -20,11 +20,12 @@ import Data.Text.Prettyprint.Doc
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+import Generics.MRSOP.Holes
 import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
+import Generics.MRSOP.Digems.Holes
 import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Treefix
 import Data.Digems.Patch
 import Data.Digems.Patch.Diff
 import Data.Digems.MetaVar
@@ -103,28 +104,28 @@ genFib2 :: MyFix (S (S Z))
 genFib2 = tr $ test1 "fab" "m" "b"
 -}
 
-type TreeTerm = UTx Singl CodesTree23 (MetaVarIK Singl) (I Z)
+type TreeTerm = Holes Singl CodesTree23 (MetaVarIK Singl) (I Z)
 
 unif1 :: TreeTerm
-unif1 = UTxPeel CZ (UTxOpq (SInt 100)
-                 :* UTxHole (NA_I $ Const 1)
-                 :* UTxHole (NA_I $ Const 2)
+unif1 = HPeel' CZ (HOpq' (SInt 100)
+                 :* Hole' (NA_I $ Const 1)
+                 :* Hole' (NA_I $ Const 2)
                  :* NP0)
 unif12 :: TreeTerm
-unif12 = UTxPeel CZ (UTxOpq (SInt 500)
-                 :* UTxHole (NA_I $ Const 1)
-                 :* UTxHole (NA_I $ Const 2)
+unif12 = HPeel' CZ (HOpq' (SInt 500)
+                 :* Hole' (NA_I $ Const 1)
+                 :* Hole' (NA_I $ Const 2)
                  :* NP0)
 
 unif2 :: TreeTerm
-unif2 = UTxPeel CZ (UTxOpq (SInt 200)
-                 :* UTxHole (NA_I $ Const 4)
-                 :* UTxHole (NA_I $ Const 5)
+unif2 = HPeel' CZ (HOpq' (SInt 200)
+                 :* Hole' (NA_I $ Const 4)
+                 :* Hole' (NA_I $ Const 5)
                  :* NP0)
 unif22 :: TreeTerm
-unif22 = UTxPeel CZ (UTxOpq (SInt 500)
-                 :* UTxHole (NA_I $ Const 4)
-                 :* UTxHole (NA_I $ Const 5)
+unif22 = HPeel' CZ (HOpq' (SInt 500)
+                 :* Hole' (NA_I $ Const 4)
+                 :* Hole' (NA_I $ Const 5)
                  :* NP0)
 
 
@@ -134,13 +135,13 @@ change2 = CMatch S.empty unif2 unif22
 
 {-
 unif2 :: TreeTerm
-unif2 = UTxPeel CZ (UTxOpq (SInt 100)
-                 :* UTxPeel (CS CZ)
-                    (UTxHole (NA_K $ Annotate 6 (SInt 42))
-                     :* UTxHole (NA_I $ Const 2)
-                     :* UTxPeel (CS (CS CZ)) NP0
-                     :* UTxPeel (CS (CS CZ)) NP0
+unif2 = HPeel' CZ (HOpq' (SInt 100)
+                 :* HPeel' (CS CZ)
+                    (Hole' (NA_K $ Annotate 6 (SInt 42))
+                     :* Hole' (NA_I $ Const 2)
+                     :* HPeel' (CS (CS CZ)) NP0
+                     :* HPeel' (CS (CS CZ)) NP0
                      :* NP0)
-                 :* UTxPeel (CS (CS CZ)) NP0
+                 :* HPeel' (CS (CS CZ)) NP0
                  :* NP0)
 -}

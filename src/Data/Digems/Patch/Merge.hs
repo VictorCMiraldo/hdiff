@@ -70,20 +70,22 @@ getConflicts = snd . runWriter . holesMapM go
     go x@(InL (Conflict str _ _)) = tell [str] >> return x
     go x                          = return x
 
-{-
 
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
-(//) :: ( Applicable ki codes (UTx2 ki codes)
+(//) :: ( Applicable ki codes (Holes2 ki codes)
         , HasDatatypeInfo ki fam codes 
         )
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
+p // q = Hole' (InL $ Conflict "" p q)
+{-
 p // q = utxJoin $ utxMap (uncurry' reconcile)
                  $ utxLCP p
                  $ q `withFreshNamesFrom` p
+
 
 -- |The 'reconcile' function will try to reconcile disagreeing
 --  patches.

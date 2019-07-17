@@ -78,16 +78,15 @@ genericApply :: (Applicable ki codes phi)
              -> Either (ApplicationErr ki codes phi) (Holes ki codes phi at)
 genericApply chg x = runExcept (pmatch (cCtxDel chg) x >>= transport (cCtxIns chg))
 
-{-
 -- |Specializes 'genericApply' to work over terms of our language, ie, 'NA's
 termApply :: forall ki codes at
            . (ShowHO ki , EqHO ki , TestEquality ki)
           => CChange ki codes at
           -> NA ki (Fix ki codes) at
           -> Either String (NA ki (Fix ki codes) at)
-termApply chg = either (Left . show) (utxUnstiffM cast)
+termApply chg = either (Left . show) (holes2naM cast)
               . genericApply chg
-              . Stiff 
+              . na2holes 
   where
     -- cast is used only to fool the compiler here! Since the
     -- Holes comes from 'utxStiff', it has no occurence of 'HolesHole'
@@ -97,7 +96,6 @@ termApply chg = either (Left . show) (utxUnstiffM cast)
     cast :: MetaVarIK ki ix
          -> Either String (NA ki (Fix ki codes) ix)
     cast _ = Left "Data.Digems.Change.Apply: impossible"
--}
 
 
 -- |@pmatch pa x@ traverses @pa@ and @x@ instantiating the variables of @pa@.

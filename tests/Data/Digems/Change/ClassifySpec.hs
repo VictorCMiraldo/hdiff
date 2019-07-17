@@ -8,7 +8,7 @@ import qualified Data.Set as S
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Holes
 
 import Data.Exists
 import Data.Digems.Patch
@@ -35,7 +35,7 @@ mustClassifyAs :: String ->  RTree -> RTree -> [ChangeClass] -> SpecWith (Arg Bo
 mustClassifyAs lbl a b cls = do
   it (lbl ++ ": change class") $ do
     let patch = digemRTree a b
-     in cls == utxGetHolesWith' changeClassify patch
+     in cls == holesGetHolesAnnWith' changeClassify patch
      
   
 ----------------

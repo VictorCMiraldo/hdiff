@@ -109,24 +109,20 @@ patchCost = sum . holesGetHolesAnnWith' go
 -- The only slight trick is that we need to
 -- wrap our trees in existentials inside our valuation.
 
-{-
 -- |Applying a patch is trivial, we simply project the
 --  deletion treefix and inject the valuation into the insertion.
 apply :: (TestEquality ki , EqHO ki , ShowHO ki, IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
       -> Either String (Fix ki codes ix)
-apply patch x 
-    -- since all our changes are closed, we can apply them locally
-    -- over the spine.
-    =   utxZipRep patch (NA_I x)
-    >>= holesMapM (uncurry' termApply)
-    >>= return . unNA_I . utxForget
+apply patch x
+  =   holesZipRep patch (NA_I x)
+  >>= holesMapM (uncurry' termApply)
+  >>= holes2naM Right 
+  >>= return . unNA_I 
   where
     unNA_I :: NA f g (I i) -> g i
     unNA_I (NA_I x) = x
--}
-
 
 -- ** Specializing a Patch
 

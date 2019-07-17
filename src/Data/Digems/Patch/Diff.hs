@@ -240,20 +240,32 @@ instance DigestibleHO (Const Void) where
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
+diff' :: (EqHO ki , DigestibleHO ki , DigestibleHO phi)
+      => MinHeight
+      -> Holes ki codes phi at
+      -> Holes ki codes phi at
+      -> (Int , Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at)
+diff' mh x y
+  = let dx      = preprocess x
+        dy      = preprocess y
+        (i, sh) = buildSharingTrie mh dx dy
+        dx'     = tagProperShare sh dx
+        dy'     = tagProperShare sh dy
+        del     = extractHoles mh sh dx'
+        ins     = extractHoles mh sh dy'
+     in (i , del :*: ins)
+
+-- |When running the diff for two fixpoints, we can
+-- cast the resulting deletion and insertion context into
+-- an actual patch.
 diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight
      -> Fix ki codes ix
      -> Fix ki codes ix
      -> Patch ki codes ix
 diff mh x y
-  = let dx      = preprocess (na2holes $ NA_I x)
-        dy      = preprocess (na2holes $ NA_I y)
-        (i, sh) = buildSharingTrie mh dx dy
-        dx'     = tagProperShare sh dx
-        dy'     = tagProperShare sh dy
-        del     = extractHoles mh sh dx'
-        ins     = extractHoles mh sh dy'
+  = let (i , del :*: ins) = diff' mh (na2holes $ NA_I x) (na2holes $ NA_I y)
      in close (extractSpine cast i del ins)
- where
+ where 
    cast :: Sum (Const Void) f i -> f i
    cast (InR fi) = fi

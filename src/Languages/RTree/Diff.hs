@@ -32,15 +32,12 @@ digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
                         (dfrom $ into @FamRTree b)
 
-{-
 applyRTree :: PatchRTree -> RTree -> Either String RTree
 applyRTree p x = either Left (Right . unEl . dto @Z . unFix)
                $ apply p (dfrom $ into @FamRTree x)
 
 applyRTreeC :: CChange W CodesRTree (I Z) -> RTree -> Either String RTree
-applyRTreeC p x = applyRTree (UTxHole p) x
+applyRTreeC p x = applyRTree (Hole' p) x
 
 applyRTree' :: PatchRTree -> RTree -> Maybe RTree
 applyRTree' p = either (const Nothing) Just . applyRTree p
-
--}

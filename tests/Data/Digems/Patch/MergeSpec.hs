@@ -8,7 +8,6 @@ import qualified Data.Set as S
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
-import Generics.MRSOP.Digems.Treefix
 
 import Data.Digems.Patch
 import Data.Digems.Patch.Diff

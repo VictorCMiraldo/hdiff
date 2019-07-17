@@ -28,7 +28,7 @@ library
                  , Data.WordTrie
                  , Generics.MRSOP.Digems.Digest
                  , Generics.MRSOP.Digems.Renderer
-                 , Generics.MRSOP.Digems.Treefix
+                 , Generics.MRSOP.Digems.Holes
                  , Languages.RTree
                  , Languages.RTree.Diff
   -- other-modules:       

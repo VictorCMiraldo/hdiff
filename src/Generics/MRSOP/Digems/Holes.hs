@@ -75,6 +75,23 @@ holesPretty pfam sty sx utx@(HPeel _ c rest)
   = renderNP pfam sty (holesSNat utx) c
   $ mapNP (Const . holesPretty pfam sty sx) rest
 
+
+-- |Zips a 'Holes' and a generic value together. Returns
+-- 'mzero' whenever the structure of the value is not compatible
+-- with that requird by the /holed/ value.
+holesZipRep :: (MonadPlus m)
+            => Holes ki codes f at
+            -> NA ki (Fix ki codes) at
+            -> m (Holes ki codes (f :*: NA ki (Fix ki codes)) at)
+holesZipRep (Hole a i) x  = return $ Hole a (i :*: x)
+holesZipRep (HOpq a k)  _ = return $ HOpq a k
+holesZipRep (HPeel a c d) (NA_I x)
+  | Tag cx dx <- sop (unFix x)
+  = case testEquality c cx of
+      Nothing   -> mzero
+      Just Refl -> HPeel a cx <$> mapNPM (uncurry' holesZipRep) (zipNP d dx)
+
+
 -- * Test Equality Instance
 --
 -- Are two treefixes indexes over the same atom?
