@@ -26,38 +26,6 @@ import Generics.MRSOP.Holes
 --------------------------------
 import Generics.MRSOP.Digems.Renderer
 
-holesSNat :: (IsNat ix)
-          => HolesAnn ann ki codes f ('I ix)
-          -> SNat ix
-holesSNat _ = getSNat (Proxy :: Proxy ix)
-
--- |Returns how many holes are inside a treefix
-holesArity :: Holes ki codes f at -> Int
-holesArity = length . holesGetHolesAnnWith' (const ())
-
-{-
--- |Counts the number of subtrees with a given arity
-utxMultiplicity :: Int -> Holes ki codes f at -> Int
-utxMultiplicity k utx
-  | utxArity utx == k = 1
-  | otherwise = case utx of
-      HPeel _ _ p -> sum $ elimNP (utxMultiplicity k) p
-      _           -> 0
--}
-
--- |Returns the size of a treefix. Holes have size 0.
-holesSize :: Holes ki codes f at -> Int
-holesSize (Hole _ _) = 0
-holesSize (HOpq _  _) = 1
-holesSize (HPeel _ _ p) = 1 + sum (elimNP holesSize p)
-
--- * Show instances
-
-instance (ShowHO ki , ShowHO f) => ShowHO (Holes ki codes f) where
-  showHO (Hole _ x)      = "[" ++ showHO x ++ "]"
-  showHO (HOpq _ k)       = showHO k
-  showHO (HPeel _ c rest) = "(" ++ show c ++ "| " ++ showHO rest ++ ")"
-
 -- |Pretty-prints a treefix using a specific function to
 --  print holes.
 holesPretty :: forall ki fam codes f at ann

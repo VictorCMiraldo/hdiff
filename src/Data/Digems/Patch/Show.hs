@@ -118,7 +118,7 @@ showPatchC patch
                   (metavarPretty (annotate mydullgreen))
                   ins
 
-instance (HasDatatypeInfo ki fam codes , RendererHO ki)
+instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (Holes ki codes (D.CChange ki codes) at) where
   show = unlines . showRawPatch
 
@@ -129,7 +129,7 @@ instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
     (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) ins)
 
 
-instance (HasDatatypeInfo ki fam codes , RendererHO ki)
+instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (Holes ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at) where
   show = unlines . showPatchC
 

@@ -1,13 +1,13 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes    #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE PolyKinds     #-}
-{-# LANGUAGE GADTs         #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 module Data.Digems.Patch.Merge where
 
 import Data.Proxy
@@ -80,11 +80,9 @@ getConflicts = snd . runWriter . holesMapM go
      => Patch ki codes ix
      -> Patch ki codes ix
      -> PatchC ki codes ix
-p // q = Hole' (InL $ Conflict "" p q)
-{-
-p // q = utxJoin $ utxMap (uncurry' reconcile)
-                 $ utxLCP p
-                 $ q `withFreshNamesFrom` p
+p // q = holesJoin $ holesMap (uncurry' reconcile)
+                   $ holesLCP p
+                   $ q `withFreshNamesFrom` p
 
 
 -- |The 'reconcile' function will try to reconcile disagreeing
@@ -93,24 +91,24 @@ p // q = utxJoin $ utxMap (uncurry' reconcile)
 --  Precondition: before calling @reconcile p q@, make sure
 --                @p@ and @q@ are different.
 reconcile :: forall ki codes fam at
-           . ( Applicable ki codes (UTx2 ki codes)
+           . ( Applicable ki codes (Holes2 ki codes)
              , HasDatatypeInfo ki fam codes 
              ) 
           => RawPatch ki codes at
           -> RawPatch ki codes at
-          -> UTx ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
+          -> Holes ki codes (Sum (Conflict ki codes) (CChange ki codes)) at
 reconcile p q
   -- If both patches are alpha-equivalent, we return a copy.
-  | patchEq p q = UTxHole $ InR $ makeCopyFrom (distrCChange p)
+  | patchEq p q = Hole' $ InR $ makeCopyFrom (distrCChange p)
   -- Otherwise, this is slightly more involved, but it is intuitively simple.
   | otherwise    =
     -- First we translate both patches to a 'spined change' representation.
-    let sp = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) p
-        sq = utxJoin $ utxMap (uncurry' utxLCP . unCMatch) q -- spinedChange q
+    let sp = holesJoin $ holesMap (uncurry' holesLCP . unCMatch) p
+        sq = holesJoin $ holesMap (uncurry' holesLCP . unCMatch) q -- spinedChange q
      in case process sp sq of
-          CantReconcile err -> UTxHole $ InL $ Conflict err p q
-          ReturnNominator   -> utxMap InR p
-          InstDenominator v -> UTxHole $
+          CantReconcile err -> Hole' $ InL $ Conflict err p q
+          ReturnNominator   -> holesMap InR p
+          InstDenominator v -> Hole' $
             case runExcept $ transport (scIns sq) v of
               Left err -> InL $ Conflict (show err) p q
               Right r  -> case utx22change r of
@@ -119,28 +117,28 @@ reconcile p q
 
 data ProcessOutcome ki codes
   = ReturnNominator
-  | InstDenominator (Subst ki codes (UTx2 ki codes))
+  | InstDenominator (Subst ki codes (Holes2 ki codes))
   | CantReconcile String
 
 -- |Checks whether a variable is a rawCpy, note that we need
 --  a map that checks occurences of this variable.
 rawCpy :: M.Map Int Int
-       -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
+       -> Holes2 ki codes at
        -> Bool
-rawCpy ar (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
-                                     && M.lookup (metavarGet v1) ar == Just 1
-rawCpy ar _                           = False
+rawCpy ar (Hole' v1 :*: Hole' v2) = metavarGet v1 == metavarGet v2
+                                 && M.lookup (metavarGet v1) ar == Just 1
+rawCpy ar _                       = False
 
-simpleCopy :: (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at -> Bool
-simpleCopy (UTxHole v1 :*: UTxHole v2) = metavarGet v1 == metavarGet v2
+simpleCopy :: Holes2 ki codes at -> Bool
+simpleCopy (Hole' v1 :*: Hole' v2) = metavarGet v1 == metavarGet v2
 simpleCopy _ = False
 
-isLocalIns :: UTx2 ki codes at -> Bool
-isLocalIns (UTxHole _ :*: UTxPeel _ _) = True
+isLocalIns :: Holes2 ki codes at -> Bool
+isLocalIns (Hole' _ :*: Hole' _) = True
 isLocalIns _                           = False
 
-arityMap :: UTx ki codes (MetaVarIK ki) at -> M.Map Int Int
-arityMap = go . utxGetHolesWith' metavarGet
+arityMap :: Holes ki codes (MetaVarIK ki) at -> M.Map Int Int
+arityMap = go . holesGetHolesAnnWith' metavarGet
   where
     go []     = M.empty
     go (v:vs) = M.alter (Just . maybe 1 (+1)) v (go vs)
@@ -160,8 +158,8 @@ instance ShowHO x => Show (Exists x) where
 -- need to adapt @sp@ to @sq@. After we are done, we know whether
 -- we need to adapt @sp@, return @sp@ as is, or there is a conflict.
 --
-process :: (Applicable ki codes (UTx2 ki codes))
-        => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
+process :: (Applicable ki codes (Holes2 ki codes))
+        => HolesHoles2 ki codes at -> HolesHoles2 ki codes at
         -> ProcessOutcome ki codes
 process sp sq =
   case and <$> mapM (exElim $ uncurry' step1) phiD of
@@ -176,8 +174,8 @@ process sp sq =
             (Right ()  , s) -> InstDenominator s
   where
     (delsp :*: _) = utx2distr sp
-    phiD  = utxGetHolesWith' Exists $ utxLCP delsp sq
-    phiID = utxGetHolesWith' Exists $ utxLCP sp sq
+    phiD  = holesGetHolesAnnWith' Exists $ holesLCP delsp sq
+    phiID = holesGetHolesAnnWith' Exists $ holesLCP sp sq
 
     -- The thing is, 'chg' is a true copy only if v2 occurs only once
     -- within the whole of 'sq'
@@ -191,43 +189,40 @@ process sp sq =
 
     -- |Step1 checks that the own-variable mappings of the
     -- anti-unification of (scDel p) and q is of a specific shape.
-    step1 :: UTx ki codes (MetaVarIK ki) at -> UTxUTx2 ki codes at
+    step1 :: Holes ki codes (MetaVarIK ki) at -> HolesHoles2 ki codes at
           -> Maybe Bool
     -- If the deletion context of the numerator requires an opaque
     -- fixed value and the denominator performs any change other
     -- than a copy, this is a del/mod conflict.
-    step1 (UTxOpq _) (UTxHole chg)
+    step1 (HOpq _ _) (Hole _ chg)
       | simpleCopy chg = Just True
       | otherwise      = Nothing
     -- If the numerator imposes no restriction in what it accepts here,
     -- we return true for this hole
-    step1 (UTxHole _) _   = Just True
+    step1 (Hole _ _) _   = Just True
     -- If the numerator expects something specific but the denominator
     -- merely copies, we still return true
-    step1 _ (UTxHole chg) = Just $ rawCpy varmap chg
+    step1 _ (Hole _ chg) = Just $ rawCpy varmap chg
     -- Any other situation requires further analisys.
     step1 _ _ = Just False
 
     -- |Step2 checks a condition for the own-variable mappints
     -- of the anti-unification of p and q! note this is different
     -- altogether from step 1!!!
-    step2 :: (Applicable ki codes (UTx2 ki codes))
-          => UTxUTx2 ki codes at -> UTxUTx2 ki codes at
-          -> ExceptT String (State (Subst ki codes (UTx2 ki codes))) ()
+    step2 :: (Applicable ki codes (Holes2 ki codes))
+          => HolesHoles2 ki codes at -> HolesHoles2 ki codes at
+          -> ExceptT String (State (Subst ki codes (Holes2 ki codes))) ()
     step2 pp qq = do
       s <- lift get
       let del = scDel qq
       case thinUTx2 (utx2distr pp) del of
         Left e    -> throwError ("th: " ++ show e)
         Right pp0 -> do
-          let pp' = uncurry' utxLCP pp0
+          let pp' = uncurry' holesLCP pp0
           case runExcept (pmatch' s del pp') of
             Left  e  -> throwError (show e)
             Right s' -> put s' >> return ()
 
-    insins :: UTxUTx2 ki codes at -> UTxUTx2 ki codes at -> Bool
-    insins (UTxHole pp) (UTxHole qq) = isLocalIns pp && isLocalIns qq
+    insins :: HolesHoles2 ki codes at -> HolesHoles2 ki codes at -> Bool
+    insins (Hole _ pp) (Hole _ qq) = isLocalIns pp && isLocalIns qq
     insins _ _ = False
-
-
--}
