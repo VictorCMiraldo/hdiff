@@ -98,7 +98,7 @@ for d in ${dir}/*; do
   else
     ## Everything was found alright, we jump in there and
     ## run whatever experiment we want.
-    $exp --prefix "$(basename ${d})" --fa "$fa" --fb "$fb" --fo "$fo"
+    $exp --prefix "$(basename ${d})" --fa "$fa" --fb "$fb" --fo "$fo" --rest $@
     ecode=$?
     if [[ "$ecode" -ne "0" ]]; then
       echo "!!! ${d} !!! Abort($ecode)"
