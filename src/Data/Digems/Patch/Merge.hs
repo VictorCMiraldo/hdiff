@@ -134,8 +134,8 @@ simpleCopy (Hole' v1 :*: Hole' v2) = metavarGet v1 == metavarGet v2
 simpleCopy _ = False
 
 isLocalIns :: Holes2 ki codes at -> Bool
-isLocalIns (Hole' _ :*: Hole' _) = True
-isLocalIns _                           = False
+isLocalIns (Hole _ _ :*: HPeel _ _ _) = True
+isLocalIns _                          = False
 
 arityMap :: Holes ki codes (MetaVarIK ki) at -> M.Map Int Int
 arityMap = go . holesGetHolesAnnWith' metavarGet
