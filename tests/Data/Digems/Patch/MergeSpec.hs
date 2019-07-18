@@ -345,6 +345,9 @@ mymerge p q = do
     Right r  -> return r
 -}
 
+oa1 = digemRTree o1 a1
+ob1 = digemRTree o1 b1
+
 oa2 = digemRTree o2 a2
 ob2 = digemRTree o2 b2
 
