@@ -122,6 +122,14 @@ instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (Holes ki codes (D.CChange ki codes) at) where
   show = unlines . showRawPatch
 
+instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , ShowHO phi)
+      => Show (Delta (Holes ki codes phi) at) where
+  show (del :*: ins)
+    = unlines $ doubleColumn 75
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) del)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) ins)
+
+
 instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (D.CChange ki codes at) where
   show (D.CMatch _ del ins) = unlines $ doubleColumn 75

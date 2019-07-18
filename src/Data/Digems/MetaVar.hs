@@ -18,6 +18,7 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 --------------------------------------
 import Data.Exists
+import Generics.MRSOP.Digems.Digest
 import Generics.MRSOP.Digems.Holes
 
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
@@ -55,6 +56,10 @@ instance (TestEquality ki) => TestEquality (Annotate x ki) where
 --        we can then piggyback on 'testEquality' for ki.
 --        The 'HasIKProjInj' instance is part of this same hack.
 type MetaVarIK ki = NA (Annotate Int ki) (Const Int)
+
+instance (DigestibleHO ki) => DigestibleHO (MetaVarIK ki) where
+  digestHO (NA_I (Const i))      = hashStr ("vari" ++ show i)
+  digestHO (NA_K (Annotate i _)) = hashStr ("vark" ++ show i)
 
 -- |Returns the metavariable forgetting about type information
 metavarGet :: MetaVarIK ki at -> Int
