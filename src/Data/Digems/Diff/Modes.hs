@@ -48,6 +48,11 @@ data DiffMode
   --
   -- > diff src dst = Bin 0 u |-> Bin 0 t
   | DM_NoNested
+  -- |Similar to @git --patience@, we share only unique trees.
+  -- In this example, this would result in the same as 'DM_NoNested',
+  -- but if we take @u = (Bin t k)@, no sharing would be performed
+  -- whatsoever.
+  | DM_Patience
   deriving (Eq , Show)
 
 extractHoles :: DiffMode
@@ -59,6 +64,8 @@ extractHoles DM_NoNested h tr sd
   = extractNoNested h tr sd
 extractHoles DM_ProperShare h tr (src :*: dst)
   = (extractProperShare h tr src :*: extractProperShare h tr dst)
+extractHoles DM_Patience h tr (src :*: dst)
+  = (extractPatience h tr src :*: extractPatience h tr dst)
  
 -- ** Proper Shares
 
@@ -124,6 +131,48 @@ properShare minHeight tr pr
     mkHole v (HPeel _ _ _) = Hole' (InR (NA_I (Const v)))
     mkHole v (HOpq _ k)    = Hole' (InR (NA_K (Annotate v k)))
 
+-- ** Patience
+
+extractPatience :: MinHeight
+                -> IsSharedMap
+                -> PrepFix a ki codes phi at
+                -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+extractPatience h tr a = patience h tr a
+
+patience :: MinHeight
+         -> IsSharedMap
+         -> PrepFix a ki codes phi at
+         -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+patience minHeight tr pr
+  = let prep = getConst $ holesAnn pr
+     in if minHeight >= treeHeight prep
+        then patience' pr
+        else case T.lookup (toW64s $ treeDigest prep) tr of
+               Nothing -> patience' pr
+               Just i | getArity i == 2 -> mkHole (getMetavar i) pr
+                      | otherwise       -> patience' pr
+  where
+    patience' :: PrepFix a ki codes phi at
+              -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+    patience' (Hole _ d)    = Hole' (InL d)
+    patience' (HOpq _ k)    = HOpq' k
+    patience' (HPeel _ c d) = HPeel' c (mapNP (patience minHeight tr) d)
+
+    mkMetaVar :: PrepFix a ki codes phi at
+              -> Int
+              -> MetaVarIK ki at
+    mkMetaVar (Hole _ _)    v = error "This should be impossible"
+    mkMetaVar (HPeel _ _ _) v = NA_I (Const v)
+    mkMetaVar (HOpq _ k)    v = NA_K (Annotate v k)
+
+    mkHole :: Int
+           -> PrepFix a ki codes phi at
+           -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+    mkHole v (Hole _ d) = Hole' (InL d)
+    mkHole v x          = Hole' (InR $ mkMetaVar x v)
+
+
+
 -- ** No Nested
 
 extractNoNested :: MinHeight
@@ -132,7 +181,7 @@ extractNoNested :: MinHeight
                 -> Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at
 extractNoNested h tr (src :*: dst)
   = let del'  = noNested h tr src
-        ins'  = noNested h tr src
+        ins'  = noNested h tr dst
         holes = holesGetHolesAnnWith'' getHole del'
                   `S.intersection`
                 holesGetHolesAnnWith'' getHole ins'
@@ -167,7 +216,7 @@ noNested :: MinHeight
          -> Holes ki codes (Sum phi (Const Int :*: PrepFix a ki codes phi)) at
 noNested minHeight tr pr
   = let prep = getConst $ holesAnn pr
-     in if minHeight < treeHeight prep
+     in if minHeight >= treeHeight prep
         then noNested' pr
         else case T.lookup (toW64s $ treeDigest prep) tr of
                Nothing -> noNested' pr

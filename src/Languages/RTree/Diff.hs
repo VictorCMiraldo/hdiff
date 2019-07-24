@@ -3,14 +3,19 @@
 {-# LANGUAGE TypeApplications      #-}
 module Languages.RTree.Diff where
 
+import Data.Functor.Const
+import Data.Void
+
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
+import Generics.MRSOP.Digems.Digest
 
 import Languages.RTree
 import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Diff
+import Data.Digems.Diff.Preprocess
 import Data.Digems.Patch.Show
 
 type PatchRTree = Patch W CodesRTree Z
@@ -31,6 +36,12 @@ digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
 digemRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
 digemRTreeHM m h a b = diffMode m h (dfrom $ into @FamRTree a)
                                     (dfrom $ into @FamRTree b)
+
+rtreeMerkle :: RTree -> Digest
+rtreeMerkle a = getDig $ preprocess (na2holes $ NA_I $ dfrom $ into @FamRTree a)
+  where
+    getDig :: PrepFix a ki codes (Const Void) ix -> Digest
+    getDig = treeDigest . getConst . holesAnn
 
 digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = diff 1 (dfrom $ into @FamRTree a)

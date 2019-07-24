@@ -78,8 +78,11 @@ doMerge a o b
   = let a' = dfrom $ into @FamRTree a
         b' = dfrom $ into @FamRTree b
         o' = dfrom $ into @FamRTree o
-        oa = diff 1 o' a'
-        ob = diff 1 o' b'
+        -- VCM: Funny... with DM_ProperShare and DM_NoNested
+        -- we see the same hspec restuls, but with DM_Patience
+        -- we get a different result altogether.
+        oa = diffMode DM_ProperShare 1 o' a'
+        ob = diffMode DM_ProperShare 1 o' b'
         oaob = oa // ob
         oboa = ob // oa
      in case (,) <$> noConflicts oaob <*> noConflicts oboa of
@@ -396,7 +399,7 @@ spec = do
   --   it "p // id == p && id // p == id" $ merge_id
   --   it "p // p  == id"                 $ merge_diag
   
-  describe "merge: manual examples" $ do
+  describe "merge: manual examples (proper share)" $ do
     mustMerge "01" a1 o1 b1
     mustMerge "02" a2 o2 b2
     mustMerge "03" a3 o3 b3

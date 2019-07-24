@@ -1,7 +1,8 @@
+{-# LANGUAGE TupleSections #-}
 module Data.WordTrie where
 
 import Prelude hiding (lookup,zipWith)
-import Control.Arrow ((***))
+import Control.Arrow ((***), first, second)
 
 import qualified Data.Map  as M
 import qualified Data.List as L
@@ -11,7 +12,10 @@ import           Data.Word (Word64)
 data Trie a = Fork
   { trieVal :: Maybe a
   , trieMap :: M.Map Word64 (Trie a)
-  } deriving (Eq , Show)
+  } deriving (Eq)
+
+instance Show a => Show (Trie a) where
+  show = unlines . map show . toList
 
 instance Functor Trie where
   fmap f (Fork v m) = Fork (f <$> v) (fmap (fmap f) m)
@@ -52,3 +56,10 @@ mapAccum :: (a -> b -> (a, c)) -> a -> Trie b -> (a, Trie c)
 mapAccum f acc (Fork vb mb)
   = let (acc' , vc) = maybe (acc , Nothing) ((id *** Just) . f acc) vb
      in (id *** Fork vc) $ M.mapAccum (mapAccum f) acc' mb
+
+-- |Flattens a trie into a list
+toList :: Trie a -> [([Word64] , a)]
+toList (Fork va ma) = maybe id ((:) . ([],)) va
+  $ concatMap (distr1 . second toList) $ M.toList ma
+  where
+    distr1 (w , rest) = map (first (w:)) rest

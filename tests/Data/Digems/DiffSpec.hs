@@ -18,9 +18,9 @@ import Test.QuickCheck
 import Test.Hspec
 
 
-diff_wellscoped_changes :: Property
-diff_wellscoped_changes = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = digemRTree t1 t2
+diff_wellscoped_changes :: DiffMode -> Property
+diff_wellscoped_changes mode = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = digemRTreeHM mode 1 t1 t2
       in conjoin $ holesGetHolesAnnWith' go patch
   where
     go :: CChange W CodesRTree ix -> Property
@@ -30,19 +30,24 @@ diff_wellscoped_changes = forAll genSimilarTrees' $ \(t1 , t2)
             v  = S.map metavarIK2Int vars
          in v === vd .&&. vi === v
 
-apply_correctness :: Property
-apply_correctness = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = digemRTree t1 t2
+apply_correctness :: DiffMode -> Property
+apply_correctness mode = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = digemRTreeHM mode 1 t1 t2
       in case applyRTree patch t1 of
            Left err -> counterexample ("Apply failed with: " ++ err) False
            Right r  -> property $ t2 == r
            
-spec :: Spec
-spec = do
+diffModeSpec :: DiffMode -> Spec
+diffModeSpec mode = do
   describe "diff" $ do
     it "produce well-scoped changes" $ do
-      diff_wellscoped_changes
-  
+      diff_wellscoped_changes mode
   describe "apply" $ do
     it "is correct" $ do
-      apply_correctness
+      apply_correctness mode
+
+spec :: Spec
+spec = do
+ describe "Extraction: DM_ProperShare" $ diffModeSpec DM_ProperShare
+ describe "Extraction: DM_NoNested"    $ diffModeSpec DM_NoNested
+ describe "Extraction: DM_Patience"    $ diffModeSpec DM_Patience
