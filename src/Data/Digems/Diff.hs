@@ -33,6 +33,8 @@ import           Data.Digems.Patch
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
 
+-- TODO: Think of a way to share constants on command.
+
 -- |We use a number of 'PrePatch'es, that is, a utx with a distinguished prefix
 -- and some pair of 'Holes's inside.
 type PrePatch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki codes phi)
@@ -58,7 +60,7 @@ buildArityTrie minHeight df = go df T.empty
     go (HOpq (Const prep) x) t
       | treeHeight prep <= minHeight = t
       -- shall we insert constants?
-      | otherwise                    = t -- ins (treeDigest prep) t
+      | otherwise                    = ins (treeDigest prep) t
     go (HPeel (Const prep) c p) t
       | treeHeight prep <= minHeight = t
       | otherwise
