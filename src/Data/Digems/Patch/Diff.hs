@@ -30,10 +30,6 @@ import           Data.Digems.Change
 -- $utils
 --
 
--- TODO: bubble this up to generics-mrsop
-getFixSNat :: (IsNat ix) => Fix ki codes ix -> SNat ix
-getFixSNat _ = getSNat (Proxy :: Proxy ix)
-
 -- |We use a number of 'PrePatch'es, that is, a utx with a distinguished prefix
 -- and some pair of 'Holes's inside.
 type PrePatch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki codes phi)
