@@ -45,7 +45,6 @@ type IsSharedMap = T.Trie MetavarAndArity
 
 data MetavarAndArity = MAA { getMetavar :: Int , getArity :: Int }
   deriving (Eq , Show)
-           
 
 -- |A tree smaller than the minimum height will never be shared.
 type MinHeight = Int
