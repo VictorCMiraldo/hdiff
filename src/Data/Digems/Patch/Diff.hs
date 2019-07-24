@@ -20,34 +20,19 @@ import           Generics.MRSOP.Holes
 import           Generics.MRSOP.Digems.Digest
 
 import qualified Data.WordTrie as T
+import           Data.Digems.Patch.Diff.Types
+import           Data.Digems.Patch.Diff.Modes
 import           Data.Digems.Patch
 import           Data.Digems.Patch.Preprocess
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
-
--- * Utils
---
--- $utils
---
 
 -- |We use a number of 'PrePatch'es, that is, a utx with a distinguished prefix
 -- and some pair of 'Holes's inside.
 type PrePatch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki codes phi)
 
 -- * Diffing
-
--- |The data structure that captures which subtrees are shared
---  between source and destination. Besides providing an efficient
---  answer to the query: "is this tree shared?", it also gives a
---  unique identifier to that tree, allowing us to easily
---  build our n-holed treefix.
-type IsSharedMap = T.Trie MetavarAndArity
-
-data MetavarAndArity = MAA { getMetavar :: Int , getArity :: Int }
-  deriving (Eq , Show)
-
--- |A tree smaller than the minimum height will never be shared.
-type MinHeight = Int
+--
 
 -- |Given a merkelized fixpoint, builds a trie of hashes of
 --  every subtree, as long as they are taller than
@@ -91,67 +76,6 @@ buildSharingTrie minHeight x y
   = T.mapAccum (\i ar -> (i+1 , MAA i ar) ) 0
   $ T.zipWith (+) (buildArityTrie minHeight x)
                   (buildArityTrie minHeight y)
-
-tagProperShare :: forall a ki codes phi at
-                . IsSharedMap
-               -> PrepFix a ki codes phi at
-               -> PrepFix (Int , Bool) ki codes phi at
-tagProperShare ism = holesSynthesize pHole pOpq pPeel
-  where
-    myar :: PrepData a -> Int
-    myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest 
-    
-    -- A leaf is always a proper share. Since it has no subtrees,
-    -- none if its subtrees can appear outside the leaf under scrutiny
-    -- by construction.
-    pHole :: Const (PrepData a) at -> phi at
-          -> Const (PrepData (Int , Bool)) at
-    pHole (Const pd) _ = Const $ pd { treeParm = (myar pd , True) }
-
-    pOpq :: Const (PrepData a) ('K k) -> ki k
-         -> Const (PrepData (Int , Bool)) ('K k)
-    pOpq (Const pd) _ = Const $ pd { treeParm = (myar pd , True) }
-
-    pPeel :: Const (PrepData a) ('I i)
-          -> Constr sum n
-          -> NP (Const (PrepData (Int, Bool))) (Lkup n sum)
-          -> Const (PrepData (Int, Bool)) ('I i)
-    pPeel (Const pd) c p
-      = let maxar = maximum (0 : elimNP (fst . treeParm . getConst) p)
-            myar' = myar pd
-         in Const $ pd { treeParm = (max maxar myar' , myar' >= maxar) }
-     
--- |Given the sharing mapping between source and destination,
---  we extract a tree prefix from a tree substituting every
---  shared subtree by a hole with its respective identifier.
---
---  The existing holes are left intact, as seen by the type.
-extractHoles :: MinHeight
-             -> IsSharedMap
-             -> PrepFix (Int , Bool) ki codes phi at
-             -> Holes ki codes (Sum phi (MetaVarIK ki)) at
-extractHoles minHeight tr pr
-  = let prep  = getConst $ holesAnn pr
-        isPS  = snd $ treeParm prep
-        isBig = minHeight < treeHeight prep
-     in if not (isPS && isBig)
-        then extractHoles' pr
-        else case T.lookup (toW64s $ treeDigest prep) tr of
-               Nothing -> extractHoles' pr
-               Just i  -> mkHole (getMetavar i) pr
-  where
-    extractHoles' :: PrepFix (Int , Bool) ki codes phi at
-                  -> Holes ki codes (Sum phi (MetaVarIK ki)) at
-    extractHoles' (Hole _ d)    = Hole' (InL d)
-    extractHoles' (HOpq _ k)    = HOpq' k
-    extractHoles' (HPeel _ c d) = HPeel' c (mapNP (extractHoles minHeight tr) d)
-
-    mkHole :: Int
-           -> PrepFix (Int , Bool) ki codes phi at
-           -> Holes ki codes (Sum phi (MetaVarIK ki)) at
-    mkHole v (Hole _ d)    = Hole' (InL d)
-    mkHole v (HPeel _ _ _) = Hole' (InR (NA_I (Const v)))
-    mkHole v (HOpq _ k)    = Hole' (InR (NA_K (Annotate v k)))
 
 -- |Copy every 'HolesOpq' value in the outermost 'Holes', aka, the spine
 issueOpqCopies :: forall ki codes phi at
@@ -246,9 +170,8 @@ diff' mh x y
         (i, sh) = buildSharingTrie mh dx dy
         dx'     = tagProperShare sh dx
         dy'     = tagProperShare sh dy
-        del     = extractHoles mh sh dx'
-        ins     = extractHoles mh sh dy'
-     in (i , del :*: ins)
+        delins  = extractHoles DM_ProperShare mh sh (dx' :*: dy')
+     in (i , delins)
 
 -- |When running the diff for two fixpoints, we can
 -- cast the resulting deletion and insertion context into
