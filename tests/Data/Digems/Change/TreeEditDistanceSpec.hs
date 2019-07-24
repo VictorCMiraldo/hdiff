@@ -6,7 +6,6 @@ module Data.Digems.Change.TreeEditDistanceSpec (spec) where
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
-import Generics.MRSOP.Digems.Treefix
 import qualified Generics.MRSOP.GDiff    as GDiff
 
 import Data.Digems.Patch

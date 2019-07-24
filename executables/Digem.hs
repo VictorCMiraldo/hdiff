@@ -37,11 +37,12 @@ import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
+import Generics.MRSOP.Holes
 import Generics.MRSOP.Util
 import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Treefix hiding (parens)
+import Generics.MRSOP.Digems.Holes
 
 import qualified Generics.MRSOP.GDiff    as GDiff
 

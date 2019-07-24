@@ -15,14 +15,15 @@ import           Control.Monad.ST
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
+import           Generics.MRSOP.Holes
 import           Generics.MRSOP.Base
 import qualified Generics.MRSOP.GDiff as GD
 
-import           Generics.MRSOP.Digems.Treefix
 import           Data.Exists
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
 import           Data.Digems.Change.Apply
+import           Generics.MRSOP.Digems.Holes
 
 -- import Debug.Trace
 
@@ -104,8 +105,8 @@ lcsW weight xs ys = runST $ do
 -- * Translating Changes to Edit Scripts * --
 ---------------------------------------------
 
-fromNA :: NA ki (Fix ki codes) at -> UTx ki codes (MetaVarIK ki) at
-fromNA = utxStiff
+fromNA :: NA ki (Fix ki codes) at -> Holes ki codes (MetaVarIK ki) at
+fromNA = na2holes
 
 toES :: (EqHO ki , ShowHO ki , TestEquality ki)
      => CChange ki codes at -> NA ki (Fix ki codes) at
@@ -115,12 +116,12 @@ toES (CMatch _ del ins) elm =
   -- world, we must decide which variables will be copied.
   -- To do that, we will run a least-common-subsequence weighting
   -- each variable by the size of the tree it was instantiated too.
-  let vd   = reverse $ utxGetHolesWith' metavarGet del
-      vi   = reverse $ utxGetHolesWith' metavarGet ins
+  let vd   = reverse $ holesGetHolesAnnWith' metavarGet del
+      vi   = reverse $ holesGetHolesAnnWith' metavarGet ins
    in case runExcept (pmatch del (fromNA elm)) of
         Left err -> Left ("Element not in domain. " ++ show err)
         Right s  ->
-          let sizes_s = M.map (exElim utxSize) s
+          let sizes_s = M.map (exElim holesSize) s
               ves     = pushCopiesIns $ lcsW (\v -> sizes_s M.! v) vd vi
            in runExcept (runReaderT (compress <$> delPhase (del :* NP0) (ins :* NP0)) (s , ves))
 
@@ -166,28 +167,28 @@ compress (GD.Cpy c v e)
   = gcpy v (compress e)
 
 cpyOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
-        => NP (UTx ki codes (MetaVarIK ki)) xs
+        => NP (Holes ki codes (MetaVarIK ki)) xs
         -> ToES ki codes (GD.ES ki codes xs xs)
 cpyOnly NP0 = return GD.ES0
-cpyOnly (UTxHole var :* xs) = fetch var >>= cpyOnly . (:* xs) 
-cpyOnly (UTxOpq k    :* xs) = gcpy (GD.ConstrK k)               <$> cpyOnly xs
-cpyOnly (UTxPeel c d :* xs) = gcpy (GD.ConstrI c (listPrfNP d)) <$> cpyOnly (appendNP d xs)
+cpyOnly (Hole  _ var :* xs) = fetch var >>= cpyOnly . (:* xs) 
+cpyOnly (HOpq  _ k   :* xs) = gcpy (GD.ConstrK k)               <$> cpyOnly xs
+cpyOnly (HPeel _ c d :* xs) = gcpy (GD.ConstrI c (listPrfNP d)) <$> cpyOnly (appendNP d xs)
 
 delOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
-        => NP (UTx ki codes (MetaVarIK ki)) ds
+        => NP (Holes ki codes (MetaVarIK ki)) ds
         -> ToES ki codes (GD.ES ki codes ds '[])
 delOnly NP0 = return GD.ES0
-delOnly (UTxHole var :* xs) = fetch var >>= delOnly . (:* xs) 
-delOnly (UTxOpq k    :* xs) = gdel (GD.ConstrK k)               <$> delOnly xs
-delOnly (UTxPeel c d :* xs) = gdel (GD.ConstrI c (listPrfNP d)) <$> delOnly (appendNP d xs)
+delOnly (Hole  _ var :* xs) = fetch var >>= delOnly . (:* xs) 
+delOnly (HOpq  _ k   :* xs) = gdel (GD.ConstrK k)               <$> delOnly xs
+delOnly (HPeel _ c d :* xs) = gdel (GD.ConstrI c (listPrfNP d)) <$> delOnly (appendNP d xs)
 
 insOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
-        => NP (UTx ki codes (MetaVarIK ki)) is
+        => NP (Holes ki codes (MetaVarIK ki)) is
         -> ToES ki codes (GD.ES ki codes '[] is)
 insOnly NP0 = return GD.ES0
-insOnly (UTxHole var :* xs) = fetch var >>= insOnly . (:* xs) 
-insOnly (UTxOpq k    :* xs) = gins (GD.ConstrK k)               <$> insOnly xs
-insOnly (UTxPeel c d :* xs) = gins (GD.ConstrI c (listPrfNP d)) <$> insOnly (appendNP d xs)
+insOnly (Hole  _ var :* xs) = fetch var >>= insOnly . (:* xs) 
+insOnly (HOpq  _ k   :* xs) = gins (GD.ConstrK k)               <$> insOnly xs
+insOnly (HPeel _ c d :* xs) = gins (GD.ConstrI c (listPrfNP d)) <$> insOnly (appendNP d xs)
 
 listAssoc :: ListPrf a -> Proxy b -> Proxy c
           -> ListPrf ((a :++: b) :++: c) :~: ListPrf (a :++: (b :++: c))
@@ -253,7 +254,7 @@ appendES x@(GD.Cpy c v a) b =
 
 fetch :: (EqHO ki , ShowHO ki , TestEquality ki)
       => MetaVarIK ki at
-      -> ToES ki codes (UTx ki codes (MetaVarIK ki) at)
+      -> ToES ki codes (Holes ki codes (MetaVarIK ki) at)
 fetch var = do
   sigma <- askSubst
   case runExcept (lookupVar var sigma) of
@@ -263,8 +264,8 @@ fetch var = do
 
 delSync :: (EqHO ki , ShowHO ki , TestEquality ki)
         => MetaVarIK ki at
-        -> NP (UTx ki codes (MetaVarIK ki)) ds
-        -> NP (UTx ki codes (MetaVarIK ki)) is
+        -> NP (Holes ki codes (MetaVarIK ki)) ds
+        -> NP (Holes ki codes (MetaVarIK ki)) is
         -> ToES ki codes (GD.ES ki codes (at ': ds) is)
 delSync var ds is = do
   ls <- askListES
@@ -281,12 +282,12 @@ delSync var ds is = do
                        return (appendES es0 es1)
     -- Otherwise, we delegate the sharing to the insertion phase
     -- This is by convention.
-    _             -> insPhase (UTxHole var :* ds) is
+    _             -> insPhase (Hole' var :* ds) is
   
 insSync :: (EqHO ki , ShowHO ki , TestEquality ki)
         => MetaVarIK ki at
-        -> NP (UTx ki codes (MetaVarIK ki)) ds
-        -> NP (UTx ki codes (MetaVarIK ki)) is
+        -> NP (Holes ki codes (MetaVarIK ki)) ds
+        -> NP (Holes ki codes (MetaVarIK ki)) is
         -> ToES ki codes (GD.ES ki codes ds (at ': is))
 insSync var ds is = do
   ls <- askListES
@@ -302,13 +303,13 @@ insSync var ds is = do
                             $ insPhase ds is
                        return (appendES es0 es1)
     -- Otherwise, if this is a deletion, we sent iy back to the delete phase
-    LD _ var' es' -> delPhase ds (UTxHole var :* is)
+    LD _ var' es' -> delPhase ds (Hole' var :* is)
 
     -- Last case, it's an actual share; we gotta remove the var from the deletion
     -- list and proceed.
     LC _ var' es' -> case ds of
       -- If the copy is already there, we take it
-      (UTxHole var'' :* ds') ->
+      (Hole' var'' :* ds') ->
         if var' /= metavarGet var
         then throwError "insSync: var mismatch"
         else do
@@ -321,24 +322,24 @@ insSync var ds is = do
             Nothing   -> throwError "insSync: types mismatch"
       -- Otherwise, we must enter the deletion phase until
       -- we find it.
-      _ -> delPhase ds (UTxHole var :* is)
+      _ -> delPhase ds (Hole' var :* is)
 
 delPhase , insPhase
   :: (EqHO ki , ShowHO ki , TestEquality ki)
-  => NP (UTx ki codes (MetaVarIK ki)) ds
-  -> NP (UTx ki codes (MetaVarIK ki)) is
+  => NP (Holes ki codes (MetaVarIK ki)) ds
+  -> NP (Holes ki codes (MetaVarIK ki)) is
   -> ToES ki codes (GD.ES ki codes ds is)
 delPhase NP0 is  = insOnly is
 delPhase (d :* ds) is =
   case d of
-    UTxHole var -> delSync var ds is
-    UTxOpq k    -> gdel (GD.ConstrK k)               <$> insPhase ds is
-    UTxPeel c p -> gdel (GD.ConstrI c (listPrfNP p)) <$> insPhase (appendNP p ds) is
+    Hole  _ var -> delSync var ds is
+    HOpq  _ k   -> gdel (GD.ConstrK k)               <$> insPhase ds is
+    HPeel _ c p -> gdel (GD.ConstrI c (listPrfNP p)) <$> insPhase (appendNP p ds) is
 
 insPhase ds NP0 = delOnly ds
 insPhase ds (i :* is) = 
   case i of
-    UTxHole var -> insSync var ds is
-    UTxOpq k    -> gins (GD.ConstrK k)               <$> delPhase ds is
-    UTxPeel c p -> gins (GD.ConstrI c (listPrfNP p)) <$> delPhase ds (appendNP p is) 
+    Hole  _ var -> insSync var ds is
+    HOpq  _ k   -> gins (GD.ConstrK k)               <$> delPhase ds is
+    HPeel _ c p -> gins (GD.ConstrI c (listPrfNP p)) <$> delPhase ds (appendNP p is) 
 

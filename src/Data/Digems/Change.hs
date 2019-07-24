@@ -20,7 +20,8 @@ import           Generics.MRSOP.Base
 ----------------------------------------
 import           Data.Exists
 import           Data.Digems.MetaVar
-import           Generics.MRSOP.Digems.Treefix
+import           Generics.MRSOP.Holes
+import           Generics.MRSOP.Digems.Holes
 
 -- this has the ShowHO (Const a) instance
 import Generics.MRSOP.AG
@@ -33,34 +34,34 @@ import Generics.MRSOP.AG
 --  
 data CChange ki codes at where
   CMatch :: { cCtxVars :: S.Set (Exists (MetaVarIK ki))
-            , cCtxDel  :: UTx ki codes (MetaVarIK ki) at 
-            , cCtxIns  :: UTx ki codes (MetaVarIK ki) at }
+            , cCtxDel  :: Holes ki codes (MetaVarIK ki) at 
+            , cCtxIns  :: Holes ki codes (MetaVarIK ki) at }
          -> CChange ki codes at
 
 -- |smart constructor for 'CChange'. Enforces the invariant
-cmatch :: UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at
+cmatch :: Holes ki codes (MetaVarIK ki) at -> Holes ki codes (MetaVarIK ki) at
        -> CChange ki codes at
 cmatch del ins = maybe (error "Data.Digems.Change.cmatch: invariant failure") id
                $ cmatch' del ins
 
-cmatch' :: UTx ki codes (MetaVarIK ki) at -> UTx ki codes (MetaVarIK ki) at
+cmatch' :: Holes ki codes (MetaVarIK ki) at -> Holes ki codes (MetaVarIK ki) at
         -> Maybe (CChange ki codes at)
 cmatch' del ins =
-  let vi = utxGetHolesWith Exists ins
-      vd = utxGetHolesWith Exists del
+  let vi = holesGetHolesAnnWith'' Exists ins
+      vd = holesGetHolesAnnWith'' Exists del
    in if vi == vd
       then Just $ CMatch vi del ins
       else Nothing
 
 -- |A 'Domain' is just a deletion context. Type-synonym helps us
 -- identify what's what on the algorithms below.
-type Domain ki codes = UTx ki codes (MetaVarIK ki) 
+type Domain ki codes = Holes ki codes (MetaVarIK ki) 
 
 domain :: CChange ki codes at -> Domain ki codes at
 domain = cCtxDel
 
 
-unCMatch :: CChange ki codes at -> (UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)) at
+unCMatch :: CChange ki codes at -> (Holes ki codes (MetaVarIK ki) :*: Holes ki codes (MetaVarIK ki)) at
 unCMatch (CMatch _ del ins) = del :*: ins
 
 -- |Returns the maximum variable in a change
@@ -68,9 +69,9 @@ cMaxVar :: CChange ki codes at -> Int
 cMaxVar = maybe 0 id . S.lookupMax . S.map (exElim metavarGet) . cCtxVars
 
 instance HasIKProjInj ki (CChange ki codes) where
-  konInj k = CMatch S.empty (UTxOpq k) (UTxOpq k)
-  varProj pk (CMatch _ (UTxHole h) _)   = varProj pk h
-  varProj _  (CMatch _ (UTxPeel _ _) _) = Just IsI
+  konInj k = CMatch S.empty (HOpq' k) (HOpq' k)
+  varProj pk (CMatch _ (Hole _ h) _)    = varProj pk h
+  varProj _  (CMatch _ (HPeel _ _ _) _) = Just IsI
   varProj _  (CMatch _ _ _)             = Nothing
 
 instance (TestEquality ki) => TestEquality (CChange ki codes) where
@@ -85,8 +86,8 @@ changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
    aux :: Bool
    aux = (`runCont` id) $
      callCC $ \exit -> flip evalStateT M.empty $ do
-       _ <- utxMapM (uncurry' (reg (cast exit))) (utxLCP d1 d2)
-       _ <- utxMapM (uncurry' (chk (cast exit))) (utxLCP i1 i2)
+       _ <- holesMapM (uncurry' (reg (cast exit))) (holesLCP d1 d2)
+       _ <- holesMapM (uncurry' (chk (cast exit))) (holesLCP i1 i2)
        return True
    
    cast :: (Bool -> Cont Bool b)
@@ -94,20 +95,20 @@ changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
    cast f b = (const (Const ())) <$> f b
 
    reg :: (Bool -> Cont Bool (Const () at))
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
+       -> Holes ki codes (MetaVarIK ki) at
+       -> Holes ki codes (MetaVarIK ki) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   reg _ (UTxHole m1) (UTxHole m2) 
+   reg _ (Hole' m1) (Hole' m2) 
      = modify (M.insert (metavarGet m1) (metavarGet m2))
      >> return (Const ())
    reg exit _ _ 
      = lift $ exit False
 
    chk :: (Bool -> Cont Bool (Const () at))
-       -> UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
+       -> Holes ki codes (MetaVarIK ki) at
+       -> Holes ki codes (MetaVarIK ki) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   chk exit (UTxHole m1) (UTxHole m2) 
+   chk exit (Hole' m1) (Hole' m2) 
      = do st <- get
           case M.lookup (metavarGet m1) st of
             Nothing -> lift $ exit False
@@ -119,22 +120,22 @@ changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
 -- |Issues a copy, this is a closed change analogous to
 --  > \x -> x
 changeCopy :: MetaVarIK ki at -> CChange ki codes at
-changeCopy vik = CMatch (S.singleton (Exists vik)) (UTxHole vik) (UTxHole vik)
+changeCopy vik = CMatch (S.singleton (Exists vik)) (Hole' vik) (Hole' vik)
 
 -- |Checks whetehr a change is a copy.
 isCpy :: (EqHO ki) => CChange ki codes at -> Bool
-isCpy (CMatch _ (UTxHole v1) (UTxHole v2))
+isCpy (CMatch _ (Hole' v1) (Hole' v2))
   -- arguably, we don't even need that since changes are closed.
   = metavarGet v1 == metavarGet v2
 isCpy _ = False
 
 makeCopyFrom :: CChange ki codes at -> CChange ki codes at
 makeCopyFrom chg = case cCtxDel chg of
-  UTxHole var -> changeCopy var
-  UTxPeel _ _ -> changeCopy (NA_I (Const 0))
-  UTxOpq k    -> changeCopy (NA_K (Annotate 0 k))
+  Hole  _ var -> changeCopy var
+  HPeel _ _ _ -> changeCopy (NA_I (Const 0))
+  HOpq  _ k   -> changeCopy (NA_K (Annotate 0 k))
   
--- |Renames all changes within a 'UTx' so that their
+-- |Renames all changes within a 'Holes' so that their
 --  variable names will not clash.
 cWithDisjNamesFrom :: CChange ki codes at
                    -> CChange ki codes at
@@ -142,19 +143,19 @@ cWithDisjNamesFrom :: CChange ki codes at
 cWithDisjNamesFrom (CMatch vs del ins) q
   = let vmax = cMaxVar q + 1
      in CMatch (S.map (exMap $ metavarAdd vmax) vs)
-               (utxMap (metavarAdd vmax) del)
-               (utxMap (metavarAdd vmax) ins)
+               (holesMap (metavarAdd vmax) del)
+               (holesMap (metavarAdd vmax) ins)
 
 -- |A Utx with closed changes distributes over a closed change
 --
-distrCChange :: UTx ki codes (CChange ki codes) at -> CChange ki codes at
+distrCChange :: Holes ki codes (CChange ki codes) at -> CChange ki codes at
 distrCChange = naiveDistr -- . alphaRenameChanges    
   where
     naiveDistr utx =
       let vars = S.foldl' S.union S.empty
-               $ utxGetHolesWith cCtxVars utx
-          del  = utxJoin $ utxMap cCtxDel utx
-          ins  = utxJoin $ utxMap cCtxIns utx
+               $ holesGetHolesAnnWith'' cCtxVars utx
+          del  = holesJoin $ holesMap cCtxDel utx
+          ins  = holesJoin $ holesMap cCtxIns utx
        in CMatch vars del ins
 
 -- |A 'OChange', or, open change, is analogous to a 'CChange',
@@ -163,17 +164,17 @@ distrCChange = naiveDistr -- . alphaRenameChanges
 data OChange ki codes at where
   OMatch :: { oCtxVDel :: S.Set (Exists (MetaVarIK ki))
             , oCtxVIns :: S.Set (Exists (MetaVarIK ki))
-            , oCtxDel  :: UTx ki codes (MetaVarIK ki) at 
-            , oCtxIns  :: UTx ki codes (MetaVarIK ki) at }
+            , oCtxDel  :: Holes ki codes (MetaVarIK ki) at 
+            , oCtxIns  :: Holes ki codes (MetaVarIK ki) at }
          -> OChange ki codes at
 
 -- |Given two treefixes, constructs and classifies a change from
 -- them.
-change :: UTx ki codes (MetaVarIK ki) at
-       -> UTx ki codes (MetaVarIK ki) at
+change :: Holes ki codes (MetaVarIK ki) at
+       -> Holes ki codes (MetaVarIK ki) at
        -> Sum (OChange ki codes) (CChange ki codes) at
-change utx uty = let vx = utxGetHolesWith Exists utx
-                     vy = utxGetHolesWith Exists uty
+change utx uty = let vx = holesGetHolesAnnWith'' Exists utx
+                     vy = holesGetHolesAnnWith'' Exists uty
                   in if vx == vy
                      then InR $ CMatch vx utx uty
                      else InL $ OMatch vx vy utx uty
@@ -181,10 +182,10 @@ change utx uty = let vx = utxGetHolesWith Exists utx
 -----------------------------
 -- Alternate representations
 
-type UTx2 ki codes
-  = UTx ki codes (MetaVarIK ki) :*: UTx ki codes (MetaVarIK ki)
-type UTxUTx2 ki codes 
-  = UTx ki codes (UTx2 ki codes)
+type Holes2 ki codes
+  = Holes ki codes (MetaVarIK ki) :*: Holes ki codes (MetaVarIK ki)
+type HolesHoles2 ki codes 
+  = Holes ki codes (Holes2 ki codes)
 
 fst' :: (f :*: g) x -> f x
 fst' (Pair a _) = a
@@ -192,27 +193,27 @@ fst' (Pair a _) = a
 snd' :: (f :*: g) x -> g x
 snd' (Pair _ b) = b
 
-scDel :: UTxUTx2 ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scDel = utxJoin . utxMap fst' 
+scDel :: HolesHoles2 ki codes at
+      -> Holes ki codes (MetaVarIK ki) at
+scDel = holesJoin . holesMap fst' 
 
-scIns :: UTxUTx2 ki codes at
-      -> UTx ki codes (MetaVarIK ki) at
-scIns = utxJoin . utxMap snd'
+scIns :: HolesHoles2 ki codes at
+      -> Holes ki codes (MetaVarIK ki) at
+scIns = holesJoin . holesMap snd'
 
-utx2distr :: UTxUTx2 ki codes at -> UTx2 ki codes at
+utx2distr :: HolesHoles2 ki codes at -> Holes2 ki codes at
 utx2distr x = (scDel x :*: scIns x)
 
-utx22change :: UTxUTx2 ki codes at -> Maybe (CChange ki codes at)
+utx22change :: HolesHoles2 ki codes at -> Maybe (CChange ki codes at)
 utx22change x = cmatch' (scDel x) (scIns x)
 
-change2utx2 :: (EqHO ki) => CChange ki codes at -> UTxUTx2 ki codes at 
-change2utx2 (CMatch _ del ins) = utxLCP del ins
+change2holes2 :: (EqHO ki) => CChange ki codes at -> HolesHoles2 ki codes at 
+change2holes2 (CMatch _ del ins) = holesLCP del ins
 
 instance (TestEquality f) => TestEquality (f :*: g) where
   testEquality x y = testEquality (fst' x) (fst' y)
 
-instance HasIKProjInj ki (UTx2 ki codes) where
+instance HasIKProjInj ki (Holes2 ki codes) where
   konInj  ki = (konInj ki :*: konInj ki)
   varProj p (Pair f _) = varProj p f
 

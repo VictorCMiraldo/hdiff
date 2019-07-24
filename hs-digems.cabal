@@ -28,13 +28,13 @@ library
                  , Data.WordTrie
                  , Generics.MRSOP.Digems.Digest
                  , Generics.MRSOP.Digems.Renderer
-                 , Generics.MRSOP.Digems.Treefix
+                 , Generics.MRSOP.Digems.Holes
                  , Languages.RTree
                  , Languages.RTree.Diff
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.10 && <5
-               ,       generics-mrsop >= 2.0.0
+               ,       generics-mrsop >= 2.1.0
                ,       generics-mrsop-gdiff
                ,       bytestring
                ,       cryptonite

@@ -22,12 +22,13 @@ import           Control.Monad.State
 ---------------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
+import Generics.MRSOP.Holes
 ---------------------------------------
 import Data.Exists
 import Data.Digems.MetaVar
 import Data.Digems.Change
 import Data.Digems.Change.Apply
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Digems.Holes
 
 import Debug.Trace
 
@@ -47,12 +48,12 @@ thin chg dom = uncurry' cmatch <$> thinUTx2 (cCtxDel chg :*: cCtxIns chg) dom
 tr :: (ShowHO ki , TestEquality ki, EqHO ki)
    => CChange ki codes at
    -> CChange ki codes at
-   -> Either (ApplicationErr ki codes (UTx2 ki codes))
+   -> Either (ApplicationErr ki codes (Holes2 ki codes))
              (CChange ki codes at)
 tr (CMatch _ pd pi) q = do
-  xx <- genericApply q (utxLCP pd pi)
-  let xd = utxJoin $ utxMap fst' xx
-  let xi = utxJoin $ utxMap snd' xx
+  xx <- genericApply q (holesLCP pd pi)
+  let xd = holesJoin $ holesMap fst' xx
+  let xi = holesJoin $ holesMap snd' xx
   return $ CMatch S.empty xd xi
 {-
   sigmaD <- pmatch qd pd
@@ -63,10 +64,10 @@ tr (CMatch _ pd pi) q = do
 -}
 
 thinUTx2 :: (ShowHO ki , TestEquality ki, EqHO ki)
-         => UTx2 ki codes at
+         => Holes2 ki codes at
          -> Domain ki codes at
          -> Either (ApplicationErr ki codes (MetaVarIK ki))
-                   (UTx2 ki codes at)
+                   (Holes2 ki codes at)
 thinUTx2 (del :*: ins) dom = runExcept $ do
   sigma  <- flip execStateT M.empty $ utxThin del dom
   sigma' <- minimize sigma
@@ -75,10 +76,10 @@ thinUTx2 (del :*: ins) dom = runExcept $ do
   return $ del' :*: ins'
 
 thin' :: (ShowHO ki , TestEquality ki, EqHO ki)
-     => UTx2 ki codes at
-     -> UTx2 ki codes at
+     => Holes2 ki codes at
+     -> Holes2 ki codes at
      -> Either (ApplicationErr ki codes (MetaVarIK ki))
-               (UTx2 ki codes at)
+               (Holes2 ki codes at)
 thin' (delP :*: insP) (delQ :*: insQ) = runExcept $ do
   sigma  <- flip execStateT M.empty $ utxThin delP delQ
   sigma' <- minimize sigma
@@ -97,30 +98,30 @@ thin' (delP :*: insP) (delQ :*: insQ) = runExcept $ do
 --  This function does /NOT/ minimize this map.
 -- 
 utxThin :: (ShowHO ki , TestEquality ki, EqHO ki)
-        => UTx ki codes (MetaVarIK ki) at
+        => Holes ki codes (MetaVarIK ki) at
         -> Domain ki codes at
         -> StateT (Subst ki codes (MetaVarIK ki))
                   (Except (ThinningErr ki codes))
                   ()
-utxThin p q = void $ utxMapM (uncurry' go) $ utxLCP p q
+utxThin p q = void $ holesMapM (uncurry' go) $ holesLCP p q
   where
     go :: (ShowHO ki , TestEquality ki, EqHO ki)
-       => UTx ki codes (MetaVarIK ki) at
+       => Holes ki codes (MetaVarIK ki) at
        -> Domain ki codes at
        -> StateT (Subst ki codes (MetaVarIK ki))
                  (Except (ThinningErr ki codes))
-                 (UTx ki codes (MetaVarIK ki) at)
-    go p q@(UTxHole var) = record_eq var p >> return p
-    go p@(UTxHole var) q = record_eq var q >> return p
-    go p q | eqHO p q    = return p
-           | otherwise   = throwError (IncompatibleTerms p q)
+                 (Holes ki codes (MetaVarIK ki) at)
+    go p q@(Hole _ var) = record_eq var p >> return p
+    go p@(Hole _ var) q = record_eq var q >> return p
+    go p q | eqHO p q   = return p
+           | otherwise  = throwError (IncompatibleTerms p q)
 
     -- Whenever we see a variable being matched against a term
     -- we record the equivalence. First we make sure we did not
     -- record such equivalence yet, otherwise, we recursively thin
     record_eq :: (ShowHO ki , TestEquality ki, EqHO ki)
               => MetaVarIK ki at
-              -> UTx ki codes (MetaVarIK ki) at
+              -> Holes ki codes (MetaVarIK ki) at
               -> StateT (Subst ki codes (MetaVarIK ki))
                         (Except (ThinningErr ki codes))
                         ()
@@ -129,7 +130,7 @@ utxThin p q = void $ utxMapM (uncurry' go) $ utxLCP p q
       mterm <- lift (lookupVar var sigma)
       case mterm of
         -- First time we see 'var', we instantiate it and get going.
-        Nothing -> when (q /= UTxHole var)
+        Nothing -> when (q /= Hole' var)
                  $ modify (M.insert (metavarGet var) (Exists q))
         -- It's not the first time we thin 'var'; previously, we had
         -- that 'var' was supposed to be p'. We will check whether it
@@ -163,13 +164,13 @@ minimize sigma = whileM sigma [] $ \s exs
     -- We use the writer monad to inform us wich variables have been fully
     -- eliminated. Once this process returns no eliminated variables,
     -- we are done.
-    go :: UTx ki codes (MetaVarIK ki) at
+    go :: Holes ki codes (MetaVarIK ki) at
        -> WriterT [Int] (Except (ThinningErr ki codes))
-                                (UTx ki codes (MetaVarIK ki) at)
-    go = utxRefineVarsM $ \var -> do
+                                (Holes ki codes (MetaVarIK ki) at)
+    go = holesRefineVarsM $ \_ var -> do
            mterm <- lift (lookupVar var sigma)
            case mterm of
-             Nothing -> return (UTxHole var)
+             Nothing -> return (Hole' var)
              Just r  -> tell [metavarGet var]
                      >> return r
 
@@ -184,10 +185,10 @@ minimize sigma = whileM sigma [] $ \s exs
 -- |This is similar to 'transport', but does not throw errors
 -- on undefined variables.
 refine :: (ShowHO ki , TestEquality ki , EqHO ki)
-       => UTx ki codes (MetaVarIK ki) ix
+       => Holes ki codes (MetaVarIK ki) ix
        -> Subst ki codes (MetaVarIK ki)
-       -> Except (ThinningErr ki codes) (UTx ki codes (MetaVarIK ki) ix)
-refine (UTxHole var)   s = lookupVar var s >>= return . maybe (UTxHole var) id
-refine (UTxOpq oy)     _ = return $ UTxOpq oy
-refine (UTxPeel cy py) s = UTxPeel cy <$> mapNPM (flip refine s) py
+       -> Except (ThinningErr ki codes) (Holes ki codes (MetaVarIK ki) ix)
+refine (Hole  _ var)   s = lookupVar var s >>= return . maybe (Hole' var) id
+refine (HOpq  _ oy)    _ = return $ HOpq' oy
+refine (HPeel _ cy py) s = HPeel' cy <$> mapNPM (flip refine s) py
 

@@ -8,7 +8,7 @@ import qualified Data.Set as S
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Holes
 
 import Data.Functor.Const
 import Data.Exists
@@ -30,15 +30,15 @@ import Control.Monad.Cont
 import qualified Data.Map as M
 
 context_alpha_eq :: (EqHO ki)
-                 => UTx ki codes (MetaVarIK ki) at
-                 -> UTx ki codes (MetaVarIK ki) at
+                 => Holes ki codes (MetaVarIK ki) at
+                 -> Holes ki codes (MetaVarIK ki) at
                  -> Bool
 context_alpha_eq x y = aux
   where
     aux :: Bool
     aux = (`runCont` id) $
         callCC $ \exit -> flip evalStateT M.empty $ do
-          utxMapM (uncurry' (check (cast exit $ False))) (utxLCP x y)
+          holesMapM (uncurry' (check (cast exit $ False))) (holesLCP x y)
           return True
 
     cast :: (Bool -> Cont Bool b)
@@ -46,10 +46,10 @@ context_alpha_eq x y = aux
     cast f b = (const (Const ())) <$> f b
 
     check :: (Cont Bool (Const () at))
-          -> UTx ki codes (MetaVarIK ki) at
-          -> UTx ki codes (MetaVarIK ki) at
+          -> Holes ki codes (MetaVarIK ki) at
+          -> Holes ki codes (MetaVarIK ki) at
           -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-    check exitF (UTxHole vx) (UTxHole vy) = do
+    check exitF (Hole _ vx) (Hole _ vy) = do
       m <- get
       case M.lookup (metavarGet vx) m of
         Nothing -> modify (M.insert (metavarGet vx) (metavarGet vy))

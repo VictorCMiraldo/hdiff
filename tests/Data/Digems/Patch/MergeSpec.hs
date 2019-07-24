@@ -8,7 +8,6 @@ import qualified Data.Set as S
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
-import Generics.MRSOP.Digems.Treefix
 
 import Data.Digems.Patch
 import Data.Digems.Patch.Diff
@@ -24,6 +23,7 @@ import Languages.RTree.Diff
 import Test.QuickCheck
 import Test.Hspec
 
+import Control.Monad.Except
 import Debug.Trace
 
 --------------------------------------------
@@ -305,6 +305,30 @@ ob9 = digemRTree o9 b9
 oa8 = digemRTree o8 a8
 ob8 = digemRTree o8 b8 `withFreshNamesFrom` oa8
 
+coa8 = distrCChange oa8
+cob8 = distrCChange ob8
+
+myprocess ca cb =
+  let Right ca' = thin ca (domain cb)
+      Right cb' = thin cb (domain ca)
+      newinsa   = pmatch (cCtxDel ca') (cCtxDel cb') >>= transport (cCtxIns ca')
+   in case runExcept newinsa of
+        Left err -> error ("impossible: " ++ show err)
+        Right r  -> (r , cCtxDel cb' , cCtxIns cb')
+
+mymerge :: RTree -> RTree -> RTree -> IO ()
+mymerge a o b = do
+  let oa = digemRTree o a
+  let ob = digemRTree o b `withFreshNamesFrom` oa
+  let ca' = distrCChange oa
+  let cb' = distrCChange ob
+  let (ca , d , cb) = myprocess ca' cb'
+  let (i , res)  = diff' 0 d ca
+  let (_ , res') = diff' 0 d cb
+  print res
+  putStrLn "-----------------"
+  print res'
+
 {-
 p = distrCChange oa8
 q = distrCChange ob8 
@@ -320,6 +344,9 @@ mymerge p q = do
     Left err -> error $ show err
     Right r  -> return r
 -}
+
+oa1 = digemRTree o1 a1
+ob1 = digemRTree o1 b1
 
 oa2 = digemRTree o2 a2
 ob2 = digemRTree o2 b2

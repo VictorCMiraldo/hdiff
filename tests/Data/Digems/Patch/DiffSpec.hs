@@ -5,7 +5,7 @@ import qualified Data.Set as S
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Holes
 
 import Data.Digems.Patch
 import Data.Digems.Patch.Diff
@@ -21,12 +21,12 @@ import Test.Hspec
 diff_wellscoped_changes :: Property
 diff_wellscoped_changes = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = digemRTree t1 t2
-      in conjoin $ utxGetHolesWith' go patch
+      in conjoin $ holesGetHolesAnnWith' go patch
   where
     go :: CChange W CodesRTree ix -> Property
     go (CMatch vars del ins)
-      = let vd = utxGetHolesWith metavarGet del
-            vi = utxGetHolesWith metavarGet ins
+      = let vd = holesGetHolesAnnWith'' metavarGet del
+            vi = holesGetHolesAnnWith'' metavarGet ins
             v  = S.map metavarIK2Int vars
          in v === vd .&&. vi === v
 

@@ -9,7 +9,7 @@ import Data.Functor.Const
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
-import Generics.MRSOP.Digems.Treefix
+import Generics.MRSOP.Holes
 
 import Data.Exists
 import Data.Digems.Patch
@@ -28,7 +28,7 @@ import Test.Hspec
 copy_composes :: Property
 copy_composes = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = digemRTree t1 t2
-         cpy   = UTxHole (changeCopy (NA_I (Const 0))) :: PatchRTree
+         cpy   = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
       in composes patch cpy .&&. composes cpy patch
 
 composes_correct :: Property
