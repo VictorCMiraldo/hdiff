@@ -12,7 +12,7 @@ import Generics.MRSOP.Holes
 
 import Data.Exists
 import Data.Digems.Patch
-import Data.Digems.Patch.Diff
+import Data.Digems.Diff
 import Data.Digems.Patch.Show
 import Data.Digems.MetaVar
 import Data.Digems.Change

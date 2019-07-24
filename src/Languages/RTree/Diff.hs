@@ -10,7 +10,7 @@ import Generics.MRSOP.Holes
 import Languages.RTree
 import Data.Digems.Patch
 import Data.Digems.Change
-import Data.Digems.Patch.Diff
+import Data.Digems.Diff
 import Data.Digems.Patch.Show
 
 type PatchRTree = Patch W CodesRTree Z
@@ -27,6 +27,10 @@ y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "k"))) (rlf "t")
 digemRTreeH :: Int -> RTree -> RTree -> PatchRTree
 digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
                            (dfrom $ into @FamRTree b)
+
+digemRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
+digemRTreeHM m h a b = diffMode m h (dfrom $ into @FamRTree a)
+                                    (dfrom $ into @FamRTree b)
 
 digemRTree :: RTree -> RTree -> PatchRTree
 digemRTree a b = diff 1 (dfrom $ into @FamRTree a)

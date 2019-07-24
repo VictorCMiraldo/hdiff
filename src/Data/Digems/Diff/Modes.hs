@@ -5,7 +5,7 @@
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE PolyKinds       #-}
 {-# LANGUAGE GADTs           #-}
-module Data.Digems.Patch.Diff.Modes where
+module Data.Digems.Diff.Modes where
 
 import qualified Data.Set as S
 import           Data.Proxy
@@ -20,9 +20,9 @@ import           Generics.MRSOP.Holes
 import           Generics.MRSOP.Digems.Digest
 
 import qualified Data.WordTrie as T
-import           Data.Digems.Patch.Diff.Types
+import           Data.Digems.Diff.Preprocess
+import           Data.Digems.Diff.Types
 import           Data.Digems.Patch
-import           Data.Digems.Patch.Preprocess
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
 

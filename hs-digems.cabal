@@ -18,9 +18,11 @@ library
                  , Data.Digems.Example
                  , Data.Digems.MetaVar
                  , Data.Digems.Patch
-                 , Data.Digems.Patch.Diff
+                 , Data.Digems.Diff
+                 , Data.Digems.Diff.Types
+                 , Data.Digems.Diff.Modes
+                 , Data.Digems.Diff.Preprocess
                  , Data.Digems.Patch.Merge
-                 , Data.Digems.Patch.Preprocess
                  , Data.Digems.Patch.Show
                  , Data.Digems.Patch.Thinning
                  , Data.Digems.Patch.TreeEditDistance
@@ -81,7 +83,7 @@ test-suite tests
   hs-source-dirs: tests
   main-is:       Spec.hs
   other-modules: Data.Digems.PatchSpec
-               , Data.Digems.Patch.DiffSpec
+               , Data.Digems.DiffSpec
                , Data.Digems.Patch.MergeSpec
                , Data.Digems.Patch.ThinningSpec
                , Data.Digems.Change.ClassifySpec

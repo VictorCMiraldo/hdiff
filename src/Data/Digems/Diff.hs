@@ -5,7 +5,13 @@
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE PolyKinds       #-}
 {-# LANGUAGE GADTs           #-}
-module Data.Digems.Patch.Diff where
+module Data.Digems.Diff
+  ( diffMode'
+  , diffMode
+  , diff
+  , DiffMode(..)
+  , module Data.Digems.Diff.Types
+  ) where
 
 import qualified Data.Set as S
 import           Data.Proxy
@@ -20,10 +26,10 @@ import           Generics.MRSOP.Holes
 import           Generics.MRSOP.Digems.Digest
 
 import qualified Data.WordTrie as T
-import           Data.Digems.Patch.Diff.Types
-import           Data.Digems.Patch.Diff.Modes
+import           Data.Digems.Diff.Types
+import           Data.Digems.Diff.Modes
+import           Data.Digems.Diff.Preprocess
 import           Data.Digems.Patch
-import           Data.Digems.Patch.Preprocess
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
 
@@ -159,31 +165,41 @@ instance DigestibleHO (Const Void) where
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
-diff' :: (EqHO ki , DigestibleHO ki , DigestibleHO phi)
-      => MinHeight
-      -> Holes ki codes phi at
-      -> Holes ki codes phi at
-      -> (Int , Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at)
-diff' mh x y
+diffMode' :: (EqHO ki , DigestibleHO ki , DigestibleHO phi)
+          => DiffMode
+          -> MinHeight
+          -> Holes ki codes phi at
+          -> Holes ki codes phi at
+          -> (Int , Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at)
+diffMode' mode mh x y
   = let dx      = preprocess x
         dy      = preprocess y
         (i, sh) = buildSharingTrie mh dx dy
         dx'     = tagProperShare sh dx
         dy'     = tagProperShare sh dy
-        delins  = extractHoles DM_ProperShare mh sh (dx' :*: dy')
+        delins  = extractHoles mode mh sh (dx' :*: dy')
      in (i , delins)
 
 -- |When running the diff for two fixpoints, we can
 -- cast the resulting deletion and insertion context into
 -- an actual patch.
+diffMode :: (EqHO ki , DigestibleHO ki , IsNat ix)
+         => DiffMode
+         -> MinHeight
+         -> Fix ki codes ix
+         -> Fix ki codes ix
+         -> Patch ki codes ix
+diffMode mode mh x y
+  = let (i , del :*: ins) = diffMode' mode mh (na2holes $ NA_I x)
+                                              (na2holes $ NA_I y)
+     in close (extractSpine cast i del ins)
+ where 
+   cast :: Sum (Const Void) f i -> f i
+   cast (InR fi) = fi
+
 diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight
      -> Fix ki codes ix
      -> Fix ki codes ix
      -> Patch ki codes ix
-diff mh x y
-  = let (i , del :*: ins) = diff' mh (na2holes $ NA_I x) (na2holes $ NA_I y)
-     in close (extractSpine cast i del ins)
- where 
-   cast :: Sum (Const Void) f i -> f i
-   cast (InR fi) = fi
+diff = diffMode DM_ProperShare

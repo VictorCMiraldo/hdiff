@@ -13,7 +13,7 @@ import Generics.MRSOP.Holes
 import Data.Functor.Const
 import Data.Exists
 import Data.Digems.Patch
-import Data.Digems.Patch.Diff
+import Data.Digems.Diff
 import Data.Digems.Patch.Show
 import Data.Digems.Patch.Thinning as PT
 import qualified Data.Digems.Change.Thinning as CT

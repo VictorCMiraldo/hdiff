@@ -1,4 +1,4 @@
-module Data.Digems.Patch.Diff.Types where
+module Data.Digems.Diff.Types where
 
 import qualified Data.WordTrie as T
 

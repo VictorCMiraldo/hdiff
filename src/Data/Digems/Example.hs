@@ -27,7 +27,7 @@ import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Holes
 import Generics.MRSOP.Digems.Digest
 import Data.Digems.Patch
-import Data.Digems.Patch.Diff
+import Data.Digems.Diff
 import Data.Digems.MetaVar
 import Data.Digems.Change
 

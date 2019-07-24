@@ -47,7 +47,7 @@ import Generics.MRSOP.Digems.Holes
 import qualified Generics.MRSOP.GDiff    as GDiff
 
 import qualified Data.Digems.Patch       as D
-import qualified Data.Digems.Patch.Diff  as D
+import qualified Data.Digems.Diff        as D
 import qualified Data.Digems.Patch.Merge as D
 import qualified Data.Digems.Patch.TreeEditDistance as TED
 import           Data.Digems.Patch.Show

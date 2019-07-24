@@ -8,7 +8,7 @@
 --  information for both driving the algorithm
 --  and efficiently storing digests alongside
 --  the structure.
-module Data.Digems.Patch.Preprocess where
+module Data.Digems.Diff.Preprocess where
 
 import Data.Void
 import Data.Proxy

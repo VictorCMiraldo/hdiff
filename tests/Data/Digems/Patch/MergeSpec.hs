@@ -10,7 +10,7 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Util
 
 import Data.Digems.Patch
-import Data.Digems.Patch.Diff
+import Data.Digems.Diff
 import Data.Digems.Patch.Show
 import Data.Digems.Patch.Merge
 import Data.Digems.MetaVar
@@ -316,6 +316,7 @@ myprocess ca cb =
         Left err -> error ("impossible: " ++ show err)
         Right r  -> (r , cCtxDel cb' , cCtxIns cb')
 
+{-
 mymerge :: RTree -> RTree -> RTree -> IO ()
 mymerge a o b = do
   let oa = digemRTree o a
@@ -328,7 +329,7 @@ mymerge a o b = do
   print res
   putStrLn "-----------------"
   print res'
-
+-}
 {-
 p = distrCChange oa8
 q = distrCChange ob8 
