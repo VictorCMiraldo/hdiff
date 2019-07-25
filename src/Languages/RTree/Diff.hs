@@ -26,8 +26,8 @@ rbin l r = "bin" :>: [l , r]
 rlf :: String -> RTree
 rlf = (:>: [])
 
-x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "k"))) (rlf "k")
-y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "k"))) (rlf "t")
+x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "k")
+y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "t")
 
 digemRTreeH :: Int -> RTree -> RTree -> PatchRTree
 digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
@@ -35,7 +35,8 @@ digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
 
 digemRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
 digemRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
-                                                    , doMinHeight = h })
+                                                    , doMinHeight = h
+                                                    , doOpaqueHandling = DO_AsIs })
                                 (dfrom $ into @FamRTree a)
                                 (dfrom $ into @FamRTree b)
 

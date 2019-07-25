@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators   #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes      #-}
@@ -94,7 +95,8 @@ issueOpqCopies :: forall ki codes phi at
 issueOpqCopies meta maxvar
   = flip evalState maxvar
   . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x :*: holesMap meta y)
-                    (const opqCopy)
+                    -- (const opqCopy)
+                    (const $ \kik -> return (HOpq' kik))
   where
     opqCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
     opqCopy ki = do
@@ -167,7 +169,8 @@ instance DigestibleHO (Const Void) where
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
-diffOpts' :: (EqHO ki , DigestibleHO ki , DigestibleHO phi)
+diffOpts' :: forall ki codes phi at
+           . (EqHO ki , DigestibleHO ki , DigestibleHO phi)
           => DiffOptions
           -> Holes ki codes phi at
           -> Holes ki codes phi at
@@ -181,8 +184,13 @@ diffOpts' opts x y
         delins  = extractHoles (doMode opts) (mkCanShare opts) sh (dx' :*: dy')
      in (i , delins)
  where
-   mkCanShare :: forall a . DiffOptions -> PrepData a -> Bool
-   mkCanShare opts prep = doMinHeight opts < treeHeight prep
+   mkCanShare :: forall a ix
+               . DiffOptions -> PrepFix a ki codes phi ix
+              -> Bool
+   mkCanShare opts (HOpq _ _)
+     = doOpaqueHandling opts == DO_AsIs
+   mkCanShare opts pr
+     = doMinHeight opts < treeHeight (getConst $ holesAnn pr)
 
 -- |When running the diff for two fixpoints, we can
 -- cast the resulting deletion and insertion context into

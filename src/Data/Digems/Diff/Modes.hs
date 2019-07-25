@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators   #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes      #-}
@@ -27,10 +28,10 @@ import           Data.Digems.MetaVar
 import           Data.Digems.Change
 
 -- |A predicate indicating whether a tree can be shared.
-type CanShare = forall a . PrepData a -> Bool
+type CanShare ki codes phi = forall a ix . PrepFix a ki codes phi ix -> Bool
 
 extractHoles :: DiffMode
-             -> CanShare
+             -> CanShare ki codes phi
              -> IsSharedMap
              -> Delta (PrepFix a ki codes phi) at
              -> Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at
@@ -43,7 +44,7 @@ extractHoles DM_Patience h tr (src :*: dst)
  
 -- ** Proper Shares
 
-extractProperShare :: CanShare
+extractProperShare :: CanShare ki codes phi
                    -> IsSharedMap
                    -> PrepFix a ki codes phi at
                    -> Holes ki codes (Sum phi (MetaVarIK ki)) at
@@ -61,8 +62,8 @@ tagProperShare ism = holesSynthesize pHole pOpq pPeel
     -- A leaf is always a proper share. Since it has no subtrees,
     -- none if its subtrees can appear outside the leaf under scrutiny
     -- by construction.
-    pHole :: Const (PrepData a) at -> phi at
-          -> Const (PrepData (Int , Bool)) at
+    pHole :: Const (PrepData a) ix -> phi ix
+          -> Const (PrepData (Int , Bool)) ix
     pHole (Const pd) _ = Const $ pd { treeParm = (myar pd , True) }
 
     pOpq :: Const (PrepData a) ('K k) -> ki k
@@ -78,14 +79,15 @@ tagProperShare ism = holesSynthesize pHole pOpq pPeel
             myar' = myar pd
          in Const $ pd { treeParm = (max maxar myar' , myar' >= maxar) }
      
-properShare :: CanShare
+properShare :: forall ki codes phi at
+             . CanShare ki codes phi
             -> IsSharedMap
             -> PrepFix (Int , Bool) ki codes phi at
             -> Holes ki codes (Sum phi (MetaVarIK ki)) at
 properShare h tr pr
   = let prep  = getConst $ holesAnn pr
         isPS  = snd $ treeParm prep
-     in if not (isPS && h prep)
+     in if not (isPS && h pr)
         then properShare' pr
         else case T.lookup (toW64s $ treeDigest prep) tr of
                Nothing -> properShare' pr
@@ -96,7 +98,7 @@ properShare h tr pr
     -- and make the life of whoever is making an extraction strategy
     -- simpler.
     properShare' :: PrepFix (Int , Bool) ki codes phi at
-                  -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+                 -> Holes ki codes (Sum phi (MetaVarIK ki)) at
     properShare' (Hole _ d)    = Hole' (InL d)
     properShare' (HOpq _ k)    = HOpq' k
     properShare' (HPeel _ c d) = HPeel' c (mapNP (properShare h tr) d)
@@ -110,18 +112,19 @@ properShare h tr pr
 
 -- ** Patience
 
-extractPatience :: CanShare
+extractPatience :: CanShare ki codes phi
                 -> IsSharedMap
                 -> PrepFix a ki codes phi at
                 -> Holes ki codes (Sum phi (MetaVarIK ki)) at
 extractPatience h tr a = patience h tr a
 
-patience :: CanShare
+patience :: forall ki codes phi at a
+          . CanShare ki codes phi 
          -> IsSharedMap
          -> PrepFix a ki codes phi at
          -> Holes ki codes (Sum phi (MetaVarIK ki)) at
 patience h tr pr
-  = if not (h $ getConst $ holesAnn pr)
+  = if not (h pr)
     then patience' pr
     else case T.lookup (toW64s $ treeDigest $ getConst $ holesAnn pr) tr of
            Nothing -> patience' pr
@@ -151,7 +154,7 @@ patience h tr pr
 
 -- ** No Nested
 
-extractNoNested :: CanShare
+extractNoNested :: CanShare ki codes phi
                 -> IsSharedMap
                 -> Delta (PrepFix a ki codes phi) at
                 -> Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at
@@ -184,12 +187,13 @@ extractNoNested h tr (src :*: dst)
       | Just i `S.member` s = Hole' (InR $ mkMetaVar f i)
       | otherwise           = holesMapAnn InL (const $ Const ()) f 
 
-noNested :: CanShare
+noNested :: forall ki codes phi at a
+          . CanShare ki codes phi
          -> IsSharedMap
          -> PrepFix a ki codes phi at
          -> Holes ki codes (Sum phi (Const Int :*: PrepFix a ki codes phi)) at
 noNested h tr pr
-  = if not (h $ getConst $ holesAnn pr)
+  = if not (h pr)
     then noNested' pr
     else case T.lookup (toW64s $ treeDigest $ getConst $ holesAnn pr) tr of
            Nothing -> noNested' pr
