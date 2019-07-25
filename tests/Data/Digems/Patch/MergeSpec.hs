@@ -81,8 +81,8 @@ doMerge a o b
         -- VCM: Funny... with DM_ProperShare and DM_NoNested
         -- we see the same hspec restuls, but with DM_Patience
         -- we get a different result altogether.
-        oa = diffMode DM_ProperShare 1 o' a'
-        ob = diffMode DM_ProperShare 1 o' b'
+        oa = diff 1 o' a'
+        ob = diff 1 o' b'
         oaob = oa // ob
         oboa = ob // oa
      in case (,) <$> noConflicts oaob <*> noConflicts oboa of

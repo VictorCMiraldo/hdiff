@@ -6,8 +6,8 @@
 {-# LANGUAGE PolyKinds       #-}
 {-# LANGUAGE GADTs           #-}
 module Data.Digems.Diff
-  ( diffMode'
-  , diffMode
+  ( diffOpts'
+  , diffOpts
   , diff
   , DiffMode(..)
   , module Data.Digems.Diff.Types
@@ -33,8 +33,6 @@ import           Data.Digems.Patch
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
 
--- TODO: Think of a way to share constants on command.
-
 -- |We use a number of 'PrePatch'es, that is, a utx with a distinguished prefix
 -- and some pair of 'Holes's inside.
 type PrePatch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki codes phi)
@@ -46,21 +44,23 @@ type PrePatch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki cod
 --  every subtree, as long as they are taller than
 --  minHeight. This trie keeps track of the arity, so
 --  we can later annotate the trees that can be propper shares.
-buildArityTrie :: MinHeight -> PrepFix a ki codes phi ix -> T.Trie Int
-buildArityTrie minHeight df = go df T.empty
+buildArityTrie :: DiffOptions -> PrepFix a ki codes phi ix -> T.Trie Int
+buildArityTrie opts df = go df T.empty
   where
     ins :: Digest -> T.Trie Int -> T.Trie Int
     ins = T.insertWith 1 (+1) . toW64s
+
+    minHeight = doMinHeight opts
     
     go :: PrepFix a ki codes phi ix -> T.Trie Int -> T.Trie Int
-    go (Hole (Const prep) x) t
-      | treeHeight prep <= minHeight = t
-      -- shall we insert holes?
-      | otherwise                    = t -- ins (treeDigest prep) t
     go (HOpq (Const prep) x) t
-      | treeHeight prep <= minHeight = t
-      -- shall we insert constants?
-      | otherwise                    = ins (treeDigest prep) t
+      -- We only populat the sharing map if opaques are supposed
+      -- to be handled as recursive trees
+      | doOpaqueHandling opts == DO_AsIs = ins (treeDigest prep) t
+      | otherwise                        = t
+    -- TODO: think about holes. I'm posponing this until
+    -- we actually use diffing things holes.
+    go (Hole (Const prep) x) t = t
     go (HPeel (Const prep) c p) t
       | treeHeight prep <= minHeight = t
       | otherwise
@@ -76,14 +76,14 @@ buildArityTrie minHeight df = go df T.empty
 --  Moreover, we keep track of both the metavariable supposed
 --  to be associated with a tree and the tree's arity.
 --
-buildSharingTrie :: MinHeight
+buildSharingTrie :: DiffOptions
                  -> PrepFix a ki codes phi ix
                  -> PrepFix a ki codes phi ix
                  -> (Int , IsSharedMap)
-buildSharingTrie minHeight x y
+buildSharingTrie opts x y
   = T.mapAccum (\i ar -> (i+1 , MAA i ar) ) 0
-  $ T.zipWith (+) (buildArityTrie minHeight x)
-                  (buildArityTrie minHeight y)
+  $ T.zipWith (+) (buildArityTrie opts x)
+                  (buildArityTrie opts y)
 
 -- |Copy every 'HolesOpq' value in the outermost 'Holes', aka, the spine
 issueOpqCopies :: forall ki codes phi at
@@ -167,33 +167,34 @@ instance DigestibleHO (Const Void) where
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
-diffMode' :: (EqHO ki , DigestibleHO ki , DigestibleHO phi)
-          => DiffMode
-          -> MinHeight
+diffOpts' :: (EqHO ki , DigestibleHO ki , DigestibleHO phi)
+          => DiffOptions
           -> Holes ki codes phi at
           -> Holes ki codes phi at
           -> (Int , Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at)
-diffMode' mode mh x y
+diffOpts' opts x y
   = let dx      = preprocess x
         dy      = preprocess y
-        (i, sh) = buildSharingTrie mh dx dy
+        (i, sh) = buildSharingTrie opts dx dy
         dx'     = tagProperShare sh dx
         dy'     = tagProperShare sh dy
-        delins  = extractHoles mode mh sh (dx' :*: dy')
+        delins  = extractHoles (doMode opts) (mkCanShare opts) sh (dx' :*: dy')
      in (i , delins)
+ where
+   mkCanShare :: forall a . DiffOptions -> PrepData a -> Bool
+   mkCanShare opts prep = doMinHeight opts < treeHeight prep
 
 -- |When running the diff for two fixpoints, we can
 -- cast the resulting deletion and insertion context into
 -- an actual patch.
-diffMode :: (EqHO ki , DigestibleHO ki , IsNat ix)
-         => DiffMode
-         -> MinHeight
+diffOpts :: (EqHO ki , DigestibleHO ki , IsNat ix)
+         => DiffOptions
          -> Fix ki codes ix
          -> Fix ki codes ix
          -> Patch ki codes ix
-diffMode mode mh x y
-  = let (i , del :*: ins) = diffMode' mode mh (na2holes $ NA_I x)
-                                              (na2holes $ NA_I y)
+diffOpts opts x y
+  = let (i , del :*: ins) = diffOpts' opts (na2holes $ NA_I x)
+                                           (na2holes $ NA_I y)
      in close (extractSpine cast i del ins)
  where 
    cast :: Sum (Const Void) f i -> f i
@@ -204,4 +205,4 @@ diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
      -> Fix ki codes ix
      -> Fix ki codes ix
      -> Patch ki codes ix
-diff = diffMode DM_ProperShare
+diff h = diffOpts (diffOptionsDefault { doMinHeight = h})

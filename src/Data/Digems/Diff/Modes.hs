@@ -26,37 +26,11 @@ import           Data.Digems.Patch
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
 
--- |Diffing Algorithm modes. This is better illustrated with an
--- example. Supposte we have the following source and destination
--- trees:
---
--- > src = Bin (Bin t k) u
--- > dst = Bin (Bin t k) t
---
-data DiffMode
-  -- |The /proper share/ algorithm will only share the trees that are
-  -- supposed to be a proper share. With the src and dst above,
-  -- it will produce:
-  --
-  -- > diff src dst = Bin (Bin 0 1) u |-> Bin (Bin 0 1) 0
-  --
-  -- A good intuition is that this approach will prefer maximum sharing
-  -- as opposed to sharing bigger trees.
-  = DM_ProperShare
-  -- |The first algoritm we produced. Does not share nested trees. In fact,
-  -- with this mode we will get the following result:
-  --
-  -- > diff src dst = Bin 0 u |-> Bin 0 t
-  | DM_NoNested
-  -- |Similar to @git --patience@, we share only unique trees.
-  -- In this example, this would result in the same as 'DM_NoNested',
-  -- but if we take @u = (Bin t k)@, no sharing would be performed
-  -- whatsoever.
-  | DM_Patience
-  deriving (Eq , Show)
+-- |A predicate indicating whether a tree can be shared.
+type CanShare = forall a . PrepData a -> Bool
 
 extractHoles :: DiffMode
-             -> MinHeight
+             -> CanShare
              -> IsSharedMap
              -> Delta (PrepFix a ki codes phi) at
              -> Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at
@@ -69,7 +43,7 @@ extractHoles DM_Patience h tr (src :*: dst)
  
 -- ** Proper Shares
 
-extractProperShare :: MinHeight
+extractProperShare :: CanShare
                    -> IsSharedMap
                    -> PrepFix a ki codes phi at
                    -> Holes ki codes (Sum phi (MetaVarIK ki)) at
@@ -104,25 +78,28 @@ tagProperShare ism = holesSynthesize pHole pOpq pPeel
             myar' = myar pd
          in Const $ pd { treeParm = (max maxar myar' , myar' >= maxar) }
      
-properShare :: MinHeight
+properShare :: CanShare
             -> IsSharedMap
             -> PrepFix (Int , Bool) ki codes phi at
             -> Holes ki codes (Sum phi (MetaVarIK ki)) at
-properShare minHeight tr pr
+properShare h tr pr
   = let prep  = getConst $ holesAnn pr
         isPS  = snd $ treeParm prep
-        isBig = minHeight < treeHeight prep
-     in if not (isPS && isBig)
+     in if not (isPS && h prep)
         then properShare' pr
         else case T.lookup (toW64s $ treeDigest prep) tr of
                Nothing -> properShare' pr
                Just i  -> mkHole (getMetavar i) pr
   where
+    -- TODO: Abstract the properShare', noNested' and patience'
+    -- into a single function, remove 'CanShare' from these specific functions
+    -- and make the life of whoever is making an extraction strategy
+    -- simpler.
     properShare' :: PrepFix (Int , Bool) ki codes phi at
                   -> Holes ki codes (Sum phi (MetaVarIK ki)) at
     properShare' (Hole _ d)    = Hole' (InL d)
     properShare' (HOpq _ k)    = HOpq' k
-    properShare' (HPeel _ c d) = HPeel' c (mapNP (properShare minHeight tr) d)
+    properShare' (HPeel _ c d) = HPeel' c (mapNP (properShare h tr) d)
 
     mkHole :: Int
            -> PrepFix (Int , Bool) ki codes phi at
@@ -133,30 +110,29 @@ properShare minHeight tr pr
 
 -- ** Patience
 
-extractPatience :: MinHeight
+extractPatience :: CanShare
                 -> IsSharedMap
                 -> PrepFix a ki codes phi at
                 -> Holes ki codes (Sum phi (MetaVarIK ki)) at
 extractPatience h tr a = patience h tr a
 
-patience :: MinHeight
+patience :: CanShare
          -> IsSharedMap
          -> PrepFix a ki codes phi at
          -> Holes ki codes (Sum phi (MetaVarIK ki)) at
-patience minHeight tr pr
-  = let prep = getConst $ holesAnn pr
-     in if minHeight >= treeHeight prep
-        then patience' pr
-        else case T.lookup (toW64s $ treeDigest prep) tr of
-               Nothing -> patience' pr
-               Just i | getArity i == 2 -> mkHole (getMetavar i) pr
-                      | otherwise       -> patience' pr
+patience h tr pr
+  = if not (h $ getConst $ holesAnn pr)
+    then patience' pr
+    else case T.lookup (toW64s $ treeDigest $ getConst $ holesAnn pr) tr of
+           Nothing -> patience' pr
+           Just i | getArity i == 2 -> mkHole (getMetavar i) pr
+                  | otherwise       -> patience' pr
   where
     patience' :: PrepFix a ki codes phi at
               -> Holes ki codes (Sum phi (MetaVarIK ki)) at
     patience' (Hole _ d)    = Hole' (InL d)
     patience' (HOpq _ k)    = HOpq' k
-    patience' (HPeel _ c d) = HPeel' c (mapNP (patience minHeight tr) d)
+    patience' (HPeel _ c d) = HPeel' c (mapNP (patience h tr) d)
 
     mkMetaVar :: PrepFix a ki codes phi at
               -> Int
@@ -175,7 +151,7 @@ patience minHeight tr pr
 
 -- ** No Nested
 
-extractNoNested :: MinHeight
+extractNoNested :: CanShare
                 -> IsSharedMap
                 -> Delta (PrepFix a ki codes phi) at
                 -> Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at
@@ -208,25 +184,22 @@ extractNoNested h tr (src :*: dst)
       | Just i `S.member` s = Hole' (InR $ mkMetaVar f i)
       | otherwise           = holesMapAnn InL (const $ Const ()) f 
 
-
-
-noNested :: MinHeight
+noNested :: CanShare
          -> IsSharedMap
          -> PrepFix a ki codes phi at
          -> Holes ki codes (Sum phi (Const Int :*: PrepFix a ki codes phi)) at
-noNested minHeight tr pr
-  = let prep = getConst $ holesAnn pr
-     in if minHeight >= treeHeight prep
-        then noNested' pr
-        else case T.lookup (toW64s $ treeDigest prep) tr of
-               Nothing -> noNested' pr
-               Just i  -> mkHole (getMetavar i) pr
+noNested h tr pr
+  = if not (h $ getConst $ holesAnn pr)
+    then noNested' pr
+    else case T.lookup (toW64s $ treeDigest $ getConst $ holesAnn pr) tr of
+           Nothing -> noNested' pr
+           Just i  -> mkHole (getMetavar i) pr
   where
     noNested' :: PrepFix a ki codes phi at
               -> Holes ki codes (Sum phi (Const Int :*: PrepFix a ki codes phi)) at
     noNested' (Hole _ d)    = Hole' (InL d)
     noNested' (HOpq _ k)    = HOpq' k
-    noNested' (HPeel _ c d) = HPeel' c (mapNP (noNested minHeight tr) d)
+    noNested' (HPeel _ c d) = HPeel' c (mapNP (noNested h tr) d)
 
     mkHole :: Int
            -> PrepFix a ki codes phi at

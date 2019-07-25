@@ -34,8 +34,10 @@ digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
                            (dfrom $ into @FamRTree b)
 
 digemRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
-digemRTreeHM m h a b = diffMode m h (dfrom $ into @FamRTree a)
-                                    (dfrom $ into @FamRTree b)
+digemRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
+                                                    , doMinHeight = h })
+                                (dfrom $ into @FamRTree a)
+                                (dfrom $ into @FamRTree b)
 
 rtreeMerkle :: RTree -> Digest
 rtreeMerkle a = getDig $ preprocess (na2holes $ NA_I $ dfrom $ into @FamRTree a)
