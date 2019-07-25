@@ -36,7 +36,7 @@ digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
 digemRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
 digemRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
                                                     , doMinHeight = h
-                                                    , doOpaqueHandling = DO_AsIs })
+                                                    , doOpaqueHandling = DO_OnSpine })
                                 (dfrom $ into @FamRTree a)
                                 (dfrom $ into @FamRTree b)
 

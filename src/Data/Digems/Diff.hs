@@ -95,8 +95,8 @@ issueOpqCopies :: forall ki codes phi at
 issueOpqCopies meta maxvar
   = flip evalState maxvar
   . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x :*: holesMap meta y)
-                    -- (const opqCopy)
-                    (const $ \kik -> return (HOpq' kik))
+                    (const opqCopy)
+                    -- (const $ \kik -> return (HOpq' kik))
   where
     opqCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
     opqCopy ki = do

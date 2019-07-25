@@ -93,6 +93,8 @@ data Options
   | Diff  { optFileA     :: FilePath
           , optFileB     :: FilePath
           , minHeight    :: Int
+          -- , diffMode     :: D.DiffMode
+          -- , opqHandling  :: D.DiffOpaques
           , testApply    :: Bool
           , showLCS      :: Bool
           , showCost     :: Bool
@@ -166,6 +168,14 @@ diff = Diff
       &= name "ted"
       &= typ "Patch | Chg"
       &= explicit
+  -- , diffMode = enum [
+  --      D.DM_ProperShare &= explicit &= name "dm-proper-share"
+  --                       &= help "Turns on DM_ProperShare"
+  --    , D.DM_NoNested    &= explicit &= name "dm-no-nested"
+  --                       &= help "Turns on DM_NoNested"
+  --    , D.DM_Patience    &= explicit &= name "dm-patience"
+  --                       &= help "Turns on DM_Patience"
+  --    ]
   } 
   &= help "Computes the diff between two programs. The resulting diff is displayed"
 
