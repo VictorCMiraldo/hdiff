@@ -69,7 +69,7 @@ executable digem
                ,       generics-mrsop-gdiff
                ,       hs-digems
                ,       parsec
-               ,       cmdargs
+               ,       optparse-applicative
                ,       gitrev
                ,       prettyprinter
                ,       text 

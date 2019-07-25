@@ -19,16 +19,22 @@ module Main (main) where
 import System.IO
 import System.Exit
 import Control.Monad
+import Control.Applicative
+import Data.Foldable (asum)
+{-
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
+-}
 
 import Development.GitRev
-import System.Console.CmdArgs.Implicit
+import Options.Applicative
+import Data.Semigroup ((<>))
 
 import           Data.Proxy
 import           Data.Maybe (isJust)
+import qualified Data.List as L (lookup)
 import           Data.Functor.Const
 import           Data.Functor.Sum
 import           Data.Type.Equality
@@ -81,7 +87,7 @@ mainParsers
 
 data PatchOrChange
   = Patch | Chg
-  deriving (Eq , Show, Data, Typeable)
+  deriving (Eq , Show)
 
 data Options
   = AST   { optFileA :: FilePath
@@ -92,13 +98,12 @@ data Options
           }
   | Diff  { optFileA     :: FilePath
           , optFileB     :: FilePath
-          , minHeight    :: Int
-          -- , diffMode     :: D.DiffMode
-          -- , opqHandling  :: D.DiffOpaques
           , testApply    :: Bool
-          , showLCS      :: Bool
-          , showCost     :: Bool
-          , showDist     :: Maybe PatchOrChange
+          , minHeight    :: Int
+          , diffMode     :: D.DiffMode
+          , opqHandling  :: D.DiffOpaques
+          , toEditScript :: Maybe PatchOrChange
+          , showES       :: Bool
           }
   | Merge { optFileA     :: FilePath
           , optFileO     :: FilePath
@@ -106,7 +111,108 @@ data Options
           , minHeight    :: Int
           , optDisplay   :: Bool
           }
-  deriving (Data, Typeable, Eq , Show)
+  deriving (Eq , Show)
+
+whenLoud = undefined
+
+astOpts :: Parser Options
+astOpts = AST <$> argument str (metavar "FILE")
+
+showesOpt :: Parser Bool
+showesOpt = switch (long "show-es" <> help "Display the generated edit script" <> hidden)
+
+minheightOpt :: Parser Int
+minheightOpt = option auto $
+     long "min-height"
+  <> short 'm'
+  <> showDefault
+  <> value 1
+  <> metavar "INT"
+  <> help "Minimum height of subtrees considered for sharing"
+  <> hidden
+
+readmOneOf :: [(String, a)] -> ReadM a
+readmOneOf = maybeReader . flip L.lookup
+
+diffmodeOpt :: Parser D.DiffMode
+diffmodeOpt = option (readmOneOf [("proper"  , D.DM_ProperShare)
+                                 ,("nonest"  , D.DM_NoNested)
+                                 ,("patience", D.DM_Patience)
+                                 ])
+            ( long "diff-mode"
+           <> short 'd'
+           <> metavar "proper | nonest | patience ; default: proper"
+           <> value D.DM_ProperShare
+           <> help aux
+           <> hidden)
+  where    
+    aux = unwords
+      ["Controls how context extraction works. If you are unaware about how"
+      ,"this works, check 'Data.Digems.Diff.Types' and 'Data.Digems.Diff.Modes'"
+      ,"for more information."
+      ]
+      
+
+opqhandlingOpt :: Parser D.DiffOpaques
+opqhandlingOpt = option (readmOneOf [("never" , D.DO_Never)
+                                    ,("spine" , D.DO_OnSpine)
+                                    ,("always", D.DO_AsIs)
+                                    ])
+               ( long "diff-opq"
+              <> short 'k'
+              <> metavar "never | spine | always ; default: spine"
+              <> value D.DO_OnSpine
+              <> help aux
+              <> hidden)
+  where    
+    aux = unwords
+      ["Controls how to handle opaque values. We either treat them like normal"
+      ,"trees, with 'always', never share them, or share only the opaque values"
+      ,"that end up on the spine"
+      ]
+
+toesOpt :: Parser (Maybe PatchOrChange)
+toesOpt =  flag' (Just Patch) ( long "patch-to-es"
+                             <> help "Translates a patch to an edit script at the patch level"
+                             <> hidden)
+       <|> flag' (Just Chg)   ( long "change-to-es"
+                             <> help ("Translates a patch to an edit script at the change"
+                                      ++ " level; does so by using distrCChange on the patch")
+                             <> hidden)
+       <|> pure Nothing
+
+gdiffOpts :: Parser Options
+gdiffOpts = GDiff <$> argument str (metavar "OLD")
+                  <*> argument str (metavar "NEW")
+                  <*> showesOpt
+
+diffOpts :: Parser Options
+diffOpts =
+  Diff <$> argument str (metavar "OLD")
+       <*> argument str (metavar "NEW")
+       <*> switch ( long "test-apply"
+                    -- TODO: check this doc
+                 <> help "Attempts application; returns ExitFailure if apply fails."
+                 <> hidden)
+       <*> minheightOpt
+       <*> diffmodeOpt
+       <*> opqhandlingOpt
+       <*> toesOpt
+       <*> showesOpt
+
+                      
+
+parseOptions :: Parser Options
+parseOptions = hsubparser
+  (  command "ast"   (info astOpts
+        (progDesc "Parses and displays an ast"))
+  <> command "gdiff" (info gdiffOpts
+        (progDesc "Runs Generics.MRSOP.GDiff on the targets"))
+  <> command "diff" (info diffOpts
+        (progDesc "Runs Data.Digems.Diff on the targes"))
+  )
+  
+{-
 
 minHeightFlags :: Int
 minHeightFlags = 1
@@ -185,24 +291,43 @@ options = cmdArgsMode $ modes [merge , ast , diff &= auto , gdiff]
   &= verbosity
   &= program "digem"
 
+-}
+
 data OptionMode
   = OptAST | OptDiff | OptMerge | OptGDiff
-  deriving (Data, Typeable, Eq , Show)
+  deriving (Eq , Show)
 
 optionMode :: Options -> OptionMode
-optionMode (AST _)              = OptAST
-optionMode (GDiff _ _ _)        = OptGDiff
-optionMode (Merge _ _ _ _ _)    = OptMerge
-optionMode (Diff _ _ _ _ _ _ _) = OptDiff
+optionMode (AST _)                = OptAST
+optionMode (GDiff _ _ _)          = OptGDiff
+optionMode (Merge _ _ _ _ _)      = OptMerge
+optionMode (Diff _ _ _ _ _ _ _ _) = OptDiff
 
 main :: IO ()
-main = cmdArgsRun options >>= \opts
+main = execParser fullOpts >>= \opts
     -> case optionMode opts of
          OptAST   -> mainAST opts
          OptDiff  -> mainDiff  opts
          OptGDiff -> mainGDiff opts
          OptMerge -> mainMerge opts
     >>= exitWith
+ where
+   fullOpts = info (parseOptions <**> helper)
+            $  fullDesc
+            <> header ("digem v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
+            <> progDesc "Runs digem with the specified command; Call digem command --help for more information on each command"
+            
+
+{-
+
+main :: IO ()
+main = greet =<< execParser opts
+  where
+    opts = info (sample <**> helper)
+      ( fullDesc
+     <> progDesc "Print a greeting for TARGET"
+     <> header "hello - a test for optparse-applicative" )
+-}
 
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
@@ -212,8 +337,8 @@ putStrLnErr = hPutStrLn stderr
 mainAST :: Options -> IO ExitCode
 mainAST opts = withParsed1 mainParsers (optFileA opts)
   $ \fa -> do
-    v <- getVerbosity
-    unless (v == Quiet) $ putStrLn (show (renderFix renderHO fa))
+    -- v <- getVerbosity
+    -- unless (v == Quiet) $ putStrLn (show (renderFix renderHO fa))
     return ExitSuccess
 
 -- |Applies a patch to an element and either checks it is equal to
@@ -245,19 +370,19 @@ mainDiff :: Options -> IO ExitCode
 mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
     let patch = D.diff (minHeight opts) fa fb
-    v <- getVerbosity
-    unless (v == Quiet)   $ displayRawPatch stdout patch
+    -- v <- getVerbosity
+    -- unless (v == Quiet)   $ displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply patch fa (Just fb))
-    when (showCost opts)  $ putStrLn ("digem-patch-cost: "
-                                       ++ show (D.patchCost patch))
-    when (showLCS opts || isJust (showDist opts)) $ do
-      let ees = case showDist opts of
-                  Just Patch -> TED.toES  patch                  (NA_I fa)
-                  Just Chg   -> TEDC.toES (D.distrCChange patch) (NA_I fa)
-      case ees of
-        Left err -> putStrLn ("!! " ++ err)
-        Right es -> putStrLn ("tree-edit-distance: " ++ (show $ GDiff.cost es))
-                 >> when (showLCS opts) (putStrLn $ show es)
+    -- when (showCost opts)  $ putStrLn ("digem-patch-cost: "
+    --                                    ++ show (D.patchCost patch))
+    -- when (showLCS opts || isJust (showDist opts)) $ do
+    --   let ees = case showDist opts of
+    --               Just Patch -> TED.toES  patch                  (NA_I fa)
+    --               Just Chg   -> TEDC.toES (D.distrCChange patch) (NA_I fa)
+    --   case ees of
+    --     Left err -> putStrLn ("!! " ++ err)
+    --     Right es -> putStrLn ("tree-edit-distance: " ++ (show $ GDiff.cost es))
+    --              >> when (showLCS opts) (putStrLn $ show es)
     return ExitSuccess
 
 
