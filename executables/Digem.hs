@@ -111,7 +111,6 @@ data Options
           , minHeight    :: Int
           , diffMode     :: D.DiffMode
           , opqHandling  :: D.DiffOpaques
-          , optDisplay   :: Bool
           }
   deriving (Eq , Show)
 
@@ -208,11 +207,6 @@ mergeOpts =
         <*> minheightOpt
         <*> diffmodeOpt
         <*> opqhandlingOpt
-        <*> switch ( long "--display"
-                  <> short 'd'
-                  <> help "Displays the residual patches"
-                  <> hidden)
-                      
 
 parseOptions :: Parser Options
 parseOptions = hsubparser
@@ -255,7 +249,7 @@ data OptionMode
 optionMode :: Options -> OptionMode
 optionMode (AST _)                = OptAST
 optionMode (GDiff _ _ _)          = OptGDiff
-optionMode (Merge _ _ _ _ _ _ _)  = OptMerge
+optionMode (Merge _ _ _ _ _ _)    = OptMerge
 optionMode (Diff _ _ _ _ _ _ _ _) = OptDiff
 
 main :: IO ()
@@ -349,7 +343,7 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
     patchOB <- diffWithOpts opts fo fb
     let resAB = patchOA D.// patchOB
     let resBA = patchOB D.// patchOA
-    when (optDisplay opts) $ do
+    when (v == VeryLoud) $ do
       putStrLnErr $ "O->A/O->B " ++ replicate 55 '#'
       displayPatchC stderr resAB
       putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
