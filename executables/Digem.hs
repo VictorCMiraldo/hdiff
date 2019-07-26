@@ -109,11 +109,11 @@ data Options
           , optFileO     :: FilePath
           , optFileB     :: FilePath
           , minHeight    :: Int
+          , diffMode     :: D.DiffMode
+          , opqHandling  :: D.DiffOpaques
           , optDisplay   :: Bool
           }
   deriving (Eq , Show)
-
-whenLoud = undefined
 
 astOpts :: Parser Options
 astOpts = AST <$> argument str (metavar "FILE")
@@ -182,14 +182,14 @@ toesOpt =  flag' (Just Patch) ( long "patch-to-es"
        <|> pure Nothing
 
 gdiffOpts :: Parser Options
-gdiffOpts = GDiff <$> argument str (metavar "OLD")
-                  <*> argument str (metavar "NEW")
+gdiffOpts = GDiff <$> argument str (metavar "OLDFILE")
+                  <*> argument str (metavar "NEWFILE")
                   <*> showesOpt
 
 diffOpts :: Parser Options
 diffOpts =
-  Diff <$> argument str (metavar "OLD")
-       <*> argument str (metavar "NEW")
+  Diff <$> argument str (metavar "OLDFILE")
+       <*> argument str (metavar "NEWFILE")
        <*> switch ( long "test-apply"
                     -- TODO: check this doc
                  <> help "Attempts application; returns ExitFailure if apply fails."
@@ -200,6 +200,18 @@ diffOpts =
        <*> toesOpt
        <*> showesOpt
 
+mergeOpts :: Parser Options
+mergeOpts =
+  Merge <$> argument str (metavar "MYFILE")
+        <*> argument str (metavar "OLDFILE")
+        <*> argument str (metavar "YOURFILE")
+        <*> minheightOpt
+        <*> diffmodeOpt
+        <*> opqhandlingOpt
+        <*> switch ( long "--display"
+                  <> short 'd'
+                  <> help "Displays the residual patches"
+                  <> hidden)
                       
 
 parseOptions :: Parser Options
@@ -208,90 +220,33 @@ parseOptions = hsubparser
         (progDesc "Parses and displays an ast"))
   <> command "gdiff" (info gdiffOpts
         (progDesc "Runs Generics.MRSOP.GDiff on the targets"))
-  <> command "diff" (info diffOpts
+  <> command "diff"  (info diffOpts
         (progDesc "Runs Data.Digems.Diff on the targes"))
-  )
+  <> command "merge" (info mergeOpts
+        (progDesc "Runs the merge algorithm on the specified files"))
+  ) <|> diffOpts
   
-{-
+data Verbosity
+  = Quiet
+  | Normal
+  | Loud
+  | VeryLoud
+  deriving (Eq, Show)
 
-minHeightFlags :: Int
-minHeightFlags = 1
-  &= typ "INT"
-  &= help "Specify the minimum height a tree must have to be shared"
-  &= explicit &= name "h" &= name "height"
-
-merge = Merge
-  { optFileA = def &= argPos 0 &= typ "MYFILE"
-  , optFileO = def &= argPos 1 &= typ "ORIGFILE"
-  , optFileB = def &= argPos 2 &= typ "YOURFILE"
-  , minHeight = 1
-      &= typ "INT"
-      &= help "Specify the minimum height a tree must have to be shared"
-      &= explicit &= name "h" &= name "height"
-  , optDisplay = False
-      &= typ "BOOL"
-      &= help "Displays the resulting patches"
-      &= explicit &= name "d" &= name "display"
-  } 
-  &= help ("Merges three programs. Returns 0 upon success, 1 upon conflicting"
-         ++" patches and 2 upon unconflicting patches that do not commute")
-
-ast = AST
-  { optFileA = def &= argPos 5 &= typ "FILE" }
-  &= help ("Parses a program. We support *.while, *.lua and *.clj files" )
-
-gdiff = GDiff
-  { optFileA = def &= argPos 6 &= typ "OLDFILE"
-  , optFileB = def &= argPos 7 &= typ "NEWFILE"
-  , showES = False
-      &= typ "BOOL"
-      &= help "Shows the computed edit-script"
-      &= explicit &= name "show-es"
-  }
-
-diff = Diff
-  { optFileA = def &= argPos 3 &= typ "OLDFILE"
-  , optFileB = def &= argPos 4 &= typ "NEWFILE"
-  , minHeight = 1
-      &= typ "INT"
-      &= help "Specify the minimum height a tree must have to be shared "
-      &= explicit &= name "h" &= name "height"
-  , testApply = False
-      &= typ "BOOL"
-      &= help "Attempts applying the patch and checks the result for equality"
-      &= explicit &= name "a" &= name "apply"
-  , showLCS = False
-      &= typ "BOOL"
-      &= help "Shows the edit script got from translating the patch. Implies --ted"
-      &= explicit &= name "show-es"
-  , showCost = False
-      &= typ "BOOL"
-      &= help "Dipslays the cost of the patch: number of consturctors being inserted and deleted. This does NOT translate the patch to edit-scripts"
-      &= explicit &= name "cost" &= name "c"
-  , showDist = Nothing
-      &= opt Patch
-      &= help "Displays the tree edit distance using Ins,Del and Cpy only; Optionally, decide at which level should we look into the ES. Using 'Chg' will use (TED.toES . distrCChange). 'Patch' is the default."
-      &= name "ted"
-      &= typ "Patch | Chg"
-      &= explicit
-  -- , diffMode = enum [
-  --      D.DM_ProperShare &= explicit &= name "dm-proper-share"
-  --                       &= help "Turns on DM_ProperShare"
-  --    , D.DM_NoNested    &= explicit &= name "dm-no-nested"
-  --                       &= help "Turns on DM_NoNested"
-  --    , D.DM_Patience    &= explicit &= name "dm-patience"
-  --                       &= help "Turns on DM_Patience"
-  --    ]
-  } 
-  &= help "Computes the diff between two programs. The resulting diff is displayed"
-
-options :: Mode (CmdArgs Options)
-options = cmdArgsMode $ modes [merge , ast , diff &= auto , gdiff]
-  &= summary ("v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
-  &= verbosity
-  &= program "digem"
-
--}
+verbosity :: Parser Verbosity
+verbosity = asum
+  [ flag' Quiet    ( long "quiet"
+                  <> short 'q'
+                  <> help "Runs on quiet mode; almost no information out"
+                  <> hidden )
+  , flag' Loud     ( long "verbose"
+                  <> short 'v'
+                  <> help "Runs with a more output than normal"
+                  <> hidden )
+  , flag' VeryLoud ( long "debug"
+                  <> internal )
+  , pure Normal
+  ]
 
 data OptionMode
   = OptAST | OptDiff | OptMerge | OptGDiff
@@ -300,101 +255,98 @@ data OptionMode
 optionMode :: Options -> OptionMode
 optionMode (AST _)                = OptAST
 optionMode (GDiff _ _ _)          = OptGDiff
-optionMode (Merge _ _ _ _ _)      = OptMerge
+optionMode (Merge _ _ _ _ _ _ _)  = OptMerge
 optionMode (Diff _ _ _ _ _ _ _ _) = OptDiff
 
 main :: IO ()
-main = execParser fullOpts >>= \opts
+main = execParser fullOpts >>= \(verb , opts)
     -> case optionMode opts of
-         OptAST   -> mainAST opts
-         OptDiff  -> mainDiff  opts
-         OptGDiff -> mainGDiff opts
-         OptMerge -> mainMerge opts
+         OptAST   -> mainAST   verb opts
+         OptDiff  -> mainDiff  verb opts
+         OptGDiff -> mainGDiff verb opts
+         OptMerge -> mainMerge verb opts
     >>= exitWith
  where
-   fullOpts = info (parseOptions <**> helper)
+   fullOpts = info ((,) <$> verbosity <*> parseOptions <**> helper)
             $  fullDesc
             <> header ("digem v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
-            <> progDesc "Runs digem with the specified command; Call digem command --help for more information on each command"
+            <> progDesc "Runs digem with the specified command, 'diff' is the default command." 
+            <> footer "Run digem COMMAND --help for more help on specific commands"
             
-
-{-
-
-main :: IO ()
-main = greet =<< execParser opts
-  where
-    opts = info (sample <**> helper)
-      ( fullDesc
-     <> progDesc "Print a greeting for TARGET"
-     <> header "hello - a test for optparse-applicative" )
--}
-
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
 
 -- * Generic interface
 
-mainAST :: Options -> IO ExitCode
-mainAST opts = withParsed1 mainParsers (optFileA opts)
+mainAST :: Verbosity -> Options -> IO ExitCode
+mainAST v opts = withParsed1 mainParsers (optFileA opts)
   $ \fa -> do
-    -- v <- getVerbosity
-    -- unless (v == Quiet) $ putStrLn (show (renderFix renderHO fa))
+    unless (v == Quiet) $ putStrLn (show (renderFix renderHO fa))
     return ExitSuccess
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
 tryApply :: (EqHO ki , ShowHO ki , TestEquality ki , IsNat ix, RendererHO ki
             ,HasDatatypeInfo ki fam codes)
-         => D.Patch ki codes ix
+         => Verbosity
+         -> D.Patch ki codes ix
          -> Fix ki codes ix
          -> Maybe (Fix ki codes ix)
          -> IO (Maybe (Fix ki codes ix))
-tryApply patch fa fb
+tryApply v patch fa fb
   = case D.apply patch fa of
       Left err -> hPutStrLn stderr "!! apply failed"
                >> hPutStrLn stderr ("  " ++ err)
-               >> whenLoud
+               >> when (v == Loud)
                    (hPutStrLn stderr (show $ renderFix renderHO fa))
                >> exitFailure
       Right b' -> return $ maybe (Just b') (const Nothing) fb
 
-mainGDiff :: Options -> IO ExitCode
-mainGDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
+-- |Runs our diff algorithm with particular options parsed
+-- from the CLI options.
+diffWithOpts :: ( EqHO ki , ShowHO ki , TestEquality ki , IsNat ix, RendererHO ki
+                , DigestibleHO ki, HasDatatypeInfo ki fam codes)
+             => Options
+             -> Fix ki codes ix
+             -> Fix ki codes ix
+             -> IO (D.Patch ki codes ix)
+diffWithOpts opts fa fb = do
+  let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) 
+  return (D.diffOpts localopts fa fb)
+
+mainGDiff :: Verbosity -> Options -> IO ExitCode
+mainGDiff v opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
     let es = GDiff.diff' fa fb
     putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
     when (showES opts) (putStrLn $ show es)
     return ExitSuccess
 
-mainDiff :: Options -> IO ExitCode
-mainDiff opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
+mainDiff :: Verbosity -> Options -> IO ExitCode
+mainDiff v opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
-    let patch = D.diff (minHeight opts) fa fb
-    -- v <- getVerbosity
-    -- unless (v == Quiet)   $ displayRawPatch stdout patch
-    when (testApply opts) $ void (tryApply patch fa (Just fb))
-    -- when (showCost opts)  $ putStrLn ("digem-patch-cost: "
-    --                                    ++ show (D.patchCost patch))
-    -- when (showLCS opts || isJust (showDist opts)) $ do
-    --   let ees = case showDist opts of
-    --               Just Patch -> TED.toES  patch                  (NA_I fa)
-    --               Just Chg   -> TEDC.toES (D.distrCChange patch) (NA_I fa)
-    --   case ees of
-    --     Left err -> putStrLn ("!! " ++ err)
-    --     Right es -> putStrLn ("tree-edit-distance: " ++ (show $ GDiff.cost es))
-    --              >> when (showLCS opts) (putStrLn $ show es)
+    patch <- diffWithOpts opts fa fb
+    unless (v == Quiet)   $ displayRawPatch stdout patch
+    when (testApply opts) $ void (tryApply v patch fa (Just fb))
+    when (isJust (toEditScript opts)) $ do
+      let (role , ees) = case toEditScript opts of
+                           Just Patch -> ("patch" , TED.toES  patch                  (NA_I fa))
+                           Just Chg   -> ("change", TEDC.toES (D.distrCChange patch) (NA_I fa))
+      case ees of
+        Left  err -> putStrLnErr ("!! " ++ err)
+        Right es  -> putStrLn ("tree-edit-distance: " ++ role ++ " " ++ show (GDiff.cost es))
+                  >> when (v == Loud) (putStrLn $ show es)
     return ExitSuccess
 
-
-mainMerge :: Options -> IO ExitCode
-mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
+mainMerge :: Verbosity -> Options -> IO ExitCode
+mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \fa fo fb -> do
-    whenLoud $ do
+    when (v == Loud) $ do
       putStrLnErr $ "O: " ++ optFileO opts
       putStrLnErr $ "A: " ++ optFileA opts
       putStrLnErr $ "B: " ++ optFileB opts
-    let patchOA = D.diff (minHeight opts) fo fa
-    let patchOB = D.diff (minHeight opts) fo fb
+    patchOA <- diffWithOpts opts fo fa
+    patchOB <- diffWithOpts opts fo fb
     let resAB = patchOA D.// patchOB
     let resBA = patchOB D.// patchOA
     when (optDisplay opts) $ do
@@ -409,27 +361,10 @@ mainMerge opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFil
                      >> putStrLnErr (unlines (map ("  - " ++) (D.getConflicts resBA)))
                      >> return (ExitFailure 1)
       Just (ab , ba) -> do
-        whenLoud (putStrLnErr "!! apply ba fa")
-        Just fb' <- tryApply ba fa Nothing
-        whenLoud (putStrLnErr "!! apply ab fb")
-        Just fa' <- tryApply ab fb Nothing
+        when (v == Loud) (putStrLnErr "!! apply ba fa")
+        Just fb' <- tryApply v ba fa Nothing
+        when (v == Loud) (putStrLnErr "!! apply ab fb")
+        Just fa' <- tryApply v ab fb Nothing
         if eqFix eqHO fb' fa'
         then return ExitSuccess
         else return (ExitFailure 2)
-{-
-    case dstr (D.hasNoConflict resAB , D.hasNoConflict resBA) of
-      Nothing        -> putStrLnErr "!! Conflicts detected. Try with --display"
-                     >> return (ExitFailure 1)
-      Just (ab , ba) -> do
-        whenLoud (putStrLnErr "!! apply ba fa")
-        Just fb' <- tryApply ba fa Nothing
-        whenLoud (putStrLnErr "!! apply ab fb")
-        Just fa' <- tryApply ab fb Nothing
-        if eqFix eq1 fb' fa'
-        then return ExitSuccess
-        else return (ExitFailure 2)
-  where
-    dstr :: (Maybe a , Maybe b) -> Maybe (a , b)
-    dstr (Just x , Just y) = Just (x , y)
-    dstr _                 = Nothing
--}
