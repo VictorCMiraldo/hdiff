@@ -10,6 +10,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE CPP                   #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- |Illustrates the usage of MRSOP with a custom
 --  opaque type universe and the use of Digems to
 --  compute diffs over various languages.
@@ -21,34 +22,18 @@ import System.Exit
 import Control.Monad
 import Control.Applicative
 import Data.Foldable (asum)
-{-
-import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Expr
-import Text.ParserCombinators.Parsec.Language
-import qualified Text.ParserCombinators.Parsec.Token as Token
--}
 
 import Development.GitRev
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-import           Data.Proxy
 import           Data.Maybe (isJust)
 import qualified Data.List as L (lookup)
-import           Data.Functor.Const
-import           Data.Functor.Sum
 import           Data.Type.Equality
-import           Data.Text.Prettyprint.Doc hiding (Doc)
-import           Data.Text.Prettyprint.Doc.Render.Text
-import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Holes
-import Generics.MRSOP.Util
-import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Holes
 
 import qualified Generics.MRSOP.GDiff    as GDiff
 
@@ -64,8 +49,13 @@ import           Languages.Interface
 import qualified Languages.While   as While
 import qualified Languages.ELisp   as ELisp
 import qualified Languages.Lines   as Lines
+
+#ifdef ENABLE_LUA_SUPPORT
 import qualified Languages.Lua     as Lua
+#endif
+#ifdef ENABLE_CLOJURE_SUPPORT
 import qualified Languages.Clojure as Clj
+#endif
 
 
    -- |The parsers that we support
@@ -309,7 +299,7 @@ diffWithOpts opts fa fb = do
   return (D.diffOpts localopts fa fb)
 
 mainGDiff :: Verbosity -> Options -> IO ExitCode
-mainGDiff v opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
+mainGDiff _ opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
   $ \fa fb -> do
     let es = GDiff.diff' fa fb
     putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))

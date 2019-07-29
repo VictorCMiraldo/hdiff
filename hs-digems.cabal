@@ -33,8 +33,6 @@ library
                  , Generics.MRSOP.Digems.Holes
                  , Languages.RTree
                  , Languages.RTree.Diff
-  -- other-modules:       
-  -- other-extensions:    
   build-depends:       base >=4.10 && <5
                ,       generics-mrsop >= 2.1.0
                ,       generics-mrsop-gdiff
@@ -50,10 +48,12 @@ library
                ,       hspec
 
   hs-source-dirs:      src
+  ghc-options:         -Wall -Wno-incomplete-patterns -Wno-missing-signatures
   default-language:    Haskell2010
 
 executable digem
   default-language:    Haskell2010
+  ghc-options:         -Wall
   hs-source-dirs:      executables
   main-is:             Digem.hs
   other-modules:       Languages.While
@@ -79,6 +79,8 @@ executable digem
                ,       QuickCheck
 
 test-suite tests
+  default-language: Haskell2010
+  ghc-options: -Wall
   type: exitcode-stdio-1.0
   hs-source-dirs: tests
   main-is:       Spec.hs
