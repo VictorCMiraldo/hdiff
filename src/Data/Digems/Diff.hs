@@ -109,8 +109,8 @@ extractSpine dopq meta i dx dy
      . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x
                                                      :*: holesMap meta y)
                        (const $ if dopq == DO_OnSpine
-                                then noCopy
-                                else doCopy)
+                                then doCopy
+                                else noCopy)
 
    noCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
    noCopy kik = return (HOpq' kik)
