@@ -1,11 +1,11 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes      #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE PolyKinds       #-}
-{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE PatternSynonyms     #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE GADTs               #-}
 module Data.Digems.Diff
   ( diffOpts'
   , diffOpts
@@ -86,25 +86,6 @@ buildSharingTrie opts x y
   $ T.zipWith (+) (buildArityTrie opts x)
                   (buildArityTrie opts y)
 
--- |Copy every 'HolesOpq' value in the outermost 'Holes', aka, the spine
-issueOpqCopies :: forall ki codes phi at
-                . (forall ix . phi ix -> MetaVarIK ki ix)
-               -> Int
-               -> PrePatch ki codes phi at
-               -> PrePatch ki codes (MetaVarIK ki) at
-issueOpqCopies meta maxvar
-  = flip evalState maxvar
-  . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x :*: holesMap meta y)
-                    (const opqCopy)
-                    -- (const $ \kik -> return (HOpq' kik))
-  where
-    opqCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
-    opqCopy ki = do
-      i <- get
-      put (i+1)
-      let ann = NA_K . Annotate i $ ki
-      return $ Hole' (Hole' ann :*: Hole' ann)
-
 -- |Given two treefixes, we will compute the longest path from
 --  the root that they overlap and will factor it out.
 --  This is somehow analogous to a @zipWith@. Moreover, however,
@@ -112,15 +93,35 @@ issueOpqCopies meta maxvar
 --  /"copy"/ changes
 extractSpine :: forall ki codes phi at
               . (EqHO ki)
-             => (forall ix . phi ix -> MetaVarIK ki ix)
+             => DiffOpaques
+             -> (forall ix . phi ix -> MetaVarIK ki ix)
              -> Int
              -> Holes ki codes phi at
              -> Holes ki codes phi at
              -> Holes ki codes (Sum (OChange ki codes) (CChange ki codes)) at
-extractSpine meta i dx dy
+extractSpine dopq meta i dx dy
   = holesMap (uncurry' change)
-  $ issueOpqCopies meta i
+  $ issueOpqCopiesSpine
   $ holesLCP dx dy
+ where
+   issueOpqCopiesSpine
+     = flip evalState i
+     . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x
+                                                     :*: holesMap meta y)
+                       (const $ if dopq == DO_OnSpine
+                                then noCopy
+                                else doCopy)
+
+   noCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
+   noCopy kik = return (HOpq' kik)
+                        
+   doCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
+   doCopy ki = do
+     i <- get
+     put (i+1)
+     let ann = NA_K . Annotate i $ ki
+     return $ Hole' (Hole' ann :*: Hole' ann)
+
 
 -- |Combines changes until they are closed
 close :: Holes ki codes (Sum (OChange ki codes) (CChange ki codes)) at
@@ -203,7 +204,7 @@ diffOpts :: (EqHO ki , DigestibleHO ki , IsNat ix)
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts (na2holes $ NA_I x)
                                            (na2holes $ NA_I y)
-     in close (extractSpine cast i del ins)
+     in close (extractSpine (doOpaqueHandling opts) cast i del ins)
  where 
    cast :: Sum (Const Void) f i -> f i
    cast (InR fi) = fi
