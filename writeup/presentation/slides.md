@@ -70,7 +70,8 @@ it's some ugly code."
 
 Encodes changes as an _edit script_
 ```haskell
-data ES    = Ins String | Del | Cpy
+type Line  = String
+data ES    = Ins Line | Del | Cpy
 type Patch = [ES]
 ```
 
@@ -138,7 +139,7 @@ apply (diff x y) x == Just y
 Modify edit scripts
 
 ```haskell
-data ES = Ins Tree | Del | Cpy
+data ES = Ins TreeConstructor | Del | Cpy
 ```
 
 . . .
@@ -231,7 +232,7 @@ Drawbacks:
 
 . . .
 
-_Generalizations can break specifications!_
+_Generalizations generalize specifications!_
 
 . . .
 
