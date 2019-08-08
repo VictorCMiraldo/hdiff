@@ -420,7 +420,11 @@ Diffed files from $\approx\!1200$ commits from top Lua repos
 
 ## Merging Changes
 
-Merging is our main motivation
+Merging is a constant motivation for structured diffing
+
+. . .
+
+We defined a (very!) simple merging algorithm:
 
 . . .
 
@@ -459,5 +463,282 @@ We have learned:
 New representaion comes short:
 
 * Hard to reason about
-* Detaching from existing metatheory = more work to do 
+* Detaching from existing metatheory means more work to do 
 
+# In Greater Depth
+
+## In Depth: The Efficient Oracle
+
+Recall,
+
+```haskell
+wcs :: Tree -> Tree -> Tree -> Maybe MetaVar
+wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
+```
+
+. . .
+
+Two inefficiency points:\pause
+
+* Comparing trees for equality\pause
+* Searching for a subtree in all enumerated subtrees
+
+## In Depth: The Efficient Oracle (Inefficiency #1)
+
+\centerbegin
+![](merkle-tree.pdf)
+\centerend
+
+## In Depth: The Efficient Oracle (Merkle Trees)
+. . .
+
+Annotate Trees with `Digest`{.haskll}s:
+
+```haskell
+decorate :: Tree -> TreeH
+data TreeH = LeafH
+           | BinH (TreeH, Digest) (TreeH, Digest)
+           | TriH (TreeH, Digest) (TreeH, Digest) (TreeH, Digest)
+```
+
+. . .
+
+
+```haskell
+root :: TreeH -> Digest
+root LeafH                    = hash "leaf"
+root (BinH (_ , dx) (_ , dy)) = hash ("node2" ++ dx ++ dy)
+...
+```
+
+. . .
+
+Compare roots:
+
+```haskell 
+instance Eq TreeH where
+  t == u = root t == root u
+```
+
+
+## In Depth: The Efficient Oracle (Inefficiency #2)
+
+. . .
+
+Good structure to lookup hashes: __Tries__!
+
+. . .
+
+```haskell
+wcs :: TreeH -> TreeH -> (TreeH -> Maybe MetaVar)
+wcs s d = lookup (tr empty s `intersect` tr empty d) . root
+```
+
+. . .
+
+```haskell
+tr :: Trie -> TreeH -> Trie
+tr db t = insert (root t) 
+        $ case t of
+            LeafH                  -> db
+            BinH (x , _) (y , _) -> tr (tr db x) y
+            ...
+```
+
+## In Depth: The Efficient Oracle: The `diff` function
+
+One could write:
+
+```haskell
+diff :: Tree -> Tree -> Change
+diff s d = let s' = decorate s; d' = decorate d
+            in (extract (wcs s' d') s' , extract (wcs s' d') d')
+```
+
+. . .
+
+Subtle issue: `a = Bin (Bin t k) u`{.haskell}; `b = Bin (Bin t k) t`{.haskell}
+
+. . .
+
+\columnsbegin
+\column{.30\textwidth}
+Wrong
+\begin{center}
+\begin{forest}
+[, rootchange
+  [Bin [0 , metavar] [u , triang]]
+  [Bin [0 , metavar] [1 , metavar]]
+]
+\end{forest} \pause
+\end{center}
+
+\column{.30\textwidth}
+Correct:
+\begin{center}
+\begin{forest}
+[, rootchange
+  [Bin [0 , metavar] [u , triang]]
+  [Bin [0 , metavar] [t , triang]]
+]
+\end{forest} \pause
+\end{center}
+
+\column{.36\textwidth}
+Why not?
+\begin{center}
+\vspace{-1.6em}
+\begin{forest}
+[, rootchange
+  [Bin [Bin [0 , metavar] [1 , metavar]] [u , triang]  ]
+  [Bin [Bin [0 , metavar] [1 , metavar]] [0 , metavar] ]
+]
+\end{forest}
+\end{center}
+
+\columnsend
+
+## In Depth: The "best" change
+
+. . .
+
+* The "best" change is the one with the largest domain.
+* least specific
+
+. . .
+
+Let $c$ and $d$ be changes that transform $x$ into $y$.
+
+. . .
+
+$c \subseteq d \Leftrightarrow \exists \sigma \;.\;\mathrm{dom}\;c \sqsubseteq_\sigma \mathrm{dom}\;d$
+
+. . .
+
+\columnsbegin
+\column{.12\textwidth}
+\begin{prooftree}
+\AxiomC{ {\color{white} x} }
+\UnaryInfC{$x \sqsubseteq_\sigma x$} %_
+\end{prooftree}
+
+\column{.12\textwidth}
+\begin{prooftree}
+\AxiomC{$t = \sigma\,x$}
+\UnaryInfC{$x \sqsubseteq_\sigma t$} %_
+\end{prooftree}
+
+\column{.48\textwidth}
+\begin{prooftree}
+\AxiomC{$ x_1 \sqsubseteq_\sigma y_1 $}
+\AxiomC{$ x_2 \sqsubseteq_\sigma y_2 $}
+\AxiomC{$ \cdots $}
+\TrinaryInfC{$\mathrm{C}\, \vec{x} \sqsubseteq_\sigma \mathrm{C}\, \vec{y}$}
+\end{prooftree}
+
+\columnsend
+
+. . .
+
+This makes a preorder (reflexive; transitive)
+
+
+## In Depth: Merging
+
+Hard to reason with `Change`{.haskell} \pause
+
+* Redundant Info
+* Metavariable Scope
+
+. . .
+
+un-_distribute_ the redundant constructors.
+
+
+```haskell
+type Patch = TreeC Change
+```
+
+. . .
+
+\vfill
+
+\columnsbegin
+\column{.48\textwidth}
+\begin{forest}
+[,rootchange
+  [BinC [BinC [0 , metavar] [1 , metavar]]
+          [t , triang] ]
+  [BinC [BinC [1 , metavar] [0 , metavar]]
+          [t , triang] ]
+]
+\end{forest} \pause
+
+\column{.48\textwidth}
+\begin{forest}
+[BinC [, change 
+           [BinC [0 , metavar] [1 , metavar]]
+           [BinC [1 , metavar] [0 , metavar]] ]
+        [t , triang] ]
+\end{forest}
+\columnsend
+
+## In Depth: Merging and Anti-unification
+
+. . .
+
+Extract the _greatest common prefix_ from two `TreeC`{.haskell}:
+
+```haskell
+gcp :: TreeC a -> TreeC b -> TreeC (TreeC a , TreeC b)
+gcp LeafC        LeafC        = LeafC
+gcp (BinC x y)   (BinC u v)   = BinC (gcp x u) (gcp y v)
+gcp (TriC x y z) (TriC u v w) = TriC (gcp x u) (gcp y v) (gcp z w)
+gcp x            w            = Hole (x , y)
+```
+
+. . .
+
+Problematic. Can break scoping. \pause
+
+
+\columnsbegin
+\column{.25\textwidth}
+\begin{forest}
+[,rootchange
+ [BinC [t , triang]  [0 , metavar]]
+ [BinC [0 , metavar] [0 , metavar]]
+]
+\end{forest} \pause
+\column{.13\textwidth}
+\vspace{1em}
+\begin{tikzpicture}
+  \node (A) at (-0.8 , -0.2) {};
+  \node (B) at (0.8  , -0.2) {};
+  \node at (0 , 0) {\texttt{gcp}};
+  \draw [arrows=->] (A) -> (B);
+\end{tikzpicture}
+
+\column{.38\textwidth}
+\begin{forest}
+[BinC [, change [t , triang]  [0 , metavar]]
+        [, change [0 , metavar] [0 , metavar]] ]
+\end{forest}
+\columnsend
+\pause
+
+Define `closure :: Patch -> Patch` to fix scopes.
+
+# Discussion
+
+## Discussion
+
+Performance of structural diffing: \pause Fixed \pause
+
+Now what?
+
+* Metatheory \pause
+* Sharing Control \pause
+* Merge Strategies \pause
+* Domain-specific conflict resolution\pause
+* Bigger univeses \pause

@@ -1,10 +1,11 @@
+LATEXENGINE=--latex-engine=xelatex
 
 default:slides.pdf
 
 verbose:slides.md
 	pandoc -t beamer slides.md -o ../dist/slides.pdf\
 	  --slide-level=2\
-	  --pdf-engine=xelatex\
+	  $(LATEXENGINE)\
 	  --verbose\
 	  --template uu-metropolis/beamer-template.tex
 
@@ -12,13 +13,13 @@ verbose:slides.md
 slides.pdf: slides.md
 	pandoc -t beamer slides.md -o ../dist/slides.pdf\
 	  --slide-level=2\
-	  --pdf-engine=xelatex\
+	  $(LATEXENGINE)\
 	  --template uu-metropolis/beamer-template.tex
 
 tex: slides.md
 	pandoc -t beamer slides.md -o ../dist/slides.tex\
 	  --slide-level=2\
-	  --pdf-engine=xelatex\
+	  $(LATEXENGINE)\
 	  --verbose\
 	  --template uu-metropolis/beamer-template.tex
 
