@@ -14,7 +14,36 @@ monofont: Ubuntu Mono
 monofontoptions: Scale=0.8
 ---
 
-# Intro
+# Why Structural Differencing?
+
+## Motivation
+
+\columnsbegin \column{.28\textwidth}
+```
+Plato    , B5, 5
+Aristotle, B7, 12
+Focault  , C1, 7
+```
+
+\pause
+
+\column{.28\textwidth}
+```
+Plato    , B5, 5
+Aristotle, B8, 12
+Focault  , C1, 7
+```
+
+\pause
+
+\column{.28\textwidth}
+```
+Plato    , B5, 5
+Aristotle, B7, 13
+Focault  , C1, 7
+```
+\columnsend
+
 
 ## Contributions
 
@@ -70,9 +99,9 @@ it's some ugly code."
 
 Encodes changes as an _edit script_
 ```haskell
-type Line  = String
-data ES    = Ins Line | Del | Cpy
-type Patch = [ES]
+data EOp        = Ins String | Del | Cpy
+
+type EditScript = [EOp]
 ```
 
 . . .
@@ -139,7 +168,7 @@ apply (diff x y) x == Just y
 Modify edit scripts
 
 ```haskell
-data ES = Ins TreeConstructor | Del | Cpy
+data EOp = Ins TreeConstructor | Del | Cpy
 ```
 
 . . .
@@ -382,7 +411,7 @@ wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
 
 \vfill
 
-Efficient `wcs` akin to /hash-consing/:
+Efficient `wcs` akin to *hash-consing*:
 
 * annotates `Tree` with hashes
 * store those in a `Trie` (amortized const. time search)
@@ -460,4 +489,5 @@ New representaion comes short:
 
 * Hard to reason about
 * Detaching from existing metatheory = more work to do 
+* Can't copy bits *inside* a tree.
 
