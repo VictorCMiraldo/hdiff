@@ -20,32 +20,54 @@ monofontoptions: Scale=0.8
 
 \columnsbegin \column{.28\textwidth}
 ```
-Plato    , B5, 5
-Aristotle, B7, 12
-Focault  , C1, 7
+Flour , B5, 5
+Sugar , B7, 12
+Eggs  , C1, 7
+...
 ```
 
 \pause
 
 \column{.28\textwidth}
 ```
-Plato    , B5, 5
-Aristotle, B8, 12
-Focault  , C1, 7
+Flour , B5, 5
+Sugar , F0, 12
+Eggs  , C1, 7
+...
 ```
 
 \pause
 
 \column{.28\textwidth}
 ```
-Plato    , B5, 5
-Aristotle, B7, 13
-Focault  , C1, 7
+Flour , B5, 5
+Sugar , B7, 42
+Eggs  , C1, 7
+...
 ```
 \columnsend
 
+\vfill
+
+. . .
+
+Same line changes in two different ways
+
+. . .
+
+Not same *column*
+
+. . .
+
+Requires knowledge about structure
+
+\vfill
 
 ## Contributions
+
+. . .
+
+* Representation for changes
 
 . . .
 
