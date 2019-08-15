@@ -81,8 +81,8 @@ doMerge a o b
         -- VCM: Funny... with DM_ProperShare and DM_NoNested
         -- we see the same hspec restuls, but with DM_Patience
         -- we get a different result altogether.
-        oa = diff 1 o' a'
-        ob = diff 1 o' b'
+        oa = mdiff o' a'
+        ob = mdiff o' b'
         oaob = oa // ob
         oboa = ob // oa
      in case (,) <$> noConflicts oaob <*> noConflicts oboa of
@@ -93,6 +93,9 @@ doMerge a o b
                      | otherwise        -> MergeDiffers
                    Left err             -> ApplyFailed
              Nothing                    -> HasConflicts
+  where
+    mdiff = diffOpts (diffOptionsDefault { doMinHeight = 1 , doMode = DM_Patience })
+ 
 
 mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
 mustMerge = expectMerge MergeOk
@@ -349,44 +352,49 @@ mymerge p q = do
     Right r  -> return r
 -}
 
-oa1 = digemRTree o1 a1
-ob1 = digemRTree o1 b1
+myDigemRTree = digemRTreeHM DM_ProperShare 1
 
-oa2 = digemRTree o2 a2
-ob2 = digemRTree o2 b2
+oa1 = myDigemRTree o1 a1
+ob1 = myDigemRTree o1 b1
 
-oa7 = digemRTree o7 a7
-ob7 = digemRTree o7 b7
+oa2 = myDigemRTree o2 a2
+ob2 = myDigemRTree o2 b2
 
-oa6 = digemRTree o6 a6
-ob6 = digemRTree o6 b6
+oa7 = myDigemRTree o7 a7
+ob7 = myDigemRTree o7 b7
 
-oa12 = digemRTree o12 a12
-ob12 = digemRTree o12 b12
+oa5 = myDigemRTree o5 a5
+ob5 = myDigemRTree o5 b5
 
-oa13 = digemRTree o13 a13
-ob13 = digemRTree o13 b13
+oa6 = myDigemRTree o6 a6
+ob6 = myDigemRTree o6 b6
 
-oa14 = digemRTree o14 a14
-ob14 = digemRTree o14 b14
+oa12 = myDigemRTree o12 a12
+ob12 = myDigemRTree o12 b12
 
-oa15 = digemRTree o15 a15
-ob15 = digemRTree o15 b15
+oa13 = myDigemRTree o13 a13
+ob13 = myDigemRTree o13 b13
 
-oa16 = digemRTree o16 a16
-ob16 = digemRTree o16 b16
+oa14 = myDigemRTree o14 a14
+ob14 = myDigemRTree o14 b14
 
-oa17 = digemRTree o17 a17
-ob17 = digemRTree o17 b17
+oa15 = myDigemRTree o15 a15
+ob15 = myDigemRTree o15 b15
 
-oa18 = digemRTree o18 a18
-ob18 = digemRTree o18 b18
+oa16 = myDigemRTree o16 a16
+ob16 = myDigemRTree o16 b16
 
-oa19 = digemRTree o19 a19
-ob19 = digemRTree o19 b19
+oa17 = myDigemRTree o17 a17
+ob17 = myDigemRTree o17 b17
 
-oa20 = digemRTree o20 a20
-ob20 = digemRTree o20 b20
+oa18 = myDigemRTree o18 a18
+ob18 = myDigemRTree o18 b18
+
+oa19 = myDigemRTree o19 a19
+ob19 = myDigemRTree o19 b19
+
+oa20 = myDigemRTree o20 a20
+ob20 = myDigemRTree o20 b20
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
