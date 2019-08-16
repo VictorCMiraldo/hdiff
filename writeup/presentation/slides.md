@@ -386,10 +386,16 @@ Consequence of definition of `Change`{.haskell}
 
 . . .
 
-Postpone the _hard_ part for now
+Spec of the _hard_ part:
 
-* Oracle: `wcs :: Tree -> Tree -> (Tree -> Maybe MetaVar)`{.haskell}
-    + stands for _which common subtree_
+```haskell
+wcs :: Tree -> Tree -> (Tree -> Maybe MetaVar)
+wcs s d = flip elemIndex (subtrees s `intersect` subtrees d)
+```
+
+. . .
+
+Efficient `wcs` is akin to *hash-consing*. Runs in $\mathcal{O}(1)$.
 
 ## Computing Changes: The Easy Part
 
@@ -416,34 +422,7 @@ diff s d = let o = wcs s d
 
 . . .
 
-if `wcs s d` is efficient, then so is `diff s d`
-
-## Computing Changes: Defining the Oracle
-
-. . .
-
-Defining an _inefficient_ `wcs s d` is easy:
-
-```haskell
-wcs :: Tree -> Tree -> Tree -> Maybe MetaVar
-wcs s d x = elemIndex x (subtrees s `intersect` subtrees d)
-```
-
-. . .
-
-\vfill
-
-Efficient `wcs` akin to *hash-consing*:
-
-* annotates `Tree` with hashes
-* store those in a `Trie` (amortized const. time search)
-* topmost hash for equality
-
-. . .
-
-Runs in amortized $\mathcal{O}(1)$
-
-\vfill
+Since `wcs s d` is efficient, so is `diff s d`
 
 # Experiments
 
@@ -499,17 +478,10 @@ New representation enables:
 
 . . .
 
-We have learned:
+Open questions:
 
-1. Generalizations generalize specs \pause
-2. More expressiveness does not mean higher complexity \pause
-3. There is no free lunch
-
-. . .
-
-New representaion comes short:
-
-* Hard to reason about
-* Detaching from existing metatheory = more work to do 
-* Can't copy bits *inside* a tree.
+* How to reason over new change repr? \pause
+* Where do we stand with metatheory? \pause
+* Can't copy bits inside a tree. Is this a problem? \pause
+* ...
 
