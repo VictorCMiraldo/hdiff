@@ -148,7 +148,7 @@ Example,
 Computes changes by enumeration.
 ```haskell
 diff :: [String] -> [String] -> Patch
-diff x y = head $ sortBy mostCopies $ enumerate_all x y 
+diff s d = head $ sortBy mostCopies $ enumerate_all s d
 ```
 
 
@@ -175,7 +175,7 @@ apply :: Patch a -> a -> Maybe a
 such that,
 
 ```haskell
-apply (diff x y) x == Just y
+apply (diff s d) s == Just s
 ```
 
 . . .
@@ -314,7 +314,7 @@ diff (Bin (Bin t u) t) (Tri t u x) =
 . . .
 
 * Faster to compute 
-    + Our `diff x y`{.haskell} runs in $\mathcal{O}(\textrm{size x}+\textrm{size y})$
+    + Our `diff s d`{.haskell} runs in $\mathcal{O}(\textrm{size s}+\textrm{size d})$
 
 ## Changes
 
@@ -370,12 +370,12 @@ Can _copy as much as possible_
 
 . . .
 
-Computation of `diff x y` divided:
+Computation of `diff s d` divided:
 
 . . .
 
 Hard
- : Identify the common subtrees in `x` and `y`
+ : Identify the common subtrees in `s` and `d`
 
 Easy
  : Extract the context around the common subtrees
@@ -450,18 +450,19 @@ Diffed files from $\approx\!1200$ commits from top Lua repos
 
 ## Merging Changes
 
-Merging is our main motivation
-
 . . .
 
 ```haskell
 merge :: Change -> Change -> Either Conflict Change
 merge p q = if p `disjoint` q then p else Conflict
 ```
+
+. . .
+
 \begin{displaymath}
-\xymatrix{ & o \ar[dl]_{p} \ar[dr]^{q} & \\
-          a \ar[dr]_{\texttt{merge q p}} & & b \ar[dl]^{\texttt{merge p q}} \\
-            & c &}
+\xymatrix{ & s \ar[dl]_{p} \ar[dr]^{q} & \\
+          d_1 \ar[dr]_{q} & & d_2 \ar[dl]^{p} \\
+            & r &}
 \end{displaymath}
 
 . . .
