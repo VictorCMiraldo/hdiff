@@ -3,7 +3,6 @@ author:
  - Victor Cacciari Miraldo
  - Wouter Swierstra
 title: Efficient Structural Differencing
-subtitle: ... and the lessons learned from it
 institute: Utrecht University
 theme: metropolis
 mainfont: Open Sans
@@ -22,7 +21,6 @@ monofontoptions: Scale=0.8
 ```
 Flour , B5, 5
 Sugar , B7, 12
-Eggs  , C1, 7
 ...
 ```
 
@@ -32,7 +30,6 @@ Eggs  , C1, 7
 ```
 Flour , B5, 5
 Sugar , F0, 12
-Eggs  , C1, 7
 ...
 ```
 
@@ -42,7 +39,6 @@ Eggs  , C1, 7
 ```
 Flour , B5, 5
 Sugar , B7, 42
-Eggs  , C1, 7
 ...
 ```
 \columnsend
@@ -59,7 +55,7 @@ Not same *column*
 
 . . .
 
-Requires knowledge about structure
+Here, merging requires knowledge about structure
 
 \vfill
 
@@ -72,7 +68,7 @@ Requires knowledge about structure
 . . .
 
 * Efficient Algorithm for structured diffing (and merging)
-    + Think of `UNIX` diff, over AST's.
+    + Think of `UNIX` diff, over algebraic datatypes.
 
 . . .
 
@@ -80,7 +76,7 @@ Requires knowledge about structure
 
 . . .
 
-* Tested against dataset from GitHub
+* Evaluated against dataset from GitHub
     + mined Lua repositories
 
 # Line-by-Line Differencing
@@ -119,7 +115,7 @@ it's some ugly code."
 
 ## The `UNIX` diff: In a Nutshell
 
-Encodes changes as an _edit script_
+Encodes changes as an _Edit Script_
 ```haskell
 data EOp        = Ins String | Del | Cpy
 
@@ -175,7 +171,7 @@ apply :: Patch a -> a -> Maybe a
 such that,
 
 ```haskell
-apply (diff s d) s == Just s
+apply (diff s d) s == Just d
 ```
 
 . . .
@@ -187,7 +183,7 @@ apply (diff s d) s == Just s
 
 . . .
 
-Modify edit scripts
+Modify Edit Scripts
 
 ```haskell
 data EOp = Ins TreeConstructor | Del | Cpy
@@ -254,7 +250,7 @@ Copy `T` : `[Cpy , Ins U , Cpy , Del]`{.haskell}
 * Choice is __arbitrary__! \pause
 * Edit Script with the most copies is not unique! \pause
 
-Counting copies is reminescent of logest common subsequence.
+Counting copies is reminiscent of longest common subsequence.
 
 ## Edit Scripts: The Problem
 
@@ -330,7 +326,7 @@ data Tree = Leaf
           | Tri Tree Tree Tree
 ```
 
-Contexts are datatypes annotated with holes.
+Contexts are datatypes augmented with holes.
 
 . . .
 
@@ -354,10 +350,10 @@ data TreeC h = LeafC
 
 . . .
 
-Call it `c`, \pause application function sketch:
+Application function sketch:
 
 ```haskell
-apply c = \x -> case x of
+\x -> case x of
    Bin a (Bin b c) -> if c == t then Just (Bin a b) else Nothing
    _               -> Nothing
 ```
@@ -370,7 +366,7 @@ Can _copy as much as possible_
 
 . . .
 
-Computation of `diff s d` divided:
+Computation of `diff s d` can be split:
 
 . . .
 
@@ -467,22 +463,25 @@ merge p q = if p `disjoint` q then p else Conflict
 
 . . .
 
-11% of mined merge commits could be _merged_
+11% of all mined merge commits could be _automatically merged_
 
-## Summary
 
-New representation enables:
-
-* Clear division of tasks ( `wcs` oracle + context extraction) \pause
-* Express more changes than edit scripts \pause
-* Faster algorithm altogether
-
-. . .
-
-Open questions:
+## Open Questions
 
 * How to reason over new change repr? \pause
 * Where do we stand with metatheory? \pause
 * Can't copy bits inside a tree. Is this a problem? \pause
 * ...
 
+
+## Summary
+
+* Clear division of tasks ( `wcs` oracle + context extraction) \pause
+* Express more changes than edit scripts \pause
+* Faster algorithm than ES based tree-diff
+
+. . .
+
+* Overall:
+    + Fast and generic algorithm
+    + Encouraging empirical evidence
