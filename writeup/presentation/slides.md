@@ -88,15 +88,15 @@ Here, merging requires knowledge about structure
 \columnsbegin
 \column{.48\textwidth}
 ```
-type checker: "You fool!
-What you request makes no sense,
-rethink your bad code."
+function tap.packet(pinfo,tvb,ip)
+  local src = tostring(ip.ip_src)
+  local dmp = "some/file.log" 
 ```
 \column{.48\textwidth}
 ```
-type checker: "You fool!
-What you request makes no sense,
-it's some ugly code."
+function tap.packet(pinfo,tvb,ip)
+  local src = tostring(ip.ip_src)
+  local dmp = "some/other/file.log" 
 ```
 \columnsend
 
@@ -109,8 +109,8 @@ it's some ugly code."
 
 ```
 @@ -3,1 , +3,1 @@
-- rethink your bad code."
-+ it's some ugly code."
+-   local dmp = "some/file.log"
++   local dmp = "some/other/file.log" 
 ```
 
 ## The `UNIX` diff: In a Nutshell
@@ -129,12 +129,12 @@ Example,
 \column{.30\textwidth}
 ```
 @@ -3,1 , +3,1 @@
-- rethink your bad code."
-+ it's some ugly code."
+-   local dmp = "some/file.log"
++   local dmp = "some/other/file.log" 
 ```
 \column{.48\textwidth}
 ```haskell
-[Cpy , Cpy , Del , Ins "it's some ..."]
+[Cpy , Cpy , Del , Ins "local dmp ..."]
 ```
 \columnsend
 
