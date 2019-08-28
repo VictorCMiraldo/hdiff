@@ -1,0 +1,49 @@
+name:        hs-digems
+version:     0.0.0
+synopsis:    Diffing of Generalized Merkelized Structures
+description: see README or paper.
+maintainer:  Victor Miraldo <v.cacciarimiraldo@gmail.com>
+github:      VictorCMiraldo/hs-digems 
+category:    Other
+
+dependencies:
+  - base >= 4.9 && < 5
+  - generics-mrsop >= 2.1.0
+  - generics-mrsop-gdiff
+  - bytestring
+  - cryptonite
+  - containers
+  - mtl
+  - prettyprinter
+  - prettyprinter-ansi-terminal
+  - text
+  - QuickCheck
+  - hspec
+  - memory
+
+library:
+  source-dirs: src/
+
+tests:
+  spec: 
+    main: Spec.hs
+    source-dirs: 
+      - tests
+    dependencies:
+      - hs-digems
+
+executables:
+  digem:
+    source-dirs:
+      - executables
+    main: Digem.hs
+    dependencies:
+      - parsec
+      - gitrev
+      - optparse-applicative
+      - language-lua
+      - hs-elisp
+      - hs-digems
+    ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
+
+

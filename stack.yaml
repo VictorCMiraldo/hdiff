@@ -1,24 +1,12 @@
-
+# We need 12.2 because language-lua-0.11.0 requires so... 
 resolver: lts-12.2
-
-packages:
-  - .
-  - location:
-      git: git@github.com:VictorCMiraldo/hs-elisp.git
-      commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
-    extra-dep: true
-  - location:
-      git: git@github.com:arianvp/generics-mrsop-gdiff.git
-      commit: e8d2ef8db225c60693084e1b3e83fffb2514ed12
-    extra-dep: true
-##  - location:
-##      git: git@github.com:VictorCMiraldo/generics-mrsop.git
-##      commit: 9cee726fef18ca7fe380409244bce0cd9ef8ade0
-##    extra-dep: true
 
 extra-deps:
   - generics-mrsop-2.1.0@sha256:6f6c4fcb52a2532199bfdb4770f79df27118050ff1f78ffd2ca582ffd84c5ff0,2107 
   - language-lua-0.11.0
   - alex-tools-0.4
- 
+  - git: git@github.com:arianvp/generics-mrsop-gdiff.git
+    commit: e8d2ef8db225c60693084e1b3e83fffb2514ed12
+  - git: git@github.com:VictorCMiraldo/hs-elisp.git
+    commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
 
