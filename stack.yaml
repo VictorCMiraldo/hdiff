@@ -1,5 +1,5 @@
 # We need 12.2 because language-lua-0.11.0 requires so... 
-resolver: lts-12.2
+resolver: lts-14.1
 
 extra-deps:
   - generics-mrsop-2.1.0@sha256:6f6c4fcb52a2532199bfdb4770f79df27118050ff1f78ffd2ca582ffd84c5ff0,2107 

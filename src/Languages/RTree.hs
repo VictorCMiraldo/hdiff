@@ -82,8 +82,10 @@ genInsHere t = do
 
 genSimilarTrees :: Int -> Gen (RTree , RTree)
 genSimilarTrees h = do
-  [t1 , t2] <- genSimilarTreesN 2 h
-  return (t1 , t2)
+  l <- genSimilarTreesN 2 h
+  case l of
+    [t1 , t2] -> return (t1 , t2)
+    _         -> error "impossible"
 
 genSimilarTreesN :: Int -> Int -> Gen [RTree]
 genSimilarTreesN n h = do

@@ -41,7 +41,7 @@ executables:
       - parsec
       - gitrev
       - optparse-applicative
-      - language-lua
+      - ghc-lib-parser
       - hs-elisp
       - hs-digems
     ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
