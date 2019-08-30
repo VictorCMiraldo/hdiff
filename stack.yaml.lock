@@ -12,12 +12,12 @@ packages:
   original:
     hackage: generics-mrsop-2.1.0@sha256:6f6c4fcb52a2532199bfdb4770f79df27118050ff1f78ffd2ca582ffd84c5ff0,2107
 - completed:
-    hackage: language-lua-0.11.0@sha256:5bea89be356f410576f288b532e36211894aa95c1af02f8fe44839e2d6ea17e3,2917
+    hackage: language-lua-0.11.0.1@sha256:b3bdf864965279f830323d5ed7d38073b2687b3a07b7fa73aa13782560f48f89,2919
     pantry-tree:
       size: 3473
-      sha256: dcf10436afa0a934bfa28689e86899a3118989140500d618bb8e08f3c844e7d7
+      sha256: e4f6fcc91fbde9c6a6e3c9281a51dee49706d5868866695cc09f9bdf031799d4
   original:
-    hackage: language-lua-0.11.0
+    hackage: language-lua-0.11.0.1
 - completed:
     hackage: alex-tools-0.4@sha256:afdbf0da61d79d3a2eded7cbecbcefdd87c5abe3f5ff6298b47c2ff8050f99b7,995
     pantry-tree:
@@ -55,7 +55,7 @@ packages:
     commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
 snapshots:
 - completed:
-    size: 499199
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/12/2.yaml
-    sha256: a322089fb83fcbccca0dbcfa843c91aa07826fa1c6a57a569ba7574e6e95c7f0
-  original: lts-12.2
+    size: 523448
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/1.yaml
+    sha256: 0045b9bae36c3bb2dd374c29b586389845af1557eea0423958d152fc500d4fbf
+  original: lts-14.1

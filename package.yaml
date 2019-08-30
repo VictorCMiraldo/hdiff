@@ -9,7 +9,6 @@ category:    Other
 dependencies:
   - base >= 4.9 && < 5
   - generics-mrsop >= 2.1.0
-  - generics-mrsop-gdiff
   - bytestring
   - cryptonite
   - containers
@@ -42,7 +41,6 @@ executables:
       - gitrev
       - optparse-applicative
       - language-lua
-      - hs-elisp
       - hs-digems
     ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 

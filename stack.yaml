@@ -1,9 +1,10 @@
-# We need 12.2 because language-lua-0.11.0 requires so... 
-resolver: lts-12.2
+resolver: lts-14.1
+
+system-ghc: true
 
 extra-deps:
   - generics-mrsop-2.1.0@sha256:6f6c4fcb52a2532199bfdb4770f79df27118050ff1f78ffd2ca582ffd84c5ff0,2107 
-  - language-lua-0.11.0
+  - language-lua-0.11.0.1
   - alex-tools-0.4
   - git: git@github.com:arianvp/generics-mrsop-gdiff.git
     commit: e8d2ef8db225c60693084e1b3e83fffb2514ed12

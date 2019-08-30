@@ -82,7 +82,8 @@ genInsHere t = do
 
 genSimilarTrees :: Int -> Gen (RTree , RTree)
 genSimilarTrees h = do
-  [t1 , t2] <- genSimilarTreesN 2 h
+  x <- genSimilarTreesN 2 h
+  let [t1 , t2] = x
   return (t1 , t2)
 
 genSimilarTreesN :: Int -> Int -> Gen [RTree]
