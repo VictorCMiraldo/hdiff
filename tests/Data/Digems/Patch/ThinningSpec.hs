@@ -59,10 +59,10 @@ context_alpha_eq x y = aux
                    else return (Const ())
     check exitF _ _ = lift exitF
 
-thin_domain_eq :: Property
-thin_domain_eq = forAll genSimilarTrees'' $ \(a , o , b)
-  -> let oa = digemRTree o a
-         ob = digemRTree o b
+thin_domain_eq :: DiffMode -> Property
+thin_domain_eq mode = forAll genSimilarTrees'' $ \(a , o , b)
+  -> let oa = digemRTreeHM mode 1 o a
+         ob = digemRTreeHM mode 1 o b
       in case (,) <$> PT.thin oa ob <*> PT.thin ob oa of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right (oa' , ob') -> 
@@ -72,19 +72,19 @@ thin_domain_eq = forAll genSimilarTrees'' $ \(a , o , b)
 
 -----------------------------
                
-thin_respect_spans :: Property
-thin_respect_spans = forAll genSimilarTrees'' $ \(a , o , b)
-  -> let oa = digemRTree o a
-         ob = digemRTree o b
+thin_respect_spans :: DiffMode -> Property
+thin_respect_spans mode = forAll genSimilarTrees'' $ \(a , o , b)
+  -> let oa = digemRTreeHM mode 1 o a
+         ob = digemRTreeHM mode 1 o b
       in case PT.thin oa ob of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right oa' -> property $ applyRTree oa' o == Right a
                
 ---------------------------
 
-thin_pp_is_p :: Property
-thin_pp_is_p = forAll genSimilarTrees' $ \(a , b)
-  -> let ab = digemRTree a b
+thin_pp_is_p :: DiffMode -> Property
+thin_pp_is_p mode = forAll genSimilarTrees' $ \(a , b)
+  -> let ab = digemRTreeHM mode 1 a b
       in case PT.thin ab ab of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right ab' -> property $ patchEq ab ab'
@@ -150,9 +150,10 @@ ok = context_alpha_eq ca cb
 
 spec :: Spec
 spec = do
-  describe "thin" $ do
-    it "is always possible for spans" $ property thin_respect_spans
-    it "is symmetric w.r.t. domains"  $ property thin_domain_eq
-    it "respects: thin p p == p"      $ property thin_pp_is_p
+  flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
+    describe ("thin (" ++ show m ++ ")") $ do
+      it "is always possible for spans" $ property (thin_respect_spans m)
+      it "is symmetric w.r.t. domains"  $ property (thin_domain_eq m)
+      it "respects: thin p p == p"      $ property (thin_pp_is_p m)
 
 

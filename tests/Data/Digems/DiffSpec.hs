@@ -3,12 +3,9 @@ module Data.Digems.DiffSpec (spec) where
 
 import qualified Data.Set as S
 
-import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 
 import Data.Digems.Diff
-import Data.Digems.Patch
 import Data.Digems.MetaVar
 import Data.Digems.Change
 import Languages.RTree
@@ -48,6 +45,5 @@ diffModeSpec mode = do
 
 spec :: Spec
 spec = do
- describe "Extraction: DM_ProperShare" $ diffModeSpec DM_ProperShare
- describe "Extraction: DM_NoNested"    $ diffModeSpec DM_NoNested
- describe "Extraction: DM_Patience"    $ diffModeSpec DM_Patience
+ flip mapM_ (enumFrom (toEnum 0)) $ \m ->
+   describe ("Extraction (" ++ show m ++ ")") $ diffModeSpec m

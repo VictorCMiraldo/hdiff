@@ -41,7 +41,7 @@ data DiffMode
   -- but if we take @u = (Bin t k)@, no sharing would be performed
   -- whatsoever.
   | DM_Patience
-  deriving (Eq , Show)
+  deriving (Eq , Show , Enum)
 
 -- |Specifies the options for the diffing algorithm
 data DiffOptions = DiffOptions

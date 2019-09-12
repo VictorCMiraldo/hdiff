@@ -4,16 +4,11 @@
 {-# LANGUAGE GADTs            #-}
 module Data.Digems.Patch.MergeSpec (spec) where
 
-import qualified Data.Set as S
-
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 
 import Data.Digems.Patch
 import Data.Digems.Diff
-import Data.Digems.Patch.Show
 import Data.Digems.Patch.Merge
-import Data.Digems.MetaVar
 import Data.Digems.Change
 import Data.Digems.Change.Thinning
 import Data.Digems.Change.Apply
@@ -24,11 +19,11 @@ import Test.QuickCheck
 import Test.Hspec
 
 import Control.Monad.Except
-import Debug.Trace
 
 --------------------------------------------
 -- ** Merge Properties
 
+{-
 merge_id :: Property
 merge_id = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = digemRTree t1 t2
@@ -56,6 +51,7 @@ merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
            Just p  -> case applyRTree' p t2 of
              Nothing -> expectationFailure "apply failed"
              Just r  -> r `shouldBe` t2
+-}
 
 --------------------------------------------
 -- ** Manual Merge Examples
@@ -67,22 +63,23 @@ data MergeOutcome
   | HasConflicts
   deriving (Eq , Show)
 
-expectMerge :: MergeOutcome -> String -> RTree -> RTree -> RTree
+expectMerge :: DiffMode
+            -> MergeOutcome -> String -> RTree -> RTree -> RTree
             -> SpecWith (Arg Property)
-expectMerge expt lbl a o b = do
+expectMerge mode expt lbl a o b = do
   it (lbl ++ ": " ++ show expt) $
-    doMerge a o b `shouldBe` expt
+    doMerge mode a o b `shouldBe` expt
 
-doMerge :: RTree -> RTree -> RTree -> MergeOutcome
-doMerge a o b
+doMerge :: DiffMode -> RTree -> RTree -> RTree -> MergeOutcome
+doMerge mode a o b
   = let a' = dfrom $ into @FamRTree a
         b' = dfrom $ into @FamRTree b
         o' = dfrom $ into @FamRTree o
         -- VCM: Funny... with DM_ProperShare and DM_NoNested
         -- we see the same hspec restuls, but with DM_Patience
         -- we get a different result altogether.
-        oa = mdiff o' a'
-        ob = mdiff o' b'
+        oa = digemRTreeHM mode 1 o a
+        ob = digemRTreeHM mode 1 o b
         oaob = oa // ob
         oboa = ob // oa
      in case (,) <$> noConflicts oaob <*> noConflicts oboa of
@@ -91,14 +88,12 @@ doMerge a o b
                    Right (c1 , c2)
                      | eqFix eqHO c1 c2 -> MergeOk
                      | otherwise        -> MergeDiffers
-                   Left err             -> ApplyFailed
+                   Left _               -> ApplyFailed
              Nothing                    -> HasConflicts
-  where
-    mdiff = diffOpts (diffOptionsDefault { doMinHeight = 1 , doMode = DM_Patience })
  
 
-mustMerge :: String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
-mustMerge = expectMerge MergeOk
+mustMerge :: DiffMode -> String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
+mustMerge m = expectMerge m MergeOk
 
 xexpectMerge :: MergeOutcome -> String -> String -> RTree -> RTree -> RTree
              -> SpecWith (Arg Property)
@@ -407,33 +402,40 @@ spec = do
   --   it "p // id == p && id // p == id" $ merge_id
   --   it "p // p  == id"                 $ merge_diag
   
-  describe "merge: manual examples (proper share)" $ do
-    mustMerge "01" a1 o1 b1
-    mustMerge "02" a2 o2 b2
-    mustMerge "03" a3 o3 b3
-    mustMerge "04" a4 o4 b4
-    mustMerge "05" a5 o5 b5
-    mustMerge "06" a6 o6 b6
-    mustMerge "07" a7 o7 b7
-    mustMerge "08" a8 o8 b8
-    mustMerge "09" a9 o9 b9
+  flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
+    describe ("merge: manual examples (" ++ show m ++ ")") $ do
+      mustMerge m "01" a1 o1 b1
+      mustMerge m "02" a2 o2 b2
+      mustMerge m "03" a3 o3 b3
+      mustMerge m "04" a4 o4 b4
+      if m == DM_Patience
+        then expectMerge m HasConflicts "05" a5 o5 b5
+        else mustMerge m "05" a5 o5 b5
+      if m == DM_Patience
+        then expectMerge m HasConflicts "06" a6 o6 b6
+        else mustMerge m "06" a6 o6 b6
+      mustMerge m "07" a7 o7 b7
+      mustMerge m "08" a8 o8 b8
+      mustMerge m "09" a9 o9 b9
 
-    expectMerge HasConflicts "10" a10 o10 b10
-    expectMerge HasConflicts "11" a11 o11 b11
-    expectMerge HasConflicts "12" a12 o12 b12
+      expectMerge m HasConflicts "10" a10 o10 b10
+      expectMerge m HasConflicts "11" a11 o11 b11
+      expectMerge m HasConflicts "12" a12 o12 b12
 
-    mustMerge "13" a13 o13 b13
+      mustMerge m "13" a13 o13 b13
 
-    expectMerge HasConflicts "14" a14 o14 b14
-    expectMerge HasConflicts "15" a15 o15 b15
-    expectMerge HasConflicts "16" a16 o16 b16
-    expectMerge HasConflicts "17" a17 o17 b17
+      expectMerge m HasConflicts "14" a14 o14 b14
+      expectMerge m HasConflicts "15" a15 o15 b15
+      expectMerge m HasConflicts "16" a16 o16 b16
+      if m == DM_Patience
+        then mustMerge m "17" a17 o17 b17
+        else expectMerge m HasConflicts "17" a17 o17 b17
 
-    mustMerge "18" a18 o18 b18
-    mustMerge "19" a19 o19 b19
-    xexpectMerge MergeOk "What to do with self-contained ins-ins?" "20" a20 o20 b20
+      mustMerge m "18" a18 o18 b18
+      mustMerge m "19" a19 o19 b19
+      xexpectMerge MergeOk "What to do with self-contained ins-ins?" "20" a20 o20 b20
 
-  describe "merge: conflict or ok" $ do
-    it "contains no apply fail or merge differs" $ property $
-      forAll gen3Trees $ \(a , o , b)
-        -> doMerge a o b `elem` [MergeOk , HasConflicts]
+    describe ("merge: conflict or ok (" ++ show m ++ ")") $ do
+      it "contains no apply fail or merge differs" $ property $
+        forAll gen3Trees $ \(a , o , b)
+          -> doMerge m a o b `elem` [MergeOk , HasConflicts]
