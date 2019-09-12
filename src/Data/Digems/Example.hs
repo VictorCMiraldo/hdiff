@@ -1,22 +1,24 @@
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs                 #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns                #-}
+{-# OPTIONS_GHC -Wno-orphans                            #-}
 module Data.Digems.Example where
 
-import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Const
-import Data.Text.Prettyprint.Doc
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -24,7 +26,6 @@ import Generics.MRSOP.Holes
 import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
-import Generics.MRSOP.Digems.Holes
 import Generics.MRSOP.Digems.Digest
 import Data.Digems.Patch
 import Data.Digems.Diff
@@ -104,7 +105,7 @@ genFib2 :: MyFix (S (S Z))
 genFib2 = tr $ test1 "fab" "m" "b"
 -}
 
-type TreeTerm = Holes Singl CodesTree23 (MetaVarIK Singl) (I Z)
+type TreeTerm = Holes Singl CodesTree23 (MetaVarIK Singl) ('I 'Z)
 
 unif1 :: TreeTerm
 unif1 = HPeel' CZ (HOpq' (SInt 100)

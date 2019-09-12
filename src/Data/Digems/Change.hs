@@ -4,6 +4,7 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 module Data.Digems.Change where
 
 import           Control.Monad.Cont
@@ -12,7 +13,6 @@ import           Data.Functor.Sum
 import           Data.Functor.Const
 import qualified Data.Map as M
 import qualified Data.Set as S
-import           Data.List (nub, sortBy)
 import           Data.Type.Equality
 ----------------------------------------
 import           Generics.MRSOP.Util
@@ -24,7 +24,7 @@ import           Generics.MRSOP.Holes
 import           Generics.MRSOP.Digems.Holes
 
 -- this has the ShowHO (Const a) instance
-import Generics.MRSOP.AG
+import           Generics.MRSOP.AG ()
 
 
 -- |A 'CChange', or, closed change, consists in a declaration of metavariables

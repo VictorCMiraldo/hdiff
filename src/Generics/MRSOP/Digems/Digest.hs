@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE DataKinds           #-}
@@ -7,6 +8,7 @@ module Generics.MRSOP.Digems.Digest where
 
 import Data.Proxy
 import Data.Functor.Const
+import Data.Void
 import Data.Word (Word8,Word64)
 import Data.Bits
 import Data.List (splitAt,foldl')
@@ -19,7 +21,6 @@ import qualified Crypto.Hash            as Hash
 import qualified Crypto.Hash.Algorithms as Hash (Blake2s_256)
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.Holes
 
 -- |Our digests come from Blake2s_256 
 newtype Digest
@@ -72,6 +73,9 @@ instance Digestible Word64 where
 class DigestibleHO (f :: k -> *) where
   digestHO :: forall ki . f ki -> Digest
 
+instance DigestibleHO (Const Void) where
+  digestHO (Const _impossible) = error "DigestibleHO (Const Void)"
+
 -- |Authenticates a 'HPeel' without caring for the type
 --  information. Only use this if you are sure of what you are
 --  doing, as there can be colissions. For example:
@@ -98,8 +102,8 @@ authPeel' :: forall sum ann i
           -> Constr sum i
           -> NP ann (Lkup i sum)
           -> Digest
-authPeel' proj salt c p 
-  = digestConcat $ ([digest (constr2W64 c) , digest salt] ++)
+authPeel' proj salt cnstr p 
+  = digestConcat $ ([digest (constr2W64 cnstr) , digest salt] ++)
                  $ elimNP proj p
   where
     -- We are mapping Constr and SNat's to
@@ -113,11 +117,11 @@ authPeel' proj salt c p
 -- a unique hash per constructor.
 authPeel :: forall codes ix ann i
           . IsNat ix
-         => (forall ix . ann ix -> Digest)
+         => (forall iy . ann iy -> Digest)
          -> Proxy codes
          -> Proxy ix
          -> Constr (Lkup ix codes) i
          -> NP ann (Lkup i (Lkup ix codes))
          -> Digest
-authPeel proj pc pix = authPeel' proj (snat2W64 $ getSNat pix)
+authPeel proj _ pix = authPeel' proj (snat2W64 $ getSNat pix)
 

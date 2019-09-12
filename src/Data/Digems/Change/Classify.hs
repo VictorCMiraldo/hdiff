@@ -1,11 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE PolyKinds     #-}
-{-# LANGUAGE GADTs         #-}
+{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE GADTs             #-}
+{-# OPTIONS_GHC -Wno-orphans   #-}
 -- |change classification algorithm
 module Data.Digems.Change.Classify where
 
-import Data.List (sort,nub)
+import Data.List (nub)
 import Data.Proxy
 import Data.Type.Equality
 -------------------------------
@@ -16,8 +17,6 @@ import Generics.MRSOP.Holes
 import Data.Exists
 import Data.Digems.Change
 import Data.Digems.MetaVar
-import Data.Digems.Change.Apply
-import Generics.MRSOP.Digems.Holes
 
 -----------------------------------------
 -- Change Classification algo
@@ -35,7 +34,7 @@ holesGetMultiplicities :: Int -> Holes ki codes f at -> [Exists (Holes ki codes 
 holesGetMultiplicities k utx
   | holesArity utx == k = [Exists utx]
   | otherwise = case utx of
-      HPeel _ c p -> concat $ elimNP (holesGetMultiplicities k) p
+      HPeel _ _ p -> concat $ elimNP (holesGetMultiplicities k) p
       _           -> []
 
 
@@ -52,7 +51,7 @@ changeClassify c
       mds = holesGetMultiplicities 0 (cCtxDel c)
       vi = holesGetHolesAnnWith' metavarGet (cCtxIns c)
       vd = holesGetHolesAnnWith' metavarGet (cCtxDel c)
-      permutes = vi == vd
+      -- permutes = vi == vd
       dups     = vi /= nub vi || vd /= nub vd
    in case (length mis , length mds) of
         (0 , 0) -> CPerm -- can't duplicate as one variable on one side would

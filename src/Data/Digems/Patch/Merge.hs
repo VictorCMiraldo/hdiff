@@ -8,29 +8,21 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 module Data.Digems.Patch.Merge where
 
-import Data.Proxy
-import Data.Type.Equality
-import Data.Functor.Const
 import Data.Functor.Sum
 import qualified Data.Map as M
-import qualified Data.Set as S
-import Data.List (nub, sort)
 
-import Control.Monad
 import Control.Monad.State
 import Control.Monad.Writer hiding (Sum)
-import Control.Monad.Identity
 import Control.Monad.Except
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
-import Generics.MRSOP.Digems.Digest
 
 import Data.Exists
-import qualified Data.WordTrie as T
 import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Change.Apply
@@ -53,7 +45,7 @@ data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
 
 -- |A 'PatchC' is a patch with potential conflicts inside
 type PatchC ki codes ix
-  = Holes ki codes (Sum (Conflict ki codes) (CChange ki codes)) (I ix)
+  = Holes ki codes (Sum (Conflict ki codes) (CChange ki codes)) ('I ix)
 
 -- |Tries to cast a 'PatchC' back to a 'Patch'. Naturally,
 --  this is only possible if the patch has no conflicts.
@@ -127,7 +119,7 @@ rawCpy :: M.Map Int Int
        -> Bool
 rawCpy ar (Hole' v1 :*: Hole' v2) = metavarGet v1 == metavarGet v2
                                  && M.lookup (metavarGet v1) ar == Just 1
-rawCpy ar _                       = False
+rawCpy _  _                       = False
 
 simpleCopy :: Holes2 ki codes at -> Bool
 simpleCopy (Hole' v1 :*: Hole' v2) = metavarGet v1 == metavarGet v2
@@ -181,11 +173,13 @@ process sp sq =
     -- within the whole of 'sq'
     -- counts how many times a variable appears in 'sq'
     varmap = arityMap (snd' (utx2distr sq))
+    {-
     m var = maybe 0 id $ M.lookup var varmap
 
     maxVar = case M.toDescList varmap of
                []        -> 0
                ((v,_):_) -> v
+    -}
 
     -- |Step1 checks that the own-variable mappings of the
     -- anti-unification of (scDel p) and q is of a specific shape.

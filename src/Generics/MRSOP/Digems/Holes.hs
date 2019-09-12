@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -8,15 +8,14 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 module Generics.MRSOP.Digems.Holes where
 
 import Data.Proxy
 import Data.Functor.Const
 import Data.Type.Equality
-import qualified Data.Set as S (insert , empty , Set)
 
 import Control.Monad.Identity
-import Control.Monad.State
 
 import qualified Data.Text.Prettyprint.Doc as PP
 --------------------------------

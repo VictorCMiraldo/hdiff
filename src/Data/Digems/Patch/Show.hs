@@ -1,9 +1,10 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE PolyKinds  #-}
-{-# LANGUAGE DataKinds  #-}
-{-# LANGUAGE GADTs      #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE GADTs                #-}
+{-# OPTIONS_GHC -Wno-orphans      #-}
 module Data.Digems.Patch.Show where
 
 import           System.IO
@@ -16,14 +17,10 @@ import qualified Data.Text.Prettyprint.Doc.Render.Text as Text
 import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
-import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Holes
 import Generics.MRSOP.Digems.Renderer
-import Generics.MRSOP.Digems.Digest
 
-import qualified Data.Digems.Patch        as D
 import qualified Data.Digems.Change       as D
 import qualified Data.Digems.Patch.Merge  as D
 import qualified Data.Digems.MetaVar      as D
@@ -41,6 +38,7 @@ metavarPretty sty (NA_K (D.Annotate i _))
 -- when using emacs, the output of the repl is in red;
 -- hence, life is easier when we show a different color isntead.
 -- btw, emacs only interprets dull colors.
+myred , mygreen , mydullred , mydullgreen :: AnsiStyle
 myred       = colorDull Yellow
 mygreen     = colorDull Green
 mydullred   = colorDull Yellow
@@ -73,7 +71,7 @@ showRawPatch patch
     prettyCChangeDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => D.CChange ki codes at
                     -> Doc AnsiStyle
-    prettyCChangeDel (D.CMatch _ del ins)
+    prettyCChangeDel (D.CMatch _ del _)
       = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
                   (metavarPretty (annotate mydullred))
@@ -82,7 +80,7 @@ showRawPatch patch
     prettyCChangeIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => D.CChange ki codes at
                     -> Doc AnsiStyle
-    prettyCChangeIns (D.CMatch _ del ins)
+    prettyCChangeIns (D.CMatch _ _ ins)
       = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)
                   (metavarPretty (annotate mydullgreen))
@@ -101,7 +99,7 @@ showPatchC patch
                     -> Doc AnsiStyle
     prettyConfDel (InL (D.Conflict lbl _ _))
       = annotate (color Blue) (pretty $ show lbl)
-    prettyConfDel (InR (D.CMatch _ del ins))
+    prettyConfDel (InR (D.CMatch _ del _))
       = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
                   (metavarPretty (annotate mydullred))
@@ -112,7 +110,7 @@ showPatchC patch
                     -> Doc AnsiStyle
     prettyConfIns (InL (D.Conflict lbl _ _))
       = annotate (color Blue) (pretty $ show lbl)
-    prettyConfIns (InR (D.CMatch _ del ins))
+    prettyConfIns (InR (D.CMatch _ _ ins))
       = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)
                   (metavarPretty (annotate mydullgreen))
@@ -128,6 +126,7 @@ instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , Sho
     = unlines $ doubleColumn 75
         (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) del)
         (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) ins)
+  show _ = undefined -- ghc seems to really want this to see the patterns are complete.
 
 
 instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
@@ -170,7 +169,7 @@ doubleColumn maxWidth da db
         tb    = T.lines . renderStrict $ lyout db
         -- non colored versions
         sta   = T.lines . Text.renderStrict $ lyout da
-        width = 1 + maximum (0 : map T.length sta)
+        w     = 1 + maximum (0 : map T.length sta)
         stb   = T.lines . Text.renderStrict $ lyout db
         compA = if length ta >= length tb
                 then 0
@@ -178,14 +177,14 @@ doubleColumn maxWidth da db
         compB = if length tb >= length ta
                 then 0
                 else length ta - length tb
-        fta   = (zip ta sta) ++ replicate compA ((id &&& id) $ T.replicate width $ T.singleton ' ')
+        fta   = (zip ta sta) ++ replicate compA ((id &&& id) $ T.replicate w $ T.singleton ' ')
         ftb   = (zip tb stb) ++ replicate compB ((id &&& id) $ T.empty)
      in map (\(la , lb) -> T.unpack . T.concat
-                         $ [ complete width la
+                         $ [ complete w la
                            , T.pack " -|+ "
                            , fst lb
                            ])
               (zip fta ftb)
   where
-    complete n (color , nocolor)
-      = T.concat [color , T.replicate (n - T.length nocolor) $ T.singleton ' ']
+    complete n (clr , nocolor)
+      = T.concat [clr , T.replicate (n - T.length nocolor) $ T.singleton ' ']

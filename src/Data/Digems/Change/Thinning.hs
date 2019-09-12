@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TupleSections         #-}
@@ -11,9 +11,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 module Data.Digems.Change.Thinning where
 
-import           Data.Proxy
 import           Data.Type.Equality
-import           Data.Functor.Const
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Control.Monad.Writer
@@ -28,7 +26,6 @@ import Data.Exists
 import Data.Digems.MetaVar
 import Data.Digems.Change
 import Data.Digems.Change.Apply
-import Generics.MRSOP.Digems.Holes
 
 import Debug.Trace
 
@@ -50,8 +47,8 @@ tr :: (ShowHO ki , TestEquality ki, EqHO ki)
    -> CChange ki codes at
    -> Either (ApplicationErr ki codes (Holes2 ki codes))
              (CChange ki codes at)
-tr (CMatch _ pd pi) q = do
-  xx <- genericApply q (holesLCP pd pi)
+tr (CMatch _ dp ip) q = do
+  xx <- genericApply q (holesLCP dp ip)
   let xd = holesJoin $ holesMap fst' xx
   let xi = holesJoin $ holesMap snd' xx
   return $ CMatch S.empty xd xi
@@ -103,7 +100,7 @@ utxThin :: (ShowHO ki , TestEquality ki, EqHO ki)
         -> StateT (Subst ki codes (MetaVarIK ki))
                   (Except (ThinningErr ki codes))
                   ()
-utxThin p q = void $ holesMapM (uncurry' go) $ holesLCP p q
+utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
   where
     go :: (ShowHO ki , TestEquality ki, EqHO ki)
        => Holes ki codes (MetaVarIK ki) at
@@ -111,7 +108,7 @@ utxThin p q = void $ holesMapM (uncurry' go) $ holesLCP p q
        -> StateT (Subst ki codes (MetaVarIK ki))
                  (Except (ThinningErr ki codes))
                  (Holes ki codes (MetaVarIK ki) at)
-    go p q@(Hole _ var) = record_eq var p >> return p
+    go p (Hole _ var)   = record_eq var p >> return p
     go p@(Hole _ var) q = record_eq var q >> return p
     go p q | eqHO p q   = return p
            | otherwise  = throwError (IncompatibleTerms p q)
@@ -153,7 +150,7 @@ minimize :: forall ki codes
           . (ShowHO ki, EqHO ki , TestEquality ki)
          => Subst ki codes (MetaVarIK ki)
          -> Except (ThinningErr ki codes) (Subst ki codes (MetaVarIK ki))
-minimize sigma = whileM sigma [] $ \s exs
+minimize sigma = whileM sigma [] $ \s _
   -> M.fromList <$> (mapM (secondF (exMapM go)) (M.toList s))
   where
     secondF :: (Functor m) => (a -> m b) -> (x , a) -> m (x , b)

@@ -18,12 +18,10 @@ import Generics.MRSOP.Holes
 ------------------------------------
 import Generics.MRSOP.Digems.Holes
 import Data.Exists
-import qualified Data.WordTrie as T
 import Data.Digems.MetaVar
 import Data.Digems.Change
 import Data.Digems.Change.Apply
 
-import Debug.Trace
 
 -- * Patches
 --
@@ -47,7 +45,7 @@ import Debug.Trace
 type RawPatch ki codes = Holes ki codes (CChange ki codes)
 
 -- |A 'Patch' is a 'RawPatch' instantiated to 'I' atoms.
-type Patch ki codes ix = Holes ki codes (CChange ki codes) (I ix)
+type Patch ki codes ix = Holes ki codes (CChange ki codes) ('I ix)
 
 
 -- ** Patch Alpha Equivalence
@@ -115,13 +113,13 @@ apply :: (TestEquality ki , EqHO ki , ShowHO ki, IsNat ix)
       => Patch ki codes ix
       -> Fix ki codes ix
       -> Either String (Fix ki codes ix)
-apply patch x
-  =   holesZipRep patch (NA_I x)
+apply patch x0
+  =   holesZipRep patch (NA_I x0)
   >>= holesMapM (uncurry' termApply)
   >>= holes2naM Right 
   >>= return . unNA_I 
   where
-    unNA_I :: NA f g (I i) -> g i
+    unNA_I :: NA f g ('I i) -> g i
     unNA_I (NA_I x) = x
 
 -- ** Specializing a Patch
@@ -132,8 +130,8 @@ composes   :: (ShowHO ki , EqHO ki , TestEquality ki)
            => RawPatch ki codes at
            -> RawPatch ki codes at
            -> Bool
-composes qr pq = and $ holesGetHolesAnnWith' getConst
-               $ holesMap (uncurry' go) $ holesLCP qr pq
+composes qr0 pq0 = and $ holesGetHolesAnnWith' getConst
+                 $ holesMap (uncurry' go) $ holesLCP qr0 pq0
   where
     go :: (ShowHO ki , EqHO ki , TestEquality ki)
        => RawPatch ki codes at
@@ -179,7 +177,7 @@ substInsert' :: (ShowHO ki , EqHO ki , TestEquality ki)
              -> MetaVarIK ki ix
              -> Holes ki codes (MetaVarIK ki) ix
              -> Except (ApplicationErr ki codes (MetaVarIK ki)) (Subst ki codes (MetaVarIK ki))
-substInsert' lbl s var new = case M.lookup (metavarGet var) s of
+substInsert' _ s var new = case M.lookup (metavarGet var) s of
   Nothing           -> return $ M.insert (metavarGet var)
                                          (Exists $ new) s
   Just (Exists old) -> case testEquality old new of

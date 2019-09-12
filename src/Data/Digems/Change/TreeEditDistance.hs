@@ -5,7 +5,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Data.Digems.Change.TreeEditDistance where
 
-import           Data.Functor.Const
 import qualified Data.Map as M
 import           Data.STRef
 import           Data.Proxy
@@ -23,7 +22,6 @@ import           Data.Exists
 import           Data.Digems.MetaVar
 import           Data.Digems.Change
 import           Data.Digems.Change.Apply
-import           Generics.MRSOP.Digems.Holes
 
 -- import Debug.Trace
 
@@ -151,19 +149,19 @@ gdel c e = GD.Del (1 + GD.cost e) c e
 
 compress :: (EqHO ki , TestEquality ki) => GD.ES ki codes is ds -> GD.ES ki codes is ds
 compress GD.ES0 = GD.ES0
-compress (GD.Del c v (GD.Ins c' v' e)) =
+compress (GD.Del _ v (GD.Ins c' v' e)) =
   case GD.heqCof v v' of
     Just (Refl , Refl) -> gcpy v (compress e)
     Nothing            -> gdel v (compress $ GD.Ins c' v' e)
-compress (GD.Del c v e)
+compress (GD.Del _ v e)
   = gdel v $ compress e
-compress (GD.Ins c v (GD.Del c' v' e)) =
+compress (GD.Ins _ v (GD.Del c' v' e)) =
   case GD.heqCof v v' of
     Just (Refl , Refl) -> gcpy v (compress e)
     Nothing            -> gins v (compress $ GD.Del c' v' e)
-compress (GD.Ins c v e)
+compress (GD.Ins _ v e)
   = gins v $ compress e
-compress (GD.Cpy c v e)
+compress (GD.Cpy _ v e)
   = gcpy v (compress e)
 
 cpyOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
@@ -192,7 +190,7 @@ insOnly (HPeel _ c d :* xs) = gins (GD.ConstrI c (listPrfNP d)) <$> insOnly (app
 
 listAssoc :: ListPrf a -> Proxy b -> Proxy c
           -> ListPrf ((a :++: b) :++: c) :~: ListPrf (a :++: (b :++: c))
-listAssoc Nil       pb pc = Refl
+listAssoc Nil       _  _  = Refl
 listAssoc (Cons pa) pb pc = case listAssoc pa pb pc of
                               Refl -> Refl
 
@@ -213,7 +211,7 @@ esInsListPrf (GD.Ins _ v e) = Cons $ listDrop (cofListPrf v) (esInsListPrf e)
 esInsListPrf (GD.Del _ _ e) = esInsListPrf e
 
 cofListPrf :: GD.Cof ki codes at l -> ListPrf l
-cofListPrf (GD.ConstrK k)   = Nil
+cofListPrf (GD.ConstrK _)   = Nil
 cofListPrf (GD.ConstrI _ p) = p
 
 esDelListProxy :: GD.ES ki codes ds is -> Proxy ds
@@ -238,15 +236,15 @@ appendES :: GD.ES ki codes ds  is
          -> GD.ES ki codes ds' is'
          -> GD.ES ki codes (ds :++: ds') (is :++: is')
 appendES GD.ES0 b = b
-appendES x@(GD.Del c v a) b = 
+appendES x@(GD.Del _ v a) b = 
   case appendES a b of
     res -> case listAssoc (cofListPrf v) (esDelListProxy' x) (esDelListProxy b) of
       prf -> gdel v $ esDelCong prf res
-appendES x@(GD.Ins c v a) b = 
+appendES x@(GD.Ins _ v a) b = 
   case appendES a b of
     res -> case listAssoc (cofListPrf v) (esInsListProxy' x) (esInsListProxy b) of
       prf -> gins v $ esInsCong prf res
-appendES x@(GD.Cpy c v a) b = 
+appendES x@(GD.Cpy _ v a) b = 
   case appendES a b of
     res -> case listAssoc (cofListPrf v) (esInsListProxy' x) (esInsListProxy b) of
       prf -> case listAssoc (cofListPrf v) (esDelListProxy' x) (esDelListProxy b) of
@@ -303,7 +301,7 @@ insSync var ds is = do
                             $ insPhase ds is
                        return (appendES es0 es1)
     -- Otherwise, if this is a deletion, we sent iy back to the delete phase
-    LD _ var' es' -> delPhase ds (Hole' var :* is)
+    LD _ _var' _es' -> delPhase ds (Hole' var :* is)
 
     -- Last case, it's an actual share; we gotta remove the var from the deletion
     -- list and proceed.

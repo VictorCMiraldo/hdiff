@@ -15,7 +15,6 @@ module Data.Digems.Diff
   ) where
 
 import qualified Data.Set as S
-import           Data.Proxy
 import           Data.Void
 import           Data.Functor.Const
 import           Data.Functor.Sum
@@ -54,15 +53,15 @@ buildArityTrie opts df = go df T.empty
     minHeight = doMinHeight opts
     
     go :: PrepFix a ki codes phi ix -> T.Trie Int -> T.Trie Int
-    go (HOpq (Const prep) x) t
+    go (HOpq (Const prep) _) t
       -- We only populat the sharing map if opaques are supposed
       -- to be handled as recursive trees
       | doOpaqueHandling opts == DO_AsIs = ins (treeDigest prep) t
       | otherwise                        = t
     -- TODO: think about holes. I'm posponing this until
     -- we actually use diffing things holes.
-    go (Hole (Const prep) x) t = t
-    go (HPeel (Const prep) c p) t
+    go (Hole (Const  _)    _) t = t
+    go (HPeel (Const prep) _ p) t
       | treeHeight prep <= minHeight = t
       | otherwise
       = ins (treeDigest prep) $ getConst
@@ -99,13 +98,13 @@ extractSpine :: forall ki codes phi at
              -> Holes ki codes phi at
              -> Holes ki codes phi at
              -> Holes ki codes (Sum (OChange ki codes) (CChange ki codes)) at
-extractSpine dopq meta i dx dy
+extractSpine dopq meta maxI dx dy
   = holesMap (uncurry' change)
   $ issueOpqCopiesSpine
   $ holesLCP dx dy
  where
    issueOpqCopiesSpine
-     = flip evalState i
+     = flip evalState maxI
      . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x
                                                      :*: holesMap meta y)
                        (const $ if dopq == DO_OnSpine
@@ -133,9 +132,9 @@ close utx = case closure utx of
   where
     closure :: Holes ki codes (Sum (OChange ki codes) (CChange ki codes)) at
             -> Sum (OChange ki codes) (Holes ki codes (CChange ki codes)) at
-    closure (HOpq _ k)       = InR $ HOpq' k
-    closure (Hole' (InL oc)) = InL oc
-    closure (Hole' (InR cc)) = InR $ Hole' cc
+    closure (HOpq _ k)        = InR $ HOpq' k
+    closure (Hole _ (InL oc)) = InL oc
+    closure (Hole _ (InR cc)) = InR $ Hole' cc
     -- There is some magic going on here. First we compute
     -- the recursive closures and check whether any of them is open.
     -- If not, we are done.
@@ -157,8 +156,6 @@ close utx = case closure utx of
     fromInR (InL _) = Nothing
     fromInR (InR x) = Just x
 
-instance DigestibleHO (Const Void) where
-  digestHO (Const imp) = error "DigestibleHO (Const Void)"
 
 -- |Diffs two generic merkelized structures.
 --  The outline of the process is:
@@ -182,15 +179,15 @@ diffOpts' opts x y
         (i, sh) = buildSharingTrie opts dx dy
         dx'     = tagProperShare sh dx
         dy'     = tagProperShare sh dy
-        delins  = extractHoles (doMode opts) (mkCanShare opts) sh (dx' :*: dy')
+        delins  = extractHoles (doMode opts) mkCanShare sh (dx' :*: dy')
      in (i , delins)
  where
    mkCanShare :: forall a ix
-               . DiffOptions -> PrepFix a ki codes phi ix
+               . PrepFix a ki codes phi ix
               -> Bool
-   mkCanShare opts (HOpq _ _)
+   mkCanShare (HOpq _ _)
      = doOpaqueHandling opts == DO_AsIs
-   mkCanShare opts pr
+   mkCanShare pr
      = doMinHeight opts < treeHeight (getConst $ holesAnn pr)
 
 -- |When running the diff for two fixpoints, we can
@@ -208,6 +205,7 @@ diffOpts opts x y
  where 
    cast :: Sum (Const Void) f i -> f i
    cast (InR fi) = fi
+   cast (InL _)  = error "impossible"
 
 diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight

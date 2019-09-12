@@ -1,20 +1,17 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes      #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE PolyKinds       #-}
-{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE FlexibleInstances           #-}
+{-# LANGUAGE ScopedTypeVariables         #-}
+{-# LANGUAGE TypeOperators               #-}
+{-# LANGUAGE PatternSynonyms             #-}
+{-# LANGUAGE RankNTypes                  #-}
+{-# LANGUAGE DataKinds                   #-}
+{-# LANGUAGE PolyKinds                   #-}
+{-# LANGUAGE GADTs                       #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Data.Digems.Diff.Modes where
 
 import qualified Data.Set as S
-import           Data.Proxy
-import           Data.Void
 import           Data.Functor.Const
 import           Data.Functor.Sum
-
-import           Control.Monad.State
 
 import           Generics.MRSOP.Base
 import           Generics.MRSOP.Holes
@@ -23,9 +20,7 @@ import           Generics.MRSOP.Digems.Digest
 import qualified Data.WordTrie as T
 import           Data.Digems.Diff.Preprocess
 import           Data.Digems.Diff.Types
-import           Data.Digems.Patch
 import           Data.Digems.MetaVar
-import           Data.Digems.Change
 
 -- |A predicate indicating whether a tree can be shared.
 type CanShare ki codes phi = forall a ix . PrepFix a ki codes phi ix -> Bool
@@ -74,7 +69,7 @@ tagProperShare ism = holesSynthesize pHole pOpq pPeel
           -> Constr sum n
           -> NP (Const (PrepData (Int, Bool))) (Lkup n sum)
           -> Const (PrepData (Int, Bool)) ('I i)
-    pPeel (Const pd) c p
+    pPeel (Const pd) _ p
       = let maxar = maximum (0 : elimNP (fst . treeParm . getConst) p)
             myar' = myar pd
          in Const $ pd { treeParm = (max maxar myar' , myar' >= maxar) }
@@ -106,7 +101,7 @@ properShare h tr pr
     mkHole :: Int
            -> PrepFix (Int , Bool) ki codes phi at
            -> Holes ki codes (Sum phi (MetaVarIK ki)) at
-    mkHole v (Hole _ d)    = Hole' (InL d)
+    mkHole _ (Hole _ d)    = Hole' (InL d)
     mkHole v (HPeel _ _ _) = Hole' (InR (NA_I (Const v)))
     mkHole v (HOpq _ k)    = Hole' (InR (NA_K (Annotate v k)))
 
@@ -140,14 +135,14 @@ patience h tr pr
     mkMetaVar :: PrepFix a ki codes phi at
               -> Int
               -> MetaVarIK ki at
-    mkMetaVar (Hole _ _)    v = error "This should be impossible"
+    mkMetaVar (Hole _ _)    _ = error "This should be impossible"
     mkMetaVar (HPeel _ _ _) v = NA_I (Const v)
     mkMetaVar (HOpq _ k)    v = NA_K (Annotate v k)
 
     mkHole :: Int
            -> PrepFix a ki codes phi at
            -> Holes ki codes (Sum phi (MetaVarIK ki)) at
-    mkHole v (Hole _ d) = Hole' (InL d)
+    mkHole _ (Hole _ d) = Hole' (InL d)
     mkHole v x          = Hole' (InR $ mkMetaVar x v)
 
 
@@ -175,14 +170,14 @@ extractNoNested h tr (src :*: dst)
     mkMetaVar :: PrepFix a ki codes phi at
               -> Int
               -> MetaVarIK ki at
-    mkMetaVar (Hole _ _)    v = error "This should be impossible"
+    mkMetaVar (Hole _ _)    _ = error "This should be impossible"
     mkMetaVar (HPeel _ _ _) v = NA_I (Const v)
     mkMetaVar (HOpq _ k)    v = NA_K (Annotate v k)
     
     refineHole :: S.Set (Maybe Int)
                -> Sum phi (Const Int :*: PrepFix a ki codes phi) ix
                -> Holes ki codes (Sum phi (MetaVarIK ki)) ix
-    refineHole s (InL phi) = Hole' (InL phi)
+    refineHole _ (InL phi) = Hole' (InL phi)
     refineHole s (InR (Const i :*: f))
       | Just i `S.member` s = Hole' (InR $ mkMetaVar f i)
       | otherwise           = holesMapAnn InL (const $ Const ()) f 
@@ -208,6 +203,6 @@ noNested h tr pr
     mkHole :: Int
            -> PrepFix a ki codes phi at
            -> Holes ki codes (Sum phi (Const Int :*: PrepFix a ki codes phi)) at
-    mkHole v (Hole _ d) = Hole' (InL d)
+    mkHole _ (Hole _ d) = Hole' (InL d)
     mkHole v x          = Hole' (InR (Const v :*: x))
 

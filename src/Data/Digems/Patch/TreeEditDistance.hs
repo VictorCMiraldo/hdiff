@@ -12,17 +12,14 @@ import           Generics.MRSOP.Base
 import           Generics.MRSOP.Holes
 import qualified Generics.MRSOP.GDiff as GD
 
-import           Data.Exists
-import           Data.Digems.MetaVar
 import           Data.Digems.Patch 
-import           Data.Digems.Change
 import qualified Data.Digems.Change.TreeEditDistance as TED
 
 toES :: (EqHO ki , ShowHO ki , TestEquality ki)
      => RawPatch ki codes at -> NA ki (Fix ki codes) at
      -> Either String (GD.ES ki codes '[ at ] '[ at ])
 toES (Hole  _ chg)    x         = TED.toES chg x
-toES (HOpq  _ oa)     (NA_K ox) = Right $ TED.gcpy (GD.ConstrK ox) GD.ES0
+toES (HOpq  _ _)      (NA_K ox) = Right $ TED.gcpy (GD.ConstrK ox) GD.ES0
 toES (HPeel _ ca ppa) (NA_I (Fix (sop -> Tag cx px))) =
   case testEquality ca cx of
     Nothing   -> Left "unapplicable"

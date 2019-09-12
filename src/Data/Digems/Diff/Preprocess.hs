@@ -10,7 +10,6 @@
 --  the structure.
 module Data.Digems.Diff.Preprocess where
 
-import Data.Void
 import Data.Proxy
 import Data.Functor.Const
 
@@ -59,7 +58,7 @@ preprocess = holesSynthesize (const ppHole) (const ppOpq) ppPeel
            -> Constr (Lkup x codes) i
            -> NP (Const (PrepData ())) (Lkup i (Lkup x codes))
            -> Const (PrepData ()) ('I x)
-    ppPeel ann c p
+    ppPeel _ c p
       = let pix :: Proxy x
             pix = Proxy
             

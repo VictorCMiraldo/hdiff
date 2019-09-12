@@ -112,7 +112,7 @@ pmatch' :: (Applicable ki codes phi)
    -> Holes ki codes phi ix
    -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 pmatch' s (Hole _ var) x  = substInsert s var x
-pmatch' s pa (Hole _ var) = throwError (IncompatibleHole pa var)
+pmatch' _ pa (Hole _ var) = throwError (IncompatibleHole pa var)
 pmatch' s (HOpq _ oa) (HOpq _ ox)
   | eqHO oa ox = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)

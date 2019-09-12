@@ -11,6 +11,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns                #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.RTree where
 
 import Data.Type.Equality
@@ -68,7 +71,7 @@ genTree h
 
 insertAt :: Int -> a -> [a] -> [a]
 insertAt 0 x xs       = x : xs
-insertAt n x (y : ys) = x : insertAt (n-1) x ys
+insertAt n x (y : ys) = y : insertAt (n-1) x ys
 
 genInsHere :: RTree -> Gen RTree
 genInsHere t = do
@@ -82,13 +85,14 @@ genInsHere t = do
 
 genSimilarTrees :: Int -> Gen (RTree , RTree)
 genSimilarTrees h = do
-  [t1 , t2] <- genSimilarTreesN 2 h
+  l <- genSimilarTreesN 2 h
+  let [t1 , t2] = l
   return (t1 , t2)
 
 genSimilarTreesN :: Int -> Int -> Gen [RTree]
-genSimilarTreesN n h = do
+genSimilarTreesN n0 h = do
   t  <- genTree h
-  (t:) <$> replicateM (n-1) (go (height t) 1 t)
+  (t:) <$> replicateM (n0-1) (go (height t) 1 t)
   where
     go :: Int -> Int -> RTree -> Gen RTree
     go ht ch (n :>: ns) = do

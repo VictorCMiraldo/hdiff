@@ -9,6 +9,8 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.While where
 
 import Text.ParserCombinators.Parsec
@@ -17,21 +19,13 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
 import           Control.Monad
-import           Data.Proxy
-import           Data.Functor.Const
-import           Data.Functor.Sum
 import           Data.Type.Equality
 import           Data.Text.Prettyprint.Doc (pretty)
-import           Data.Text.Prettyprint.Doc.Render.Text
-import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Util
 import Generics.MRSOP.TH
 import Generics.MRSOP.Digems.Renderer
 import Generics.MRSOP.Digems.Digest
-
-import Debug.Trace
 
 import System.IO
 import System.Exit
@@ -78,9 +72,9 @@ data WKon = WInt | WString | WBool
 --
 --  Note we need instances of EqHO, ShowHO and DigestibleHO
 data W :: WKon -> * where
-  W_Integer :: Integer -> W WInt
-  W_String  :: String  -> W WString
-  W_Bool    :: Bool    -> W WBool
+  W_Integer :: Integer -> W 'WInt
+  W_String  :: String  -> W 'WString
+  W_Bool    :: Bool    -> W 'WBool
 
 instance EqHO W where
   eqHO (W_Integer i) (W_Integer j) = i == j

@@ -7,7 +7,6 @@ import Data.Functor.Const
 import Data.Void
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 import Generics.MRSOP.Digems.Digest
 
@@ -16,9 +15,8 @@ import Data.Digems.Patch
 import Data.Digems.Change
 import Data.Digems.Diff
 import Data.Digems.Diff.Preprocess
-import Data.Digems.Patch.Show
 
-type PatchRTree = Patch W CodesRTree Z
+type PatchRTree = Patch W CodesRTree 'Z
 
 rbin :: RTree -> RTree -> RTree
 rbin l r = "bin" :>: [l , r]
@@ -26,6 +24,7 @@ rbin l r = "bin" :>: [l , r]
 rlf :: String -> RTree
 rlf = (:>: [])
 
+x1 , y1 :: RTree
 x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "k")
 y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "t")
 
@@ -51,10 +50,10 @@ digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
                         (dfrom $ into @FamRTree b)
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree
-applyRTree p x = either Left (Right . unEl . dto @Z . unFix)
+applyRTree p x = either Left (Right . unEl . dto @'Z . unFix)
                $ apply p (dfrom $ into @FamRTree x)
 
-applyRTreeC :: CChange W CodesRTree (I Z) -> RTree -> Either String RTree
+applyRTreeC :: CChange W CodesRTree ('I 'Z) -> RTree -> Either String RTree
 applyRTreeC p x = applyRTree (Hole' p) x
 
 applyRTree' :: PatchRTree -> RTree -> Maybe RTree
