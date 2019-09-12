@@ -3,7 +3,7 @@ version:     0.0.0
 synopsis:    Hash Diff returning a Pattern-Expression-based result instead of Edit-Script
 description: see README or paper.
 maintainer:  Victor Miraldo <v.cacciarimiraldo@gmail.com>
-github:      VictorCMiraldo/hs-pediff 
+github:      VictorCMiraldo/hdiff
 category:    Other
 
 dependencies:
@@ -34,10 +34,10 @@ tests:
       - hdiff
 
 executables:
-  digem:
+  hdiff:
     source-dirs:
       - executables
-    main: Digem.hs
+    main: HDiff.hs
     dependencies:
       - parsec
       - gitrev
