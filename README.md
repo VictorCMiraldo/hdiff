@@ -1,4 +1,4 @@
-# `hdiff`: Hash-based Differencing of Mutually Recursive Families
+# `hdiff`: Hash-based Diffing for AST's 
 
 This README provides some general info on the library.
 For detailed information on the algorithm, check our [IFCP Paper](https://victorcmiraldo.github.io/data/icfp2019.pdf).
@@ -16,26 +16,26 @@ is that `HDiff.Patch a` is a pattern-expression based patch. A picture is
 worth 1024 words: Take the following files:
 
 ```
-   O.while            A.while
+   O.while                 A.while
 
-a := n;           | a := 1;
-while n > 0 do {  | while n > 0 do {
-  n := n - 1;     |   a := a * n;
-  a := a * n;     |   n := n - 1;
-}                 | }
-res := n;         | res := n;
+a := n;                | a := 1;
+while n > 0 do {       | while n > 0 do {
+  n := n - 1;          |   a := a * n;
+  a := a * n;          |   n := n - 1;
+}                      | }
+res := n;              | res := n;
 ```
 
 Running `hdiff -d nonest examples/While/Factorial/{O,A}.while` to compute
 their differences will yield something that resembles the following:
 
 ```
-[0] := n;         -|+ [0] := 1;
-while [1] do {    -|+ while [1] do {
-  [2];            -|+   [3];
-  [3];            -|+   [2];
-}                 -|+ }
-[4];              -|+ [4];
+[0] := n;       -|+  [0] := 1;
+while [1] do {  -|+  while [1] do {
+  [2];          -|+    [3];
+  [3];          -|+    [2];
+}               -|+  }
+[4];            -|+  [4];
 ```
 
 Everything to the left of `-|+` is called the pattern, or deletion context. Everything
