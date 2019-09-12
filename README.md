@@ -1,7 +1,7 @@
 # `hdiff`: Hash-based Diffing for AST's 
 
 This README provides some general info on the library.
-For detailed information on the algorithm, check our [IFCP Paper](https://victorcmiraldo.github.io/data/icfp2019.pdf).
+For detailed information on the algorithm, check our [ICFP Paper](https://victorcmiraldo.github.io/data/icfp2019.pdf).
 
 The `hdiff` tool computes provides your usual differencing functions:
 
