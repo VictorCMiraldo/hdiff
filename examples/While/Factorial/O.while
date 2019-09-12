@@ -1,0 +1,6 @@
+a := n;
+while n > 0 do {
+  n := n - 1;
+  a := a * n;
+}
+res := n;
