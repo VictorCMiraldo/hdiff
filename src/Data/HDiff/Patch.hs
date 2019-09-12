@@ -3,7 +3,7 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE GADTs            #-}
-module Data.Digems.Patch where
+module Data.HDiff.Patch where
 
 import           Control.Monad.State
 import           Control.Monad.Except
@@ -16,11 +16,11 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 ------------------------------------
-import Generics.MRSOP.Digems.Holes
+import Generics.MRSOP.HDiff.Holes
 import Data.Exists
-import Data.Digems.MetaVar
-import Data.Digems.Change
-import Data.Digems.Change.Apply
+import Data.HDiff.MetaVar
+import Data.HDiff.Change
+import Data.HDiff.Change.Apply
 
 
 -- * Patches

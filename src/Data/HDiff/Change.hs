@@ -5,7 +5,7 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Data.Digems.Change where
+module Data.HDiff.Change where
 
 import           Control.Monad.Cont
 import           Control.Monad.State
@@ -19,9 +19,9 @@ import           Generics.MRSOP.Util
 import           Generics.MRSOP.Base
 ----------------------------------------
 import           Data.Exists
-import           Data.Digems.MetaVar
+import           Data.HDiff.MetaVar
 import           Generics.MRSOP.Holes
-import           Generics.MRSOP.Digems.Holes
+import           Generics.MRSOP.HDiff.Holes
 
 -- this has the ShowHO (Const a) instance
 import           Generics.MRSOP.AG ()
@@ -41,7 +41,7 @@ data CChange ki codes at where
 -- |smart constructor for 'CChange'. Enforces the invariant
 cmatch :: Holes ki codes (MetaVarIK ki) at -> Holes ki codes (MetaVarIK ki) at
        -> CChange ki codes at
-cmatch del ins = maybe (error "Data.Digems.Change.cmatch: invariant failure") id
+cmatch del ins = maybe (error "Data.HDiff.Change.cmatch: invariant failure") id
                $ cmatch' del ins
 
 cmatch' :: Holes ki codes (MetaVarIK ki) at -> Holes ki codes (MetaVarIK ki) at

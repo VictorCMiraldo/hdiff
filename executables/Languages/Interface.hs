@@ -19,8 +19,8 @@ import System.Exit
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Digems.Renderer
-import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.HDiff.Renderer
+import Generics.MRSOP.HDiff.Digest
 
 
 data LangParser :: * where

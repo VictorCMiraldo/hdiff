@@ -4,7 +4,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Generics.MRSOP.Digems.Digest where
+module Generics.MRSOP.HDiff.Digest where
 
 import Data.Proxy
 import Data.Functor.Const

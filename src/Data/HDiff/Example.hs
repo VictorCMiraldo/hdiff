@@ -15,7 +15,7 @@
 {-# OPTIONS_GHC -Wno-missing-signatures                 #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns                #-}
 {-# OPTIONS_GHC -Wno-orphans                            #-}
-module Data.Digems.Example where
+module Data.HDiff.Example where
 
 import qualified Data.Set as S
 import Data.Functor.Const
@@ -26,11 +26,11 @@ import Generics.MRSOP.Holes
 import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
-import Generics.MRSOP.Digems.Digest
-import Data.Digems.Patch
-import Data.Digems.Diff
-import Data.Digems.MetaVar
-import Data.Digems.Change
+import Generics.MRSOP.HDiff.Digest
+import Data.HDiff.Patch
+import Data.HDiff.Diff
+import Data.HDiff.MetaVar
+import Data.HDiff.Change
 
 instance DigestibleHO Singl where
   digestHO (SString s) = hashStr s

@@ -4,7 +4,7 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Data.Digems.Patch.TreeEditDistance where
+module Data.HDiff.Patch.TreeEditDistance where
 
 import           Data.Type.Equality
 
@@ -12,8 +12,8 @@ import           Generics.MRSOP.Base
 import           Generics.MRSOP.Holes
 import qualified Generics.MRSOP.GDiff as GD
 
-import           Data.Digems.Patch 
-import qualified Data.Digems.Change.TreeEditDistance as TED
+import           Data.HDiff.Patch 
+import qualified Data.HDiff.Change.TreeEditDistance as TED
 
 toES :: (EqHO ki , ShowHO ki , TestEquality ki)
      => RawPatch ki codes at -> NA ki (Fix ki codes) at

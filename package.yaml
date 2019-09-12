@@ -1,9 +1,9 @@
-name:        hs-digems
+name:        hdiff
 version:     0.0.0
-synopsis:    Diffing of Generalized Merkelized Structures
+synopsis:    Hash Diff returning a Pattern-Expression-based result instead of Edit-Script
 description: see README or paper.
 maintainer:  Victor Miraldo <v.cacciarimiraldo@gmail.com>
-github:      VictorCMiraldo/hs-digems 
+github:      VictorCMiraldo/hs-pediff 
 category:    Other
 
 dependencies:
@@ -31,7 +31,7 @@ tests:
     source-dirs: 
       - tests
     dependencies:
-      - hs-digems
+      - hdiff
 
 executables:
   digem:
@@ -44,7 +44,7 @@ executables:
       - optparse-applicative
       - language-lua
       - hs-elisp
-      - hs-digems
+      - hdiff
     ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 
 

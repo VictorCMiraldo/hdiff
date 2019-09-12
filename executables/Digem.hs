@@ -12,7 +12,7 @@
 {-# LANGUAGE CPP                   #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- |Illustrates the usage of MRSOP with a custom
---  opaque type universe and the use of Digems to
+--  opaque type universe and the use of HDiff to
 --  compute diffs over various languages.
 --
 module Main (main) where
@@ -32,18 +32,18 @@ import qualified Data.List as L (lookup)
 import           Data.Type.Equality
 
 import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Digems.Renderer
-import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.HDiff.Renderer
+import Generics.MRSOP.HDiff.Digest
 
 import qualified Generics.MRSOP.GDiff    as GDiff
 
-import qualified Data.Digems.Patch       as D
-import qualified Data.Digems.Diff        as D
-import qualified Data.Digems.Patch.Merge as D
-import qualified Data.Digems.Patch.TreeEditDistance as TED
-import           Data.Digems.Patch.Show
-import qualified Data.Digems.Change      as D
-import qualified Data.Digems.Change.TreeEditDistance as TEDC
+import qualified Data.HDiff.Patch       as D
+import qualified Data.HDiff.Diff        as D
+import qualified Data.HDiff.Patch.Merge as D
+import qualified Data.HDiff.Patch.TreeEditDistance as TED
+import           Data.HDiff.Patch.Show
+import qualified Data.HDiff.Change      as D
+import qualified Data.HDiff.Change.TreeEditDistance as TEDC
 
 import           Languages.Interface
 import qualified Languages.While   as While
@@ -138,7 +138,7 @@ diffmodeOpt = option (readmOneOf [("proper"  , D.DM_ProperShare)
   where    
     aux = unwords
       ["Controls how context extraction works. If you are unaware about how"
-      ,"this works, check 'Data.Digems.Diff.Types' and 'Data.Digems.Diff.Modes'"
+      ,"this works, check 'Data.HDiff.Diff.Types' and 'Data.HDiff.Diff.Modes'"
       ,"for more information."
       ]
       
@@ -206,7 +206,7 @@ parseOptions = hsubparser
   <> command "gdiff" (info gdiffOpts
         (progDesc "Runs Generics.MRSOP.GDiff on the targets"))
   <> command "diff"  (info diffOpts
-        (progDesc "Runs Data.Digems.Diff on the targes"))
+        (progDesc "Runs Data.HDiff.Diff on the targes"))
   <> command "merge" (info mergeOpts
         (progDesc "Runs the merge algorithm on the specified files"))
   ) <|> diffOpts

@@ -5,7 +5,7 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE GADTs                #-}
 {-# OPTIONS_GHC -Wno-orphans      #-}
-module Data.Digems.Patch.Show where
+module Data.HDiff.Patch.Show where
 
 import           System.IO
 import           Data.Proxy
@@ -18,12 +18,12 @@ import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.Holes
-import Generics.MRSOP.Digems.Holes
-import Generics.MRSOP.Digems.Renderer
+import Generics.MRSOP.HDiff.Holes
+import Generics.MRSOP.HDiff.Renderer
 
-import qualified Data.Digems.Change       as D
-import qualified Data.Digems.Patch.Merge  as D
-import qualified Data.Digems.MetaVar      as D
+import qualified Data.HDiff.Change       as D
+import qualified Data.HDiff.Patch.Merge  as D
+import qualified Data.HDiff.MetaVar      as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
 spliced :: Doc ann -> Doc ann -> Doc ann

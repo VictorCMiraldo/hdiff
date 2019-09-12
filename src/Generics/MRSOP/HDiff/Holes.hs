@@ -9,7 +9,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Generics.MRSOP.Digems.Holes where
+module Generics.MRSOP.HDiff.Holes where
 
 import Data.Proxy
 import Data.Functor.Const
@@ -23,7 +23,7 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 --------------------------------
-import Generics.MRSOP.Digems.Renderer
+import Generics.MRSOP.HDiff.Renderer
 
 -- |Pretty-prints a treefix using a specific function to
 --  print holes.
@@ -64,7 +64,7 @@ holesZipRep (HPeel a c d) (NA_I x)
 -- Are two treefixes indexes over the same atom?
 
 -- TODO: remove this class too!
---       this is the same hack as Data.Digems.Diff.MetaVar.Annotate
+--       this is the same hack as Data.HDiff.Diff.MetaVar.Annotate
 --       All we need is a class 'IsOpq' comming from mrsop that
 --       allows us to compare the indexes of 'ki' for equality.
 class HasIKProjInj (ki :: kon -> *) (f :: Atom kon -> *) where

@@ -6,12 +6,12 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE GADTs               #-}
-module Data.Digems.Diff
+module Data.HDiff.Diff
   ( diffOpts'
   , diffOpts
   , diff
   , DiffMode(..)
-  , module Data.Digems.Diff.Types
+  , module Data.HDiff.Diff.Types
   ) where
 
 import qualified Data.Set as S
@@ -23,15 +23,15 @@ import           Control.Monad.State
 
 import           Generics.MRSOP.Base
 import           Generics.MRSOP.Holes
-import           Generics.MRSOP.Digems.Digest
+import           Generics.MRSOP.HDiff.Digest
 
 import qualified Data.WordTrie as T
-import           Data.Digems.Diff.Types
-import           Data.Digems.Diff.Modes
-import           Data.Digems.Diff.Preprocess
-import           Data.Digems.Patch
-import           Data.Digems.MetaVar
-import           Data.Digems.Change
+import           Data.HDiff.Diff.Types
+import           Data.HDiff.Diff.Modes
+import           Data.HDiff.Diff.Preprocess
+import           Data.HDiff.Patch
+import           Data.HDiff.MetaVar
+import           Data.HDiff.Change
 
 -- |We use a number of 'PrePatch'es, that is, a utx with a distinguished prefix
 -- and some pair of 'Holes's inside.

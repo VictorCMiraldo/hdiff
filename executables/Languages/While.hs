@@ -24,8 +24,8 @@ import           Data.Text.Prettyprint.Doc (pretty)
 
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.TH
-import Generics.MRSOP.Digems.Renderer
-import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.HDiff.Renderer
+import Generics.MRSOP.HDiff.Digest
 
 import System.IO
 import System.Exit

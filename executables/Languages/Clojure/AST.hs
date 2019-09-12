@@ -19,8 +19,8 @@ import Data.Text
 import Data.Text.Encoding (encodeUtf8)
 import Generics.MRSOP.TH
 import Generics.MRSOP.Base
-import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Renderer
+import Generics.MRSOP.HDiff.Digest
+import Generics.MRSOP.HDiff.Renderer
 
 
 data SepExprList =

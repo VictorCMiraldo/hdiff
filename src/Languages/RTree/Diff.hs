@@ -8,13 +8,13 @@ import Data.Void
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
-import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.HDiff.Digest
 
 import Languages.RTree
-import Data.Digems.Patch
-import Data.Digems.Change
-import Data.Digems.Diff
-import Data.Digems.Diff.Preprocess
+import Data.HDiff.Patch
+import Data.HDiff.Change
+import Data.HDiff.Diff
+import Data.HDiff.Diff.Preprocess
 
 type PatchRTree = Patch W CodesRTree 'Z
 

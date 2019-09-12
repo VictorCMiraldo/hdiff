@@ -9,7 +9,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-module Data.Digems.Change.Thinning where
+module Data.HDiff.Change.Thinning where
 
 import           Data.Type.Equality
 import qualified Data.Map as M
@@ -23,9 +23,9 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 ---------------------------------------
 import Data.Exists
-import Data.Digems.MetaVar
-import Data.Digems.Change
-import Data.Digems.Change.Apply
+import Data.HDiff.MetaVar
+import Data.HDiff.Change
+import Data.HDiff.Change.Apply
 
 import Debug.Trace
 

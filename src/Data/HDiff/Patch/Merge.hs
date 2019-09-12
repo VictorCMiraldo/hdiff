@@ -9,7 +9,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Data.Digems.Patch.Merge where
+module Data.HDiff.Patch.Merge where
 
 import Data.Functor.Sum
 import qualified Data.Map as M
@@ -23,11 +23,11 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 
 import Data.Exists
-import Data.Digems.Patch
-import Data.Digems.Change
-import Data.Digems.Change.Apply
-import Data.Digems.Change.Thinning
-import Data.Digems.MetaVar
+import Data.HDiff.Patch
+import Data.HDiff.Change
+import Data.HDiff.Change.Apply
+import Data.HDiff.Change.Thinning
+import Data.HDiff.MetaVar
 
 -- * Merging Treefixes
 --

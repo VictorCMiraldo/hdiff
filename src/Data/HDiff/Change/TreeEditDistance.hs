@@ -3,7 +3,7 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Data.Digems.Change.TreeEditDistance where
+module Data.HDiff.Change.TreeEditDistance where
 
 import qualified Data.Map as M
 import           Data.STRef
@@ -19,9 +19,9 @@ import           Generics.MRSOP.Base
 import qualified Generics.MRSOP.GDiff as GD
 
 import           Data.Exists
-import           Data.Digems.MetaVar
-import           Data.Digems.Change
-import           Data.Digems.Change.Apply
+import           Data.HDiff.MetaVar
+import           Data.HDiff.Change
+import           Data.HDiff.Change.Apply
 
 -- import Debug.Trace
 

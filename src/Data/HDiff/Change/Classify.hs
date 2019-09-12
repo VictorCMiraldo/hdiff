@@ -4,7 +4,7 @@
 {-# LANGUAGE GADTs             #-}
 {-# OPTIONS_GHC -Wno-orphans   #-}
 -- |change classification algorithm
-module Data.Digems.Change.Classify where
+module Data.HDiff.Change.Classify where
 
 import Data.List (nub)
 import Data.Proxy
@@ -15,8 +15,8 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 -------------------------------
 import Data.Exists
-import Data.Digems.Change
-import Data.Digems.MetaVar
+import Data.HDiff.Change
+import Data.HDiff.MetaVar
 
 -----------------------------------------
 -- Change Classification algo

@@ -8,8 +8,8 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
--- |Defines the application function for a 'Data.Digems.Change.CChange'
-module Data.Digems.Change.Apply where
+-- |Defines the application function for a 'Data.HDiff.Change.CChange'
+module Data.HDiff.Change.Apply where
 
 import           Data.Proxy
 import           Data.Type.Equality
@@ -18,13 +18,13 @@ import qualified Data.Map as M
 import           Control.Monad.Except
 
 import Data.Exists
-import Data.Digems.MetaVar
-import Data.Digems.Change
+import Data.HDiff.MetaVar
+import Data.HDiff.Change
 
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
-import Generics.MRSOP.Digems.Holes
+import Generics.MRSOP.HDiff.Holes
 
 -- * Generic Application
 --
@@ -95,7 +95,7 @@ termApply chg = either (Left . show) (holes2naM cast)
     -- we provide one
     cast :: MetaVarIK ki ix
          -> Either String (NA ki (Fix ki codes) ix)
-    cast _ = Left "Data.Digems.Change.Apply: impossible"
+    cast _ = Left "Data.HDiff.Change.Apply: impossible"
 
 
 -- |@pmatch pa x@ traverses @pa@ and @x@ instantiating the variables of @pa@.

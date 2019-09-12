@@ -8,7 +8,7 @@
 --  information for both driving the algorithm
 --  and efficiently storing digests alongside
 --  the structure.
-module Data.Digems.Diff.Preprocess where
+module Data.HDiff.Diff.Preprocess where
 
 import Data.Proxy
 import Data.Functor.Const
@@ -16,7 +16,7 @@ import Data.Functor.Const
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 
-import Generics.MRSOP.Digems.Digest
+import Generics.MRSOP.HDiff.Digest
 
 -- |We precompute the digest of a tree and its height
 --  and annotate our fixpoints with this data before

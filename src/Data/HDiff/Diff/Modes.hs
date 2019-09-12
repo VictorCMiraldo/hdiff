@@ -7,7 +7,7 @@
 {-# LANGUAGE PolyKinds                   #-}
 {-# LANGUAGE GADTs                       #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-module Data.Digems.Diff.Modes where
+module Data.HDiff.Diff.Modes where
 
 import qualified Data.Set as S
 import           Data.Functor.Const
@@ -15,12 +15,12 @@ import           Data.Functor.Sum
 
 import           Generics.MRSOP.Base
 import           Generics.MRSOP.Holes
-import           Generics.MRSOP.Digems.Digest
+import           Generics.MRSOP.HDiff.Digest
 
 import qualified Data.WordTrie as T
-import           Data.Digems.Diff.Preprocess
-import           Data.Digems.Diff.Types
-import           Data.Digems.MetaVar
+import           Data.HDiff.Diff.Preprocess
+import           Data.HDiff.Diff.Types
+import           Data.HDiff.MetaVar
 
 -- |A predicate indicating whether a tree can be shared.
 type CanShare ki codes phi = forall a ix . PrepFix a ki codes phi ix -> Bool

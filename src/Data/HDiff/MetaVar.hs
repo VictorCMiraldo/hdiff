@@ -8,7 +8,7 @@
 -- |Exports a bunch of functionality for handling metavariables
 --  both over recursive positions only, with 'MetaVarI' and over
 --  recursive positions and constants, 'MetaVarIK'.
-module Data.Digems.MetaVar where
+module Data.HDiff.MetaVar where
 
 import Data.Function (on)
 import Data.Functor.Const
@@ -18,8 +18,8 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 --------------------------------------
 import Data.Exists
-import Generics.MRSOP.Digems.Digest
-import Generics.MRSOP.Digems.Holes
+import Generics.MRSOP.HDiff.Digest
+import Generics.MRSOP.HDiff.Holes
 
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
 --  by forcing the atom to be an 'I'.

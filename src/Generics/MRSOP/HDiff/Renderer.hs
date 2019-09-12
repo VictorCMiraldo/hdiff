@@ -9,10 +9,10 @@
 -- |Defines a unified interface for writing
 --  pretty printers. We force the definition of pretty
 --  printers in this way to be able to use this very
---  pretty printer to render a 'Generics.MRSOP.Digems.Treefix.UTx'
+--  pretty printer to render a 'Generics.MRSOP.HDiff.Treefix.UTx'
 --  in the same style as the rest of the ast.
 --
-module Generics.MRSOP.Digems.Renderer where
+module Generics.MRSOP.HDiff.Renderer where
 
 import Data.Proxy
 import Data.Functor.Const

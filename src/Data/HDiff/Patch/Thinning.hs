@@ -9,16 +9,16 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-module Data.Digems.Patch.Thinning where
+module Data.HDiff.Patch.Thinning where
 
 import           Data.Type.Equality
 ---------------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 ---------------------------------------
-import           Data.Digems.Patch
-import           Data.Digems.Change
-import qualified Data.Digems.Change.Thinning as CT
+import           Data.HDiff.Patch
+import           Data.HDiff.Change
+import qualified Data.HDiff.Change.Thinning as CT
 
 thin :: (ShowHO ki , TestEquality ki, EqHO ki)
      => RawPatch ki codes at
