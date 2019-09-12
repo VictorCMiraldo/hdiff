@@ -65,6 +65,7 @@ pushCopiesIns (LC _ c es) = LC 0 c (pushCopiesIns es)
 pushCopiesIns (LI _ c es) = LI 0 c (pushCopiesIns es)
 pushCopiesIns (LD _ c es) = LD 0 c (pushCopiesIns es)
 
+
 meet :: ListES a -> ListES a -> ListES a
 meet a b
   | cost a <= cost b = a
@@ -74,9 +75,9 @@ type Table a = M.Map (Int , Int) (ListES a)
 
 -- Memoized longest-common-subsequence with parametrizable weight
 lcsW :: forall a . (Eq a) => (a -> Int) -> [a] -> [a] -> ListES a
-lcsW weight xs ys = runST $ do
+lcsW weight xs0 ys0 = runST $ do
     tbl <- newSTRef M.empty
-    lcs' tbl xs ys
+    lcs' tbl xs0 ys0
   where
    lcs' :: STRef s (Table a) -> [a] -> [a] -> ST s (ListES a)
    lcs' tbl xs ys = do
@@ -89,7 +90,7 @@ lcsW weight xs ys = runST $ do
                       return $ res
 
    lcs'' :: STRef s (Table a) -> [a] -> [a] -> ST s (ListES a)
-   lcs'' tbl []      []     = return LNil
+   lcs'' _   []      []     = return LNil
    lcs'' tbl (x:xs)  []     = lcs' tbl xs [] >>= \d -> return (LD (weight x + cost d) x d)
    lcs'' tbl []      (y:ys) = lcs' tbl [] ys >>= \i -> return (LI (weight y + cost i) y i)
    lcs'' tbl  (x:xs) (y:ys) =
@@ -321,6 +322,7 @@ insSync var ds is = do
       -- Otherwise, we must enter the deletion phase until
       -- we find it.
       _ -> delPhase ds (Hole' var :* is)
+    LNil -> throwError "insSync: premature LNil"
 
 delPhase , insPhase
   :: (EqHO ki , ShowHO ki , TestEquality ki)
