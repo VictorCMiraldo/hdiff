@@ -47,7 +47,6 @@ import qualified Data.HDiff.Change.TreeEditDistance as TEDC
 
 import           Languages.Interface
 import qualified Languages.While   as While
-import qualified Languages.ELisp   as ELisp
 import qualified Languages.Lines   as Lines
 
 #ifdef ENABLE_LUA_SUPPORT
@@ -63,7 +62,6 @@ import qualified Languages.Clojure as Clj
 mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
-    ,LangParser "el"    (fmap (dfrom . into @ELisp.FamListESExp) . ELisp.parseFile) 
 #ifdef ENABLE_LUA_SUPPORT
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
 #endif
