@@ -1,3 +1,4 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -67,6 +68,7 @@ getConflicts = snd . runWriter . holesMapM go
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
 (//) :: ( Applicable ki codes (Holes2 ki codes)
+        , EqHO ki , ShowHO ki
         , HasDatatypeInfo ki fam codes 
         )
      => Patch ki codes ix
@@ -83,7 +85,7 @@ p // q = holesJoin $ holesMap (uncurry' reconcile)
 --  Precondition: before calling @reconcile p q@, make sure
 --                @p@ and @q@ are different.
 reconcile :: forall ki codes fam at
-           . ( Applicable ki codes (Holes2 ki codes)
+           . ( Applicable ki codes (Holes2 ki codes) , EqHO ki , ShowHO ki
              , HasDatatypeInfo ki fam codes 
              ) 
           => RawPatch ki codes at
@@ -135,10 +137,6 @@ arityMap = go . holesGetHolesAnnWith' metavarGet
     go []     = M.empty
     go (v:vs) = M.alter (Just . maybe 1 (+1)) v (go vs)
 
-
-instance ShowHO x => Show (Exists x) where
-  show (Exists x) = showHO x
-
 -- |This will process two changes, represented as a spine and
 -- inner changes, into a potential merged patch. The result of @process sp sq@
 -- is supposed to instruct how to construct a patch that
@@ -150,7 +148,7 @@ instance ShowHO x => Show (Exists x) where
 -- need to adapt @sp@ to @sq@. After we are done, we know whether
 -- we need to adapt @sp@, return @sp@ as is, or there is a conflict.
 --
-process :: (Applicable ki codes (Holes2 ki codes))
+process :: (Applicable ki codes (Holes2 ki codes) , EqHO ki , ShowHO ki)
         => HolesHoles2 ki codes at -> HolesHoles2 ki codes at
         -> ProcessOutcome ki codes
 process sp sq =
@@ -203,7 +201,7 @@ process sp sq =
     -- |Step2 checks a condition for the own-variable mappints
     -- of the anti-unification of p and q! note this is different
     -- altogether from step 1!!!
-    step2 :: (Applicable ki codes (Holes2 ki codes))
+    step2 :: (Applicable ki codes (Holes2 ki codes) , EqHO ki , ShowHO ki)
           => HolesHoles2 ki codes at -> HolesHoles2 ki codes at
           -> ExceptT String (State (Subst ki codes (Holes2 ki codes))) ()
     step2 pp qq = do

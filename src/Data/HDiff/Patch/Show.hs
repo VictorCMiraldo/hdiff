@@ -1,10 +1,11 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE RankNTypes           #-}
-{-# LANGUAGE PolyKinds            #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE GADTs                #-}
-{-# OPTIONS_GHC -Wno-orphans      #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE GADTs                 #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 module Data.HDiff.Patch.Show where
 
 import           System.IO
@@ -124,8 +125,8 @@ instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , Sho
       => Show (Delta (Holes ki codes phi) at) where
   show (del :*: ins)
     = unlines $ doubleColumn 75
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) del)
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) ins)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . show) del)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . show) ins)
   show _ = undefined -- ghc seems to really want this to see the patterns are complete.
 
 

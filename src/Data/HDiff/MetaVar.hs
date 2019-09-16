@@ -1,3 +1,4 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE PolyKinds             #-}
@@ -33,12 +34,12 @@ type MetaVarI  = ForceI (Const Int)
 data Annotate (x :: *) (f :: k -> *) :: k -> * where
   Annotate :: x -> f i -> Annotate x f i
 
-instance (ShowHO f , Show x) => ShowHO (Annotate x f) where
-  showHO (Annotate i f)
-    = showHO f ++ "[" ++ show i ++ "]"
+instance (ShowHO f , Show x) => Show (Annotate x f k) where
+  show (Annotate i f)
+    = show f ++ "[" ++ show i ++ "]"
 
-instance (EqHO f , Eq x) => EqHO (Annotate x f) where
-  eqHO (Annotate x1 f1) (Annotate x2 f2) = x1 == x2 && eqHO f1 f2
+instance (EqHO f , Eq x) => Eq (Annotate x f k) where
+  (==) (Annotate x1 f1) (Annotate x2 f2) = x1 == x2 && f1 == f2
 
 instance (TestEquality ki) => TestEquality (Annotate x ki) where
   testEquality (Annotate _ x) (Annotate _ y)

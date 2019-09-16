@@ -111,23 +111,23 @@ unif1 :: TreeTerm
 unif1 = HPeel' CZ (HOpq' (SInt 100)
                  :* Hole' (NA_I $ Const 1)
                  :* Hole' (NA_I $ Const 2)
-                 :* NP0)
+                 :* Nil)
 unif12 :: TreeTerm
 unif12 = HPeel' CZ (HOpq' (SInt 500)
                  :* Hole' (NA_I $ Const 1)
                  :* Hole' (NA_I $ Const 2)
-                 :* NP0)
+                 :* Nil)
 
 unif2 :: TreeTerm
 unif2 = HPeel' CZ (HOpq' (SInt 200)
                  :* Hole' (NA_I $ Const 4)
                  :* Hole' (NA_I $ Const 5)
-                 :* NP0)
+                 :* Nil)
 unif22 :: TreeTerm
 unif22 = HPeel' CZ (HOpq' (SInt 500)
                  :* Hole' (NA_I $ Const 4)
                  :* Hole' (NA_I $ Const 5)
-                 :* NP0)
+                 :* Nil)
 
 
 
@@ -140,9 +140,9 @@ unif2 = HPeel' CZ (HOpq' (SInt 100)
                  :* HPeel' (CS CZ)
                     (Hole' (NA_K $ Annotate 6 (SInt 42))
                      :* Hole' (NA_I $ Const 2)
-                     :* HPeel' (CS (CS CZ)) NP0
-                     :* HPeel' (CS (CS CZ)) NP0
-                     :* NP0)
-                 :* HPeel' (CS (CS CZ)) NP0
-                 :* NP0)
+                     :* HPeel' (CS (CS CZ)) Nil
+                     :* HPeel' (CS (CS CZ)) Nil
+                     :* Nil)
+                 :* HPeel' (CS (CS CZ)) Nil
+                 :* Nil)
 -}

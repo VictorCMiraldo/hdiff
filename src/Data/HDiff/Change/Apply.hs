@@ -1,3 +1,4 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TupleSections         #-}
@@ -63,8 +64,7 @@ instance Show (ApplicationErr ki codes phi) where
 -- |A instantiation substitution from metavariable numbers to some treefix
 type Subst ki codes phi = M.Map Int (Exists (Holes ki codes phi))
 
-type Applicable ki codes phi = (ShowHO ki , EqHO ki , TestEquality ki , TestEquality phi
-                              , HasIKProjInj ki phi , EqHO phi)
+type Applicable ki codes phi = (TestEquality ki , TestEquality phi , HasIKProjInj ki phi )
 
 -- |We try to unify @pa@ and @pq@ onto @ea@. The idea is that
 --  we instantiate the variables of @pa@ with their corresponding expression
@@ -72,7 +72,7 @@ type Applicable ki codes phi = (ShowHO ki , EqHO ki , TestEquality ki , TestEqua
 --  we ignore whatever was on @ea@ and give that variable instead.
 --
 --  We are essentially applying 
-genericApply :: (Applicable ki codes phi)
+genericApply :: (Applicable ki codes phi , EqHO phi , EqHO ki)
              => CChange ki codes at
              -> Holes ki codes phi at
              -> Either (ApplicationErr ki codes phi) (Holes ki codes phi at)
@@ -100,13 +100,13 @@ termApply chg = either (Left . show) (holes2naM cast)
 
 -- |@pmatch pa x@ traverses @pa@ and @x@ instantiating the variables of @pa@.
 -- Upon sucessfully instantiating the variables, returns the substitution.
-pmatch :: (Applicable ki codes phi)
+pmatch :: (Applicable ki codes phi , EqHO phi , EqHO ki)
        => Holes ki codes (MetaVarIK ki) ix
        -> Holes ki codes phi ix
        -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
 pmatch pat = pmatch' M.empty pat
 
-pmatch' :: (Applicable ki codes phi)
+pmatch' :: (Applicable ki codes phi , EqHO phi , EqHO ki)
    => Subst ki codes phi
    -> Holes ki codes (MetaVarIK ki) ix
    -> Holes ki codes phi ix
@@ -114,7 +114,7 @@ pmatch' :: (Applicable ki codes phi)
 pmatch' s (Hole _ var) x  = substInsert s var x
 pmatch' _ pa (Hole _ var) = throwError (IncompatibleHole pa var)
 pmatch' s (HOpq _ oa) (HOpq _ ox)
-  | eqHO oa ox = return s
+  | oa == ox  = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)
 pmatch' s pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
   case testEquality ca cx of
@@ -143,7 +143,7 @@ idxDecEq utx i@(NA_I _)
 
 -- |Attempts to insert a new binding into a substitution. If the variable is already
 -- bound, we check the existing binding for equality
-substInsert :: (Applicable ki codes phi)
+substInsert :: (Applicable ki codes phi , EqHO ki , EqHO phi)
             => Subst ki codes phi
             -> MetaVarIK ki ix
             -> Holes ki codes phi ix

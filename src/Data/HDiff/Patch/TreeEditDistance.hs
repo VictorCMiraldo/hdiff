@@ -1,9 +1,10 @@
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 module Data.HDiff.Patch.TreeEditDistance where
 
 import           Data.Type.Equality
@@ -29,13 +30,13 @@ toES (HPeel _ ca ppa) (NA_I (Fix (sop -> Tag cx px))) =
                <$> toES' ppa px
 
 listId :: ListPrf a -> ListPrf a :~: ListPrf (a :++: '[]) 
-listId Nil      = Refl
-listId (Cons a) = case listId a of
-                    Refl -> Refl
+listId LP_Nil      = Refl
+listId (LP_Cons a) = case listId a of
+                      Refl -> Refl
 
 toES' :: (EqHO ki , ShowHO ki , TestEquality ki)
       => NP (RawPatch ki codes) sum -> PoA ki (Fix ki codes) sum
       -> Either String (GD.ES ki codes sum sum)
-toES' NP0 NP0             = return GD.ES0
+toES' Nil Nil             = return GD.ES0
 toES' (p :* ps) (x :* xs) = TED.appendES <$> toES p x <*> toES' ps xs
 

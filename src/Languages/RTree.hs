@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -40,8 +41,7 @@ data WKon = WString
 data W :: WKon -> * where
   W_String  :: String  -> W 'WString
 
-instance EqHO W where
-  eqHO (W_String s)  (W_String ss) = s == ss
+deriving instance Eq (W x)
 
 instance DigestibleHO W where
   digestHO (W_String s)  = hashStr s
@@ -49,8 +49,8 @@ instance DigestibleHO W where
 instance RendererHO W where
   renderHO (W_String s) = pretty s
 
-instance ShowHO W where
-  showHO (W_String s)  = s
+instance Show (W x) where
+  show (W_String s)  = s
 
 instance TestEquality W where
   testEquality (W_String _)  (W_String _)  = Just Refl
