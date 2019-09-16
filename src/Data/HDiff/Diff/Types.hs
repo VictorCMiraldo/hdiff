@@ -45,7 +45,7 @@ data DiffMode
 
 -- |Specifies the options for the diffing algorithm
 data DiffOptions = DiffOptions
-  -- |Minimum height of trees considered for sharing
+  -- ^ Minimum height of trees considered for sharing
   { doMinHeight      :: Int
   , doOpaqueHandling :: DiffOpaques
   , doMode           :: DiffMode
