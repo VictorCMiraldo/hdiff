@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
@@ -9,21 +10,17 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Lines where
 
-import System.IO
 import           Data.Type.Equality
 import           Data.Text.Prettyprint.Doc (pretty)
-import           Data.Text.Prettyprint.Doc.Render.Text
-import qualified Data.Text as T
 
 import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Util
 import Generics.MRSOP.TH
 import Generics.MRSOP.HDiff.Renderer
 import Generics.MRSOP.HDiff.Digest
-
-import Debug.Trace
 
 -----------------------
 -- * Parser
@@ -45,14 +42,11 @@ data WKon = WString
 data W :: WKon -> * where
   W_String  :: String  -> W WString
 
-instance EqHO W where
-  eqHO (W_String s)  (W_String ss) = s == ss
+deriving instance Show (W x)
+deriving instance Eq (W x)
 
 instance DigestibleHO W where
   digestHO (W_String s)  = hashStr s
-
-instance ShowHO W where
-  showHO (W_String s)  = s
 
 -- Now we derive the 'Family' instance
 -- using 'W' for the constants.
