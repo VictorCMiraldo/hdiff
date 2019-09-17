@@ -43,8 +43,6 @@ thin :: (ShowHO ki , TestEquality ki, EqHO ki)
                (CChange ki codes at)
 thin chg dom = uncurry' cmatch <$> thinUTx2 (cCtxDel chg :*: cCtxIns chg) dom
 
-instance (EqHO f , EqHO g) => Eq ((f :*: g) x) where
-  (==) (fx :*: gx) (fy :*: gy) = fx == fy && gx == gy
 
 tr :: (ShowHO ki , TestEquality ki, EqHO ki)
    => CChange ki codes at

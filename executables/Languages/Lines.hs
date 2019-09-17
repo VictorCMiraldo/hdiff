@@ -10,7 +10,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Lines where
 
