@@ -12,12 +12,40 @@ packages:
   original:
     hackage: language-lua-0.11.0.1
 - completed:
+    hackage: language-python-0.5.6@sha256:ee38764d4e65a080651081a8e762cfc5dcdc36e540fe2a1a1ee8f726cbb5240d,2515
+    pantry-tree:
+      size: 2000
+      sha256: a7f655e31e43d034c7430f532d2f734248340627c41a6998ddbef706159fd2be
+  original:
+    hackage: language-python-0.5.6
+- completed:
+    hackage: containers-0.5.11.0@sha256:28ad7337057442f75bc689315ab4ec7bdf5e6b2c39668f306672cecd82c02798,16685
+    pantry-tree:
+      size: 4849
+      sha256: faa4e75922a28f7cfe9920c1d7ab3866b792cefcd29bf79f54cfe3b6b5f57cbf
+  original:
+    hackage: containers-0.5.11.0
+- completed:
     hackage: alex-tools-0.4@sha256:afdbf0da61d79d3a2eded7cbecbcefdd87c5abe3f5ff6298b47c2ff8050f99b7,995
     pantry-tree:
       size: 262
       sha256: 3d2950b44d00c10819efdf3576a14768e3433641f3cc7414cc589552432adb23
   original:
     hackage: alex-tools-0.4
+- completed:
+    hackage: binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
+    pantry-tree:
+      size: 1976
+      sha256: 35e44b6d3ccf0d56fc5407dc3f0895e74696a66da189afbd65973c95743f5e25
+  original:
+    hackage: binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
+- completed:
+    hackage: text-1.2.4.0@sha256:8c24450feb8e3bbb7ea3e17af24ef57e85db077c4bf53e5bcc345b283d1b1d5b,10081
+    pantry-tree:
+      size: 7457
+      sha256: 3437b0a73ce2ae1a81aa8b3438d41a85981c00894cdbee0d6d6d6873046a5d5d
+  original:
+    hackage: text-1.2.4.0@sha256:8c24450feb8e3bbb7ea3e17af24ef57e85db077c4bf53e5bcc345b283d1b1d5b,10081
 - completed:
     cabal-file:
       size: 1213

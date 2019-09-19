@@ -4,7 +4,11 @@ resolver: lts-14.1
 extra-deps:
   # - generics-mrsop-2.1.0
   - language-lua-0.11.0.1
+  - language-python-0.5.6
+  - containers-0.5.11.0
   - alex-tools-0.4
+  - binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
+  - text-1.2.4.0@sha256:8c24450feb8e3bbb7ea3e17af24ef57e85db077c4bf53e5bcc345b283d1b1d5b,10081
   - git: git@github.com:arianvp/generics-mrsop-gdiff.git
     commit: 4c80f8c81084c46dd121106d7a83f9f11381a15a 
   - git: git@github.com:VictorCMiraldo/generics-mrsop.git

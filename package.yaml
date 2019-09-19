@@ -46,6 +46,7 @@ executables:
       - gitrev
       - optparse-applicative
       - language-lua
+      - language-python
       - hdiff
     ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 
