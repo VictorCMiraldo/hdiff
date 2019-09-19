@@ -58,6 +58,7 @@ import qualified Languages.Lua     as Lua
 import qualified Languages.Clojure as Clj
 #endif
 
+import qualified Languages.Go as Go
 
    -- |The parsers that we support
 mainParsers :: [LangParser]
@@ -70,6 +71,7 @@ mainParsers
     ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
 #endif
     ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
+    ,LangParser "go"    (fmap (dfrom . into @Go.FamStmt)    . Go.parseFile)
     ]
 
 ---------------------------

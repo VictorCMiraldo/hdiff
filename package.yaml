@@ -10,6 +10,7 @@ github:      VictorCMiraldo/hdiff
 category:    Other
 
 dependencies:
+  - array
   - base >= 4.9 && < 5
   - generics-mrsop >= 2.2.0
   - generics-mrsop-gdiff
