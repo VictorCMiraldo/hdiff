@@ -41,11 +41,11 @@ packages:
     git: git@github.com:VictorCMiraldo/generics-mrsop.git
     pantry-tree:
       size: 2094
-      sha256: 373bc2d7fc2450bae6108cab8a416f021664cff0f2c8a8e22f16ff35f0cc37f3
-    commit: be256ab2185c023ddd29a924d88a78b73f26bbd0
+      sha256: ca6526ed7b3ac3c90b2bb568891591e066a274cf330bc0b6e01a57e520e1e396
+    commit: bf9090b4b93aad8287ea9f80662ecb87afd8d3a1
   original:
     git: git@github.com:VictorCMiraldo/generics-mrsop.git
-    commit: be256ab2185c023ddd29a924d88a78b73f26bbd0
+    commit: bf9090b4b93aad8287ea9f80662ecb87afd8d3a1
 - completed:
     cabal-file:
       size: 772
