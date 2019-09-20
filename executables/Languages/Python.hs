@@ -28,6 +28,7 @@ import System.IO
 import Generics.MRSOP.TH
 import Generics.MRSOP.Base
 import Generics.MRSOP.Util
+import Generics.MRSOP.Opaque
 
 import Generics.MRSOP.HDiff.Digest
 import Generics.MRSOP.HDiff.Renderer
@@ -36,25 +37,28 @@ import Language.Python.Common.AST
 import Language.Python.Common.SrcLocation
 import Language.Python.Version3.Parser
 
+{-
 data PyKon = PyString | PyBool
 data PySingl (kon :: PyKon) :: * where
-  SPyString :: String -> PySingl PyString
-  SPyBool   :: Bool   -> PySingl PyBool
+  SPyString       :: String -> PySingl PyString
+  SPyBool         :: Bool   -> PySingl PyBool
+  SPyInt          :: Int    -> PySingl PyInt
+  SPyInteger      :: Integer-> PySingl PyInteger
+  SPyDouble       :: Double -> PySingl PyDouble
+  SPyChar         :: Char -> PySingl PyChar
+-}
+{-
 
 instance RendererHO PySingl where
   renderHO (SPyString str) = pretty str
   renderHO (SPyBool   b)   = pretty b
+  renderHO (SPyInt    b)   = pretty b
 
 instance DigestibleHO PySingl where
   digestHO (SPyString str) = hashStr str
   digestHO (SPyBool   b)   = hashStr (show b)
+  digestHO (SPyInt    b)   = hashStr (show b)
 
-deriving instance Show (PySingl k)
-deriving instance Eq   (PySingl k)
+-}
 
-instance TestEquality PySingl where
-  testEquality (SPyBool _) (SPyBool _) = Just Refl
-  testEquality (SPyString _) (SPyString _) = Just Refl
-  testEquality _ _ = Nothing
-
-deriveFamilyWith ''PySingl [t| Module SrcSpan |]
+deriveFamilyWith ''Singl [t| Module SrcSpan |]
