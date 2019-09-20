@@ -12,7 +12,7 @@ extra-deps:
   - git: git@github.com:arianvp/generics-mrsop-gdiff.git
     commit: 4c80f8c81084c46dd121106d7a83f9f11381a15a 
   - git: git@github.com:VictorCMiraldo/generics-mrsop.git
-    commit: be256ab2185c023ddd29a924d88a78b73f26bbd0
+    commit: bf9090b4b93aad8287ea9f80662ecb87afd8d3a1
   - git: git@github.com:VictorCMiraldo/hs-elisp.git
     commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
 
