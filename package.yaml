@@ -1,14 +1,17 @@
 name:        hdiff
 version:     0.0.0
-synopsis:    Hash Diff returning a Pattern-Expression-based result instead of Edit-Script
-description: see README or paper.
+synopsis:    Pattern-Expression-based differencing of arbitrary types.
+description: This package provides an executable and a library to compute
+             and manipulate pattern-expression based differences between
+             values of arbitrary datatypes. For more detailed information
+             check the README at our GitHub page.
 maintainer:  Victor Miraldo <v.cacciarimiraldo@gmail.com>
 github:      VictorCMiraldo/hdiff
 category:    Other
 
 dependencies:
   - base >= 4.9 && < 5
-  - generics-mrsop >= 2.1.0
+  - generics-mrsop >= 2.2.0
   - generics-mrsop-gdiff
   - bytestring
   - cryptonite
@@ -43,7 +46,6 @@ executables:
       - gitrev
       - optparse-applicative
       - language-lua
-      - hs-elisp
       - hdiff
     ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 

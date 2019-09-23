@@ -1,14 +1,15 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE CPP                   #-}
+
 module Languages.Lua where
 
 #ifdef ENABLE_LUA_SUPPORT
@@ -56,8 +57,6 @@ instance DigestibleHO LuaSingl where
 
 deriving instance Show (LuaSingl k)
 deriving instance Eq (LuaSingl k)
-instance ShowHO LuaSingl where showHO = show
-instance EqHO LuaSingl where eqHO = (==)
 
 instance TestEquality LuaSingl where
   testEquality (SLuaText _) (SLuaText _) = Just Refl

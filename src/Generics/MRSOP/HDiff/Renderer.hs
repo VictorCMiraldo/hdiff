@@ -44,7 +44,7 @@ renderNP :: (HasDatatypeInfo ki fam codes)
          -> Constr (Lkup ix codes) c
          -> NP (Const (Doc ann)) (Lkup c (Lkup ix codes))
          -> Doc ann
-renderNP pf sty idx c NP0
+renderNP pf sty idx c Nil
   = sty $ PP.pretty (constructorName (constrInfoFor pf idx c))
 renderNP pf sty idx c p
   = let ci = constrInfoFor pf idx c

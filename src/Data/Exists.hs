@@ -1,6 +1,7 @@
-{-# LANGUAGE PolyKinds  #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE GADTs      #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE GADTs                 #-}
 module Data.Exists where
 
 data Exists (f :: k -> *) :: * where
@@ -14,4 +15,7 @@ exMapM f (Exists x) = Exists <$> f x
 
 exElim :: (forall x . f x -> a) -> Exists f -> a
 exElim f (Exists x) = f x
+
+instance (forall i . Show (x i)) => Show (Exists x) where
+  show (Exists x) = show x
 

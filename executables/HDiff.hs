@@ -1,3 +1,4 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
@@ -47,7 +48,6 @@ import qualified Data.HDiff.Change.TreeEditDistance as TEDC
 
 import           Languages.Interface
 import qualified Languages.While   as While
-import qualified Languages.ELisp   as ELisp
 import qualified Languages.Lines   as Lines
 
 #ifdef ENABLE_LUA_SUPPORT
@@ -63,7 +63,6 @@ import qualified Languages.Clojure as Clj
 mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
-    ,LangParser "el"    (fmap (dfrom . into @ELisp.FamListESExp) . ELisp.parseFile) 
 #ifdef ENABLE_LUA_SUPPORT
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
 #endif
@@ -350,6 +349,6 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
         Just fb' <- tryApply v ba fa Nothing
         when (v == Loud) (putStrLnErr "!! apply ab fb")
         Just fa' <- tryApply v ab fb Nothing
-        if eqFix eqHO fb' fa'
+        if fb' == fa'
         then return ExitSuccess
         else return (ExitFailure 2)

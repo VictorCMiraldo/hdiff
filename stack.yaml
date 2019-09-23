@@ -1,4 +1,3 @@
-# We need 12.2 because language-lua-0.11.0 requires so... 
 resolver: lts-14.1
 
 extra-deps:

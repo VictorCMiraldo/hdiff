@@ -1,11 +1,12 @@
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE PatternSynonyms     #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE GADTs                 #-}
 module Data.HDiff.Diff
   ( diffOpts'
   , diffOpts

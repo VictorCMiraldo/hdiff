@@ -1,14 +1,16 @@
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-
+{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
+{-# OPTIONS_GHC -Wno-orphans                            #-}
 module Languages.Clojure.AST where
 
 import Data.Type.Equality
@@ -21,7 +23,6 @@ import Generics.MRSOP.TH
 import Generics.MRSOP.Base
 import Generics.MRSOP.HDiff.Digest
 import Generics.MRSOP.HDiff.Renderer
-
 
 data SepExprList =
    Nil 
@@ -69,8 +70,6 @@ instance DigestibleHO CljSingl where
 
 deriving instance Show (CljSingl k)
 deriving instance Eq (CljSingl k)
-instance ShowHO CljSingl where showHO = show
-instance EqHO CljSingl where eqHO = (==)
 
 instance TestEquality CljSingl where
   testEquality (SCljText _) (SCljText _) = Just Refl

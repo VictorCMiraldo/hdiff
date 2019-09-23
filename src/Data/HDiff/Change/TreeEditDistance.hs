@@ -1,8 +1,9 @@
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 module Data.HDiff.Change.TreeEditDistance where
 
 import qualified Data.Map as M
@@ -33,11 +34,11 @@ data ListES a
   = LC Int a (ListES a)
   | LD Int a (ListES a)
   | LI Int a (ListES a)
-  | LNil
+  | LLP_Nil
   deriving (Eq , Show)
 
 cost :: ListES a -> Int
-cost LNil       = 0
+cost LLP_Nil       = 0
 cost (LC c _ _) = c
 cost (LI c _ _) = c
 cost (LD c _ _) = c
@@ -46,18 +47,18 @@ cost (LD c _ _) = c
 -- For example, 
 --
 --   > λ> lcs [0,1,2] [0,1,1,1,2]
---   > LC 0 (LC 1 (LI 1 (LI 1 (LC 2 LNil))))
+--   > LC 0 (LC 1 (LI 1 (LI 1 (LC 2 LLP_Nil))))
 --
 -- Note how the 1 is copied to the first position, then
 -- the other ones are inserted.
 --
 --   > λ> pushCopiesIns $ lcsW (const 1) [0,1,2] [0,1,1,1,2]
---   > LC 0 (LI 1 (LI 1 (LC 1 (LC 2 LNil))))
+--   > LC 0 (LI 1 (LI 1 (LC 1 (LC 2 LLP_Nil))))
 --
 -- Here instead, we insert two 1's then copy the last one.
 -- This really helps with synchronization.
 pushCopiesIns :: (Eq a) => ListES a -> ListES a
-pushCopiesIns LNil = LNil
+pushCopiesIns LLP_Nil = LLP_Nil
 pushCopiesIns (LC _ c (LI _ c' es))
   | c == c'   = LI 0 c' (pushCopiesIns (LC 0 c es))
   | otherwise = LC 0 c  (pushCopiesIns (LI 0 c' es))
@@ -90,7 +91,7 @@ lcsW weight xs0 ys0 = runST $ do
                       return $ res
 
    lcs'' :: STRef s (Table a) -> [a] -> [a] -> ST s (ListES a)
-   lcs'' _   []      []     = return LNil
+   lcs'' _   []      []     = return LLP_Nil
    lcs'' tbl (x:xs)  []     = lcs' tbl xs [] >>= \d -> return (LD (weight x + cost d) x d)
    lcs'' tbl []      (y:ys) = lcs' tbl [] ys >>= \i -> return (LI (weight y + cost i) y i)
    lcs'' tbl  (x:xs) (y:ys) =
@@ -122,7 +123,7 @@ toES (CMatch _ del ins) elm =
         Right s  ->
           let sizes_s = M.map (exElim holesSize) s
               ves     = pushCopiesIns $ lcsW (\v -> sizes_s M.! v) vd vi
-           in runExcept (runReaderT (compress <$> delPhase (del :* NP0) (ins :* NP0)) (s , ves))
+           in runExcept (runReaderT (compress <$> delPhase (del :* Nil) (ins :* Nil)) (s , ves))
 
 type ToES ki codes = ReaderT (Subst ki codes (MetaVarIK ki) , ListES Int)
                              (Except String)
@@ -151,13 +152,13 @@ gdel c e = GD.Del (1 + GD.cost e) c e
 compress :: (EqHO ki , TestEquality ki) => GD.ES ki codes is ds -> GD.ES ki codes is ds
 compress GD.ES0 = GD.ES0
 compress (GD.Del _ v (GD.Ins c' v' e)) =
-  case GD.heqCof v v' of
+  case GD.cofHeq v v' of
     Just (Refl , Refl) -> gcpy v (compress e)
     Nothing            -> gdel v (compress $ GD.Ins c' v' e)
 compress (GD.Del _ v e)
   = gdel v $ compress e
 compress (GD.Ins _ v (GD.Del c' v' e)) =
-  case GD.heqCof v v' of
+  case GD.cofHeq v v' of
     Just (Refl , Refl) -> gcpy v (compress e)
     Nothing            -> gins v (compress $ GD.Del c' v' e)
 compress (GD.Ins _ v e)
@@ -168,7 +169,7 @@ compress (GD.Cpy _ v e)
 cpyOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
         => NP (Holes ki codes (MetaVarIK ki)) xs
         -> ToES ki codes (GD.ES ki codes xs xs)
-cpyOnly NP0 = return GD.ES0
+cpyOnly Nil = return GD.ES0
 cpyOnly (Hole  _ var :* xs) = fetch var >>= cpyOnly . (:* xs) 
 cpyOnly (HOpq  _ k   :* xs) = gcpy (GD.ConstrK k)               <$> cpyOnly xs
 cpyOnly (HPeel _ c d :* xs) = gcpy (GD.ConstrI c (listPrfNP d)) <$> cpyOnly (appendNP d xs)
@@ -176,7 +177,7 @@ cpyOnly (HPeel _ c d :* xs) = gcpy (GD.ConstrI c (listPrfNP d)) <$> cpyOnly (app
 delOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
         => NP (Holes ki codes (MetaVarIK ki)) ds
         -> ToES ki codes (GD.ES ki codes ds '[])
-delOnly NP0 = return GD.ES0
+delOnly Nil = return GD.ES0
 delOnly (Hole  _ var :* xs) = fetch var >>= delOnly . (:* xs) 
 delOnly (HOpq  _ k   :* xs) = gdel (GD.ConstrK k)               <$> delOnly xs
 delOnly (HPeel _ c d :* xs) = gdel (GD.ConstrI c (listPrfNP d)) <$> delOnly (appendNP d xs)
@@ -184,35 +185,35 @@ delOnly (HPeel _ c d :* xs) = gdel (GD.ConstrI c (listPrfNP d)) <$> delOnly (app
 insOnly :: (EqHO ki , ShowHO ki , TestEquality ki)
         => NP (Holes ki codes (MetaVarIK ki)) is
         -> ToES ki codes (GD.ES ki codes '[] is)
-insOnly NP0 = return GD.ES0
+insOnly Nil = return GD.ES0
 insOnly (Hole  _ var :* xs) = fetch var >>= insOnly . (:* xs) 
 insOnly (HOpq  _ k   :* xs) = gins (GD.ConstrK k)               <$> insOnly xs
 insOnly (HPeel _ c d :* xs) = gins (GD.ConstrI c (listPrfNP d)) <$> insOnly (appendNP d xs)
 
 listAssoc :: ListPrf a -> Proxy b -> Proxy c
           -> ListPrf ((a :++: b) :++: c) :~: ListPrf (a :++: (b :++: c))
-listAssoc Nil       _  _  = Refl
-listAssoc (Cons pa) pb pc = case listAssoc pa pb pc of
+listAssoc LP_Nil       _  _  = Refl
+listAssoc (LP_Cons pa) pb pc = case listAssoc pa pb pc of
                               Refl -> Refl
 
 listDrop :: ListPrf i -> ListPrf (i :++: t) -> ListPrf t
-listDrop Nil a             = a
-listDrop (Cons x) (Cons a) = listDrop x a
+listDrop LP_Nil a             = a
+listDrop (LP_Cons x) (LP_Cons a) = listDrop x a
 
 esDelListPrf :: GD.ES ki codes ds is -> ListPrf ds
-esDelListPrf GD.ES0 = Nil
-esDelListPrf (GD.Cpy _ v e) = Cons $ listDrop (cofListPrf v) (esDelListPrf e)
-esDelListPrf (GD.Del _ v e) = Cons $ listDrop (cofListPrf v) (esDelListPrf e)
+esDelListPrf GD.ES0 = LP_Nil
+esDelListPrf (GD.Cpy _ v e) = LP_Cons $ listDrop (cofListPrf v) (esDelListPrf e)
+esDelListPrf (GD.Del _ v e) = LP_Cons $ listDrop (cofListPrf v) (esDelListPrf e)
 esDelListPrf (GD.Ins _ _ e) = esDelListPrf e
 
 esInsListPrf :: GD.ES ki codes ds is -> ListPrf is
-esInsListPrf GD.ES0 = Nil
-esInsListPrf (GD.Cpy _ v e) = Cons $ listDrop (cofListPrf v) (esInsListPrf e)
-esInsListPrf (GD.Ins _ v e) = Cons $ listDrop (cofListPrf v) (esInsListPrf e)
+esInsListPrf GD.ES0 = LP_Nil
+esInsListPrf (GD.Cpy _ v e) = LP_Cons $ listDrop (cofListPrf v) (esInsListPrf e)
+esInsListPrf (GD.Ins _ v e) = LP_Cons $ listDrop (cofListPrf v) (esInsListPrf e)
 esInsListPrf (GD.Del _ _ e) = esInsListPrf e
 
 cofListPrf :: GD.Cof ki codes at l -> ListPrf l
-cofListPrf (GD.ConstrK _)   = Nil
+cofListPrf (GD.ConstrK _)   = LP_Nil
 cofListPrf (GD.ConstrI _ p) = p
 
 esDelListProxy :: GD.ES ki codes ds is -> Proxy ds
@@ -275,7 +276,7 @@ delSync var ds is = do
                      then throwError "delSync: var mismatch"
                      else do
                        t   <- fetch var
-                       es0 <- delOnly (t :* NP0)
+                       es0 <- delOnly (t :* Nil)
                        es1 <- local (second (const es'))
                             $ delPhase ds is
                        return (appendES es0 es1)
@@ -297,7 +298,7 @@ insSync var ds is = do
                      then throwError "insSync: var mismatch"
                      else do
                        t   <- fetch var
-                       es0 <- insOnly (t :* NP0)
+                       es0 <- insOnly (t :* Nil)
                        es1 <- local (second (const es'))
                             $ insPhase ds is
                        return (appendES es0 es1)
@@ -313,7 +314,7 @@ insSync var ds is = do
         then throwError "insSync: var mismatch"
         else do
           t   <- fetch var
-          es0 <- cpyOnly (t :* NP0)
+          es0 <- cpyOnly (t :* Nil)
           es1 <- local (second (const es'))
                $ delPhase ds' is
           case testEquality var var'' of
@@ -322,21 +323,21 @@ insSync var ds is = do
       -- Otherwise, we must enter the deletion phase until
       -- we find it.
       _ -> delPhase ds (Hole' var :* is)
-    LNil -> throwError "insSync: premature LNil"
+    LLP_Nil -> throwError "insSync: premature LLP_Nil"
 
 delPhase , insPhase
   :: (EqHO ki , ShowHO ki , TestEquality ki)
   => NP (Holes ki codes (MetaVarIK ki)) ds
   -> NP (Holes ki codes (MetaVarIK ki)) is
   -> ToES ki codes (GD.ES ki codes ds is)
-delPhase NP0 is  = insOnly is
+delPhase Nil is  = insOnly is
 delPhase (d :* ds) is =
   case d of
     Hole  _ var -> delSync var ds is
     HOpq  _ k   -> gdel (GD.ConstrK k)               <$> insPhase ds is
     HPeel _ c p -> gdel (GD.ConstrI c (listPrfNP p)) <$> insPhase (appendNP p ds) is
 
-insPhase ds NP0 = delOnly ds
+insPhase ds Nil = delOnly ds
 insPhase ds (i :* is) = 
   case i of
     Hole  _ var -> insSync var ds is

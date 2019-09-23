@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
@@ -9,7 +10,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.While where
 
@@ -76,20 +77,13 @@ data W :: WKon -> * where
   W_String  :: String  -> W 'WString
   W_Bool    :: Bool    -> W 'WBool
 
-instance EqHO W where
-  eqHO (W_Integer i) (W_Integer j) = i == j
-  eqHO (W_String s)  (W_String ss) = s == ss
-  eqHO (W_Bool b)    (W_Bool c)    = b == c
+deriving instance Eq (W x)
+deriving instance Show (W x)
 
 instance DigestibleHO W where
   digestHO (W_Integer i) = hashStr (show i)
   digestHO (W_String s)  = hashStr s
   digestHO (W_Bool b)    = hashStr (show b)
-
-instance ShowHO W where
-  showHO (W_Integer i) = show i
-  showHO (W_String s)  = s
-  showHO (W_Bool b)    = show b
 
 -- Now we derive the 'Family' instance
 -- using 'W' for the constants.

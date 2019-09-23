@@ -1,8 +1,9 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE PolyKinds         #-}
-{-# LANGUAGE GADTs             #-}
-{-# OPTIONS_GHC -Wno-orphans   #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE GADTs                 #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 -- |change classification algorithm
 module Data.HDiff.Change.Classify where
 
