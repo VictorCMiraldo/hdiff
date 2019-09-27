@@ -5,6 +5,20 @@
 
 packages:
 - completed:
+    hackage: generics-mrsop-2.2.0@sha256:5ea5325b02068b5668ab10badd34ae32e4bbeaaf72d87bfe25d581b72ee4837f,1790
+    pantry-tree:
+      size: 1402
+      sha256: 52965216df7c138b1e463a16eff4971f2a4bbdd21c351f852fe9953a1860d274
+  original:
+    hackage: generics-mrsop-2.2.0
+- completed:
+    hackage: generics-mrsop-gdiff-0.0.1@sha256:e44c5426c50e956ad7e877114cadf12f112516d90b665627dfe2b83794cc34aa,1395
+    pantry-tree:
+      size: 260
+      sha256: 11c0549e6a4cc2efb6de9b24f36744f4dcd7687aa7f7707da5dabcf098cee485
+  original:
+    hackage: generics-mrsop-gdiff-0.0.1
+- completed:
     hackage: language-lua-0.11.0.1@sha256:b3bdf864965279f830323d5ed7d38073b2687b3a07b7fa73aa13782560f48f89,2919
     pantry-tree:
       size: 3473
@@ -18,34 +32,6 @@ packages:
       sha256: 3d2950b44d00c10819efdf3576a14768e3433641f3cc7414cc589552432adb23
   original:
     hackage: alex-tools-0.4
-- completed:
-    cabal-file:
-      size: 1213
-      sha256: d945d0de10d0b8dff0c77790ba06caec1d56d4ed7b645915e96102dbbdce1d54
-    name: generics-mrsop-gdiff
-    version: 0.0.0
-    git: git@github.com:arianvp/generics-mrsop-gdiff.git
-    pantry-tree:
-      size: 408
-      sha256: aaa1c71954d8dfda5774571a52946032e890c711bc8f6a0de8d7d17d844c5678
-    commit: 4c80f8c81084c46dd121106d7a83f9f11381a15a
-  original:
-    git: git@github.com:arianvp/generics-mrsop-gdiff.git
-    commit: 4c80f8c81084c46dd121106d7a83f9f11381a15a
-- completed:
-    cabal-file:
-      size: 1790
-      sha256: 5ea5325b02068b5668ab10badd34ae32e4bbeaaf72d87bfe25d581b72ee4837f
-    name: generics-mrsop
-    version: 2.2.0
-    git: git@github.com:VictorCMiraldo/generics-mrsop.git
-    pantry-tree:
-      size: 2094
-      sha256: 2ca9d28f4edafb3a2a6c45c36999a365ca123be60053e397b0dc0158a1a74e65
-    commit: d892f9330d5e7fd6fab5fc3305bdf563bb9e6b1f
-  original:
-    git: git@github.com:VictorCMiraldo/generics-mrsop.git
-    commit: d892f9330d5e7fd6fab5fc3305bdf563bb9e6b1f
 - completed:
     cabal-file:
       size: 772
