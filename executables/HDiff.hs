@@ -10,6 +10,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE CPP                   #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- |Illustrates the usage of MRSOP with a custom
@@ -36,7 +37,8 @@ import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.HDiff.Renderer
 import Generics.MRSOP.HDiff.Digest
 
-import qualified Generics.MRSOP.GDiff    as GDiff
+import qualified Generics.MRSOP.GDiff          as GDiff
+import qualified Generics.MRSOP.STDiff         as STDiff
 
 import qualified Data.HDiff.Patch       as D
 import qualified Data.HDiff.Diff        as D
@@ -80,28 +82,32 @@ data PatchOrChange
   deriving (Eq , Show)
 
 data Options
-  = AST   { optFileA :: FilePath
-          }
-  | GDiff { optFileA     :: FilePath
-          , optFileB     :: FilePath
-          , showES       :: Bool
-          }
-  | Diff  { optFileA     :: FilePath
-          , optFileB     :: FilePath
-          , testApply    :: Bool
-          , minHeight    :: Int
-          , diffMode     :: D.DiffMode
-          , opqHandling  :: D.DiffOpaques
-          , toEditScript :: Maybe PatchOrChange
-          , showES       :: Bool
-          }
-  | Merge { optFileA     :: FilePath
-          , optFileO     :: FilePath
-          , optFileB     :: FilePath
-          , minHeight    :: Int
-          , diffMode     :: D.DiffMode
-          , opqHandling  :: D.DiffOpaques
-          }
+  = AST     { optFileA :: FilePath
+            }
+  | GDiff   { optFileA     :: FilePath
+            , optFileB     :: FilePath
+            , showES       :: Bool
+            }
+  | Diff    { optFileA     :: FilePath
+            , optFileB     :: FilePath
+            , testApply    :: Bool
+            , minHeight    :: Int
+            , diffMode     :: D.DiffMode
+            , opqHandling  :: D.DiffOpaques
+            , toEditScript :: Maybe PatchOrChange
+            , showES       :: Bool
+            }
+  | Merge   { optFileA     :: FilePath
+            , optFileO     :: FilePath
+            , optFileB     :: FilePath
+            , minHeight    :: Int
+            , diffMode     :: D.DiffMode
+            , opqHandling  :: D.DiffOpaques
+            }
+  | STMerge { optFileA     :: FilePath
+            , optFileO     :: FilePath
+            , optFileB     :: FilePath
+            }
   deriving (Eq , Show)
 
 astOpts :: Parser Options
@@ -198,6 +204,12 @@ mergeOpts =
         <*> diffmodeOpt
         <*> opqhandlingOpt
 
+stmergeOpts :: Parser Options
+stmergeOpts =
+  STMerge <$> argument str (metavar "MYFILE")
+          <*> argument str (metavar "OLDFILE")
+          <*> argument str (metavar "YOURFILE")
+
 parseOptions :: Parser Options
 parseOptions = hsubparser
   (  command "ast"   (info astOpts
@@ -208,6 +220,8 @@ parseOptions = hsubparser
         (progDesc "Runs Data.HDiff.Diff on the targes"))
   <> command "merge" (info mergeOpts
         (progDesc "Runs the merge algorithm on the specified files"))
+  <> command "st-merge" (info stmergeOpts
+        (progDesc "Runs the Generics.MRSOP.STDiff.Merge algo on the specified files"))
   ) <|> diffOpts
   
 data Verbosity
@@ -233,22 +247,24 @@ verbosity = asum
   ]
 
 data OptionMode
-  = OptAST | OptDiff | OptMerge | OptGDiff
+  = OptAST | OptDiff | OptMerge | OptGDiff | OptSTMerge
   deriving (Eq , Show)
 
 optionMode :: Options -> OptionMode
 optionMode (AST _)                = OptAST
 optionMode (GDiff _ _ _)          = OptGDiff
 optionMode (Merge _ _ _ _ _ _)    = OptMerge
+optionMode (STMerge _ _ _)        = OptSTMerge
 optionMode (Diff _ _ _ _ _ _ _ _) = OptDiff
 
 main :: IO ()
 main = execParser fullOpts >>= \(verb , opts)
     -> case optionMode opts of
-         OptAST   -> mainAST   verb opts
-         OptDiff  -> mainDiff  verb opts
-         OptGDiff -> mainGDiff verb opts
-         OptMerge -> mainMerge verb opts
+         OptAST     -> mainAST     verb opts
+         OptDiff    -> mainDiff    verb opts
+         OptGDiff   -> mainGDiff   verb opts
+         OptMerge   -> mainMerge   verb opts
+         OptSTMerge -> mainSTMerge verb opts
     >>= exitWith
  where
    fullOpts = info ((,) <$> verbosity <*> parseOptions <**> helper)
@@ -352,3 +368,26 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
         if fb' == fa'
         then return ExitSuccess
         else return (ExitFailure 2)
+
+
+mainSTMerge :: Verbosity -> Options -> IO ExitCode
+mainSTMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
+  $ \fa fo fb -> do
+    when (v == Loud) $ do
+      putStrLnErr $ "O: " ++ optFileO opts
+      putStrLnErr $ "A: " ++ optFileA opts
+      putStrLnErr $ "B: " ++ optFileB opts
+    let oa = STDiff.diff fo fa
+    let ob = STDiff.diff fo fb
+    let resAB = STDiff.merge oa ob
+    let resBA = STDiff.merge ob oa
+    case (,) <$> resAB <*> resBA of
+      Nothing        -> putStrLnErr " !! Conflicts somewhere !!"
+                     >> return (ExitFailure 1)
+      Just (ab , ba) ->
+        case (,) <$> STDiff.apply ab fa <*> STDiff.apply ba fb of
+          Nothing        -> putStrLnErr " !! Application Failed !!"
+                         >> exitFailure
+          Just (fb' , fa') -> return $ if fb' == fa'
+                                       then ExitSuccess
+                                       else ExitFailure 2

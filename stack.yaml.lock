@@ -20,11 +20,11 @@ packages:
     git: git@github.com:arianvp/generics-mrsop-gdiff.git
     pantry-tree:
       size: 745
-      sha256: 6b4457dc9a024301afdd4f4573f43e7fc15f9aa91fe7c01a74e1c9f4be7eb194
-    commit: f72374c9d5bf9b7b67adcaf822f5fae86dbd32bb
+      sha256: 8adbc944d39081dc435410adf063a18fec309539cc36e2ab7652bbdf1ff2e686
+    commit: a4ddfe477baf017480a6585db6a5b50dd134c4cc
   original:
     git: git@github.com:arianvp/generics-mrsop-gdiff.git
-    commit: f72374c9d5bf9b7b67adcaf822f5fae86dbd32bb
+    commit: a4ddfe477baf017480a6585db6a5b50dd134c4cc
 - completed:
     hackage: language-lua-0.11.0.1@sha256:b3bdf864965279f830323d5ed7d38073b2687b3a07b7fa73aa13782560f48f89,2919
     pantry-tree:
