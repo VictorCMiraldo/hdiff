@@ -2,7 +2,8 @@ resolver: lts-14.1
 
 extra-deps:
   - generics-mrsop-2.2.0
-  - generics-mrsop-gdiff-0.0.1
+  - git: git@github.com:arianvp/generics-mrsop-gdiff.git
+    commit: f72374c9d5bf9b7b67adcaf822f5fae86dbd32bb
   - language-lua-0.11.0.1
   - alex-tools-0.4
 

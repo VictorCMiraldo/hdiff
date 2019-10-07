@@ -12,12 +12,19 @@ packages:
   original:
     hackage: generics-mrsop-2.2.0
 - completed:
-    hackage: generics-mrsop-gdiff-0.0.1@sha256:e44c5426c50e956ad7e877114cadf12f112516d90b665627dfe2b83794cc34aa,1395
+    cabal-file:
+      size: 1720
+      sha256: ab19229e0d793cdf7b4d8303a16f34716bb9f98c057681a530404b78368c5bec
+    name: generics-mrsop-gdiff
+    version: 0.0.2
+    git: git@github.com:arianvp/generics-mrsop-gdiff.git
     pantry-tree:
-      size: 260
-      sha256: 11c0549e6a4cc2efb6de9b24f36744f4dcd7687aa7f7707da5dabcf098cee485
+      size: 745
+      sha256: 6b4457dc9a024301afdd4f4573f43e7fc15f9aa91fe7c01a74e1c9f4be7eb194
+    commit: f72374c9d5bf9b7b67adcaf822f5fae86dbd32bb
   original:
-    hackage: generics-mrsop-gdiff-0.0.1
+    git: git@github.com:arianvp/generics-mrsop-gdiff.git
+    commit: f72374c9d5bf9b7b67adcaf822f5fae86dbd32bb
 - completed:
     hackage: language-lua-0.11.0.1@sha256:b3bdf864965279f830323d5ed7d38073b2687b3a07b7fa73aa13782560f48f89,2919
     pantry-tree:
@@ -32,20 +39,6 @@ packages:
       sha256: 3d2950b44d00c10819efdf3576a14768e3433641f3cc7414cc589552432adb23
   original:
     hackage: alex-tools-0.4
-- completed:
-    cabal-file:
-      size: 772
-      sha256: eb2d8a7d4c08a9e54f37169c960b7d9bbdec68e6d50db42ed0cc6e4c18393a61
-    name: hs-elisp
-    version: 0.0.0
-    git: git@github.com:VictorCMiraldo/hs-elisp.git
-    pantry-tree:
-      size: 1898
-      sha256: 0b90272dcabdbb28e0033a87773f07e6fe3be11b242b3711dd85086b42dadf74
-    commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
-  original:
-    git: git@github.com:VictorCMiraldo/hs-elisp.git
-    commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
 snapshots:
 - completed:
     size: 523448
