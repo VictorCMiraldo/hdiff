@@ -40,7 +40,7 @@ data WKon = WString
 --
 --  Note we need instances of Eq1, Show1 and DigestibleHO
 data W :: WKon -> * where
-  W_String  :: String  -> W WString
+  W_String  :: String  -> W 'WString
 
 deriving instance Show (W x)
 deriving instance Eq (W x)
