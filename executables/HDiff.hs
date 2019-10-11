@@ -388,6 +388,6 @@ mainSTMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (op
         case (,) <$> STDiff.apply ab fa <*> STDiff.apply ba fb of
           Nothing        -> putStrLnErr " !! Application Failed !!"
                          >> exitFailure
-          Just (fb' , fa') -> return $ if fb' == fa'
+          Just (fb' , fa') -> return $ if eqHO fb' fa'
                                        then ExitSuccess
                                        else ExitFailure 2
