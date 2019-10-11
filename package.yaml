@@ -11,8 +11,8 @@ category:    Other
 
 dependencies:
   - base >= 4.9 && < 5
-  - generics-mrsop >= 2.2.0
-  - generics-mrsop-gdiff
+  - generics-mrsop >= 2.3.0
+  - generics-mrsop-gdiff >= 0.0.2
   - bytestring
   - cryptonite
   - containers

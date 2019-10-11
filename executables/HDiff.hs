@@ -349,6 +349,6 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
         Just fb' <- tryApply v ba fa Nothing
         when (v == Loud) (putStrLnErr "!! apply ab fb")
         Just fa' <- tryApply v ab fb Nothing
-        if fb' == fa'
+        if eqHO fb' fa'
         then return ExitSuccess
         else return (ExitFailure 2)

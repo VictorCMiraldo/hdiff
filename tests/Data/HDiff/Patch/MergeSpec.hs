@@ -2,16 +2,16 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
-module Data.Digems.Patch.MergeSpec (spec) where
+module Data.HDiff.Patch.MergeSpec (spec) where
 
 import Generics.MRSOP.Base
 
-import Data.Digems.Patch
-import Data.Digems.Diff
-import Data.Digems.Patch.Merge
-import Data.Digems.Change
-import Data.Digems.Change.Thinning
-import Data.Digems.Change.Apply
+import Data.HDiff.Patch
+import Data.HDiff.Diff
+import Data.HDiff.Patch.Merge
+import Data.HDiff.Change
+import Data.HDiff.Change.Thinning
+import Data.HDiff.Change.Apply
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -26,8 +26,8 @@ import Control.Monad.Except
 {-
 merge_id :: Property
 merge_id = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = digemRTree t1 t2
-         iden  = digemRTree t1 t1
+  -> let patch = hdiffRTree t1 t2
+         iden  = hdiffRTree t1 t1
          mpid  = patch // iden
          midp  = iden  // patch
       in case (,) <$> noConflicts mpid <*> noConflicts midp of
@@ -45,7 +45,7 @@ merge_id = forAll genSimilarTrees' $ \(t1 , t2)
 
 merge_diag :: Property
 merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = digemRTree t1 t2
+  -> let patch = hdiffRTree t1 t2
       in case noConflicts (patch // patch) of
            Nothing -> expectationFailure "has conflicts"
            Just p  -> case applyRTree' p t2 of
@@ -78,8 +78,8 @@ doMerge mode a o b
         -- VCM: Funny... with DM_ProperShare and DM_NoNested
         -- we see the same hspec restuls, but with DM_Patience
         -- we get a different result altogether.
-        oa = digemRTreeHM mode 1 o a
-        ob = digemRTreeHM mode 1 o b
+        oa = hdiffRTreeHM mode 1 o a
+        ob = hdiffRTreeHM mode 1 o b
         oaob = oa // ob
         oboa = ob // oa
      in case (,) <$> noConflicts oaob <*> noConflicts oboa of
@@ -290,8 +290,8 @@ b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 {-
 cc :: RTree -> RTree -> RTree -> Bool
 cc a o b =
-  let p = distrCChange $ digemRTree o a
-      q = distrCChange $ digemRTree o b
+  let p = distrCChange $ hdiffRTree o a
+      q = distrCChange $ hdiffRTree o b
    in case (,) <$> thin p (domain q) <*> thin q (domain p) of
         Left err -> error "imp; its a span!"
         Right (p' , q')
@@ -300,11 +300,11 @@ cc a o b =
           || (not (changeEq q q') &&      changeEq p p')
 -}
 
-oa9 = digemRTree o9 a9
-ob9 = digemRTree o9 b9
+oa9 = hdiffRTree o9 a9
+ob9 = hdiffRTree o9 b9
 
-oa8 = digemRTree o8 a8
-ob8 = digemRTree o8 b8 `withFreshNamesFrom` oa8
+oa8 = hdiffRTree o8 a8
+ob8 = hdiffRTree o8 b8 `withFreshNamesFrom` oa8
 
 coa8 = distrCChange oa8
 cob8 = distrCChange ob8
@@ -320,8 +320,8 @@ myprocess ca cb =
 {-
 mymerge :: RTree -> RTree -> RTree -> IO ()
 mymerge a o b = do
-  let oa = digemRTree o a
-  let ob = digemRTree o b `withFreshNamesFrom` oa
+  let oa = hdiffRTree o a
+  let ob = hdiffRTree o b `withFreshNamesFrom` oa
   let ca' = distrCChange oa
   let cb' = distrCChange ob
   let (ca , d , cb) = myprocess ca' cb'
@@ -347,49 +347,49 @@ mymerge p q = do
     Right r  -> return r
 -}
 
-myDigemRTree = digemRTreeHM DM_ProperShare 1
+myHdiffRTree = hdiffRTreeHM DM_ProperShare 1
 
-oa1 = myDigemRTree o1 a1
-ob1 = myDigemRTree o1 b1
+oa1 = myHdiffRTree o1 a1
+ob1 = myHdiffRTree o1 b1
 
-oa2 = myDigemRTree o2 a2
-ob2 = myDigemRTree o2 b2
+oa2 = myHdiffRTree o2 a2
+ob2 = myHdiffRTree o2 b2
 
-oa7 = myDigemRTree o7 a7
-ob7 = myDigemRTree o7 b7
+oa7 = myHdiffRTree o7 a7
+ob7 = myHdiffRTree o7 b7
 
-oa5 = myDigemRTree o5 a5
-ob5 = myDigemRTree o5 b5
+oa5 = myHdiffRTree o5 a5
+ob5 = myHdiffRTree o5 b5
 
-oa6 = myDigemRTree o6 a6
-ob6 = myDigemRTree o6 b6
+oa6 = myHdiffRTree o6 a6
+ob6 = myHdiffRTree o6 b6
 
-oa12 = myDigemRTree o12 a12
-ob12 = myDigemRTree o12 b12
+oa12 = myHdiffRTree o12 a12
+ob12 = myHdiffRTree o12 b12
 
-oa13 = myDigemRTree o13 a13
-ob13 = myDigemRTree o13 b13
+oa13 = myHdiffRTree o13 a13
+ob13 = myHdiffRTree o13 b13
 
-oa14 = myDigemRTree o14 a14
-ob14 = myDigemRTree o14 b14
+oa14 = myHdiffRTree o14 a14
+ob14 = myHdiffRTree o14 b14
 
-oa15 = myDigemRTree o15 a15
-ob15 = myDigemRTree o15 b15
+oa15 = myHdiffRTree o15 a15
+ob15 = myHdiffRTree o15 b15
 
-oa16 = myDigemRTree o16 a16
-ob16 = myDigemRTree o16 b16
+oa16 = myHdiffRTree o16 a16
+ob16 = myHdiffRTree o16 b16
 
-oa17 = myDigemRTree o17 a17
-ob17 = myDigemRTree o17 b17
+oa17 = myHdiffRTree o17 a17
+ob17 = myHdiffRTree o17 b17
 
-oa18 = myDigemRTree o18 a18
-ob18 = myDigemRTree o18 b18
+oa18 = myHdiffRTree o18 a18
+ob18 = myHdiffRTree o18 b18
 
-oa19 = myDigemRTree o19 a19
-ob19 = myDigemRTree o19 b19
+oa19 = myHdiffRTree o19 a19
+ob19 = myHdiffRTree o19 b19
 
-oa20 = myDigemRTree o20 a20
-ob20 = myDigemRTree o20 b20
+oa20 = myHdiffRTree o20 a20
+ob20 = myHdiffRTree o20 b20
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)

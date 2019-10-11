@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
-module Data.Digems.PatchSpec (spec) where
+module Data.HDiff.PatchSpec (spec) where
 
 import qualified Data.Set as S
 import Data.Functor.Const
@@ -12,11 +12,11 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 
 import Data.Exists
-import Data.Digems.Patch
-import Data.Digems.Diff
-import Data.Digems.Patch.Show
-import Data.Digems.MetaVar
-import Data.Digems.Change
+import Data.HDiff.Patch
+import Data.HDiff.Diff
+import Data.HDiff.Patch.Show
+import Data.HDiff.MetaVar
+import Data.HDiff.Change
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -27,15 +27,15 @@ import Test.Hspec
 
 copy_composes :: Property
 copy_composes = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = digemRTree t1 t2
+  -> let patch = hdiffRTree t1 t2
          cpy   = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
       in composes patch cpy .&&. composes cpy patch
 
 composes_correct :: Property
 composes_correct = forAll (choose (0 , 4) >>= genSimilarTreesN 3)
   $ \[a , b , c] ->
-  let ab = digemRTree a b
-      bc = digemRTree b c
+  let ab = hdiffRTree a b
+      bc = hdiffRTree b c
    in composes bc ab
 
 {-
@@ -46,7 +46,7 @@ composes_correct = forAll (choose (0 , 4) >>= genSimilarTreesN 3)
 composes_non_reflexive :: Property
 composes_non_reflexive = forAll (genSimilarTrees' `suchThat` uncurry (/=))
   $ \(t1 , t2)
-  -> let patch = digemRTree t1 t2
+  -> let patch = hdiffRTree t1 t2
       in composes patch patch === False
 -}
 

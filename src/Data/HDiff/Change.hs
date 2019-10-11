@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}

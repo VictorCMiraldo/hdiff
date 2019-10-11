@@ -1,8 +1,9 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE GADTs                 #-}
 module Data.Exists where
+
+import Generics.MRSOP.Base (ShowHO(..))
 
 data Exists (f :: k -> *) :: * where
   Exists :: f x -> Exists f
@@ -16,6 +17,6 @@ exMapM f (Exists x) = Exists <$> f x
 exElim :: (forall x . f x -> a) -> Exists f -> a
 exElim f (Exists x) = f x
 
-instance (forall i . Show (x i)) => Show (Exists x) where
-  show (Exists x) = show x
+instance ShowHO x => Show (Exists x) where
+  show (Exists x) = showHO x
 

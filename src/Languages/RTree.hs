@@ -43,6 +43,9 @@ data W :: WKon -> * where
 
 deriving instance Eq (W x)
 
+instance EqHO W where
+  eqHO = (==)
+
 instance DigestibleHO W where
   digestHO (W_String s)  = hashStr s
 
@@ -51,6 +54,9 @@ instance RendererHO W where
 
 instance Show (W x) where
   show (W_String s)  = s
+
+instance ShowHO W where
+  showHO (W_String s) = s
 
 instance TestEquality W where
   testEquality (W_String _)  (W_String _)  = Just Refl

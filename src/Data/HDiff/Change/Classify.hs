@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE PolyKinds             #-}
@@ -26,7 +25,7 @@ instance (EqHO ki , TestEquality ki) => Eq (Exists (Holes ki codes (MetaVarIK ki
   (Exists v) == (Exists u) =
     case testEquality v u of
       Nothing   -> False
-      Just Refl -> v == u
+      Just Refl -> eqHO v u
 
 getConstrSNat :: (IsNat n) => Constr sum n -> SNat n
 getConstrSNat _ = getSNat (Proxy :: Proxy n)

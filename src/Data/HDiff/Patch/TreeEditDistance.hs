@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE ViewPatterns          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE GADTs                 #-}

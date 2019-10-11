@@ -80,6 +80,12 @@ data W :: WKon -> * where
 deriving instance Eq (W x)
 deriving instance Show (W x)
 
+instance EqHO W where
+  eqHO = (==)
+
+instance ShowHO W where
+  showHO = show
+
 instance DigestibleHO W where
   digestHO (W_Integer i) = hashStr (show i)
   digestHO (W_String s)  = hashStr s

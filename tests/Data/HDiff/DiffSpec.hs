@@ -1,13 +1,13 @@
 {-# LANGUAGE TypeApplications #-}
-module Data.Digems.DiffSpec (spec) where
+module Data.HDiff.DiffSpec (spec) where
 
 import qualified Data.Set as S
 
 import Generics.MRSOP.Holes
 
-import Data.Digems.Diff
-import Data.Digems.MetaVar
-import Data.Digems.Change
+import Data.HDiff.Diff
+import Data.HDiff.MetaVar
+import Data.HDiff.Change
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -17,7 +17,7 @@ import Test.Hspec
 
 diff_wellscoped_changes :: DiffMode -> Property
 diff_wellscoped_changes mode = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = digemRTreeHM mode 1 t1 t2
+  -> let patch = hdiffRTreeHM mode 1 t1 t2
       in conjoin $ holesGetHolesAnnWith' go patch
   where
     go :: CChange W CodesRTree ix -> Property
@@ -29,7 +29,7 @@ diff_wellscoped_changes mode = forAll genSimilarTrees' $ \(t1 , t2)
 
 apply_correctness :: DiffMode -> Property
 apply_correctness mode = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = digemRTreeHM mode 1 t1 t2
+  -> let patch = hdiffRTreeHM mode 1 t1 t2
       in case applyRTree patch t1 of
            Left err -> counterexample ("Apply failed with: " ++ err) False
            Right r  -> property $ t2 == r

@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE PolyKinds             #-}

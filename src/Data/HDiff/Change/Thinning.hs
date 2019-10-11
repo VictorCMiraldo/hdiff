@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ConstraintKinds       #-}
@@ -112,7 +111,7 @@ utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
                  (Holes ki codes (MetaVarIK ki) at)
     go p (Hole _ var)   = record_eq var p >> return p
     go p@(Hole _ var) q = record_eq var q >> return p
-    go p q | p == q     = return p
+    go p q | eqHO p q   = return p
            | otherwise  = throwError (IncompatibleTerms p q)
 
     -- Whenever we see a variable being matched against a term
@@ -129,12 +128,12 @@ utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
       mterm <- lift (lookupVar var sigma)
       case mterm of
         -- First time we see 'var', we instantiate it and get going.
-        Nothing -> when (q /= Hole' var)
+        Nothing -> when (not $ eqHO q (Hole' var))
                  $ modify (M.insert (metavarGet var) (Exists q))
         -- It's not the first time we thin 'var'; previously, we had
         -- that 'var' was supposed to be p'. We will check whether it
         -- is the same as q, if not, we will have to thin p' with q.
-        Just q' -> unless (q' == q)
+        Just q' -> unless (eqHO q' q)
                  $ void $ utxThin q' q
           
 

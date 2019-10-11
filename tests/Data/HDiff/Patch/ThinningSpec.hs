@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
-module Data.Digems.Patch.ThinningSpec (spec) where
+module Data.HDiff.Patch.ThinningSpec (spec) where
 
 import qualified Data.Set as S
 
@@ -12,13 +12,13 @@ import Generics.MRSOP.Holes
 
 import Data.Functor.Const
 import Data.Exists
-import Data.Digems.Patch
-import Data.Digems.Diff
-import Data.Digems.Patch.Show
-import Data.Digems.Patch.Thinning as PT
-import qualified Data.Digems.Change.Thinning as CT
-import Data.Digems.MetaVar
-import Data.Digems.Change
+import Data.HDiff.Patch
+import Data.HDiff.Diff
+import Data.HDiff.Patch.Show
+import Data.HDiff.Patch.Thinning as PT
+import qualified Data.HDiff.Change.Thinning as CT
+import Data.HDiff.MetaVar
+import Data.HDiff.Change
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -61,8 +61,8 @@ context_alpha_eq x y = aux
 
 thin_domain_eq :: DiffMode -> Property
 thin_domain_eq mode = forAll genSimilarTrees'' $ \(a , o , b)
-  -> let oa = digemRTreeHM mode 1 o a
-         ob = digemRTreeHM mode 1 o b
+  -> let oa = hdiffRTreeHM mode 1 o a
+         ob = hdiffRTreeHM mode 1 o b
       in case (,) <$> PT.thin oa ob <*> PT.thin ob oa of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right (oa' , ob') -> 
@@ -74,8 +74,8 @@ thin_domain_eq mode = forAll genSimilarTrees'' $ \(a , o , b)
                
 thin_respect_spans :: DiffMode -> Property
 thin_respect_spans mode = forAll genSimilarTrees'' $ \(a , o , b)
-  -> let oa = digemRTreeHM mode 1 o a
-         ob = digemRTreeHM mode 1 o b
+  -> let oa = hdiffRTreeHM mode 1 o a
+         ob = hdiffRTreeHM mode 1 o b
       in case PT.thin oa ob of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right oa' -> property $ applyRTree oa' o == Right a
@@ -84,7 +84,7 @@ thin_respect_spans mode = forAll genSimilarTrees'' $ \(a , o , b)
 
 thin_pp_is_p :: DiffMode -> Property
 thin_pp_is_p mode = forAll genSimilarTrees' $ \(a , b)
-  -> let ab = digemRTreeHM mode 1 a b
+  -> let ab = hdiffRTreeHM mode 1 a b
       in case PT.thin ab ab of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right ab' -> property $ patchEq ab ab'
@@ -103,8 +103,8 @@ a1 = bin (bin (lf "w") (lf "z")) (bin (lf "x") (lf "y"))
 o1 = bin (bin (lf "x") (lf "y")) (bin (lf "w") (lf "z"))
 b1 = bin (bin (lf "y") (lf "x")) (bin (lf "w") (lf "z"))
 
-oa1 = digemRTree o1 a1
-ob1 = digemRTree o1 b1 `withFreshNamesFrom` oa1
+oa1 = hdiffRTree o1 a1
+ob1 = hdiffRTree o1 b1 `withFreshNamesFrom` oa1
 
 coa1 = distrCChange oa1
 cob1 = distrCChange ob1 
@@ -116,8 +116,8 @@ a2 = "e" :>: ["j" :>: []]
 o2 = "e" :>: ["a" :>: ["j" :>: []],"a" :>: ["j" :>: []]]
 b2 = "a" :>: ["j" :>: [],"e" :>: []]
 
-oa2 = digemRTree o2 a2
-ob2 = digemRTree o2 b2 `withFreshNamesFrom` oa2
+oa2 = hdiffRTree o2 a2
+ob2 = hdiffRTree o2 b2 `withFreshNamesFrom` oa2
 
 coa2 = distrCChange oa2
 cob2 = distrCChange ob2 
@@ -130,15 +130,15 @@ a3 = "e" :>: ["a" :>: [], "B" :>: [], "c" :>: []]
 o3 = "e" :>: ["a" :>: [], "b" :>: [], "c" :>: []]
 b3 = "e" :>: ["A" :>: [], "b" :>: [], "c" :>: []]
 
-oa3 = digemRTree o3 a3
-ob3 = digemRTree o3 b3
+oa3 = hdiffRTree o3 a3
+ob3 = hdiffRTree o3 b3
 
 a4 = "k" :>: ["b" :>: [],"f" :>: []]
 o4 = "k" :>: ["b" :>: [],"b" :>: []]
 b4 = "k" :>: ["m" :>: [],"b" :>: []]
 
-oa4 = digemRTree o4 a4
-ob4 = digemRTree o4 b4
+oa4 = hdiffRTree o4 a4
+ob4 = hdiffRTree o4 b4
 
 Right coa4 = PT.thin oa4 ob4
 Right cob4 = PT.thin ob4 oa4

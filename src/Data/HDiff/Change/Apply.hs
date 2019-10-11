@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TupleSections         #-}
@@ -114,7 +113,7 @@ pmatch' :: (Applicable ki codes phi , EqHO phi , EqHO ki)
 pmatch' s (Hole _ var) x  = substInsert s var x
 pmatch' _ pa (Hole _ var) = throwError (IncompatibleHole pa var)
 pmatch' s (HOpq _ oa) (HOpq _ ox)
-  | oa == ox  = return s
+  | eqHO oa ox  = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)
 pmatch' s pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
   case testEquality ca cx of
@@ -152,7 +151,7 @@ substInsert s var new = case M.lookup (metavarGet var) s of
   Nothing           -> return $ M.insert (metavarGet var) (Exists new) s
   Just (Exists old) -> case testEquality old new of
     Nothing   -> throwError IncompatibleTypes
-    Just Refl -> if old == new
+    Just Refl -> if eqHO old new
                  then return s
                  else throwError (FailedContraction (metavarGet var) old new)
 

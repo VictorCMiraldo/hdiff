@@ -28,12 +28,12 @@ x1 , y1 :: RTree
 x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "k")
 y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "t")
 
-digemRTreeH :: Int -> RTree -> RTree -> PatchRTree
-digemRTreeH h a b = diff h (dfrom $ into @FamRTree a)
+hdiffRTreeH :: Int -> RTree -> RTree -> PatchRTree
+hdiffRTreeH h a b = diff h (dfrom $ into @FamRTree a)
                            (dfrom $ into @FamRTree b)
 
-digemRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
-digemRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
+hdiffRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
+hdiffRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
                                                     , doMinHeight = h
                                                     , doOpaqueHandling = DO_OnSpine })
                                 (dfrom $ into @FamRTree a)
@@ -45,8 +45,8 @@ rtreeMerkle a = getDig $ preprocess (na2holes $ NA_I $ dfrom $ into @FamRTree a)
     getDig :: PrepFix a ki codes (Const Void) ix -> Digest
     getDig = treeDigest . getConst . holesAnn
 
-digemRTree :: RTree -> RTree -> PatchRTree
-digemRTree a b = diff 1 (dfrom $ into @FamRTree a)
+hdiffRTree :: RTree -> RTree -> PatchRTree
+hdiffRTree a b = diff 1 (dfrom $ into @FamRTree a)
                         (dfrom $ into @FamRTree b)
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree

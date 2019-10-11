@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE DataKinds             #-}
@@ -161,7 +160,7 @@ applicableTo pat = either (const False) (const True)
     go l r (Hole _ var) ex = (,r) <$> substInsert' "l" l var ex 
     go l r pa (Hole _ var) = (l,) <$> substInsert' "r" r var pa
     go l r (HOpq _ oa) (HOpq _ ox)
-      | oa == ox  = return (l , r)
+      | eqHO oa ox  = return (l , r)
       | otherwise = throwError (IncompatibleOpqs oa ox)
     go l r pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
       case testEquality ca cx of

@@ -58,6 +58,13 @@ instance DigestibleHO LuaSingl where
 deriving instance Show (LuaSingl k)
 deriving instance Eq (LuaSingl k)
 
+instance EqHO LuaSingl where
+  eqHO = (==)
+
+instance ShowHO LuaSingl where
+  showHO = show
+
+
 instance TestEquality LuaSingl where
   testEquality (SLuaText _) (SLuaText _) = Just Refl
   testEquality (SLuaBool _) (SLuaBool _) = Just Refl

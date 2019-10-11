@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -125,8 +124,8 @@ instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , Sho
       => Show (Delta (Holes ki codes phi) at) where
   show (del :*: ins)
     = unlines $ doubleColumn 75
-        (holesPretty (Proxy :: Proxy fam) id (pretty . show) del)
-        (holesPretty (Proxy :: Proxy fam) id (pretty . show) ins)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) del)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) ins)
   show _ = undefined -- ghc seems to really want this to see the patterns are complete.
 
 

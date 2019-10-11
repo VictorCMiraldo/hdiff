@@ -5,19 +5,33 @@
 
 packages:
 - completed:
-    hackage: generics-mrsop-2.2.0@sha256:5ea5325b02068b5668ab10badd34ae32e4bbeaaf72d87bfe25d581b72ee4837f,1790
+    cabal-file:
+      size: 1790
+      sha256: ef8e9216397ef881dd276d3ca5486371d6e1a60fb54b35fddf0f29f045982b6f
+    name: generics-mrsop
+    version: 2.3.0
+    git: git@github.com:VictorCMiraldo/generics-mrsop.git
     pantry-tree:
-      size: 1402
-      sha256: 52965216df7c138b1e463a16eff4971f2a4bbdd21c351f852fe9953a1860d274
+      size: 2094
+      sha256: 52a56127463ebaf9a0c2ab0fc8c1989e095dd11003e3e0d13641883001e9e46f
+    commit: 293bbd43b07f6562ca72725218bb1bd8d7406767
   original:
-    hackage: generics-mrsop-2.2.0
+    git: git@github.com:VictorCMiraldo/generics-mrsop.git
+    commit: 293bbd43b07f6562ca72725218bb1bd8d7406767
 - completed:
-    hackage: generics-mrsop-gdiff-0.0.1@sha256:e44c5426c50e956ad7e877114cadf12f112516d90b665627dfe2b83794cc34aa,1395
+    cabal-file:
+      size: 1753
+      sha256: bd149315bfe21eb9d124cf790fee3f39e8e176da4fb361e2265bcc9dfd68a562
+    name: generics-mrsop-gdiff
+    version: 0.0.2
+    git: git@github.com:arianvp/generics-mrsop-gdiff.git
     pantry-tree:
-      size: 260
-      sha256: 11c0549e6a4cc2efb6de9b24f36744f4dcd7687aa7f7707da5dabcf098cee485
+      size: 820
+      sha256: 417a34747b2f0bfb828134a7324acd9506b35d598435913392770f20dc1b59c8
+    commit: 4249f5a6ecb2b03dce78118dc522412c0b545fc9
   original:
-    hackage: generics-mrsop-gdiff-0.0.1
+    git: git@github.com:arianvp/generics-mrsop-gdiff.git
+    commit: 4249f5a6ecb2b03dce78118dc522412c0b545fc9
 - completed:
     hackage: language-lua-0.11.0.1@sha256:b3bdf864965279f830323d5ed7d38073b2687b3a07b7fa73aa13782560f48f89,2919
     pantry-tree:
@@ -32,20 +46,6 @@ packages:
       sha256: 3d2950b44d00c10819efdf3576a14768e3433641f3cc7414cc589552432adb23
   original:
     hackage: alex-tools-0.4
-- completed:
-    cabal-file:
-      size: 772
-      sha256: eb2d8a7d4c08a9e54f37169c960b7d9bbdec68e6d50db42ed0cc6e4c18393a61
-    name: hs-elisp
-    version: 0.0.0
-    git: git@github.com:VictorCMiraldo/hs-elisp.git
-    pantry-tree:
-      size: 1898
-      sha256: 0b90272dcabdbb28e0033a87773f07e6fe3be11b242b3711dd85086b42dadf74
-    commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
-  original:
-    git: git@github.com:VictorCMiraldo/hs-elisp.git
-    commit: 2aa7dbe8786a150d3bc611b86a56cdc8a16b8aa7
 snapshots:
 - completed:
     size: 523448

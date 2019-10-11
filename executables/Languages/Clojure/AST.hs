@@ -67,9 +67,14 @@ instance Digestible Text where
 instance DigestibleHO CljSingl where
   digestHO (SCljText text) = digest text
   
-
 deriving instance Show (CljSingl k)
 deriving instance Eq (CljSingl k)
+
+instance EqHO CljSingl where
+  eqHO = (==)
+
+instance ShowHO CljSingl where
+  showHO = show
 
 instance TestEquality CljSingl where
   testEquality (SCljText _) (SCljText _) = Just Refl
