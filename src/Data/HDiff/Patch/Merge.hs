@@ -147,7 +147,8 @@ arityMap = go . holesGetHolesAnnWith' metavarGet
 -- need to adapt @sp@ to @sq@. After we are done, we know whether
 -- we need to adapt @sp@, return @sp@ as is, or there is a conflict.
 --
-process :: (Applicable ki codes (Holes2 ki codes) , EqHO ki , ShowHO ki)
+process :: ( HasDatatypeInfo ki fam codes
+           , Applicable ki codes (Holes2 ki codes) , EqHO ki , ShowHO ki)
         => HolesHoles2 ki codes at -> HolesHoles2 ki codes at
         -> ProcessOutcome ki codes
 process sp sq =
@@ -200,15 +201,16 @@ process sp sq =
     -- |Step2 checks a condition for the own-variable mappints
     -- of the anti-unification of p and q! note this is different
     -- altogether from step 1!!!
-    step2 :: (Applicable ki codes (Holes2 ki codes) , EqHO ki , ShowHO ki)
+    step2 :: ( HasDatatypeInfo ki fam codes
+             , Applicable ki codes (Holes2 ki codes) , EqHO ki , ShowHO ki)
           => HolesHoles2 ki codes at -> HolesHoles2 ki codes at
           -> ExceptT String (State (Subst ki codes (Holes2 ki codes))) ()
     step2 pp qq = do
       s <- lift get
       let del = scDel qq
       case thinUTx2 (utx2distr pp) del of
-        Left e    -> throwError ("th: " ++ show e)
-        Right pp0 -> do
+        Left e          -> throwError ("th: " ++ show e)
+        Right (pp0 , _) -> do
           let pp' = uncurry' holesLCP pp0
           case runExcept (pmatch' s del pp') of
             Left  e  -> throwError (show e)

@@ -35,14 +35,15 @@ type ThinningErr ki codes = ApplicationErr ki codes (MetaVarIK ki)
 lift' :: (Monad m) => m a -> StateT (Subst ki codes (MetaVarIK ki)) m a
 lift' = lift
 
-thin :: (ShowHO ki , TestEquality ki, EqHO ki)
+thin :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
      => CChange ki codes at
      -> Domain  ki codes at
      -> Either (ApplicationErr ki codes (MetaVarIK ki))
                (CChange ki codes at)
-thin chg dom = uncurry' cmatch <$> thinUTx2 (cCtxDel chg :*: cCtxIns chg) dom
+thin chg dom = (uncurry' cmatch . fst) <$> thinUTx2 (cCtxDel chg :*: cCtxIns chg) dom
 
 
+{-
 tr :: (ShowHO ki , TestEquality ki, EqHO ki)
    => CChange ki codes at
    -> CChange ki codes at
@@ -53,49 +54,25 @@ tr (CMatch _ dp ip) q = do
   let xd = holesJoin $ holesMap fst' xx
   let xi = holesJoin $ holesMap snd' xx
   return $ CMatch S.empty xd xi
-{-
-  sigmaD <- pmatch qd pd
-  sigmaI <- pmatch qd pi
-  resD   <- transport qi sigmaD
-  resI   <- transport qi sigmaI
-  return (cmatch resD resI)
 -}
 
-thinUTx2 :: (ShowHO ki , TestEquality ki, EqHO ki)
+thinUTx2 :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
          => Holes2 ki codes at
          -> Domain ki codes at
          -> Either (ApplicationErr ki codes (MetaVarIK ki))
-                   (Holes2 ki codes at)
+                   (Holes2 ki codes at , Subst ki codes (MetaVarIK ki))
 thinUTx2 (del :*: ins) dom = runExcept $ do
   sigma  <- flip execStateT M.empty $ utxThin del dom
   sigma' <- minimize sigma
   del'   <- refine del sigma'
   ins'   <- refine ins sigma'
-  return $ del' :*: ins'
+  return $ (del' :*: ins' , sigma')
 
-thin' :: (ShowHO ki , TestEquality ki, EqHO ki)
-     => Holes2 ki codes at
-     -> Holes2 ki codes at
-     -> Either (ApplicationErr ki codes (MetaVarIK ki))
-               (Holes2 ki codes at)
-thin' (delP :*: insP) (delQ :*: insQ) = runExcept $ do
-  sigma  <- flip execStateT M.empty $ utxThin delP delQ
-  sigma' <- minimize sigma
-  del    <- refine delP sigma'
-  insP'  <- refine insP sigma'
-  insQ'  <- refine insQ sigma'
-  qi     <- trace "b" $ (pmatch del insQ' >>= transport insP')
-  return $ insP' :*: qi
-
-
-
-
-
--- |The @thin' p q@ function is where work where we produce the
+-- |The @utxThin p q@ function is where we produce the
 --  map that will be applied to 'p' in order to thin it.
 --  This function does /NOT/ minimize this map.
 -- 
-utxThin :: (ShowHO ki , TestEquality ki, EqHO ki)
+utxThin :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
         => Holes ki codes (MetaVarIK ki) at
         -> Domain ki codes at
         -> StateT (Subst ki codes (MetaVarIK ki))
@@ -103,7 +80,7 @@ utxThin :: (ShowHO ki , TestEquality ki, EqHO ki)
                   ()
 utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
   where
-    go :: (ShowHO ki , TestEquality ki, EqHO ki)
+    go :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
        => Holes ki codes (MetaVarIK ki) at
        -> Domain ki codes at
        -> StateT (Subst ki codes (MetaVarIK ki))
@@ -117,13 +94,13 @@ utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
     -- Whenever we see a variable being matched against a term
     -- we record the equivalence. First we make sure we did not
     -- record such equivalence yet, otherwise, we recursively thin
-    record_eq :: (ShowHO ki , TestEquality ki, EqHO ki)
+    record_eq :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
               => MetaVarIK ki at
               -> Holes ki codes (MetaVarIK ki) at
               -> StateT (Subst ki codes (MetaVarIK ki))
                         (Except (ThinningErr ki codes))
                         ()
-    record_eq var q = do
+    record_eq var q = trace (show (metavarGet var) ++ " = " ++ show q) $ do
       sigma <- get
       mterm <- lift (lookupVar var sigma)
       case mterm of

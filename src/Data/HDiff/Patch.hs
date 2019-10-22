@@ -6,11 +6,8 @@
 module Data.HDiff.Patch where
 
 import           Control.Monad.State
-import           Control.Monad.Except
 import           Data.Type.Equality
 import qualified Data.Set as S
-import qualified Data.Map as M
-import           Data.Functor.Const
 ------------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -122,6 +119,13 @@ apply patch x0
     unNA_I :: NA f g ('I i) -> g i
     unNA_I (NA_I x) = x
 
+
+
+
+
+-- TODO: old cold code
+
+{-
 -- ** Specializing a Patch
 
 -- |The predicate @composes qr pq@ checks whether @qr@ is immediatly applicable
@@ -200,3 +204,5 @@ substInsert' _ s var new = case M.lookup (metavarGet var) s of
     go (Hole _ _) r = Just r
     go l (Hole _ _) = Just l
     go _ _           = Nothing
+
+-}

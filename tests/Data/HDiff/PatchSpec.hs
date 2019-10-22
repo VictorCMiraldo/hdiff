@@ -15,13 +15,15 @@ import Data.Exists
 import Data.HDiff.Patch
 import Data.HDiff.Diff
 import Data.HDiff.Patch.Show
+import Data.HDiff.Patch.Compose
 import Data.HDiff.MetaVar
 import Data.HDiff.Change
+import Data.HDiff.Change.Compose
 import Languages.RTree
 import Languages.RTree.Diff
 
 import Test.QuickCheck
-import Test.Hspec
+import Test.Hspec hiding (after)
 
 ----------------------------------------------
 
@@ -38,6 +40,14 @@ composes_correct = forAll (choose (0 , 4) >>= genSimilarTreesN 3)
       bc = hdiffRTree b c
    in composes bc ab
 
+a = "i" :>: []
+b = "l" :>: ["i" :>: [],"c" :>: [],"l" :>: []]
+c = "b" :>: ["g" :>: [],"c" :>: [],"g" :>: [],"f" :>: []]
+
+ab = distrCChange $ hdiffRTree a b
+bc = distrCChange $ hdiffRTree b c
+
+
 {-
   NOT TRUE!!!!
 
@@ -53,6 +63,6 @@ composes_non_reflexive = forAll (genSimilarTrees' `suchThat` uncurry (/=))
 spec :: Spec
 spec = do
   describe "composes" $ do
-    it "has copy as left and right id" $ property copy_composes
+    -- it "has copy as left and right id" $ property copy_composes
     it "is correct"                    $ property composes_correct
 
