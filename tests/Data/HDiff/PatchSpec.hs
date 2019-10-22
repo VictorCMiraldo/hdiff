@@ -41,8 +41,8 @@ composes_correct = forAll (choose (0 , 4) >>= genSimilarTreesN 3)
    in composes bc ab
 
 a = "i" :>: []
-b = "l" :>: ["i" :>: [],"c" :>: [],"l" :>: []]
-c = "b" :>: ["g" :>: [],"c" :>: [],"g" :>: [],"f" :>: []]
+b = "l" :>: ["i" :>: [],"c" :>: []]
+c = "b" :>: ["c" :>: [],"f" :>: []]
 
 ab = distrCChange $ hdiffRTree a b
 bc = distrCChange $ hdiffRTree b c
