@@ -208,7 +208,7 @@ process sp sq =
     step2 pp qq = do
       s <- lift get
       let del = scDel qq
-      case thinUTx2 (utx2distr pp) del of
+      case thinHoles2 (utx2distr pp) del of
         Left e          -> throwError ("th: " ++ show e)
         Right (pp0 , _) -> do
           let pp' = uncurry' holesLCP pp0

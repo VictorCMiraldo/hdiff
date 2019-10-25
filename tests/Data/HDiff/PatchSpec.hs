@@ -27,25 +27,32 @@ import Test.Hspec hiding (after)
 
 ----------------------------------------------
 
-copy_composes :: Property
-copy_composes = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = hdiffRTree t1 t2
+copy_composes :: DiffMode -> Property
+copy_composes mode = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = hdiffRTreeHM mode 1 t1 t2
          cpy   = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
       in composes patch cpy .&&. composes cpy patch
 
-composes_correct :: Property
-composes_correct = forAll (choose (0 , 4) >>= genSimilarTreesN 3)
+composes_correct :: DiffMode -> Property
+composes_correct mode = forAll (choose (0 , 4) >>= genSimilarTreesN 3)
   $ \[a , b , c] ->
-  let ab = hdiffRTree a b
-      bc = hdiffRTree b c
-   in composes bc ab
+  let ab = hdiffRTreeHM mode 1 a b
+      bc = hdiffRTreeHM mode 1 b c
+   in case bc .! ab of
+        Left err -> counterexample ("Not composable: " ++ show err) False
+        Right ac -> applyRTree ac a === Right c
 
-a = "i" :>: []
-b = "l" :>: ["i" :>: [],"c" :>: []]
-c = "b" :>: ["c" :>: [],"f" :>: []]
-
-ab = distrCChange $ hdiffRTree a b
-bc = distrCChange $ hdiffRTree b c
+composes_assoc :: DiffMode -> Property
+composes_assoc mode = forAll (choose (0 , 4) >>= genSimilarTreesN 4)
+  $ \[a , b , c , d] ->
+  let ab = hdiffRTreeHM mode 1 a b
+      bc = hdiffRTreeHM mode 1 b c
+      cd = hdiffRTreeHM mode 1 c d
+   in case (,) <$> (bc .! ab >>= (cd .!))
+               <*> (cd .! bc >>= (.! ab))
+          of
+        Left err          -> counterexample ("Not composable: " ++ show err) False
+        Right (ad0 , ad1) -> property $ patchEq ad0 ad1
 
 
 {-
@@ -59,10 +66,15 @@ composes_non_reflexive = forAll (genSimilarTrees' `suchThat` uncurry (/=))
   -> let patch = hdiffRTree t1 t2
       in composes patch patch === False
 -}
+           
+diffModeSpec :: DiffMode -> Spec
+diffModeSpec mode = do
+  describe "composes" $ do
+    it "has copy as left and right id" $ property (copy_composes mode)
+    it "is correct"                    $ property (composes_correct mode)
+    it "is associative"                $ property (composes_assoc mode)
 
 spec :: Spec
 spec = do
-  describe "composes" $ do
-    -- it "has copy as left and right id" $ property copy_composes
-    it "is correct"                    $ property composes_correct
-
+ flip mapM_ (enumFrom (toEnum 0)) $ \m ->
+   describe ("Extraction (" ++ show m ++ ")") $ diffModeSpec m

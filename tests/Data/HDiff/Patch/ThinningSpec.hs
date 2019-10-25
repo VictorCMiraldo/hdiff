@@ -4,19 +4,14 @@
 {-# LANGUAGE GADTs            #-}
 module Data.HDiff.Patch.ThinningSpec (spec) where
 
-import qualified Data.Set as S
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 
 import Data.Functor.Const
-import Data.Exists
 import Data.HDiff.Patch
 import Data.HDiff.Diff
-import Data.HDiff.Patch.Show
 import Data.HDiff.Patch.Thinning as PT
-import qualified Data.HDiff.Change.Thinning as CT
 import Data.HDiff.MetaVar
 import Data.HDiff.Change
 import Languages.RTree
@@ -38,7 +33,7 @@ context_alpha_eq x y = aux
     aux :: Bool
     aux = (`runCont` id) $
         callCC $ \exit -> flip evalStateT M.empty $ do
-          holesMapM (uncurry' (check (cast exit $ False))) (holesLCP x y)
+          _ <- holesMapM (uncurry' (check (cast exit $ False))) (holesLCP x y)
           return True
 
     cast :: (Bool -> Cont Bool b)
@@ -89,8 +84,19 @@ thin_pp_is_p mode = forAll genSimilarTrees' $ \(a , b)
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right ab' -> property $ patchEq ab ab'
                
-
 -------------------------------
+
+spec :: Spec
+spec = do
+  flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
+    describe ("thin (" ++ show m ++ ")") $ do
+      it "is always possible for spans" $ property (thin_respect_spans m)
+      it "is symmetric w.r.t. domains"  $ property (thin_domain_eq m)
+      it "respects: thin p p == p"      $ property (thin_pp_is_p m)
+
+
+
+{-
 
 lf :: String -> RTree
 lf x = x :>: []
@@ -148,12 +154,8 @@ cb = domain $ distrCChange cob4
 
 ok = context_alpha_eq ca cb
 
-spec :: Spec
-spec = do
-  flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
-    describe ("thin (" ++ show m ++ ")") $ do
-      it "is always possible for spans" $ property (thin_respect_spans m)
-      it "is symmetric w.r.t. domains"  $ property (thin_domain_eq m)
-      it "respects: thin p p == p"      $ property (thin_pp_is_p m)
+-}
+
+
 
 

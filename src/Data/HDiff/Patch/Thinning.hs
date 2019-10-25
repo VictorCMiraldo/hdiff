@@ -21,7 +21,7 @@ import           Data.HDiff.Change
 import qualified Data.HDiff.Change.Thinning as CT
 
 thin :: forall ki codes at
-      . (ShowHO ki , TestEquality ki, EqHO ki)
+      . (TestEquality ki, EqHO ki)
      => RawPatch ki codes at
      -> RawPatch ki codes at
      -> Either (CT.ThinningErr ki codes) (RawPatch ki codes at)
@@ -33,7 +33,7 @@ thin p q = holesMapM (uncurry' go) $ holesLCP p (q `withFreshNamesFrom` p)
                    cq' = distrCChange cq 
                 in CT.thin cp' (domain cq')
 
-unsafeThin :: (ShowHO ki , TestEquality ki, EqHO ki)
+unsafeThin :: (TestEquality ki, EqHO ki)
            => RawPatch ki codes at
            -> RawPatch ki codes at
            -> RawPatch ki codes at

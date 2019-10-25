@@ -13,7 +13,6 @@ module Data.HDiff.Change.Thinning where
 
 import           Data.Type.Equality
 import qualified Data.Map as M
-import qualified Data.Set as S
 import           Control.Monad.Writer
 import           Control.Monad.Except
 import           Control.Monad.State
@@ -27,60 +26,59 @@ import Data.HDiff.MetaVar
 import Data.HDiff.Change
 import Data.HDiff.Change.Apply
 
-import Debug.Trace
-
 type ThinningErr ki codes = ApplicationErr ki codes (MetaVarIK ki)
 
--- Haskell tends to want a type-signature for some non-trivial lifts. 
-lift' :: (Monad m) => m a -> StateT (Subst ki codes (MetaVarIK ki)) m a
-lift' = lift
-
-thin :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
+-- |Thinning a change with respect to a domain is the process of restricting
+-- said change to elements of said domain. For example,
+--
+-- > thin (bin 0 K |-> 0) (bin (bin T 4) 5) = bin (bin T 4) K |-> bin T 4
+--
+-- PRECONDITION: The change and domain have a different set of names.
+--               This function will loop if some variable occurs both in the
+--               change and domain passed as arguments.
+thin :: (TestEquality ki, EqHO ki)
      => CChange ki codes at
      -> Domain  ki codes at
-     -> Either (ApplicationErr ki codes (MetaVarIK ki))
-               (CChange ki codes at)
-thin chg dom = (uncurry' cmatch . fst) <$> thinUTx2 (cCtxDel chg :*: cCtxIns chg) dom
+     -> Either (ThinningErr ki codes) (CChange ki codes at)
+thin chg dom = (uncurry' cmatch . fst) <$> thinHoles2 (cCtxDel chg :*: cCtxIns chg) dom
 
-
-{-
-tr :: (ShowHO ki , TestEquality ki, EqHO ki)
-   => CChange ki codes at
-   -> CChange ki codes at
-   -> Either (ApplicationErr ki codes (Holes2 ki codes))
-             (CChange ki codes at)
-tr (CMatch _ dp ip) q = do
-  xx <- genericApply q (holesLCP dp ip)
-  let xd = holesJoin $ holesMap fst' xx
-  let xi = holesJoin $ holesMap snd' xx
-  return $ CMatch S.empty xd xi
--}
-
-thinUTx2 :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
-         => Holes2 ki codes at
-         -> Domain ki codes at
-         -> Either (ApplicationErr ki codes (MetaVarIK ki))
-                   (Holes2 ki codes at , Subst ki codes (MetaVarIK ki))
-thinUTx2 (del :*: ins) dom = runExcept $ do
-  sigma  <- flip execStateT M.empty $ utxThin del dom
+-- |Unwrapped vesion of 'thin'; We also return the subsitution used. An example of
+-- where this is needed is patch composition.
+-- 
+thinHoles2 :: (TestEquality ki, EqHO ki)
+           => Holes2 ki codes at
+           -> Domain ki codes at
+           -> Either (ThinningErr ki codes)
+                     (Holes2 ki codes at , Subst ki codes (MetaVarIK ki))
+thinHoles2 (del :*: ins) dom = runExcept $ do
+  -- The thinning process is twofold; first we look solely at the deletion
+  -- context over the domain we are thinning against and register the equalities
+  -- we see.
+  sigma  <- flip execStateT M.empty $ thinGetEquivs del dom
   sigma' <- minimize sigma
   del'   <- refine del sigma'
   ins'   <- refine ins sigma'
   return $ (del' :*: ins' , sigma')
 
--- |The @utxThin p q@ function is where we produce the
---  map that will be applied to 'p' in order to thin it.
---  This function does /NOT/ minimize this map.
--- 
-utxThin :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
+-- |The @thinGetEquivs del dom@ function computes the equivalences between
+-- the variables in @del@ and terms in @dom@ and vice versa.
+--
+-- We first anti-unify @del@ and @dom@ and map over the variable-mapping
+-- that is returned by it. In our lingo, this is @holesMap f $ holesLCP del dom@.
+-- If we see an anti-unification variable clause in the forms @(Hole x , p)@
+-- or @(p , Hole x)@; we register @x = p@.
+--
+-- When registering @x = p@, however, we must check whether this was the first time we
+-- really saw @x@.
+thinGetEquivs :: (TestEquality ki, EqHO ki)
         => Holes ki codes (MetaVarIK ki) at
         -> Domain ki codes at
         -> StateT (Subst ki codes (MetaVarIK ki))
                   (Except (ThinningErr ki codes))
                   ()
-utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
+thinGetEquivs p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
   where
-    go :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
+    go :: (TestEquality ki, EqHO ki)
        => Holes ki codes (MetaVarIK ki) at
        -> Domain ki codes at
        -> StateT (Subst ki codes (MetaVarIK ki))
@@ -94,13 +92,13 @@ utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
     -- Whenever we see a variable being matched against a term
     -- we record the equivalence. First we make sure we did not
     -- record such equivalence yet, otherwise, we recursively thin
-    record_eq :: (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
+    record_eq :: (TestEquality ki, EqHO ki)
               => MetaVarIK ki at
               -> Holes ki codes (MetaVarIK ki) at
               -> StateT (Subst ki codes (MetaVarIK ki))
                         (Except (ThinningErr ki codes))
                         ()
-    record_eq var q = trace (show (metavarGet var) ++ " = " ++ show q) $ do
+    record_eq var q = do
       sigma <- get
       mterm <- lift (lookupVar var sigma)
       case mterm of
@@ -111,7 +109,7 @@ utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
         -- that 'var' was supposed to be p'. We will check whether it
         -- is the same as q, if not, we will have to thin p' with q.
         Just q' -> unless (eqHO q' q)
-                 $ void $ utxThin q' q
+                 $ void $ thinGetEquivs q' q
           
 
 
@@ -122,10 +120,10 @@ utxThin p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
 --  >           [ (0 , bin 1 2)
 --  >           , (1 , bin 4 4) ]
 --
--- Then, @minimize sigma@ will return @fromList [(0 , bin (bin 4 4) 2)]@
+-- Then, @minimize sigma@ will return @fromList [(0 , bin (bin 4 4) 2) , (1 , bin 4 4)]@
 --
 minimize :: forall ki codes
-          . (ShowHO ki, EqHO ki , TestEquality ki)
+          . (EqHO ki , TestEquality ki)
          => Subst ki codes (MetaVarIK ki)
          -> Except (ThinningErr ki codes) (Subst ki codes (MetaVarIK ki))
 minimize sigma = whileM sigma [] $ \s _
@@ -136,9 +134,9 @@ minimize sigma = whileM sigma [] $ \s _
 
     -- The actual engine of the 'minimize' function is thinning the
     -- variables that appear in the image of the substitution under production.
-    -- We use the writer monad to inform us wich variables have been fully
-    -- eliminated. Once this process returns no eliminated variables,
-    -- we are done.
+    -- We use the writer monad solely to let us know whether some variables have
+    -- been substituted in this current term. After one iteration
+    -- of the map where no variable is further refined, we are done.
     go :: Holes ki codes (MetaVarIK ki) at
        -> WriterT [Int] (Except (ThinningErr ki codes))
                                 (Holes ki codes (MetaVarIK ki) at)
@@ -159,7 +157,7 @@ minimize sigma = whileM sigma [] $ \s _
 
 -- |This is similar to 'transport', but does not throw errors
 -- on undefined variables.
-refine :: (ShowHO ki , TestEquality ki , EqHO ki)
+refine :: (TestEquality ki , EqHO ki)
        => Holes ki codes (MetaVarIK ki) ix
        -> Subst ki codes (MetaVarIK ki)
        -> Except (ThinningErr ki codes) (Holes ki codes (MetaVarIK ki) ix)
