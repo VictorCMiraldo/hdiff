@@ -10,6 +10,7 @@ import Data.HDiff.Patch
 import Data.HDiff.Diff
 import Data.HDiff.Patch.Merge
 import Data.HDiff.Change
+import Data.HDiff.Change.Merge
 import Data.HDiff.Change.Thinning
 import Data.HDiff.Change.Apply
 import Languages.RTree
@@ -286,6 +287,13 @@ a20 , o20 , b20 :: RTree
 a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
 o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
+
+mytest a o b =
+  let oa = distrCChange $ hdiffRTree o a
+      ob = distrCChange $ hdiffRTree o b
+   in case go oa ob of
+        Left _ -> error "wow"
+        Right _ -> True
 
 {-
 cc :: RTree -> RTree -> RTree -> Bool
