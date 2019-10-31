@@ -212,7 +212,7 @@ process sp sq =
         Left e          -> throwError ("th: " ++ show e)
         Right (pp0 , _) -> do
           let pp' = uncurry' holesLCP pp0
-          case runExcept (pmatch' s del pp') of
+          case runExcept (pmatch' s (\_ _ _ -> Nothing) del pp') of
             Left  e  -> throwError (show e)
             Right s' -> put s' >> return ()
 

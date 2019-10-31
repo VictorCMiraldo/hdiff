@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -10,6 +11,7 @@ module Data.HDiff.Change.Merge where
 
 import           Control.Monad.Cont
 import           Control.Monad.State
+import           Control.Monad.Except
 import           Data.Functor.Sum
 import           Data.Functor.Const
 import qualified Data.Map as M
@@ -22,6 +24,7 @@ import           Generics.MRSOP.Base
 import           Data.Exists
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Change
+import           Data.HDiff.Change.Apply
 import           Data.HDiff.Patch.Show
 import           Generics.MRSOP.Holes
 import           Generics.MRSOP.HDiff.Holes
@@ -176,6 +179,16 @@ registerL
 
 
 -}
+
+-- This won't work; should be a two phse process. First we go around
+-- matching the deletion contexts against everything, then we come back around
+-- and substitute on the insertion contexts!!!
+
+myapply :: (Applicable ki codes (MetaVarIK ki) , EqHO ki)
+        => Holes2 ki codes at
+        -> HolesHoles2 ki codes at
+        -> Either (ApplicationErr ki codes (MetaVarIK ki)) (Holes ki codes (MetaVarIK ki) at)
+myapply (d :*: i) x = runExcept (pmatch' M.empty _ d x >>= transport i)
 
 registerLR :: (C ki fam codes at)
            => Holes2 ki codes at

@@ -103,23 +103,32 @@ pmatch :: (Applicable ki codes phi , EqHO phi , EqHO ki)
        => Holes ki codes (MetaVarIK ki) ix
        -> Holes ki codes phi ix
        -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
-pmatch pat = pmatch' M.empty pat
+pmatch pat = pmatch' M.empty (\_ _ _ -> Nothing) pat
 
+-- |A more general version of pattern matching which enables finer control.
+-- Here we thread a substitution through the function and only throw
+-- 'IncompatibleHole' when a given condition is met.
 pmatch' :: (Applicable ki codes phi , EqHO phi , EqHO ki)
    => Subst ki codes phi
+   -> (forall iy . Holes ki codes (MetaVarIK ki) iy
+                -> phi iy
+                -> Subst ki codes phi
+                -> Maybe (Subst ki codes phi)) -- ^ When this returns @Nothing@ a call to
+                                               --   'pmatch'' will fail with 'IncompatibleHole
    -> Holes ki codes (MetaVarIK ki) ix
    -> Holes ki codes phi ix
    -> Except (ApplicationErr ki codes phi) (Subst ki codes phi)
-pmatch' s (Hole _ var) x  = substInsert s var x
-pmatch' _ pa (Hole _ var) = throwError (IncompatibleHole pa var)
-pmatch' s (HOpq _ oa) (HOpq _ ox)
+pmatch' s _ (Hole _ var) x  = substInsert s var x
+pmatch' s c pa (Hole _ var)
+  = maybe (throwError $ IncompatibleHole pa var) return $ c pa var s
+pmatch' s _ (HOpq _ oa) (HOpq _ ox)
   | eqHO oa ox  = return s
   | otherwise = throwError (IncompatibleOpqs oa ox)
-pmatch' s pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
+pmatch' s c pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
   case testEquality ca cx of
     Nothing   -> throwError (IncompatibleTerms pa x)
     Just Refl -> getConst <$>
-      cataNPM (\y (Const val) -> fmap Const (uncurry' (pmatch' val) y))
+      cataNPM (\y (Const val) -> fmap Const (uncurry' (pmatch' val c) y))
               (return $ Const s)
               (zipNP ppa px)
 
