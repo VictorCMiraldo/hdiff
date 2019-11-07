@@ -47,16 +47,22 @@ go :: (C ki fam codes at)
 go    p q = let p0 = holesLCP (cCtxDel p) (cCtxIns p)
                 q0 = holesLCP (cCtxDel q) (cCtxIns q)
              in case evalStateT (holesMapM (uncurry' decide) (holesLCP p0 q0))
-                       M.empty of
+                       mergeStateEmpty of
                   Nothing -> Left $ Conflict p q
                   Just r  -> Right $ r
 
-type MyState = M.Map Int Int
+mergeStateEmpty :: MergeState ki codes
+mergeStateEmpty = MergeState M.empty
 
+data MergeState ki codes = MergeState
+  { subst :: Subst ki codes (MetaVarIK ki) }
+
+type MergeM ki codes = StateT (MergeState ki codes) Maybe
+  
 decide :: (C ki fam codes at)
        => HolesHoles2 ki codes at
        -> HolesHoles2 ki codes at
-       -> StateT MyState Maybe (Holes2 ki codes at)
+       -> MergeM ki codes (Holes2 ki codes at)
 decide (Hole' p) (Hole' q) = registerLR p q
 decide (Hole' p)  cq       = registerL p cq
 decide cp        (Hole' q) = registerR cp q
@@ -183,17 +189,19 @@ registerL
 -- This won't work; should be a two phse process. First we go around
 -- matching the deletion contexts against everything, then we come back around
 -- and substitute on the insertion contexts!!!
+{-
 
 myapply :: (Applicable ki codes (MetaVarIK ki) , EqHO ki)
         => Holes2 ki codes at
         -> HolesHoles2 ki codes at
         -> Either (ApplicationErr ki codes (MetaVarIK ki)) (Holes ki codes (MetaVarIK ki) at)
 myapply (d :*: i) x = runExcept (pmatch' M.empty _ d x >>= transport i)
+-}
 
 registerLR :: (C ki fam codes at)
            => Holes2 ki codes at
            -> Holes2 ki codes at
-           -> StateT MyState Maybe (Holes2 ki codes at)
+           -> MergeM ki codes (Holes2 ki codes at)
 registerLR p q = trace dbg (return p)
   where
     dbg = unlines ["registerLR"
@@ -206,7 +214,7 @@ registerLR p q = trace dbg (return p)
 registerR :: (C ki fam codes at)
           => HolesHoles2 ki codes at
           -> Holes2 ki codes at
-          -> StateT MyState Maybe (Holes2 ki codes at)
+          -> MergeM ki codes (Holes2 ki codes at)
 registerR p q = trace dbg (return q)
   where
     dbg = unlines ["registerR"
@@ -219,7 +227,7 @@ registerR p q = trace dbg (return q)
 registerL :: (C ki fam codes at)
           => Holes2 ki codes at
           -> HolesHoles2 ki codes at
-          -> StateT MyState Maybe (Holes2 ki codes at)
+          -> MergeM ki codes (Holes2 ki codes at)
 registerL p q = trace dbg (return p)
   where
     dbg = unlines ["registerL"
