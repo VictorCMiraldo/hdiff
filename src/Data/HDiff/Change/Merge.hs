@@ -38,7 +38,10 @@ data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
            -> Conflict ki codes at
 
 type C ki fam codes at = (ShowHO ki , HasDatatypeInfo ki fam codes
-                         , RendererHO ki , EqHO ki)
+                         , RendererHO ki , EqHO ki , TestEquality ki)
+
+isSimpleCpy (Hole' x :*: Hole' y) = metavarGet x == metavarGet y
+isSimpleCpy _                     = False
 
 go :: (C ki fam codes at)
       => CChange ki codes at
@@ -46,27 +49,135 @@ go :: (C ki fam codes at)
       -> Either (Conflict ki codes at) (HolesHoles2 ki codes at)
 go    p q = let p0 = holesLCP (cCtxDel p) (cCtxIns p)
                 q0 = holesLCP (cCtxDel q) (cCtxIns q)
-             in case evalStateT (holesMapM (uncurry' decide) (holesLCP p0 q0))
-                       mergeStateEmpty of
+             in case evalStateT (func p0 q0) mergeStateEmpty of
                   Nothing -> Left $ Conflict p q
                   Just r  -> Right $ r
+  where
+    func :: (C ki fam codes at)
+         => HolesHoles2 ki codes at 
+         -> HolesHoles2 ki codes at 
+         -> MergeM ki codes (HolesHoles2 ki codes at)
+    func p0 q0 = do
+       let pq0 = holesLCP p0 q0
+       mapM_ (exElim (uncurry' instantiate)) (holesGetHolesAnnWith' Exists pq0)
+       sigma <- gets subst
+       trace (unlines . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s) ++ "\n  ; " ++ show (scIns s) ) $ M.toList sigma) $ return p0
+       holesMapM (uncurry' decide) pq0
+       
+
 
 mergeStateEmpty :: MergeState ki codes
 mergeStateEmpty = MergeState M.empty
 
 data MergeState ki codes = MergeState
-  { subst :: Subst ki codes (MetaVarIK ki) }
+  { subst :: Subst ki codes (Holes2 ki codes) 
+  } 
+
+setSubst s ms = ms { subst = s }
 
 type MergeM ki codes = StateT (MergeState ki codes) Maybe
   
+instantiate :: (C ki fam codes at)
+            => HolesHoles2 ki codes at
+            -> HolesHoles2 ki codes at
+            -> MergeM ki codes ()
+instantiate (Hole' p) (Hole' q) = register2 p q
+instantiate (Hole' p)  cq       = register1 "L" p cq
+instantiate cp        (Hole' q) = register1 "R" q cp
+instantiate cp         cq       = lift Nothing
+
+register2 :: (C ki fam codes at)
+           => Holes2 ki codes at
+           -> Holes2 ki codes at
+           -> MergeM ki codes ()
+register2 p q = do
+  let scp = isSimpleCpy p
+      scq = isSimpleCpy q
+  when scp $ register1 "L'" p (Hole' q)
+  when scq $ register1 "R'" q (Hole' p)
+  -- needs an equality test
+  when (not (scp || scq)) $ lift Nothing
+
+register1 :: (C ki fam codes at)
+          => String
+          -> Holes2 ki codes at
+          -> HolesHoles2 ki codes at
+          -> MergeM ki codes ()
+register1 side p q = do
+  sigma <- gets subst
+  case runExcept (pmatch' sigma act (fst' p) q) of
+    Left err     -> trace (dbg $ show err) (lift Nothing)
+    Right sigma' -> trace (dbg "") $ modify (setSubst sigma')
+ where
+    act :: (C ki fam codes at)
+        => Holes ki codes (MetaVarIK ki) iy
+        -> Holes2 ki codes iy
+        -> Subst ki codes (Holes2 ki codes)
+        -> Maybe (Subst ki codes (Holes2 ki codes))
+    act v phi sigma = 
+      -- here we must check that phi was a copy
+                  flip trace (Just sigma) $ unlines [ "act" ++ side
+                                                    , "  v   = " ++ show v
+                                                    , "  phi = " ++ show (fst' phi)
+                                                    , "      ; " ++ show (snd' phi)
+                                                    ]
+   
+    dbg e = unlines ["register" ++ side ++ "[ " ++ e ++ "]"
+                    ,"  p = " ++ show (fst' p)
+                    ,"    ; " ++ show (snd' p)
+                    ,"  q = " ++ show (scDel q)
+                    ,"    ; " ++ show (scIns q)
+                    ]
+
+
 decide :: (C ki fam codes at)
-       => HolesHoles2 ki codes at
-       -> HolesHoles2 ki codes at
-       -> MergeM ki codes (Holes2 ki codes at)
-decide (Hole' p) (Hole' q) = registerLR p q
-decide (Hole' p)  cq       = registerL p cq
-decide cp        (Hole' q) = registerR cp q
+        => HolesHoles2 ki codes at
+        -> HolesHoles2 ki codes at
+        -> MergeM ki codes (Holes2 ki codes at)
+decide (Hole' p) (Hole' q) = inst2 p q
+decide (Hole' p)  cq       = inst1 p cq
+decide cp        (Hole' q) = inst1 q cp
 decide cp         cq       = lift Nothing
+
+inst1 :: (C ki fam codes at)
+      => Holes2 ki codes at
+      -> HolesHoles2 ki codes at
+      -> MergeM ki codes (Holes2 ki codes at)
+inst1 p q = do
+  sigma <- gets subst
+  case runExcept $ transport (snd' p) sigma of
+    Left err -> lift Nothing
+    Right r  -> do
+      p' <- holesRefineAnnM (\_ -> needRefine sigma) (\_ -> return . HOpq') (fst' p)
+      return (p' :*: scIns r)
+ where
+   needRefine :: (C ki fam codes at)
+              => Subst ki codes (Holes2 ki codes)
+              -> MetaVarIK ki at
+              -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
+   needRefine m v = case runExcept (lookupVar v m) of
+     Left err -> trace "very bad!" (lift Nothing)
+     Right Nothing -> return (Hole' v)
+     Right (Just r) 
+       | isSimpleCpy (scDel r :*: scIns r) -> return $ Hole' v
+       | otherwise                         -> return $ scDel r
+
+inst2 :: (C ki fam codes at)
+      => Holes2 ki codes at
+      -> Holes2 ki codes at
+      -> MergeM ki codes (Holes2 ki codes at)
+inst2 p q = do
+  let scp = isSimpleCpy p
+  if scp
+  then return q
+  else return p
+ where
+
+
+
+
+
+
 
 
 {- Examples from MergeSpec.hs
@@ -198,41 +309,6 @@ myapply :: (Applicable ki codes (MetaVarIK ki) , EqHO ki)
 myapply (d :*: i) x = runExcept (pmatch' M.empty _ d x >>= transport i)
 -}
 
-registerLR :: (C ki fam codes at)
-           => Holes2 ki codes at
-           -> Holes2 ki codes at
-           -> MergeM ki codes (Holes2 ki codes at)
-registerLR p q = trace dbg (return p)
-  where
-    dbg = unlines ["registerLR"
-                  ,"  p = " ++ show (fst' p)
-                  ,"    ; " ++ show (snd' p)
-                  ,"  q = " ++ show (fst' q)
-                  ,"    ; " ++ show (snd' q)
-                  ]
-
-registerR :: (C ki fam codes at)
-          => HolesHoles2 ki codes at
-          -> Holes2 ki codes at
-          -> MergeM ki codes (Holes2 ki codes at)
-registerR p q = trace dbg (return q)
-  where
-    dbg = unlines ["registerR"
-                  ,"  p = " ++ show (scDel p)
-                  ,"    ; " ++ show (scIns p)
-                  ,"  q = " ++ show (fst' q)
-                  ,"    ; " ++ show (snd' q)
-                  ]
-
-registerL :: (C ki fam codes at)
-          => Holes2 ki codes at
-          -> HolesHoles2 ki codes at
-          -> MergeM ki codes (Holes2 ki codes at)
-registerL p q = trace dbg (return p)
-  where
-    dbg = unlines ["registerL"
-                  ,"  p = " ++ show (fst' p)
-                  ,"    ; " ++ show (snd' p)
-                  ,"  q = " ++ show (scDel q)
-                  ,"    ; " ++ show (scIns q)
-                  ]
+{-
+   trace dbg (return p)
+-}

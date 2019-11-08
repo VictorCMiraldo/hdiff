@@ -16,6 +16,8 @@ import Data.HDiff.Change.Apply
 import Languages.RTree
 import Languages.RTree.Diff
 
+import qualified Data.Set as S
+
 import Test.QuickCheck
 import Test.Hspec
 
@@ -289,11 +291,13 @@ o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 
 mytest a o b =
-  let oa = distrCChange $ hdiffRTree o a
-      ob = distrCChange $ hdiffRTree o b
+  let oa0 = hdiffRTree o a
+      ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
+      oa  = distrCChange oa0
+      ob  = distrCChange ob0
    in case go oa ob of
         Left _ -> error "wow"
-        Right _ -> True
+        Right r -> CMatch S.empty (scDel r) (scIns r)
 
 {-
 cc :: RTree -> RTree -> RTree -> Bool
