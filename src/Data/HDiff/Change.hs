@@ -81,7 +81,11 @@ instance (TestEquality ki) => TestEquality (CChange ki codes) where
 -- |Alpha-equality for 'CChange'
 changeEq :: (EqHO ki) => CChange ki codes at -> CChange ki codes at -> Bool
 changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
-  = S.size v1 == S.size v2 && aux
+  = S.size v1 == S.size v2 && holes2Eq (d1 :*: i1) (d2 :*: i2)
+
+-- |Alpha-equality for 'Holes2'
+holes2Eq :: (EqHO ki) => Holes2 ki codes at -> Holes2 ki codes at -> Bool
+holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
  where
    aux :: Bool
    aux = (`runCont` id) $
@@ -116,6 +120,8 @@ changeEq (CMatch v1 d1 i1) (CMatch v2 d2 i2)
                        then return (Const ())
                        else lift $ exit False
    chk exit _ _ = lift (exit False)
+
+
 
 -- |Issues a copy, this is a closed change analogous to
 --  > \x -> x

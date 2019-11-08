@@ -290,14 +290,42 @@ a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
 o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 
+dset = [ [ a1, o1, b1 ]
+       , [ a2, o2, b2 ]
+       , [ a3, o3, b3 ]
+       , [ a4, o4, b4 ]
+       , [ a5, o5, b5 ]
+       , [ a6, o6, b6 ]
+       , [ a7, o7, b7 ]
+       , [ a8, o8, b8 ]
+       , [ a9, o9, b9 ]
+       , [ a13, o13, b13 ]
+       ]
+
+failset = [ [ a10, o10, b10 ]
+          , [ a11, o11, b11 ]
+          , [ a12, o12, b12 ]
+          , [ a14, o14, b14 ]
+          , [ a15, o15, b15 ]
+          , [ a16, o16, b16 ]
+          , [ a17, o17, b17 ]
+          , [ a18, o18, b18 ]
+          , [ a19, o19, b19 ]
+          , [ a20, o20, b20 ]
+          ]
+
+
+
+mytest' [a, o , b] = mytest a o b
+
 mytest a o b =
   let oa0 = hdiffRTree o a
       ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
       oa  = distrCChange oa0
       ob  = distrCChange ob0
    in case go oa ob of
-        Left _ -> error "wow"
-        Right r -> CMatch S.empty (scDel r) (scIns r)
+        Left i -> False
+        Right r -> True -- CMatch S.empty (scDel r) (scIns r)
 
 {-
 cc :: RTree -> RTree -> RTree -> Bool
