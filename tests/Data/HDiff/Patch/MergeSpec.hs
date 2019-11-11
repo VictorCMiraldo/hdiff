@@ -60,7 +60,7 @@ merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
 -- ** Manual Merge Examples
 
 data MergeOutcome
-  = MergeOk
+  = MergeOk RTree
   | MergeDiffers
   | ApplyFailed
   | HasConflicts
@@ -74,7 +74,9 @@ expectMerge mode expt lbl a o b = do
     doMerge mode a o b `shouldBe` expt
 
 doMerge :: DiffMode -> RTree -> RTree -> RTree -> MergeOutcome
-doMerge mode a o b
+doMerge mode a o b = undefined
+
+{-
   = let a' = dfrom $ into @FamRTree a
         b' = dfrom $ into @FamRTree b
         o' = dfrom $ into @FamRTree o
@@ -89,14 +91,15 @@ doMerge mode a o b
              Just (ab , ba)
                -> case (,) <$> apply ab b' <*> apply ba a' of
                    Right (c1 , c2)
-                     | eqFix eqHO c1 c2 -> MergeOk
+                     | eqFix eqHO c1 c2 -> MergeOk (unEl $ dto c1)
                      | otherwise        -> MergeDiffers
                    Left _               -> ApplyFailed
              Nothing                    -> HasConflicts
  
+-}
 
-mustMerge :: DiffMode -> String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
-mustMerge m = expectMerge m MergeOk
+-- mustMerge :: DiffMode -> String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
+-- mustMerge m = expectMerge m MergeOk
 
 xexpectMerge :: MergeOutcome -> String -> String -> RTree -> RTree -> RTree
              -> SpecWith (Arg Property)
@@ -104,12 +107,13 @@ xexpectMerge expt reason lbl a o b = do
   it (lbl ++ ": " ++ show expt) $
     pendingWith reason
 
-
+type MergeCase = (RTree , RTree , RTree)
+type TestCase  = ((RTree , RTree , RTree) , MergeOutcome)
 
 ----------------------
 -- Example 1
 
-a1 , o1 , b1 :: RTree
+a1 , o1 , b1 , r1 :: RTree
 a1 = "a" :>: [ "b" :>: []
              , "c" :>: []
              , "d" :>: []
@@ -123,10 +127,18 @@ b1 = "a" :>: [ "b'" :>: []
              , "d" :>: []
              ]
 
+r1 = "a" :>: [ "b'" :>: []
+             , "c"  :>: []
+             , "d"  :>: []
+             ]
+
+t1 :: TestCase
+t1 = ((a1 , o1 , b1) , MergeOk r1)
+
 -------------------
 -- Example 2
 
-a2, o2, b2 :: RTree
+a2, o2, b2, r2 :: RTree
 a2 = "b" :>: [ "u" :>: [ "3" :>: [] ] , ".." :>: [] ]
 
 o2 = "b" :>: [ "b" :>: [ "u" :>: [ "3" :>: [] ] , ".." :>: [] ]
@@ -137,58 +149,89 @@ b2 = "b" :>: [ "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
              , "." :>: []
              ]
 
+r2 = "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
+
+t2 :: TestCase
+t2 = ((a2 , o2 , b2) , MergeOk r2)
+
 -----------------
 -- Example 3
 
-a3 , o3 , b3 :: RTree
+a3 , o3 , b3 , r3 :: RTree
 a3 = "x'" :>: [ "y" :>: [] , "z" :>: [] ]
+o3 = "x"  :>: [ "y" :>: [] , "z" :>: [] ]
+b3 = "x"  :>: [ "y'" :>: [] ]
+r3 = "x'" :>: [ "y'" :>: [] ]
 
-o3 = "x" :>: [ "y" :>: [] , "z" :>: [] ]
-
-b3 = "x" :>: [ "y'" :>: [] ]
+t3 :: TestCase
+t3 = ((a3, o3, b3) , MergeOk r3)
 
 ---------------------------------
 -- Example 4
 
-a4 , o4 , b4 :: RTree
+a4 , o4 , b4 , r4 :: RTree
 a4 = "y" :>: []
 o4 = "x" :>: []
 b4 = "y" :>: []
+r4 = "y" :>: []
+
+t4 :: TestCase
+t4 = ((a4 , o4 , b4) , MergeOk r4)
 
 ---------------------------------
 -- Example 5
 
-a5 , o5 , b5 :: RTree
+a5 , o5 , b5 , r5 :: RTree
 a5 = "x" :>: [ "k" :>: [] , "u" :>: []]
 o5 = "x" :>: [ "u" :>: [] , "k" :>: []]
 b5 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
              , "u" :>: [] , "k" :>: [] ]
 
+r5 = "x" :>: [ "y" :>: [ "k" :>: [] , "u" :>: [] ]
+             , "k" :>: [] , "u" :>: [] ]
+
+t5 :: TestCase
+t5 = ((a5 , o5 , b5) , MergeOk r5)
+
 ---------------------------------
 -- Example 6
 
-a6 , o6 , b6 :: RTree
+a6 , o6 , b6 , r6 :: RTree
 a6 = "x" :>: [ "u" :>: []]
 o6 = "x" :>: [ "u" :>: [] , "k" :>: []]
 b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
              , "u" :>: [] , "k" :>: [] ]
 
+r6 = "x" :>: [ "y" :>: [ "u" :>: [] ] , "u" :>: [] ]
+
+t6 :: TestCase
+t6 = ((a6 , o6 , b6) , MergeOk r6)
+
 
 ---------------------------------
 -- Example 7
 
-a7 , o7 , b7 :: RTree
+a7 , o7 , b7 , r7 :: RTree
 a7 = "x" :>: [ "u" :>: [ "b" :>: [] ] , "l" :>: [] ]
 o7 = "x" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "l" :>: []]
 b7 = "y" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "new" :>: [] , "l" :>: []]
+r7 = "y" :>: [ "u" :>: [ "b" :>: [] ] , "new" :>: [] , "l" :>: [] ]
+
+t7 :: TestCase
+t7 = ((a7 , o7 , b7) , MergeOk r7)
+
 
 ---------------------------------
 -- Example 8
 
-a8 , o8 , b8 :: RTree
+a8 , o8 , b8 , r8 :: RTree
 a8 = "x" :>: [ "k" :>: [] , "u" :>: []]
 o8 = "x" :>: [ "u" :>: [] , "k" :>: []]
 b8 = "x" :>: [ "u" :>: [] , "a" :>: [] , "k" :>: []]
+r8 = "x" :>: [ "k" :>: [] , "a" :>: [] , "u" :>: []]
+
+t8 :: TestCase
+t8 = ((a8 , o8 , b8) , MergeOk r8)
 
 ---------------------------------
 -- Example 9
@@ -197,9 +240,11 @@ a9 , o9 , b9 :: RTree
 a9 = "x" :>: [ "k" :>: []  , "u" :>: []]
 o9 = "x" :>: [ "u" :>: []  , "k" :>: []]
 b9 = "x" :>: [ "u'" :>: [] , "k" :>: []]
+r9 = "x" :>: [ "k" :>: []  , "u'" :>: []]
 
+t9 :: TestCase
+t9 = ((a9 , o9 , b9) , MergeOk r9)
 
--- Now we follow with triples that must NOT merge
 
 --------------------------------
 -- Example 10
@@ -209,6 +254,9 @@ a10 = "x" :>: [ "u" :>: []  , "a" :>: [] , "k" :>: []]
 o10 = "x" :>: [ "u" :>: []  , "k" :>: []]
 b10 = "x" :>: [ "u" :>: []  , "b" :>: [] , "k" :>: []]
 
+t10 :: TestCase
+t10 = ((a10 , o10 , b10) , HasConflicts)
+
 ------------------------------
 -- Example 11
 
@@ -216,6 +264,10 @@ a11 , o11 , b11 :: RTree
 a11 = "x" :>: [ "u" :>: []  , "a" :>: []]
 o11 = "x" :>: [ "u" :>: []  , "b" :>: []]
 b11 = "x" :>: [ "u" :>: []  , "c" :>: []]
+
+t11 :: TestCase
+t11 = ((a11 , o11 , b11) , HasConflicts)
+
 
 -----------------------------
 -- Example 12
@@ -225,6 +277,10 @@ a12 = "f" :>: ["j" :>: []]
 o12 = "f" :>: ["a" :>: []]
 b12 = "e" :>: []
 
+t12 :: TestCase
+t12 = ((a12 , o12 , b12) , HasConflicts)
+
+
 ----------------------------
 -- Example 13
 
@@ -232,6 +288,9 @@ a13 , o13 , b13 :: RTree
 a13 = "a" :>: []
 o13 = "d" :>: ["i" :>: []]
 b13 = "a" :>: ["j" :>: ["i" :>: []]]
+
+t13 :: TestCase
+t13 = ((a13 , o13 , b13) , HasConflicts)
 
 ---------------------------
 -- Example 14
@@ -241,6 +300,9 @@ a14 = "l" :>: []
 o14 = "k" :>: ["b" :>: [],"l" :>: []]
 b14 = "f" :>: ["k" :>: [],"b" :>: []]
 
+t14 :: TestCase
+t14 = ((a14 , o14 , b14) , HasConflicts)
+
 ---------------------------
 -- Example 15
 
@@ -248,6 +310,9 @@ a15 , o15 , b15 :: RTree
 a15 = "g" :>: []
 o15 = "i" :>: ["g" :>: [],"c" :>: []]
 b15 = "g" :>: ["k" :>: [],"l" :>: []]
+
+t15 :: TestCase
+t15 = ((a15 , o15 , b15) , HasConflicts)
 
 ------------------------
 -- Example 16
@@ -257,21 +322,32 @@ a16 = "j" :>: []
 o16 = "g" :>: ["f" :>: [],"j" :>: []]
 b16 = "e" :>: ["a" :>: [],"a" :>: [],"f" :>: []]
 
+t16 :: TestCase
+t16 = ((a16 , o16 , b16) , HasConflicts)
+
 ------------------------
 -- Example 17
 
-a17 , o17 , b17 :: RTree
+a17 , o17 , b17 , r17 :: RTree
 a17 = "j" :>: ["f" :>: []]
 o17 = "e" :>: ["f" :>: [],"f" :>: [],"m" :>: []]
 b17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
+r17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
+
+t17 :: TestCase
+t17 = ((a17 , o17 , b17) , MergeOk r17)
 
 ------------------------
 -- Example 18
 
-a18 , o18 , b18 :: RTree
+a18 , o18 , b18 , r18 :: RTree
 a18 = "r" :>: [ "a" :>: [] , "a" :>: []]
 o18 = "r" :>: [ "a" :>: [] , "c" :>: []]
-b18 = "r" :>: [ "b" :>: [] , "c" :>: [] ]
+b18 = "r" :>: [ "b" :>: [] , "c" :>: []]
+r18 = "r" :>: [ "b" :>: [] , "b" :>: []]
+
+t18 :: TestCase
+t18 = ((a18 , o18 , b18) , MergeOk r18)
 
 -------------------------
 -- Example 19
@@ -280,6 +356,10 @@ a19 , o19 , b19 :: RTree
 a19 = "c" :>: ["c" :>: []]
 o19 = "c" :>: ["m" :>: ["a" :>: []]]
 b19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []]
+r19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []] 
+
+t19 :: TestCase
+t19 = ((a19 , o19 , b19) , MergeOk r19)
 
 ------------------------
 -- Example 20
@@ -299,7 +379,7 @@ dset = [ [ a1, o1, b1 ]
        , [ a7, o7, b7 ]
        , [ a8, o8, b8 ]
        , [ a9, o9, b9 ]
-       , [ a13, o13, b13 ]
+       -- , [ a13, o13, b13 ]
        , [ a17, o17, b17 ]
        , [ a18, o18, b18 ]
        , [ a19, o19, b19 ]
@@ -309,6 +389,7 @@ failset = [ [ a10, o10, b10 ]
           , [ a11, o11, b11 ]
           , [ a12, o12, b12 ]
           , [ a14, o14, b14 ]
+          , [ a13, o13, b13 ]
           , [ a15, o15, b15 ]
           , [ a16, o16, b16 ]
           , [ a20, o20, b20 ]
@@ -323,19 +404,24 @@ mytestB a o b =
       ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
       oa  = distrCChange oa0
       ob  = distrCChange ob0
-   in case go oa ob of
-        Left i -> False -- error (show i)
-        Right r -> True -- CMatch S.empty (scDel r) (scIns r)
+   in case mergeWithErr oa ob of
+        Left i -> show i -- error (show i)
+        Right r -> "ok" -- CMatch S.empty (scDel r) (scIns r)
 
 
-mytest a o b =
+mytest a o b r =
   let oa0 = hdiffRTree o a
       ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
       oa  = distrCChange oa0
       ob  = distrCChange ob0
-   in case go oa ob of
-        Left i -> error (show i)
-        Right r -> CMatch S.empty (scDel r) (scIns r)
+   in case mergeWithErr oa ob of
+        Left i -> Left "merge fail"
+        Right m -> let c = CMatch S.empty (fst' m) (snd' m)
+                    in case applyRTreeC c o of
+                         Left _ -> Left "apply fail"
+                         Right r' -> if r == r'
+                                     then Right ()
+                                     else Left "Different Result"
 
 
 {-
@@ -452,6 +538,8 @@ spec = do
   -- describe "properties" $ do
   --   it "p // id == p && id // p == id" $ merge_id
   --   it "p // p  == id"                 $ merge_diag
+  undefined
+{-
   
   flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
     describe ("merge: manual examples (" ++ show m ++ ")") $ do
@@ -490,3 +578,4 @@ spec = do
       it "contains no apply fail or merge differs" $ property $
         forAll gen3Trees $ \(a , o , b)
           -> doMerge m a o b `elem` [MergeOk , HasConflicts]
+-}
