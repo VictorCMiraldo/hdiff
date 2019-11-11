@@ -9,6 +9,7 @@ import Generics.MRSOP.Base
 import Data.HDiff.Patch
 import Data.HDiff.Diff
 import Data.HDiff.Patch.Merge
+import Data.HDiff.Patch.Show
 import Data.HDiff.Change
 import Data.HDiff.Change.Merge
 import Data.HDiff.Change.Thinning
@@ -61,45 +62,31 @@ merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
 
 data MergeOutcome
   = MergeOk RTree
-  | MergeDiffers
+  | MergeDiffers -- VCM: not applicable currently!
   | ApplyFailed
   | HasConflicts
   deriving (Eq , Show)
 
-expectMerge :: DiffMode
-            -> MergeOutcome -> String -> RTree -> RTree -> RTree
-            -> SpecWith (Arg Property)
-expectMerge mode expt lbl a o b = do
-  it (lbl ++ ": " ++ show expt) $
-    doMerge mode a o b `shouldBe` expt
+-- TODO: make test case expected result depend on diff mode!
+type TestCase  = ((RTree , RTree , RTree) , Maybe RTree)
+
+testMerge :: DiffMode -> String -> TestCase -> SpecWith (Arg Property)
+testMerge mode lbl ((a , o , b) , res) = do
+  it (lbl ++ ": " ++ maybe "conflicts" (const "merges") res) $
+    doMerge mode a o b `shouldBe` (maybe HasConflicts MergeOk res)
 
 doMerge :: DiffMode -> RTree -> RTree -> RTree -> MergeOutcome
-doMerge mode a o b = undefined
-
-{-
-  = let a' = dfrom $ into @FamRTree a
-        b' = dfrom $ into @FamRTree b
-        o' = dfrom $ into @FamRTree o
-        -- VCM: Funny... with DM_ProperShare and DM_NoNested
+doMerge mode a o b
+  = let -- VCM: Funny... with DM_ProperShare and DM_NoNested
         -- we see the same hspec restuls, but with DM_Patience
         -- we get a different result altogether.
         oa = hdiffRTreeHM mode 1 o a
         ob = hdiffRTreeHM mode 1 o b
-        oaob = oa // ob
-        oboa = ob // oa
-     in case (,) <$> noConflicts oaob <*> noConflicts oboa of
-             Just (ab , ba)
-               -> case (,) <$> apply ab b' <*> apply ba a' of
-                   Right (c1 , c2)
-                     | eqFix eqHO c1 c2 -> MergeOk (unEl $ dto c1)
-                     | otherwise        -> MergeDiffers
-                   Left _               -> ApplyFailed
-             Nothing                    -> HasConflicts
- 
--}
-
--- mustMerge :: DiffMode -> String -> RTree -> RTree -> RTree -> SpecWith (Arg Property)
--- mustMerge m = expectMerge m MergeOk
+     in case noConflicts (diff3 oa ob) of
+          Just oc -> case applyRTree oc o of
+                      Right res -> MergeOk res
+                      Left _    -> ApplyFailed
+          Nothing -> HasConflicts
 
 xexpectMerge :: MergeOutcome -> String -> String -> RTree -> RTree -> RTree
              -> SpecWith (Arg Property)
@@ -107,8 +94,6 @@ xexpectMerge expt reason lbl a o b = do
   it (lbl ++ ": " ++ show expt) $
     pendingWith reason
 
-type MergeCase = (RTree , RTree , RTree)
-type TestCase  = ((RTree , RTree , RTree) , MergeOutcome)
 
 ----------------------
 -- Example 1
@@ -133,7 +118,7 @@ r1 = "a" :>: [ "b'" :>: []
              ]
 
 t1 :: TestCase
-t1 = ((a1 , o1 , b1) , MergeOk r1)
+t1 = ((a1 , o1 , b1) , Just r1)
 
 -------------------
 -- Example 2
@@ -152,7 +137,7 @@ b2 = "b" :>: [ "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
 r2 = "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
 
 t2 :: TestCase
-t2 = ((a2 , o2 , b2) , MergeOk r2)
+t2 = ((a2 , o2 , b2) , Just r2)
 
 -----------------
 -- Example 3
@@ -164,7 +149,7 @@ b3 = "x"  :>: [ "y'" :>: [] ]
 r3 = "x'" :>: [ "y'" :>: [] ]
 
 t3 :: TestCase
-t3 = ((a3, o3, b3) , MergeOk r3)
+t3 = ((a3, o3, b3) , Just r3)
 
 ---------------------------------
 -- Example 4
@@ -176,7 +161,7 @@ b4 = "y" :>: []
 r4 = "y" :>: []
 
 t4 :: TestCase
-t4 = ((a4 , o4 , b4) , MergeOk r4)
+t4 = ((a4 , o4 , b4) , Just r4)
 
 ---------------------------------
 -- Example 5
@@ -191,7 +176,7 @@ r5 = "x" :>: [ "y" :>: [ "k" :>: [] , "u" :>: [] ]
              , "k" :>: [] , "u" :>: [] ]
 
 t5 :: TestCase
-t5 = ((a5 , o5 , b5) , MergeOk r5)
+t5 = ((a5 , o5 , b5) , Just r5)
 
 ---------------------------------
 -- Example 6
@@ -205,7 +190,7 @@ b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ]
 r6 = "x" :>: [ "y" :>: [ "u" :>: [] ] , "u" :>: [] ]
 
 t6 :: TestCase
-t6 = ((a6 , o6 , b6) , MergeOk r6)
+t6 = ((a6 , o6 , b6) , Just r6)
 
 
 ---------------------------------
@@ -218,7 +203,7 @@ b7 = "y" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "new" :>: [] ,
 r7 = "y" :>: [ "u" :>: [ "b" :>: [] ] , "new" :>: [] , "l" :>: [] ]
 
 t7 :: TestCase
-t7 = ((a7 , o7 , b7) , MergeOk r7)
+t7 = ((a7 , o7 , b7) , Just r7)
 
 
 ---------------------------------
@@ -231,7 +216,7 @@ b8 = "x" :>: [ "u" :>: [] , "a" :>: [] , "k" :>: []]
 r8 = "x" :>: [ "k" :>: [] , "a" :>: [] , "u" :>: []]
 
 t8 :: TestCase
-t8 = ((a8 , o8 , b8) , MergeOk r8)
+t8 = ((a8 , o8 , b8) , Just r8)
 
 ---------------------------------
 -- Example 9
@@ -243,7 +228,7 @@ b9 = "x" :>: [ "u'" :>: [] , "k" :>: []]
 r9 = "x" :>: [ "k" :>: []  , "u'" :>: []]
 
 t9 :: TestCase
-t9 = ((a9 , o9 , b9) , MergeOk r9)
+t9 = ((a9 , o9 , b9) , Just r9)
 
 
 --------------------------------
@@ -255,7 +240,7 @@ o10 = "x" :>: [ "u" :>: []  , "k" :>: []]
 b10 = "x" :>: [ "u" :>: []  , "b" :>: [] , "k" :>: []]
 
 t10 :: TestCase
-t10 = ((a10 , o10 , b10) , HasConflicts)
+t10 = ((a10 , o10 , b10) , Nothing)
 
 ------------------------------
 -- Example 11
@@ -266,7 +251,7 @@ o11 = "x" :>: [ "u" :>: []  , "b" :>: []]
 b11 = "x" :>: [ "u" :>: []  , "c" :>: []]
 
 t11 :: TestCase
-t11 = ((a11 , o11 , b11) , HasConflicts)
+t11 = ((a11 , o11 , b11) , Nothing)
 
 
 -----------------------------
@@ -278,7 +263,7 @@ o12 = "f" :>: ["a" :>: []]
 b12 = "e" :>: []
 
 t12 :: TestCase
-t12 = ((a12 , o12 , b12) , HasConflicts)
+t12 = ((a12 , o12 , b12) , Nothing)
 
 
 ----------------------------
@@ -290,7 +275,7 @@ o13 = "d" :>: ["i" :>: []]
 b13 = "a" :>: ["j" :>: ["i" :>: []]]
 
 t13 :: TestCase
-t13 = ((a13 , o13 , b13) , HasConflicts)
+t13 = ((a13 , o13 , b13) , Nothing)
 
 ---------------------------
 -- Example 14
@@ -301,7 +286,7 @@ o14 = "k" :>: ["b" :>: [],"l" :>: []]
 b14 = "f" :>: ["k" :>: [],"b" :>: []]
 
 t14 :: TestCase
-t14 = ((a14 , o14 , b14) , HasConflicts)
+t14 = ((a14 , o14 , b14) , Nothing)
 
 ---------------------------
 -- Example 15
@@ -312,7 +297,7 @@ o15 = "i" :>: ["g" :>: [],"c" :>: []]
 b15 = "g" :>: ["k" :>: [],"l" :>: []]
 
 t15 :: TestCase
-t15 = ((a15 , o15 , b15) , HasConflicts)
+t15 = ((a15 , o15 , b15) , Nothing)
 
 ------------------------
 -- Example 16
@@ -323,7 +308,7 @@ o16 = "g" :>: ["f" :>: [],"j" :>: []]
 b16 = "e" :>: ["a" :>: [],"a" :>: [],"f" :>: []]
 
 t16 :: TestCase
-t16 = ((a16 , o16 , b16) , HasConflicts)
+t16 = ((a16 , o16 , b16) , Nothing)
 
 ------------------------
 -- Example 17
@@ -335,7 +320,7 @@ b17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
 r17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
 
 t17 :: TestCase
-t17 = ((a17 , o17 , b17) , MergeOk r17)
+t17 = ((a17 , o17 , b17) , Just r17)
 
 ------------------------
 -- Example 18
@@ -347,7 +332,7 @@ b18 = "r" :>: [ "b" :>: [] , "c" :>: []]
 r18 = "r" :>: [ "b" :>: [] , "b" :>: []]
 
 t18 :: TestCase
-t18 = ((a18 , o18 , b18) , MergeOk r18)
+t18 = ((a18 , o18 , b18) , Just r18)
 
 -------------------------
 -- Example 19
@@ -359,7 +344,7 @@ b19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []]
 r19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []] 
 
 t19 :: TestCase
-t19 = ((a19 , o19 , b19) , MergeOk r19)
+t19 = ((a19 , o19 , b19) , Just r19)
 
 ------------------------
 -- Example 20
@@ -533,16 +518,35 @@ gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3
         >>= \[a , o , b] -> return (a , o , b)
 
+
+unitTests :: [(String , TestCase)]
+unitTests = [  ("1"   , t1 )  
+            ,  ("2"   , t2 ) 
+            ,  ("3"   , t3 ) 
+            ,  ("4"   , t4 ) 
+            ,  ("5"   , t5 ) 
+            ,  ("6"   , t6 ) 
+            ,  ("7"   , t7 ) 
+            ,  ("8"   , t8 ) 
+            ,  ("9"   , t9 ) 
+            ,  ("10"  , t10)
+            ,  ("11"  , t11)
+            ,  ("12"  , t12)
+            ,  ("13"  , t13)
+            ,  ("14"  , t14)
+            ,  ("15"  , t15)
+            ,  ("16"  , t16)
+            ,  ("17"  , t17)
+            ,  ("18"  , t18)
+            ,  ("19"  , t19)
+            ]
+
 spec :: Spec
 spec = do
-  -- describe "properties" $ do
-  --   it "p // id == p && id // p == id" $ merge_id
-  --   it "p // p  == id"                 $ merge_diag
-  undefined
-{-
-  
   flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
     describe ("merge: manual examples (" ++ show m ++ ")") $ do
+      mapM_ (uncurry $ testMerge m) unitTests
+      {-
       mustMerge m "01" a1 o1 b1
       mustMerge m "02" a2 o2 b2
       mustMerge m "03" a3 o3 b3

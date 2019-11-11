@@ -14,6 +14,7 @@ import           Control.Monad.Cont
 import           Control.Monad.State
 import           Control.Monad.Except
 import qualified Data.Map as M
+import qualified Data.Set as S
 import           Data.Type.Equality
 ----------------------------------------
 import           Generics.MRSOP.Util
@@ -26,6 +27,8 @@ import           Data.HDiff.Change.Apply
 import           Data.HDiff.Change.Thinning
 import           Generics.MRSOP.Holes
 import           Generics.MRSOP.HDiff.Renderer
+
+import Debug.Trace
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
   Conflict :: CChange ki codes at
@@ -48,7 +51,8 @@ merge :: forall ki fam codes at
       => CChange ki codes at
       -> CChange ki codes at
       -> Either (Conflict ki codes at) (CChange ki codes at)
-merge p q = either (const (Left $ Conflict p q)) (Right . uncurry' cmatch) $ mergeWithErr p q
+merge p q = either (const (Left $ Conflict p q)) (Right . uncurry' (CMatch S.empty))
+          $ mergeWithErr p q
 
 mergeStateEmpty :: MergeState ki codes
 mergeStateEmpty = MergeState M.empty M.empty
@@ -71,26 +75,32 @@ mergeWithErr p q
         q0 = holesLCP (cCtxDel q) (cCtxIns q)
      in fmap utx2distr . runExcept $ evalStateT (go p0 q0) mergeStateEmpty 
   where
-    -- showSigma  = unlines
-    --            . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s)
-    --                                          ++ "\n  ; " ++ show (scIns s) )
-    --            . M.toList
-    -- 
-    -- showTh :: Subst ki codes (MetaVarIK ki) -> String
-    -- showTh    = unlines
-    --           . map (\(x , Exists s) -> show x ++ " = " ++ show s)
-    --           . M.toList
+    showSigma  = unlines
+               . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s)
+                                             ++ "\n  ; " ++ show (scIns s) )
+               . M.toList
+    
+    showTh :: Subst ki codes (MetaVarIK ki) -> String
+    showTh    = unlines
+              . map (\(x , Exists s) -> show x ++ " = " ++ show s)
+              . M.toList
+
+    debug :: MergeM ki codes a -> MergeM ki codes a
+    debug m = do
+      res <- m
+      s <- gets subst
+      t <- gets thinner
+      trace (showSigma s ++ "\n\n" ++ showTh t) (return res)
 
     go :: HolesHoles2 ki codes at 
        -> HolesHoles2 ki codes at 
        -> MergeM ki codes (HolesHoles2 ki codes at)
-    go p0 q0 = do
+    go p0 q0 = {- debug $ -} do
        let pq0 = holesLCP p0 q0
        routeError "discover"
          $ mapM_ (exElim (uncurry' discover)) (holesGetHolesAnnWith' Exists pq0)
        routeError "propagate"
          $ holesMapM (uncurry' propagate) pq0
-
 
 routeError :: String -> MergeM ki codes x -> MergeM ki codes x
 routeError msg = mapStateT (withExcept (msg:))
@@ -111,7 +121,10 @@ register2 :: (C ki fam codes at)
 register2 p q = 
   let scp = isSimpleCpy p
       scq = isSimpleCpy q
-   in when (not (scp || scq) && not (holes2Eq p q)) $ throwError ["ins-ins"]
+   in do
+    when scp $ register1 p (Hole' q) 
+    when scq $ register1 q (Hole' p) 
+    when (not (scp || scq) && not (holes2Eq p q)) $ throwError ["ins-ins"]
 
 register1 :: (C ki fam codes at)
           => Holes2 ki codes at

@@ -11,6 +11,7 @@
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Data.HDiff.Patch.Merge where
 
+import Data.Type.Equality
 import Data.Functor.Sum
 import qualified Data.Map as M
 
@@ -25,8 +26,7 @@ import Generics.MRSOP.Holes
 import Data.Exists
 import Data.HDiff.Patch
 import Data.HDiff.Change
-import Data.HDiff.Change.Apply
-import Data.HDiff.Change.Thinning
+import Data.HDiff.Change.Merge
 import Data.HDiff.MetaVar
 
 -- * Merging Treefixes
@@ -36,12 +36,14 @@ import Data.HDiff.MetaVar
 -- After merging two patches, we might end up with a conflict.
 -- That is, two changes that can't be reconciled.
 
+{-
 -- |Hence, a conflict is simply two changes together.
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
   Conflict :: String
            -> RawPatch ki codes at
            -> RawPatch ki codes at
            -> Conflict ki codes at
+-}
 
 -- |A 'PatchC' is a patch with potential conflicts inside
 type PatchC ki codes ix
@@ -55,14 +57,22 @@ noConflicts = holesMapM rmvInL
     rmvInL (InL _) = Nothing
     rmvInL (InR x) = Just x
 
--- |Returns the labels of the conflicts ina a patch.
-getConflicts :: (ShowHO ki) => PatchC ki codes ix -> [String]
-getConflicts = snd . runWriter . holesMapM go
+diff3 :: forall ki fam codes ix
+       . (C ki fam codes ix) -- TODO: remove redundant constraints
+      => Patch ki codes ix
+      -> Patch ki codes ix
+      -> PatchC ki codes ix
+diff3 oa ob = holesMap (uncurry' go)
+            $ holesLCP oa
+            $ ob `withFreshNamesFrom` oa
   where
-    go x@(InL (Conflict str _ _)) = tell [str] >> return x
-    go x                          = return x
+    go :: RawPatch ki codes at -> RawPatch ki codes at
+       -> Sum (Conflict ki codes) (CChange ki codes) at
+    go p q = let cp = distrCChange p
+                 cq = distrCChange q
+              in either InL InR $ merge cp cq
 
-
+{-
 -- |A merge of @p@ over @q@, denoted @p // q@, is the adaptation
 --  of @p@ so that it could be applied to an element in the
 --  image of @q@.
@@ -219,3 +229,4 @@ process sp sq =
     insins :: HolesHoles2 ki codes at -> HolesHoles2 ki codes at -> Bool
     insins (Hole _ pp) (Hole _ qq) = isLocalIns pp && isLocalIns qq
     insins _ _ = False
+-}

@@ -22,7 +22,7 @@ import Generics.MRSOP.HDiff.Holes
 import Generics.MRSOP.HDiff.Renderer
 
 import qualified Data.HDiff.Change       as D
-import qualified Data.HDiff.Patch.Merge  as D
+import qualified Data.HDiff.Change.Merge as D
 import qualified Data.HDiff.MetaVar      as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
@@ -97,8 +97,8 @@ showPatchC patch
     prettyConfDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
-    prettyConfDel (InL (D.Conflict lbl _ _))
-      = annotate (color Blue) (pretty $ show lbl)
+    prettyConfDel (InL (D.Conflict _ _))
+      = annotate (color Blue) (pretty $ show "conflict")
     prettyConfDel (InR (D.CMatch _ del _))
       = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
@@ -108,8 +108,8 @@ showPatchC patch
     prettyConfIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
-    prettyConfIns (InL (D.Conflict lbl _ _))
-      = annotate (color Blue) (pretty $ show lbl)
+    prettyConfIns (InL (D.Conflict _ _))
+      = annotate (color Blue) (pretty $ show "conflict")
     prettyConfIns (InR (D.CMatch _ _ ins))
       = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)
