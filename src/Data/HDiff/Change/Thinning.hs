@@ -13,6 +13,7 @@ module Data.HDiff.Change.Thinning where
 
 import           Data.Type.Equality
 import qualified Data.Map as M
+import           Data.List (sort)
 import           Control.Monad.Writer
 import           Control.Monad.Except
 import           Control.Monad.State
@@ -36,26 +37,33 @@ type ThinningErr ki codes = ApplicationErr ki codes (MetaVarIK ki)
 -- PRECONDITION: The change and domain have a different set of names.
 --               This function will loop if some variable occurs both in the
 --               change and domain passed as arguments.
-thin :: (TestEquality ki, EqHO ki)
+thin :: (TestEquality ki, EqHO ki , ShowHO ki , HasDatatypeInfo ki fam codes)
      => CChange ki codes at
      -> Domain  ki codes at
      -> Either (ThinningErr ki codes) (CChange ki codes at)
-thin chg dom = (uncurry' cmatch . fst) <$> thinHoles2 (cCtxDel chg :*: cCtxIns chg) dom
+thin chg dom = (uncurry' cmatch) <$> thinHoles2 (cCtxDel chg :*: cCtxIns chg) dom
+
+thinHoles2 :: (TestEquality ki, EqHO ki , ShowHO ki , HasDatatypeInfo ki fam codes)
+           => Holes2 ki codes at
+           -> Domain ki codes at
+           -> Either (ThinningErr ki codes) (Holes2 ki codes at) 
+thinHoles2 di dom = runExcept (fst <$> thinHoles2st di dom M.empty)
 
 -- |Unwrapped vesion of 'thin'; We also return the subsitution used. An example of
 -- where this is needed is patch composition.
 -- 
-thinHoles2 :: (TestEquality ki, EqHO ki)
-           => Holes2 ki codes at
-           -> Domain ki codes at
-           -> Either (ThinningErr ki codes)
-                     (Holes2 ki codes at , Subst ki codes (MetaVarIK ki))
-thinHoles2 (del :*: ins) dom = runExcept $ do
+thinHoles2st :: (TestEquality ki, EqHO ki , ShowHO ki , HasDatatypeInfo ki fam codes)
+             => Holes2 ki codes at
+             -> Domain ki codes at
+             -> Subst ki codes (MetaVarIK ki)
+             -> Except (ThinningErr ki codes)
+                       (Holes2 ki codes at , Subst ki codes (MetaVarIK ki))
+thinHoles2st (del :*: ins) dom sigma0 = do
   -- The thinning process is twofold; first we look solely at the deletion
   -- context over the domain we are thinning against and register the equalities
   -- we see.
-  sigma  <- flip execStateT M.empty $ thinGetEquivs del dom
-  sigma' <- minimize sigma
+  sigma  <- flip execStateT sigma0 $ thinGetEquivs del dom
+  sigma' <- return sigma -- minimize sigma
   del'   <- refine del sigma'
   ins'   <- refine ins sigma'
   return $ (del' :*: ins' , sigma')
@@ -70,7 +78,7 @@ thinHoles2 (del :*: ins) dom = runExcept $ do
 --
 -- When registering @x = p@, however, we must check whether this was the first time we
 -- really saw @x@.
-thinGetEquivs :: (TestEquality ki, EqHO ki)
+thinGetEquivs :: (TestEquality ki, EqHO ki , ShowHO ki , HasDatatypeInfo ki fam codes)
         => Holes ki codes (MetaVarIK ki) at
         -> Domain ki codes at
         -> StateT (Subst ki codes (MetaVarIK ki))
@@ -78,7 +86,7 @@ thinGetEquivs :: (TestEquality ki, EqHO ki)
                   ()
 thinGetEquivs p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
   where
-    go :: (TestEquality ki, EqHO ki)
+    go :: (TestEquality ki, EqHO ki , ShowHO ki , HasDatatypeInfo ki fam codes)
        => Holes ki codes (MetaVarIK ki) at
        -> Domain ki codes at
        -> StateT (Subst ki codes (MetaVarIK ki))
@@ -92,7 +100,7 @@ thinGetEquivs p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
     -- Whenever we see a variable being matched against a term
     -- we record the equivalence. First we make sure we did not
     -- record such equivalence yet, otherwise, we recursively thin
-    record_eq :: (TestEquality ki, EqHO ki)
+    record_eq :: (TestEquality ki, EqHO ki , ShowHO ki , HasDatatypeInfo ki fam codes)
               => MetaVarIK ki at
               -> Holes ki codes (MetaVarIK ki) at
               -> StateT (Subst ki codes (MetaVarIK ki))
@@ -109,7 +117,7 @@ thinGetEquivs p0 q0 = void $ holesMapM (uncurry' go) $ holesLCP p0 q0
         -- that 'var' was supposed to be p'. We will check whether it
         -- is the same as q, if not, we will have to thin p' with q.
         Just q' -> unless (eqHO q' q)
-                 $ void $ thinGetEquivs q' q
+                 $ void $ thinGetEquivs q q'
           
 
 
@@ -147,10 +155,12 @@ minimize sigma = whileM sigma [] $ \s _
              Just r  -> tell [metavarGet var]
                      >> return r
 
-    whileM :: (Monad m, Show x)
+    -- We loop while there is work to be done or no progress
+    -- was done.
+    whileM :: (Monad m, Show x , Ord x)
            => a -> [x] -> (a -> [x] -> WriterT [x] m a) -> m a
     whileM a xs f = runWriterT (f a xs)
-                >>= \(x' , xs') -> if null xs'
+                >>= \(x' , xs') -> if null xs' || (sort xs' == sort xs)
                                    then return x'
                                    else whileM x' xs' f
 

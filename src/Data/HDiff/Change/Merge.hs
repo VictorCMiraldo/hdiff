@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
@@ -25,6 +26,7 @@ import           Data.Exists
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Change
 import           Data.HDiff.Change.Apply
+import           Data.HDiff.Change.Thinning
 import           Data.HDiff.Patch.Show
 import           Generics.MRSOP.Holes
 import           Generics.MRSOP.HDiff.Holes
@@ -43,39 +45,52 @@ type C ki fam codes at = (ShowHO ki , HasDatatypeInfo ki fam codes
 isSimpleCpy (Hole' x :*: Hole' y) = metavarGet x == metavarGet y
 isSimpleCpy _                     = False
 
-go :: (C ki fam codes at)
-      => CChange ki codes at
-      -> CChange ki codes at
-      -> Either Int {- (Conflict ki codes at) -} (HolesHoles2 ki codes at)
+go :: forall ki fam codes at
+    . (C ki fam codes at)
+   => CChange ki codes at
+   -> CChange ki codes at
+   -> Either String {- (Conflict ki codes at) -} (HolesHoles2 ki codes at)
 go    p q = let p0 = holesLCP (cCtxDel p) (cCtxIns p)
                 q0 = holesLCP (cCtxDel q) (cCtxIns q)
-             in case evalStateT (func p0 q0) mergeStateEmpty of
+             in case runExcept $ evalStateT (func p0 q0) mergeStateEmpty of
                   Left i  -> Left i
                   Right r -> Right $ r
   where
-    func :: (C ki fam codes at)
-         => HolesHoles2 ki codes at 
+    showSigma  = unlines
+               . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s)
+                                             ++ "\n  ; " ++ show (scIns s) )
+               . M.toList
+    
+    showTh :: Subst ki codes (MetaVarIK ki) -> String
+    showTh    = unlines
+              . map (\(x , Exists s) -> show x ++ " = " ++ show s)
+              . M.toList
+
+    func :: HolesHoles2 ki codes at 
          -> HolesHoles2 ki codes at 
          -> MergeM ki codes (HolesHoles2 ki codes at)
     func p0 q0 = do
        let pq0 = holesLCP p0 q0
        mapM_ (exElim (uncurry' instantiate)) (holesGetHolesAnnWith' Exists pq0)
        sigma <- gets subst
-       trace (unlines . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s) ++ "\n  ; " ++ show (scIns s) ) $ M.toList sigma) $ return p0
-       holesMapM (uncurry' decide) pq0
+       th    <- gets thinner
+       trace (showSigma sigma ++ "\n" ++ showTh th) $ 
+         holesMapM (uncurry' decide) pq0
        
 
 
 mergeStateEmpty :: MergeState ki codes
-mergeStateEmpty = MergeState M.empty
+mergeStateEmpty = MergeState M.empty M.empty
 
 data MergeState ki codes = MergeState
-  { subst :: Subst ki codes (Holes2 ki codes) 
+  { subst   :: Subst ki codes (Holes2 ki codes) 
+  , thinner :: Subst ki codes (MetaVarIK ki)
   } 
 
 setSubst s ms = ms { subst = s }
 
-type MergeM ki codes = StateT (MergeState ki codes) (Either Int)
+type MergeM ki codes = StateT (MergeState ki codes)
+                              (Except String)
   
 instantiate :: (C ki fam codes at)
             => HolesHoles2 ki codes at
@@ -84,7 +99,7 @@ instantiate :: (C ki fam codes at)
 instantiate (Hole' p) (Hole' q) = register2 p q
 instantiate (Hole' p)  cq       = register1 "L" p cq
 instantiate cp        (Hole' q) = register1 "R" q cp
-instantiate cp         cq       = lift (Left 1)
+instantiate cp         cq       = throwError "1"
 
 register2 :: (C ki fam codes at)
            => Holes2 ki codes at
@@ -96,15 +111,55 @@ register2 p q = do
   when scp $ register1 "L'" p (Hole' q)
   when scq $ register1 "R'" q (Hole' p)
   -- needs an equality test
-  when (not (scp || scq) && not (holes2Eq p q)) $ lift (Left 2)
+  when (not (scp || scq) && not (holes2Eq p q)) $ throwError "2"
 
 register1 :: (C ki fam codes at)
           => String
           -> Holes2 ki codes at
           -> HolesHoles2 ki codes at
           -> MergeM ki codes ()
-register1 side p q = do
-  sigma <- gets subst
+register1 side p q = trace (dbg "") $ do
+  sigma  <- gets subst
+  th     <- gets thinner
+  aux    <- lift $ withExcept (trace (dbg "-thin") . show)
+                 $ thinHoles2st (scDel q :*: scIns q) (fst' p) th
+  let ((qd' :*: qi'), th') = aux
+  sigma' <- lift $ withExcept (trace (dbg "-pmatch'") . show)
+                 $ pmatch' sigma act (fst' p) (holesLCP qd' qi')
+  let sigma'' = if isSimpleCpy p
+                then addIds (scDel q) sigma'
+                else sigma'
+  trace (show qd' ++ "\n" ++ show qi') $ put (MergeState sigma'' th')
+ where
+    addIds :: Holes ki codes (MetaVarIK ki) at
+           -> Subst ki codes (Holes2 ki codes)
+           -> Subst ki codes (Holes2 ki codes)
+    addIds hs = M.union (M.fromList $ holesGetHolesAnnWith'
+                           (\na -> (metavarGet na , Exists (Hole' (Hole' na :*: Hole' na))))
+                           hs)
+   
+    act :: (C ki fam codes at)
+        => Holes ki codes (MetaVarIK ki) iy
+        -> Holes2 ki codes iy
+        -> Subst ki codes (Holes2 ki codes)
+        -> Maybe (Subst ki codes (Holes2 ki codes))
+    act v phi sigma = 
+      -- here we must check that phi was a copy
+      -- VCM: not anymore; thinning should take care of it
+                  flip trace Nothing $ unlines [ "act" ++ side
+                                                    , "  v   = " ++ show v
+                                                    , "  phi = " ++ show (fst' phi)
+                                                    , "      ; " ++ show (snd' phi)
+                                                    ]
+   
+    dbg e = unlines ["register" ++ side ++ "[ " ++ e ++ "]"
+                    ,"  p = " ++ show (fst' p)
+                    ,"    ; " ++ show (snd' p)
+                    ,"  q = " ++ show (scDel q)
+                    ,"    ; " ++ show (scIns q)
+                    ]
+
+ {-
   -- Some thinning is necessary in here; case 9 displays the issue.
   -- It might even be that thinning removes the need for the fancy 'act'
   -- there.
@@ -130,7 +185,7 @@ register1 side p q = do
         -> Maybe (Subst ki codes (Holes2 ki codes))
     act v phi sigma = 
       -- here we must check that phi was a copy
-                  flip trace (Just sigma) $ unlines [ "act" ++ side
+                  flip trace Nothing $ unlines [ "act" ++ side
                                                     , "  v   = " ++ show v
                                                     , "  phi = " ++ show (fst' phi)
                                                     , "      ; " ++ show (snd' phi)
@@ -142,6 +197,7 @@ register1 side p q = do
                     ,"  q = " ++ show (scDel q)
                     ,"    ; " ++ show (scIns q)
                     ]
+-}
 
 
 decide :: (C ki fam codes at)
@@ -151,7 +207,29 @@ decide :: (C ki fam codes at)
 decide (Hole' p) (Hole' q) = inst2 p q
 decide (Hole' p)  cq       = inst1 p cq
 decide cp        (Hole' q) = inst1 q cp
-decide cp         cq       = lift (Left 4)
+decide cp         cq       = throwError "4"
+
+refine1 :: forall ki fam codes at
+         . (C ki fam codes at)
+        => Holes ki codes (MetaVarIK ki) at
+        -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
+refine1 = holesRefineAnnM (\_ -> ponder) (\_ -> return . HOpq')
+  where
+    ponder :: MetaVarIK ki y
+           -> MergeM ki codes (Holes ki codes (MetaVarIK ki) y)
+    ponder v = do
+      th  <- gets thinner
+      res <- lift $ withExcept show $ lookupVar v th
+      return $ case res of
+        Nothing -> Hole' v
+        Just r  -> r
+
+
+refine2 :: forall ki fam codes at
+         . (C ki fam codes at)
+        => Holes2 ki codes at
+        -> MergeM ki codes (Holes2 ki codes at)
+refine2 (d :*: i) = (:*:) <$> refine1 d <*> refine1 i        
 
 inst1 :: (C ki fam codes at)
       => Holes2 ki codes at
@@ -160,22 +238,9 @@ inst1 :: (C ki fam codes at)
 inst1 p q = do
   sigma <- gets subst
   case runExcept $ transport (snd' p) sigma of
-    Left err -> trace dbg $ lift (Left 5)
-    Right r  -> do
-      p' <- holesRefineAnnM (\_ -> needRefine sigma) (\_ -> return . HOpq') (fst' p)
-      return (p' :*: scIns r)
+    Left err -> trace dbg $ throwError ("[5] " ++ show err)
+    Right r  -> (:*:) <$> refine1 (fst' p) <*> return (scIns r)
  where
-   needRefine :: (C ki fam codes at)
-              => Subst ki codes (Holes2 ki codes)
-              -> MetaVarIK ki at
-              -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
-   needRefine m v = case runExcept (lookupVar v m) of
-     Left err -> trace "very bad!" (lift (Left 6))
-     Right Nothing -> return (Hole' v)
-     Right (Just r) 
-       | isSimpleCpy (scDel r :*: scIns r) -> return $ Hole' v
-       | otherwise                         -> return $ scDel r
-
    dbg = unlines ["inst"
                     ,"  p = " ++ show (fst' p)
                     ,"    ; " ++ show (snd' p)
@@ -191,8 +256,8 @@ inst2 :: (C ki fam codes at)
 inst2 p q = do
   let scp = isSimpleCpy p
   if scp
-  then return q
-  else return p
+  then refine2 q
+  else refine2 p
  where
 
 

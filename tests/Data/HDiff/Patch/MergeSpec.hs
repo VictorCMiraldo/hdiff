@@ -324,8 +324,8 @@ mytest a o b =
       oa  = distrCChange oa0
       ob  = distrCChange ob0
    in case go oa ob of
-        Left i -> False
-        Right r -> True -- CMatch S.empty (scDel r) (scIns r)
+        Left i -> error (show i)
+        Right r -> CMatch S.empty (scDel r) (scIns r)
 
 {-
 cc :: RTree -> RTree -> RTree -> Bool

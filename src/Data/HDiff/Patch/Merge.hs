@@ -209,8 +209,8 @@ process sp sq =
       s <- lift get
       let del = scDel qq
       case thinHoles2 (utx2distr pp) del of
-        Left e          -> throwError ("th: " ++ show e)
-        Right (pp0 , _) -> do
+        Left e    -> throwError ("th: " ++ show e)
+        Right pp0 -> do
           let pp' = uncurry' holesLCP pp0
           case runExcept (pmatch' s (\_ _ _ -> Nothing) del pp') of
             Left  e  -> throwError (show e)
