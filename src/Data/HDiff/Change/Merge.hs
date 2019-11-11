@@ -50,11 +50,14 @@ go :: forall ki fam codes at
    => CChange ki codes at
    -> CChange ki codes at
    -> Either String {- (Conflict ki codes at) -} (HolesHoles2 ki codes at)
-go    p q = let p0 = holesLCP (cCtxDel p) (cCtxIns p)
-                q0 = holesLCP (cCtxDel q) (cCtxIns q)
-             in case runExcept $ evalStateT (func p0 q0) mergeStateEmpty of
-                  Left i  -> Left i
-                  Right r -> Right $ r
+go    p q
+  | changeEq p q = return (holesLCP (cCtxDel p) (cCtxIns p))
+  | otherwise
+    = let p0 = holesLCP (cCtxDel p) (cCtxIns p)
+          q0 = holesLCP (cCtxDel q) (cCtxIns q)
+       in case runExcept $ evalStateT (func p0 q0) mergeStateEmpty of
+            Left i  -> Left i
+            Right r -> Right $ r
   where
     showSigma  = unlines
                . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s)
@@ -126,10 +129,7 @@ register1 side p q = trace (dbg "") $ do
   let ((qd' :*: qi'), th') = aux
   sigma' <- lift $ withExcept (trace (dbg "-pmatch'") . show)
                  $ pmatch' sigma act (fst' p) (holesLCP qd' qi')
-  let sigma'' = if isSimpleCpy p
-                then addIds (scDel q) sigma'
-                else sigma'
-  trace (show qd' ++ "\n" ++ show qi') $ put (MergeState sigma'' th')
+  put (MergeState sigma' th')
  where
     addIds :: Holes ki codes (MetaVarIK ki) at
            -> Subst ki codes (Holes2 ki codes)
@@ -213,7 +213,22 @@ refine1 :: forall ki fam codes at
          . (C ki fam codes at)
         => Holes ki codes (MetaVarIK ki) at
         -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
-refine1 = holesRefineAnnM (\_ -> ponder) (\_ -> return . HOpq')
+refine1 x = do
+  th <- gets thinner
+  lift $ withExcept show $ refine x th
+
+
+refine1' :: forall ki fam codes at
+          . (C ki fam codes at)
+         => Holes ki codes (MetaVarIK ki) at
+         -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
+refine1' x = do
+  th <- M.map (exMap scIns) <$> gets subst
+  lift $ withExcept show $ refine x th
+
+
+{-
+    holesRefineAnnM (\_ -> ponder) (\_ -> return . HOpq')
   where
     ponder :: MetaVarIK ki y
            -> MergeM ki codes (Holes ki codes (MetaVarIK ki) y)
@@ -223,6 +238,7 @@ refine1 = holesRefineAnnM (\_ -> ponder) (\_ -> return . HOpq')
       return $ case res of
         Nothing -> Hole' v
         Just r  -> r
+-}
 
 
 refine2 :: forall ki fam codes at
@@ -238,8 +254,10 @@ inst1 :: (C ki fam codes at)
 inst1 p q = do
   sigma <- gets subst
   case runExcept $ transport (snd' p) sigma of
-    Left err -> trace dbg $ throwError ("[5] " ++ show err)
-    Right r  -> (:*:) <$> refine1 (fst' p) <*> return (scIns r)
+    Left err -> case snd' p of
+      Hole' var -> (:*:) <$> refine1 (fst' p) <*> return (Hole' var)
+      _         -> trace dbg $ throwError ("[5] " ++ show err)
+    Right r  -> (:*:) <$> refine1 (fst' p) <*> refine1' (scIns r)
  where
    dbg = unlines ["inst"
                     ,"  p = " ++ show (fst' p)

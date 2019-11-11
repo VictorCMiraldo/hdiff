@@ -300,6 +300,9 @@ dset = [ [ a1, o1, b1 ]
        , [ a8, o8, b8 ]
        , [ a9, o9, b9 ]
        , [ a13, o13, b13 ]
+       , [ a17, o17, b17 ]
+       , [ a18, o18, b18 ]
+       , [ a19, o19, b19 ]
        ]
 
 failset = [ [ a10, o10, b10 ]
@@ -308,15 +311,22 @@ failset = [ [ a10, o10, b10 ]
           , [ a14, o14, b14 ]
           , [ a15, o15, b15 ]
           , [ a16, o16, b16 ]
-          , [ a17, o17, b17 ]
-          , [ a18, o18, b18 ]
-          , [ a19, o19, b19 ]
           , [ a20, o20, b20 ]
           ]
 
 
 
-mytest' [a, o , b] = mytest a o b
+mytest' [a, o , b] = mytestB a o b
+
+mytestB a o b =
+  let oa0 = hdiffRTree o a
+      ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
+      oa  = distrCChange oa0
+      ob  = distrCChange ob0
+   in case go oa ob of
+        Left i -> False -- error (show i)
+        Right r -> True -- CMatch S.empty (scDel r) (scIns r)
+
 
 mytest a o b =
   let oa0 = hdiffRTree o a
@@ -326,6 +336,7 @@ mytest a o b =
    in case go oa ob of
         Left i -> error (show i)
         Right r -> CMatch S.empty (scDel r) (scIns r)
+
 
 {-
 cc :: RTree -> RTree -> RTree -> Bool
