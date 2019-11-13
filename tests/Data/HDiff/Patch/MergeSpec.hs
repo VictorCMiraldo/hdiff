@@ -73,7 +73,9 @@ type TestCase  = ((RTree , RTree , RTree) , DiffMode -> Maybe RTree)
 testMerge :: DiffMode -> String -> TestCase -> SpecWith (Arg Property)
 testMerge mode lbl ((a , o , b) , res) = do
   it (lbl ++ ": " ++ maybe "conflicts" (const "merges") (res mode)) $
-    doMerge mode a o b `shouldBe` (maybe HasConflicts MergeOk $ res mode)
+    let expct = maybe HasConflicts MergeOk $ res mode
+     in do doMerge mode a o b `shouldBe` expct
+           doMerge mode b o a `shouldBe` expct
 
 doMerge :: DiffMode -> RTree -> RTree -> RTree -> MergeOutcome
 doMerge mode a o b
@@ -556,6 +558,10 @@ unitTests = [  ("1"   , t1 )
             ,  ("18"  , t18)
             ,  ("19"  , t19)
             ]
+
+flipMergeArgs :: (String , TestCase) -> (String , TestCase)
+flipMergeArgs (lbl , ((a , o , b) , r))
+  = (lbl ++ " swap" , ((b , o , a) , r))
 
 spec :: Spec
 spec = do

@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -58,8 +59,8 @@ mergeStateEmpty :: MergeState ki codes
 mergeStateEmpty = MergeState M.empty M.empty
 
 data MergeState ki codes = MergeState
-  { subst   :: Subst ki codes (Holes2 ki codes) 
-  , thinner :: Subst ki codes (MetaVarIK ki)
+  { future  :: Subst ki codes (MetaVarIK ki) 
+  , past    :: Subst ki codes (MetaVarIK ki)
   } 
 
 type MergeM ki codes = StateT (MergeState ki codes)
@@ -75,6 +76,7 @@ mergeWithErr p q
         q0 = holesLCP (cCtxDel q) (cCtxIns q)
      in fmap utx2distr . runExcept $ evalStateT (go p0 q0) mergeStateEmpty 
   where
+    showSigma :: Subst ki codes (Holes2 ki codes) -> String
     showSigma  = unlines
                . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s)
                                              ++ "\n  ; " ++ show (scIns s) )
@@ -88,9 +90,9 @@ mergeWithErr p q
     debug :: MergeM ki codes a -> MergeM ki codes a
     debug m = do
       res <- m
-      s <- gets subst
-      t <- gets thinner
-      trace (showSigma s ++ "\n\n" ++ showTh t) (return res)
+      s <- gets future
+      t <- gets past
+      trace (showTh s ++ "\n\n" ++ showTh t) (return res)
 
     go :: HolesHoles2 ki codes at 
        -> HolesHoles2 ki codes at 
@@ -124,59 +126,64 @@ register2 p q =
    in do
     when (not (scp || scq) && not (holes2Eq p q)) $ throwError ["ins-ins"]
 
+-- The idea here is to match p to q
 register1 :: (C ki fam codes at)
           => Holes2 ki codes at
           -> HolesHoles2 ki codes at
           -> MergeM ki codes ()
 register1 p q = do
-  sigma  <- gets subst
-  th     <- gets thinner
+  sigma  <- gets future
+  th     <- gets past
+  -- first thing is thinning q to p's domain. We know this must be
+  -- possible for p and q are a span (PRECONDITION)
   aux    <- lift $ withExcept ((:[]) . show)
                  $ thinHoles2st (scDel q :*: scIns q) (fst' p) th
-  let ((qd' :*: qi'), th') = aux
+  let ((_ :*: qi'), th') = aux
   sigma' <- lift $ withExcept ((:[]) . show)
-                 $ pmatch' sigma (\_ _ _ -> Nothing) (fst' p) (holesLCP qd' qi')
+                 $ pmatch' sigma (\_ _ _ -> Nothing) (fst' p) qi'
   put (MergeState sigma' th')
+
+productM :: (Monad m)
+         => (forall x . f x -> m (f' x))
+         -> (forall x . g x -> m (g' x))
+         -> (f :*: g) y
+         -> m ((f' :*: g') y)
+productM f g (x :*: y) = (:*:) <$> f x <*> g y         
 
 propagate :: (C ki fam codes at)
         => HolesHoles2 ki codes at
         -> HolesHoles2 ki codes at
         -> MergeM ki codes (Holes2 ki codes at)
 propagate (Hole' p) (Hole' q) 
-  | isSimpleCpy p = refine2 q
-  | otherwise     = refine2 p
+  -- Even though we got to this point, we gotta refine the results;
+  -- see case #7 on 
+  | isSimpleCpy p = productM refinePast refinePast q
+  | otherwise     = productM refinePast refinePast p
 propagate (Hole' p) _         = inst1 p 
 propagate _         (Hole' q) = inst1 q 
 propagate _         _         = throwError []
 
-refine1 :: forall ki fam codes at
-         . (C ki fam codes at)
-        => Holes ki codes (MetaVarIK ki) at
-        -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
-refine1 x = do
-  th <- gets thinner
+refinePast :: forall ki fam codes at
+            . (C ki fam codes at)
+           => Holes ki codes (MetaVarIK ki) at
+           -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
+refinePast x = do
+  th <- gets past
   lift $ withExcept ((:[]) . show) $ refine x th
 
-
-refine1' :: forall ki fam codes at
-          . (C ki fam codes at)
-         => Holes ki codes (MetaVarIK ki) at
-         -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
-refine1' x = do
-  th <- M.map (exMap scIns) <$> gets subst
+refineFuture :: forall ki fam codes at
+              . (C ki fam codes at)
+             => Holes ki codes (MetaVarIK ki) at
+             -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
+refineFuture x = do
+  th <- gets future
   lift $ withExcept ((:[]) . show) $ refine x th
-
-refine2 :: forall ki fam codes at
-         . (C ki fam codes at)
-        => Holes2 ki codes at
-        -> MergeM ki codes (Holes2 ki codes at)
-refine2 (d :*: i) = (:*:) <$> refine1 d <*> refine1 i        
 
 inst1 :: (C ki fam codes at)
       => Holes2 ki codes at
       -> MergeM ki codes (Holes2 ki codes at)
 inst1 p = routeError "inst1" $ do
-  sigma <- gets subst
+  sigma <- gets future
   case runExcept $ transport (snd' p) sigma of
     Left err -> case snd' p of
       -- In case the instantiation failed, we check wheter we are looking
@@ -184,6 +191,6 @@ inst1 p = routeError "inst1" $ do
       -- might have failed because we failed to discover it during the first phase.
       -- Check test case #9 in MergeSpec for an example of where this is needed.
       -- I do feel we need a better story though
-      Hole' var -> (:*:) <$> refine1 (fst' p) <*> return (Hole' var)
+      Hole' var -> (:*:) <$> refinePast (fst' p) <*> return (Hole' var)
       _         -> throwError [show err]
-    Right r  -> (:*:) <$> refine1 (fst' p) <*> refine1' (scIns r)
+    Right r  -> (:*:) <$> refinePast (fst' p) <*> refineFuture r
