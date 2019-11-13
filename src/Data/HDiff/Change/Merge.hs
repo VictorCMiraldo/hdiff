@@ -122,8 +122,6 @@ register2 p q =
   let scp = isSimpleCpy p
       scq = isSimpleCpy q
    in do
-    when scp $ register1 p (Hole' q) 
-    when scq $ register1 q (Hole' p) 
     when (not (scp || scq) && not (holes2Eq p q)) $ throwError ["ins-ins"]
 
 register1 :: (C ki fam codes at)
@@ -185,6 +183,7 @@ inst1 p = routeError "inst1" $ do
       -- into transporting a single variable. If that's the case, the transport
       -- might have failed because we failed to discover it during the first phase.
       -- Check test case #9 in MergeSpec for an example of where this is needed.
+      -- I do feel we need a better story though
       Hole' var -> (:*:) <$> refine1 (fst' p) <*> return (Hole' var)
       _         -> throwError [show err]
     Right r  -> (:*:) <$> refine1 (fst' p) <*> refine1' (scIns r)

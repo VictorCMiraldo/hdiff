@@ -68,12 +68,12 @@ data MergeOutcome
   deriving (Eq , Show)
 
 -- TODO: make test case expected result depend on diff mode!
-type TestCase  = ((RTree , RTree , RTree) , Maybe RTree)
+type TestCase  = ((RTree , RTree , RTree) , DiffMode -> Maybe RTree)
 
 testMerge :: DiffMode -> String -> TestCase -> SpecWith (Arg Property)
 testMerge mode lbl ((a , o , b) , res) = do
-  it (lbl ++ ": " ++ maybe "conflicts" (const "merges") res) $
-    doMerge mode a o b `shouldBe` (maybe HasConflicts MergeOk res)
+  it (lbl ++ ": " ++ maybe "conflicts" (const "merges") (res mode)) $
+    doMerge mode a o b `shouldBe` (maybe HasConflicts MergeOk $ res mode)
 
 doMerge :: DiffMode -> RTree -> RTree -> RTree -> MergeOutcome
 doMerge mode a o b
@@ -118,7 +118,7 @@ r1 = "a" :>: [ "b'" :>: []
              ]
 
 t1 :: TestCase
-t1 = ((a1 , o1 , b1) , Just r1)
+t1 = ((a1 , o1 , b1) , const $ Just r1)
 
 -------------------
 -- Example 2
@@ -137,7 +137,7 @@ b2 = "b" :>: [ "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
 r2 = "b" :>: [ "u" :>: [ "4" :>: [] ] , "u" :>: [ ".." :>: [] ] ]
 
 t2 :: TestCase
-t2 = ((a2 , o2 , b2) , Just r2)
+t2 = ((a2 , o2 , b2) , const $ Just r2)
 
 -----------------
 -- Example 3
@@ -149,7 +149,7 @@ b3 = "x"  :>: [ "y'" :>: [] ]
 r3 = "x'" :>: [ "y'" :>: [] ]
 
 t3 :: TestCase
-t3 = ((a3, o3, b3) , Just r3)
+t3 = ((a3, o3, b3) , const $ Just r3)
 
 ---------------------------------
 -- Example 4
@@ -161,7 +161,7 @@ b4 = "y" :>: []
 r4 = "y" :>: []
 
 t4 :: TestCase
-t4 = ((a4 , o4 , b4) , Just r4)
+t4 = ((a4 , o4 , b4) , const $ Just r4)
 
 ---------------------------------
 -- Example 5
@@ -176,7 +176,14 @@ r5 = "x" :>: [ "y" :>: [ "k" :>: [] , "u" :>: [] ]
              , "k" :>: [] , "u" :>: [] ]
 
 t5 :: TestCase
-t5 = ((a5 , o5 , b5) , Just r5)
+t5 = ((a5 , o5 , b5) , (\x -> case x of
+                           DM_Patience -> Just patience5
+                           _           -> Just r5))
+
+-- TODO: Patience-diffing will yield this result,
+-- which actually makes sense!
+patience5 :: RTree
+patience5 = "x" :>: ["u" :>: [],"y" :>: ["u" :>: [],"k" :>: []],"k" :>: []]
 
 ---------------------------------
 -- Example 6
@@ -190,7 +197,11 @@ b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ]
 r6 = "x" :>: [ "y" :>: [ "u" :>: [] ] , "u" :>: [] ]
 
 t6 :: TestCase
-t6 = ((a6 , o6 , b6) , Just r6)
+t6 = ((a6 , o6 , b6) , \x -> case x of
+                               DM_Patience -> Nothing
+                               _           -> Just r6)
+
+
 
 
 ---------------------------------
@@ -203,7 +214,7 @@ b7 = "y" :>: [ "a" :>: [] , "u" :>: [ "b" :>: [] ] , "k" :>: [] , "new" :>: [] ,
 r7 = "y" :>: [ "u" :>: [ "b" :>: [] ] , "new" :>: [] , "l" :>: [] ]
 
 t7 :: TestCase
-t7 = ((a7 , o7 , b7) , Just r7)
+t7 = ((a7 , o7 , b7) , const $ Just r7)
 
 
 ---------------------------------
@@ -216,7 +227,7 @@ b8 = "x" :>: [ "u" :>: [] , "a" :>: [] , "k" :>: []]
 r8 = "x" :>: [ "k" :>: [] , "a" :>: [] , "u" :>: []]
 
 t8 :: TestCase
-t8 = ((a8 , o8 , b8) , Just r8)
+t8 = ((a8 , o8 , b8) , const $ Just r8)
 
 ---------------------------------
 -- Example 9
@@ -228,7 +239,7 @@ b9 = "x" :>: [ "u'" :>: [] , "k" :>: []]
 r9 = "x" :>: [ "k" :>: []  , "u'" :>: []]
 
 t9 :: TestCase
-t9 = ((a9 , o9 , b9) , Just r9)
+t9 = ((a9 , o9 , b9) , const $ Just r9)
 
 
 --------------------------------
@@ -240,7 +251,7 @@ o10 = "x" :>: [ "u" :>: []  , "k" :>: []]
 b10 = "x" :>: [ "u" :>: []  , "b" :>: [] , "k" :>: []]
 
 t10 :: TestCase
-t10 = ((a10 , o10 , b10) , Nothing)
+t10 = ((a10 , o10 , b10) , const $ Nothing)
 
 ------------------------------
 -- Example 11
@@ -251,7 +262,7 @@ o11 = "x" :>: [ "u" :>: []  , "b" :>: []]
 b11 = "x" :>: [ "u" :>: []  , "c" :>: []]
 
 t11 :: TestCase
-t11 = ((a11 , o11 , b11) , Nothing)
+t11 = ((a11 , o11 , b11) , const $ Nothing)
 
 
 -----------------------------
@@ -263,7 +274,7 @@ o12 = "f" :>: ["a" :>: []]
 b12 = "e" :>: []
 
 t12 :: TestCase
-t12 = ((a12 , o12 , b12) , Nothing)
+t12 = ((a12 , o12 , b12) , const $ Nothing)
 
 
 ----------------------------
@@ -275,7 +286,7 @@ o13 = "d" :>: ["i" :>: []]
 b13 = "a" :>: ["j" :>: ["i" :>: []]]
 
 t13 :: TestCase
-t13 = ((a13 , o13 , b13) , Nothing)
+t13 = ((a13 , o13 , b13) , const $ Nothing)
 
 ---------------------------
 -- Example 14
@@ -286,7 +297,7 @@ o14 = "k" :>: ["b" :>: [],"l" :>: []]
 b14 = "f" :>: ["k" :>: [],"b" :>: []]
 
 t14 :: TestCase
-t14 = ((a14 , o14 , b14) , Nothing)
+t14 = ((a14 , o14 , b14) , const $ Nothing)
 
 ---------------------------
 -- Example 15
@@ -297,7 +308,7 @@ o15 = "i" :>: ["g" :>: [],"c" :>: []]
 b15 = "g" :>: ["k" :>: [],"l" :>: []]
 
 t15 :: TestCase
-t15 = ((a15 , o15 , b15) , Nothing)
+t15 = ((a15 , o15 , b15) , const $ Nothing)
 
 ------------------------
 -- Example 16
@@ -308,7 +319,7 @@ o16 = "g" :>: ["f" :>: [],"j" :>: []]
 b16 = "e" :>: ["a" :>: [],"a" :>: [],"f" :>: []]
 
 t16 :: TestCase
-t16 = ((a16 , o16 , b16) , Nothing)
+t16 = ((a16 , o16 , b16) , const $ Nothing)
 
 ------------------------
 -- Example 17
@@ -320,7 +331,7 @@ b17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
 r17 = "j" :>: ["g" :>: ["c" :>: [],"c" :>: [],"h" :>: [],"f" :>: []]]
 
 t17 :: TestCase
-t17 = ((a17 , o17 , b17) , Just r17)
+t17 = ((a17 , o17 , b17) , const $ Just r17)
 
 ------------------------
 -- Example 18
@@ -332,7 +343,12 @@ b18 = "r" :>: [ "b" :>: [] , "c" :>: []]
 r18 = "r" :>: [ "b" :>: [] , "b" :>: []]
 
 t18 :: TestCase
-t18 = ((a18 , o18 , b18) , Just r18)
+t18 = ((a18 , o18 , b18) , \x -> case x of
+                                   DM_Patience -> Just patience18
+                                   _           -> Just r18)
+
+patience18 :: RTree
+patience18 = "r" :>: [ "b" :>: [] , "a" :>: [] ]
 
 -------------------------
 -- Example 19
@@ -344,7 +360,7 @@ b19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []]
 r19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []] 
 
 t19 :: TestCase
-t19 = ((a19 , o19 , b19) , Just r19)
+t19 = ((a19 , o19 , b19) , const $ Just r19)
 
 ------------------------
 -- Example 20
