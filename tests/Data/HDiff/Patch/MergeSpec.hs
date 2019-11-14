@@ -568,6 +568,15 @@ spec = do
   flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
     describe ("merge: manual examples (" ++ show m ++ ")") $ do
       mapM_ (uncurry $ testMerge m) unitTests
+
+    describe ("merge: conflict or ok (" ++ show m ++ ")") $ do
+      it "contains no apply fail or merge differs" $ property $
+        forAll gen3Trees $ \(a , o , b)
+          -> case doMerge m a o b of
+               MergeOk _    -> True
+               HasConflicts -> True
+               _            -> False
+
       {-
       mustMerge m "01" a1 o1 b1
       mustMerge m "02" a2 o2 b2

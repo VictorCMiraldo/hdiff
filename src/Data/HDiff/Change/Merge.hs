@@ -97,7 +97,7 @@ mergeWithErr p q
     go :: HolesHoles2 ki codes at 
        -> HolesHoles2 ki codes at 
        -> MergeM ki codes (HolesHoles2 ki codes at)
-    go p0 q0 = {- debug $ -} do
+    go p0 q0 = debug $ do
        let pq0 = holesLCP p0 q0
        routeError "discover"
          $ mapM_ (exElim (uncurry' discover)) (holesGetHolesAnnWith' Exists pq0)
