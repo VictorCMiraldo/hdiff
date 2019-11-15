@@ -41,9 +41,9 @@ function showUsage() {
   echo ""
   echo "  Example usage:"
   echo ""
-  echo "    ./run-experiment.sh dataset/conflicts-el digem merge A.el O.el B.el | tee LOG"
+  echo "    ./run-experiment.sh dataset/conflicts-el hdiff merge A.el O.el B.el | tee LOG"
   echo ""
-  echo "      Will run digem merge on all conflicts within dataset/conflicts-el."
+  echo "      Will run hdiff merge on all conflicts within dataset/conflicts-el."
   echo "      Better yet would be to write a script 'merge-experiment.sh' and pass it instead:"
   echo "        ./run-experiment.sh dataset/conflicts-el ./scripts/merge-experiment.sh"
   echo ""
@@ -83,8 +83,8 @@ fi
 
 trap "exit" SIGINT SIGTERM
 
-ver=$(digem --version)
-echo "[run-experiment; digem at version $ver]"
+ver=alpha # TODO: fix $(hdiff --version)
+echo "[run-experiment; hdiff at version $ver]"
 $exp --header
 
 for d in ${dir}/*; do

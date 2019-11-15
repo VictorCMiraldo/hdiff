@@ -27,12 +27,13 @@ done
 
 timeout="5s"
 
-timeout "${timeout}" digem merge -h $height "$fa" "$fo" "$fb"
+timeout "${timeout}" hdiff merge -m $height "$fa" "$fo" "$fb"
 res=$?
 case $res in
-  0) echo "$prefix $height success"               ;;
-  1) echo "$prefix $height conflicting"           ;;
-  2) echo "$prefix $height panic";         exit 1 ;;
-  *) echo "$prefix $height unknown($res)"; exit 1 ;;
+  0)  echo "$prefix $height success"               ;;
+  1)  echo "$prefix $height conflicting"           ;;
+  2)  echo "$prefix $height panic";         exit 1 ;;
+  10) echo "$prefix $height parse-error";          ;;
+  *)  echo "$prefix $height unknown($res)"; exit 1 ;;
 esac
 
