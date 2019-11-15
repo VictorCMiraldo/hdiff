@@ -63,7 +63,7 @@ thinHoles2st (del :*: ins) dom sigma0 = do
   -- context over the domain we are thinning against and register the equalities
   -- we see.
   sigma  <- flip execStateT sigma0 $ thinGetEquivs del dom
-  sigma' <- return sigma -- minimize sigma
+  sigma' <- minimize sigma
   del'   <- refine del sigma'
   ins'   <- refine ins sigma'
   return $ (del' :*: ins' , sigma')

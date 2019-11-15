@@ -13,15 +13,15 @@ module Data.HDiff.Patch.Thinning where
 
 import           Data.Type.Equality
 ---------------------------------------
-import Generics.MRSOP.Util
+import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 ---------------------------------------
 import           Data.HDiff.Patch
 import           Data.HDiff.Change
 import qualified Data.HDiff.Change.Thinning as CT
 
-thin :: forall ki codes at
-      . (TestEquality ki, EqHO ki)
+thin :: forall ki fam codes at
+      . (HasDatatypeInfo ki fam codes , ShowHO ki , TestEquality ki, EqHO ki)
      => RawPatch ki codes at
      -> RawPatch ki codes at
      -> Either (CT.ThinningErr ki codes) (RawPatch ki codes at)
@@ -33,7 +33,7 @@ thin p q = holesMapM (uncurry' go) $ holesLCP p (q `withFreshNamesFrom` p)
                    cq' = distrCChange cq 
                 in CT.thin cp' (domain cq')
 
-unsafeThin :: (TestEquality ki, EqHO ki)
+unsafeThin :: (ShowHO ki , HasDatatypeInfo ki fam codes , TestEquality ki, EqHO ki)
            => RawPatch ki codes at
            -> RawPatch ki codes at
            -> RawPatch ki codes at

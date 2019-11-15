@@ -57,6 +57,15 @@ noConflicts = holesMapM rmvInL
     rmvInL (InL _) = Nothing
     rmvInL (InR x) = Just x
 
+getConflicts :: PatchC ki codes ix -> [Exists (Conflict ki codes)]
+getConflicts = foldr act [] . holesGetHolesAnnWith' Exists
+  where
+    act :: Exists (Sum (Conflict ki codes) (CChange ki codes))
+        -> [Exists (Conflict ki codes)]
+        -> [Exists (Conflict ki codes)]
+    act (Exists (InR _)) = id
+    act (Exists (InL c)) = (Exists c :)
+
 diff3 :: forall ki fam codes ix
        . (C ki fam codes ix) -- TODO: remove redundant constraints
       => Patch ki codes ix

@@ -40,6 +40,7 @@ import Generics.MRSOP.HDiff.Digest
 import qualified Generics.MRSOP.GDiff          as GDiff
 import qualified Generics.MRSOP.STDiff         as STDiff
 
+import           Data.Exists
 import qualified Data.HDiff.Patch       as D
 import qualified Data.HDiff.Diff        as D
 import qualified Data.HDiff.Patch.Merge as D
@@ -347,27 +348,21 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
       putStrLnErr $ "B: " ++ optFileB opts
     patchOA <- diffWithOpts opts fo fa
     patchOB <- diffWithOpts opts fo fb
-    let resAB = patchOA D.// patchOB
-    let resBA = patchOB D.// patchOA
+    let res = D.diff3 patchOA patchOB
     when (v == VeryLoud) $ do
-      putStrLnErr $ "O->A/O->B " ++ replicate 55 '#'
-      displayPatchC stderr resAB
-      putStrLnErr $ "O->B/O->A " ++ replicate 55 '#'
-      displayPatchC stderr resBA
-    case (,) <$> D.noConflicts resAB <*> D.noConflicts resBA of
-      Nothing        -> putStrLnErr " !! Conflicts O->A/O->B !!"
-                     >> putStrLnErr (unlines (map ("  - " ++) (D.getConflicts resAB)))
-                     >> putStrLnErr " !! Conflicts O->B/O->A !!"
-                     >> putStrLnErr (unlines (map ("  - " ++) (D.getConflicts resBA)))
-                     >> return (ExitFailure 1)
-      Just (ab , ba) -> do
-        when (v == Loud) (putStrLnErr "!! apply ba fa")
-        Just fb' <- tryApply v ba fa Nothing
-        when (v == Loud) (putStrLnErr "!! apply ab fb")
-        Just fa' <- tryApply v ab fb Nothing
-        if eqHO fb' fa'
-        then return ExitSuccess
-        else return (ExitFailure 2)
+      putStrLnErr $ "diff3 O->A O->B " ++ replicate 55 '#'
+      displayPatchC stderr res
+    case D.noConflicts res of
+      Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
+              >> putStrLnErr (("  - " ++) . show . length
+                             $ D.getConflicts res)
+              >> return (ExitFailure 1)
+      Just om -> do
+        when (v == Loud) (putStrLnErr "!! apply om o")
+        Just m <- tryApply v om fo Nothing
+        when (v == Loud) $ do
+          putStrLnErr $ show $ renderFix renderHO m
+        return ExitSuccess
 
 
 mainSTMerge :: Verbosity -> Options -> IO ExitCode

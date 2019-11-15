@@ -5,6 +5,7 @@ module Data.HDiff.Change.Compose where
 
 import Data.Type.Equality
 import Control.Monad.Except
+import qualified Data.Map as M
 -------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
@@ -50,7 +51,7 @@ after' :: (HasDatatypeInfo ki fam codes , ShowHO ki , EqHO ki , TestEquality ki)
        -> Holes2 ki codes at
        -> Either (ThinningErr ki codes) (Holes2 ki codes at)
 after' q (pD :*: pI) = do
-  (di , sigma) <- thinHoles2 q pI
+  (di , sigma) <- runExcept $ thinHoles2st q pI M.empty
   let _ :*: i' = di
   pD' <- runExcept $ refine pD sigma
   return $ pD' :*: i'
