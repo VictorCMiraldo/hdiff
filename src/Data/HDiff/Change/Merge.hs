@@ -121,6 +121,8 @@ register2 p q =
   let scp = isSimpleCpy p
       scq = isSimpleCpy q
    in do
+    -- when scp $ register1 p (Hole' q)
+    -- when scq $ register1 q (Hole' p)
     when (not (scp || scq) && not (holes2Eq p q)) $ throwError ["ins-ins"]
 
 -- The idea here is to match p to q
@@ -141,9 +143,9 @@ register1 p q = do
   -- Now, we need to upate the future map with identity
   -- clause for all the newly added variables in past, which were
   -- never instantiated.
-  let elms = concatMap (exElim $ holesGetHolesAnnWith' Exists) $ M.elems $ M.difference pas' pas
-  let fut'' = foldr (\v -> M.insert (exElim metavarGet v) (exMap Hole' v)) fut' elms
-  put (MergeState fut'' pas')
+  -- let elms = concatMap (exElim $ holesGetHolesAnnWith' Exists) $ M.elems $ M.difference pas' pas
+  -- let fut'' = foldr (\v -> M.insert (exElim metavarGet v) (exMap Hole' v)) fut' elms
+  put (MergeState fut' pas')
 
 productM :: (Monad m)
          => (forall x . f x -> m (f' x))
@@ -186,6 +188,6 @@ inst1 :: (C ki fam codes at)
       -> MergeM ki codes (Holes2 ki codes at)
 inst1 p = routeError "inst1" $ do
   sigma <- gets future
-  case runExcept $ transport (snd' p) sigma of
+  case runExcept $ refine (snd' p) sigma of
     Left err -> throwError ["transport", show err]
     Right r  -> (:*:) <$> refinePast (fst' p) <*> refineFuture r
