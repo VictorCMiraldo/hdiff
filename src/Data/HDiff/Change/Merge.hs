@@ -94,7 +94,7 @@ mergeWithErr p q
     go :: HolesHoles2 ki codes at 
        -> HolesHoles2 ki codes at 
        -> MergeM ki codes (HolesHoles2 ki codes at)
-    go p0 q0 = debug $ do
+    go p0 q0 = {- debug $ -} do
        let pq0 = holesLCP p0 q0
        routeError "discover"
          $ mapM_ (exElim (uncurry' discover)) (holesGetHolesAnnWith' Exists pq0)
@@ -129,16 +129,21 @@ register1 :: (C ki fam codes at)
           -> HolesHoles2 ki codes at
           -> MergeM ki codes ()
 register1 p q = do
-  sigma  <- gets future
-  th     <- gets past
+  fut  <- gets future
+  pas  <- gets past
   -- first thing is thinning q to p's domain. We know this must be
   -- possible for p and q are a span (PRECONDITION)
-  aux    <- lift $ withExcept ((:[]) . show)
-                 $ thinHoles2st (scDel q :*: scIns q) (fst' p) th
-  let ((_ :*: qi'), th') = aux
-  sigma' <- lift $ withExcept ((:[]) . show)
-                 $ pmatch' sigma (\_ _ _ -> Nothing) (fst' p) qi'
-  put (MergeState sigma' th')
+  aux  <- lift $ withExcept ((:[]) . show)
+               $ thinHoles2st (scDel q :*: scIns q) (fst' p) pas
+  let ((_ :*: qi'), pas') = aux
+  fut' <- lift $ withExcept ((:[]) . show)
+               $ pmatch' fut (\_ _ _ -> Nothing) (fst' p) qi'
+  -- Now, we need to upate the future map with identity
+  -- clause for all the newly added variables in past, which were
+  -- never instantiated.
+  let elms = concatMap (exElim $ holesGetHolesAnnWith' Exists) $ M.elems $ M.difference pas' pas
+  let fut'' = foldr (\v -> M.insert (exElim metavarGet v) (exMap Hole' v)) fut' elms
+  put (MergeState fut'' pas')
 
 productM :: (Monad m)
          => (forall x . f x -> m (f' x))
@@ -182,12 +187,5 @@ inst1 :: (C ki fam codes at)
 inst1 p = routeError "inst1" $ do
   sigma <- gets future
   case runExcept $ transport (snd' p) sigma of
-    Left err -> case snd' p of
-      -- In case the instantiation failed, we check wheter we are looking
-      -- into transporting a single variable. If that's the case, the transport
-      -- might have failed because we failed to discover it during the first phase.
-      -- Check test case #9 in MergeSpec for an example of where this is needed.
-      -- I do feel we need a better story though
-      -- Hole' var -> (:*:) <$> refinePast (fst' p) <*> return (Hole' var)
-      _         -> throwError ["transport", show err]
+    Left err -> throwError ["transport", show err]
     Right r  -> (:*:) <$> refinePast (fst' p) <*> refineFuture r
