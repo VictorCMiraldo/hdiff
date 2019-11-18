@@ -97,8 +97,8 @@ showPatchC patch
     prettyConfDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
-    prettyConfDel (InL (D.Conflict _ _))
-      = annotate (color Blue) (pretty $ show "conflict")
+    prettyConfDel (InL (D.Conflict _ _ l))
+      = annotate (color Blue) (pretty l)
     prettyConfDel (InR (D.CMatch _ del _))
       = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
@@ -108,8 +108,8 @@ showPatchC patch
     prettyConfIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => Sum (D.Conflict ki codes) (D.CChange ki codes) at
                     -> Doc AnsiStyle
-    prettyConfIns (InL (D.Conflict _ _))
-      = annotate (color Blue) (pretty $ show "conflict")
+    prettyConfIns (InL (D.Conflict _ _ l))
+      = annotate (color Blue) (pretty l)
     prettyConfIns (InR (D.CMatch _ _ ins))
       = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)

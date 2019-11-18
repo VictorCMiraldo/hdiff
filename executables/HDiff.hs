@@ -41,12 +41,13 @@ import qualified Generics.MRSOP.GDiff          as GDiff
 import qualified Generics.MRSOP.STDiff         as STDiff
 
 import           Data.Exists
-import qualified Data.HDiff.Patch       as D
-import qualified Data.HDiff.Diff        as D
-import qualified Data.HDiff.Patch.Merge as D
+import qualified Data.HDiff.Patch        as D
+import qualified Data.HDiff.Diff         as D
+import qualified Data.HDiff.Patch.Merge  as D
 import qualified Data.HDiff.Patch.TreeEditDistance as TED
 import           Data.HDiff.Patch.Show
-import qualified Data.HDiff.Change      as D
+import qualified Data.HDiff.Change       as D
+import qualified Data.HDiff.Change.Merge as D
 import qualified Data.HDiff.Change.TreeEditDistance as TEDC
 
 import           Languages.Interface
@@ -354,7 +355,8 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
       displayPatchC stderr res
     case D.noConflicts res of
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
-              >> putStrLnErr (("  - " ++) . show . length
+              >> putStrLnErr (unlines
+                             $ map (\(Exists (D.Conflict _ _ l)) -> l)
                              $ D.getConflicts res)
               >> return (ExitFailure 1)
       Just om -> do

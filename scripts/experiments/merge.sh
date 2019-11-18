@@ -26,14 +26,19 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 timeout="5s"
+function doMerge() {
+  local mode=$1
+  timeout "${timeout}" hdiff merge -m $height "$fa" "$fo" "$fb"
+  res=$?
+  case $res in
+    0)  echo "$prefix $height $mode success"               ;;
+    1)  echo "$prefix $height $mode conflicting"           ;;
+    2)  echo "$prefix $height $mode panic";         exit 1 ;;
+    10) echo "$prefix $height $mode parse-error"           ;;
+    *)  echo "$prefix $height $mode unknown($res)"         ;;
+  esac
+}
 
-timeout "${timeout}" hdiff merge -m $height "$fa" "$fo" "$fb"
-res=$?
-case $res in
-  0)  echo "$prefix $height success"               ;;
-  1)  echo "$prefix $height conflicting"           ;;
-  2)  echo "$prefix $height panic";         exit 1 ;;
-  10) echo "$prefix $height parse-error";          ;;
-  *)  echo "$prefix $height unknown($res)"; exit 1 ;;
-esac
-
+# doMerge "proper"
+doMerge "nonest"
+# doMerge "patience"

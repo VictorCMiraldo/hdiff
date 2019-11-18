@@ -34,6 +34,7 @@ import Debug.Trace
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
   Conflict :: CChange ki codes at
            -> CChange ki codes at
+           -> String
            -> Conflict ki codes at
 
 type C ki fam codes at = (ShowHO ki , HasDatatypeInfo ki fam codes
@@ -52,7 +53,7 @@ merge :: forall ki fam codes at
       => CChange ki codes at
       -> CChange ki codes at
       -> Either (Conflict ki codes at) (CChange ki codes at)
-merge p q = either (const (Left $ Conflict p q)) (Right . uncurry' (CMatch S.empty))
+merge p q = either (Left . Conflict p q . unwords) (Right . uncurry' (CMatch S.empty))
           $ mergeWithErr p q
 
 mergeStateEmpty :: MergeState ki codes
@@ -62,6 +63,13 @@ data MergeState ki codes = MergeState
   { future  :: Subst ki codes (MetaVarIK ki) 
   , past    :: Subst ki codes (MetaVarIK ki)
   } 
+
+showTh :: (C ki fam codes at) => Subst ki codes (MetaVarIK ki) -> String
+showTh    = unlines
+          . map (\(x , Exists s) -> show x ++ " = " ++ show s)
+          . M.toList
+
+
 
 type MergeM ki codes = StateT (MergeState ki codes)
                               (Except [String])
@@ -76,17 +84,6 @@ mergeWithErr p q
         q0 = holesLCP (cCtxDel q) (cCtxIns q)
      in fmap utx2distr . runExcept $ evalStateT (go p0 q0) mergeStateEmpty 
   where
-    showSigma :: Subst ki codes (Holes2 ki codes) -> String
-    showSigma  = unlines
-               . map (\(x , Exists s) -> show x ++ " = " ++ show (scDel s)
-                                             ++ "\n  ; " ++ show (scIns s) )
-               . M.toList
-    
-    showTh :: Subst ki codes (MetaVarIK ki) -> String
-    showTh    = unlines
-              . map (\(x , Exists s) -> show x ++ " = " ++ show s)
-              . M.toList
-
     debug :: MergeM ki codes a -> MergeM ki codes a
     debug m = do
       res <- m
@@ -97,7 +94,7 @@ mergeWithErr p q
     go :: HolesHoles2 ki codes at 
        -> HolesHoles2 ki codes at 
        -> MergeM ki codes (HolesHoles2 ki codes at)
-    go p0 q0 = {- debug $ -} do
+    go p0 q0 = debug $ do
        let pq0 = holesLCP p0 q0
        routeError "discover"
          $ mapM_ (exElim (uncurry' discover)) (holesGetHolesAnnWith' Exists pq0)
@@ -175,7 +172,7 @@ refineFuture :: forall ki fam codes at
               . (C ki fam codes at)
              => Holes ki codes (MetaVarIK ki) at
              -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
-refineFuture x = do
+refineFuture x = routeError "refineFuture" $ do
   th <- gets future
   lift $ withExcept ((:[]) . show) $ refine x th
 
@@ -191,6 +188,6 @@ inst1 p = routeError "inst1" $ do
       -- might have failed because we failed to discover it during the first phase.
       -- Check test case #9 in MergeSpec for an example of where this is needed.
       -- I do feel we need a better story though
-      Hole' var -> (:*:) <$> refinePast (fst' p) <*> return (Hole' var)
-      _         -> throwError [show err]
+      -- Hole' var -> (:*:) <$> refinePast (fst' p) <*> return (Hole' var)
+      _         -> throwError ["transport", show err]
     Right r  -> (:*:) <$> refinePast (fst' p) <*> refineFuture r

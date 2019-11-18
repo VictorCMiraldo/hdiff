@@ -2,6 +2,9 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 module Data.HDiff.Patch.MergeSpec (spec) where
 
 import Generics.MRSOP.Base
@@ -408,8 +411,8 @@ mytestB a o b =
       oa  = distrCChange oa0
       ob  = distrCChange ob0
    in case mergeWithErr oa ob of
-        Left i -> show i -- error (show i)
-        Right r -> "ok" -- CMatch S.empty (scDel r) (scIns r)
+        Left i -> error (show i)
+        Right r -> r
 
 
 mytest a o b r =
