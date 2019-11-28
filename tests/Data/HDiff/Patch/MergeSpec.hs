@@ -403,8 +403,9 @@ failset = [ [ a10, o10, b10 ]
 
 
 
-mytest' [a, o , b] = mytestB a o b
+-- mytest' [a, o , b] = mytestB a o b
 
+{-
 mytestB a o b =
   let oa0 = hdiffRTree o a
       ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
@@ -429,6 +430,7 @@ mytest a o b r =
                                      then Right ()
                                      else Left "Different Result"
 
+-}
 
 {-
 cc :: RTree -> RTree -> RTree -> Bool

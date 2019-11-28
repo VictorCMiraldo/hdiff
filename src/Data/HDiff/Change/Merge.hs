@@ -25,169 +25,170 @@ import           Data.Exists
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Change
 import           Data.HDiff.Change.Apply
-import           Data.HDiff.Change.Thinning
 import           Generics.MRSOP.Holes
 import           Generics.MRSOP.HDiff.Renderer
-
-import Debug.Trace
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
   Conflict :: CChange ki codes at
            -> CChange ki codes at
-           -> String
            -> Conflict ki codes at
+
+data Phase2 :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
+  -- |A instantiation needs to be done after we completed the information
+  --  discovery phase.
+  P2Instantiate :: Holes2 ki codes at
+                -> Phase2 ki codes at
+  
+  -- |Sometimes we must decide whether we are looking into the same change or not.
+  P2TestEq      :: Holes2 ki codes at
+                -> Holes2 ki codes at
+                -> Phase2 ki codes at
+
+data MergeState ki codes = MergeState
+  { sigma :: Subst ki codes (Holes2 ki codes)
+  , mdel  :: Subst ki codes (MetaVarIK ki)
+  , mins  :: Subst ki codes (MetaVarIK ki)
+  }
+
+mergeState0 = MergeState M.empty M.empty M.empty
+
+
+data MergeError = ME_Conflict | ME_Other
+  deriving (Eq , Show)
+
+type MergeM ki codes = StateT (MergeState ki codes) (Except MergeError)
 
 type C ki fam codes at = (ShowHO ki , HasDatatypeInfo ki fam codes
                          , RendererHO ki , EqHO ki , TestEquality ki)
 
-isSimpleCpy :: Holes2 ki codes at -> Bool
-isSimpleCpy (Hole' x :*: Hole' y) = metavarGet x == metavarGet y
-isSimpleCpy _                     = False
-
--- |Attempts to merges two changes. We conjecture that if two merges
--- are disjoint, that is, operate or distinct parts of a tree.
---
--- This algorithm works in two phases: discovery and propagation.
-merge :: forall ki fam codes at
-       . (C ki fam codes at)
+-- |Returns 'Nothing' if they are not a span;
+-- PRECOND: changes for ma span and have distinct variables.
+merge :: (C ki fam codes at)
       => CChange ki codes at
       -> CChange ki codes at
       -> Either (Conflict ki codes at) (CChange ki codes at)
-merge p q = either (Left . Conflict p q . unwords) (Right . uncurry' (CMatch S.empty))
-          $ mergeWithErr p q
+merge oa ob = runExcept $ withExcept (const (Conflict oa ob))
+            $ flip evalStateT mergeState0 $ do
+  let ca = holesLCP (cCtxDel oa) (cCtxIns oa)
+  let cb = holesLCP (cCtxDel ob) (cCtxIns ob)
+  phase1 <- holesMapM (uncurry' reconcile) (holesLCP ca cb)
+  makeDelInsMaps
+  phase2 <- holesMapM refine phase1
+  return $ CMatch S.empty (holesJoin $ holesMap fst' phase2)
+                          (holesJoin $ holesMap snd' phase2)
 
-mergeStateEmpty :: MergeState ki codes
-mergeStateEmpty = MergeState M.empty M.empty
+makeDelInsMaps :: (C ki fam codes at) => MergeM ki codes ()
+makeDelInsMaps = do
+  s <- gets sigma
+  let sd = M.toList $ M.map (exMap $ holesJoin . holesMap fst') s
+  let si = M.toList $ M.map (exMap $ holesJoin . holesMap snd') s
+  d <- gets mdel
+  i <- gets mins
+  d' <- lift $ foldM (\d0 (v , Exists e) -> substInsert' d0 v e) d sd
+  i' <- lift $ foldM (\i0 (v , Exists e) -> substInsert' i0 v e) i si
+  put (MergeState s d' i')
 
-data MergeState ki codes = MergeState
-  { future  :: Subst ki codes (MetaVarIK ki) 
-  , past    :: Subst ki codes (MetaVarIK ki)
-  } 
+-- TOTHINK: Should we do multiple rounds?
+fullrefine :: (TestEquality ki , EqHO ki)
+           => Holes ki codes (MetaVarIK ki) ix
+           -> Subst ki codes (MetaVarIK ki)
+           -> Except MergeError (Holes ki codes (MetaVarIK ki) ix)
+fullrefine (Hole  _ var)   s = (withExcept (const ME_Other) $ lookupVar var s)
+                           >>= return . maybe (Hole' var) id
+fullrefine (HOpq  _ oy)    _ = return $ HOpq' oy
+fullrefine (HPeel _ cy py) s = HPeel' cy <$> mapNPM (flip fullrefine s) py
 
-showTh :: (C ki fam codes at) => Subst ki codes (MetaVarIK ki) -> String
-showTh    = unlines
-          . map (\(x , Exists s) -> show x ++ " = " ++ show s)
-          . M.toList
+chgrefine :: (C ki fam codes at)
+          => Holes2 ki codes at
+          -> MergeM ki codes (Holes2 ki codes at)
+chgrefine (del :*: ins) = do
+  d <- gets mdel
+  i <- gets mins
+  (:*:) <$> lift (fullrefine del d) <*> lift (fullrefine ins i)
 
+chgeq :: (C ki fam codes at)
+      => Holes2 ki codes at
+      -> Holes2 ki codes at
+      -> MergeM ki codes (Holes2 ki codes at)
+chgeq ca cb = do
+  ca' <- chgrefine ca
+  cb' <- chgrefine cb
+  when (not (holes2Eq ca' cb')) (throwError ME_Conflict)
+  return ca'
 
+refine :: (C ki fam codes at)
+       => Phase2 ki codes at
+       -> MergeM ki codes (Holes2 ki codes at)
+refine (P2Instantiate chg) = chgrefine chg
+refine (P2TestEq ca cb)    = chgeq ca cb
 
-type MergeM ki codes = StateT (MergeState ki codes)
-                              (Except [String])
+reconcile :: (C ki fam codes at)
+          => HolesHoles2 ki codes at
+          -> HolesHoles2 ki codes at
+          -> MergeM ki codes (Phase2 ki codes at)
+reconcile (Hole' ca) (Hole' cb) = recChgChg ca cb
+reconcile ca         (Hole' cb) = recApp    cb ca
+reconcile (Hole' ca) cb         = recApp    ca cb
+reconcile _          _          = throwError ME_Other
+          
+cpy :: Holes2 ki codes at -> Bool
+cpy (Hole' v :*: Hole' u) = metavarGet v == metavarGet u
+cpy _                     = False
 
-mergeWithErr :: forall ki fam codes at
-              . (C ki fam codes at)
-             => CChange ki codes at
-             -> CChange ki codes at
-             -> Either [String] (Holes2 ki codes at)
-mergeWithErr p q
-  = let p0 = holesLCP (cCtxDel p) (cCtxIns p)
-        q0 = holesLCP (cCtxDel q) (cCtxIns q)
-     in fmap utx2distr . runExcept $ evalStateT (go p0 q0) mergeStateEmpty 
-  where
-    debug :: MergeM ki codes a -> MergeM ki codes a
-    debug m = do
-      res <- m
-      s <- gets future
-      t <- gets past
-      trace (showTh s ++ "\n\n" ++ showTh t) (return res)
+perm :: Holes2 ki codes at -> Bool
+perm (Hole' v :*: Hole' u) = True
+perm _                     = False
 
-    go :: HolesHoles2 ki codes at 
-       -> HolesHoles2 ki codes at 
-       -> MergeM ki codes (HolesHoles2 ki codes at)
-    go p0 q0 = {- debug $ -} do
-       let pq0 = holesLCP p0 q0
-       routeError "discover"
-         $ mapM_ (exElim (uncurry' discover)) (holesGetHolesAnnWith' Exists pq0)
-       routeError "propagate"
-         $ holesMapM (uncurry' propagate) pq0
-
-routeError :: String -> MergeM ki codes x -> MergeM ki codes x
-routeError msg = mapStateT (withExcept (msg:))
-  
-discover :: (C ki fam codes at)
-            => HolesHoles2 ki codes at
-            -> HolesHoles2 ki codes at
-            -> MergeM ki codes ()
-discover (Hole' p) (Hole' q) = register2 p q
-discover (Hole' p)  cq       = register1 p cq
-discover cp        (Hole' q) = register1 q cp
-discover cp         cq       = throwError []
-
-register2 :: (C ki fam codes at)
+recChgChg :: (C ki fam codes at)
           => Holes2 ki codes at
           -> Holes2 ki codes at
-          -> MergeM ki codes ()
-register2 p q = 
-  let scp = isSimpleCpy p
-      scq = isSimpleCpy q
-   in do
-    -- when scp $ register1 p (Hole' q)
-    -- when scq $ register1 q (Hole' p)
-    when (not (scp || scq) && not (holes2Eq p q)) $ throwError ["ins-ins"]
+          -> MergeM ki codes (Phase2 ki codes at)
+recChgChg ca cb
+  | cpy  ca   = recApp ca (Hole' cb)
+  | cpy  cb   = recApp cb (Hole' ca)
+  | perm ca   = recApp ca (Hole' cb)
+  | perm cb   = recApp cb (Hole' ca)
+  | otherwise = return $ P2TestEq ca cb
 
--- The idea here is to match p to q
-register1 :: (C ki fam codes at)
-          => Holes2 ki codes at
-          -> HolesHoles2 ki codes at
-          -> MergeM ki codes ()
-register1 p q = do
-  fut  <- gets future
-  pas  <- gets past
-  -- first thing is thinning q to p's domain. We know this must be
-  -- possible for p and q are a span (PRECONDITION)
-  aux  <- lift $ withExcept ((:[]) . show)
-               $ thinHoles2st (scDel q :*: scIns q) (fst' p) pas
-  let ((_ :*: qi'), pas') = aux
-  fut' <- lift $ withExcept ((:[]) . show)
-               $ pmatch' fut (\_ _ _ -> Nothing) (fst' p) qi'
-  -- Now, we need to upate the future map with identity
-  -- clause for all the newly added variables in past, which were
-  -- never instantiated.
-  -- let elms = concatMap (exElim $ holesGetHolesAnnWith' Exists) $ M.elems $ M.difference pas' pas
-  -- let fut'' = foldr (\v -> M.insert (exElim metavarGet v) (exMap Hole' v)) fut' elms
-  put (MergeState fut' pas')
+recApp :: (C ki fam codes at)
+       => Holes2 ki codes at
+       -> HolesHoles2 ki codes at
+       -> MergeM ki codes (Phase2 ki codes at)
+recApp (del :*: ins) chg = do
+  holesMatch del chg
+  return $ P2Instantiate (del :*: ins)
+  
+holesMatch :: (C ki fam codes iy)
+           => Holes ki codes (MetaVarIK ki)    ix
+           -> Holes ki codes (Holes2 ki codes) ix
+           -> MergeM ki codes ()
+holesMatch (Hole _ var) x  = do
+  s  <- gets sigma 
+  s' <- lift $ withExcept (const ME_Other) $ substInsert s var x
+  modify (\st -> st { sigma = s' })
+holesMatch pa (Hole _ (Hole' var :*: Hole' _)) = do
+  d  <- gets mdel
+  d' <- lift $ withExcept (const ME_Other) $ substInsert d var pa
+  modify (\st -> st { mdel = d' })
+holesMatch pa (Hole _ _) = throwError ME_Other
+holesMatch (HOpq _ oa) (HOpq _ ox)
+  | eqHO oa ox  = return ()
+  | otherwise   = throwError ME_Other
+holesMatch pa@(HPeel _ ca ppa) x@(HPeel _ cx px) =
+  case testEquality ca cx of
+    Nothing   -> throwError ME_Other
+    Just Refl -> void $ mapNPM (\x -> uncurry' holesMatch x >> return x) (zipNP ppa px)
 
-productM :: (Monad m)
-         => (forall x . f x -> m (f' x))
-         -> (forall x . g x -> m (g' x))
-         -> (f :*: g) y
-         -> m ((f' :*: g') y)
-productM f g (x :*: y) = (:*:) <$> f x <*> g y         
 
-propagate :: (C ki fam codes at)
-        => HolesHoles2 ki codes at
-        -> HolesHoles2 ki codes at
-        -> MergeM ki codes (Holes2 ki codes at)
-propagate (Hole' p) (Hole' q) 
-  -- Even though we got to this point, we gotta refine the results;
-  -- see case #7 on 
-  | isSimpleCpy p = productM refinePast refinePast q
-  | otherwise     = productM refinePast refinePast p
-propagate (Hole' p) _         = inst1 p 
-propagate _         (Hole' q) = inst1 q 
-propagate _         _         = throwError []
-
-refinePast :: forall ki fam codes at
-            . (C ki fam codes at)
-           => Holes ki codes (MetaVarIK ki) at
-           -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
-refinePast x = do
-  th <- gets past
-  lift $ withExcept ((:[]) . show) $ refine x th
-
-refineFuture :: forall ki fam codes at
-              . (C ki fam codes at)
-             => Holes ki codes (MetaVarIK ki) at
-             -> MergeM ki codes (Holes ki codes (MetaVarIK ki) at)
-refineFuture x = routeError "refineFuture" $ do
-  th <- gets future
-  lift $ withExcept ((:[]) . show) $ refine x th
-
-inst1 :: (C ki fam codes at)
-      => Holes2 ki codes at
-      -> MergeM ki codes (Holes2 ki codes at)
-inst1 p = routeError "inst1" $ do
-  sigma <- gets future
-  case runExcept $ refine (snd' p) sigma of
-    Left err -> throwError ["transport", show err]
-    Right r  -> (:*:) <$> refinePast (fst' p) <*> refineFuture r
+substInsert' :: (Applicable ki codes phi , EqHO ki , EqHO phi)
+             => Subst ki codes phi
+             -> Int
+             -> Holes ki codes phi ix
+             -> Except MergeError (Subst ki codes phi)
+substInsert' s var new = case M.lookup var s of
+  Nothing           -> return $ M.insert var (Exists new) s
+  Just (Exists old) -> case testEquality old new of
+    Nothing   -> throwError ME_Other
+    Just Refl -> if eqHO old new
+                 then return s
+                 else throwError ME_Other
