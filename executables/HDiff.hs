@@ -77,6 +77,12 @@ mainParsers
     ]
 
 ---------------------------
+-- * Version
+
+vERSION :: String
+vERSION = "v0.0.3"
+
+---------------------------
 -- * Cmd Line Options
 
 data PatchOrChange
@@ -102,6 +108,7 @@ data Options
   | Merge   { optFileA     :: FilePath
             , optFileO     :: FilePath
             , optFileB     :: FilePath
+            , optFileRes   :: Maybe FilePath
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
             , opqHandling  :: D.DiffOpaques
@@ -197,11 +204,21 @@ diffOpts =
        <*> toesOpt
        <*> showesOpt
 
+testmergeOpts :: Parser (Maybe FilePath)
+testmergeOpts
+  = option (fmap Just str)
+           ( long "test-merge"
+           <> help ("Attempts to apply the merged patch to "
+                 ++ "OLDILFE and checks it matches this given file")
+           <> value Nothing
+           <> hidden)
+
 mergeOpts :: Parser Options
 mergeOpts =
   Merge <$> argument str (metavar "MYFILE")
         <*> argument str (metavar "OLDFILE")
         <*> argument str (metavar "YOURFILE")
+        <*> testmergeOpts
         <*> minheightOpt
         <*> diffmodeOpt
         <*> opqhandlingOpt
@@ -248,16 +265,19 @@ verbosity = asum
   , pure Normal
   ]
 
+versionOpts :: Parser (a -> a)
+versionOpts = infoOption vERSION (long "version")
+
 data OptionMode
   = OptAST | OptDiff | OptMerge | OptGDiff | OptSTMerge
   deriving (Eq , Show)
 
 optionMode :: Options -> OptionMode
-optionMode (AST _)                = OptAST
-optionMode (GDiff _ _ _)          = OptGDiff
-optionMode (Merge _ _ _ _ _ _)    = OptMerge
-optionMode (STMerge _ _ _)        = OptSTMerge
-optionMode (Diff _ _ _ _ _ _ _ _) = OptDiff
+optionMode (AST _)                  = OptAST
+optionMode (GDiff _ _ _)            = OptGDiff
+optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
+optionMode (STMerge _ _ _)          = OptSTMerge
+optionMode (Diff _ _ _ _ _ _ _ _)   = OptDiff
 
 main :: IO ()
 main = execParser fullOpts >>= \(verb , opts)
@@ -269,9 +289,9 @@ main = execParser fullOpts >>= \(verb , opts)
          OptSTMerge -> mainSTMerge verb opts
     >>= exitWith
  where
-   fullOpts = info ((,) <$> verbosity <*> parseOptions <**> helper)
+   fullOpts = info ((,) <$> verbosity <*> parseOptions <**> helper <**> versionOpts)
             $  fullDesc
-            <> header ("digem v0.0.0 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
+            <> header ("hdiff " ++ vERSION ++ " [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
             <> progDesc "Runs digem with the specified command, 'diff' is the default command." 
             <> footer "Run digem COMMAND --help for more help on specific commands"
             
@@ -340,6 +360,7 @@ mainDiff v opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
                   >> when (v == Loud) (putStrLn $ show es)
     return ExitSuccess
 
+-- TODO: Implement testing for result
 mainMerge :: Verbosity -> Options -> IO ExitCode
 mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \fa fo fb -> do
@@ -365,8 +386,7 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
         when (v == Loud) $ do
           putStrLnErr $ show $ renderFix renderHO m
         return ExitSuccess
-
-
+          
 mainSTMerge :: Verbosity -> Options -> IO ExitCode
 mainSTMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \fa fo fb -> do

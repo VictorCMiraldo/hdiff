@@ -80,11 +80,14 @@ withParsedEls (p:ps) files f = withParsedEl  p  files f
 
 -- * Fixed interface for one, two and three files
 
+exitFailureParse :: Int
+exitFailureParse = 10
+
 redirectErr :: ExceptT String IO a -> IO a
 redirectErr f = runExceptT f >>= either myerr return
   where
     myerr str = hPutStrLn stderr str
-             >> exitWith (ExitFailure 10)
+             >> exitWith (ExitFailure exitFailureParse)
          
 withParsed1 :: [LangParser]
             -> FilePath
@@ -121,3 +124,15 @@ withParsed3 parsers a b c f
   = redirectErr
   $ withParsedEls parsers (VS a (VS b (VS c V0)))
   $ \(VS x (VS y (VS z V0))) -> f x y z
+
+withParsed4 :: [LangParser]
+            -> FilePath -> FilePath -> FilePath -> FilePath
+            -> (forall kon (ki :: kon -> *) fam codes ix
+                 . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
+                => Fix ki codes ix -> Fix ki codes ix -> Fix ki codes ix -> Fix ki codes ix
+                -> IO res)
+            -> IO res
+withParsed4 parsers a b c d f
+  = redirectErr
+  $ withParsedEls parsers (VS a (VS b (VS c (VS d V0))))
+  $ \(VS x (VS y (VS z (VS w V0)))) -> f x y z w
