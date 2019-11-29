@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -24,9 +26,12 @@ import           Generics.MRSOP.Base
 import           Data.Exists
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Change
+import           Data.HDiff.Change.Thinning (minimize)
 import           Data.HDiff.Change.Apply
 import           Generics.MRSOP.Holes
 import           Generics.MRSOP.HDiff.Renderer
+
+-- import Debug.Trace
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
   Conflict :: CChange ki codes at
@@ -48,7 +53,17 @@ data MergeState ki codes = MergeState
   { sigma :: Subst ki codes (Holes2 ki codes)
   , mdel  :: Subst ki codes (MetaVarIK ki)
   , mins  :: Subst ki codes (MetaVarIK ki)
-  }
+  } 
+
+instance (ShowHO ki , HasDatatypeInfo ki fam codes) => Show (MergeState ki codes) where
+  show (MergeState _ d i)
+    = let dl = M.toList d
+          il = M.toList i
+       in unlines (map (("-- :" ++) . go) dl ++ map (("++ :" ++) . go) il)
+    where
+      go :: (Int , Exists (Holes ki codes (MetaVarIK ki))) -> String
+      go (v , e) = show v ++ " = " ++ show e
+   
 
 mergeState0 = MergeState M.empty M.empty M.empty
 
@@ -68,7 +83,9 @@ merge :: (C ki fam codes at)
       -> CChange ki codes at
       -> Either (Conflict ki codes at) (CChange ki codes at)
 merge oa ob = runExcept $ withExcept (const (Conflict oa ob))
-            $ flip evalStateT mergeState0 $ do
+            $ fmap fst
+            -- $ fmap (\(x , st) -> trace (show st) x)
+            $ flip runStateT mergeState0 $ do
   let ca = holesLCP (cCtxDel oa) (cCtxIns oa)
   let cb = holesLCP (cCtxDel ob) (cCtxIns ob)
   phase1 <- holesMapM (uncurry' reconcile) (holesLCP ca cb)
@@ -86,10 +103,12 @@ makeDelInsMaps = do
   i <- gets mins
   d' <- lift $ foldM (\d0 (v , Exists e) -> substInsert' d0 v e) d sd
   i' <- lift $ foldM (\i0 (v , Exists e) -> substInsert' i0 v e) i si
-  put (MergeState s d' i')
+  d'' <- lift $ withExcept (const ME_Other) $ minimize d'
+  i'' <- lift $ withExcept (const ME_Other) $ minimize i'
+  put (MergeState s d'' i'')
 
 -- TOTHINK: Should we do multiple rounds?
-fullrefine :: (TestEquality ki , EqHO ki)
+fullrefine :: (C ki fam codes at)
            => Holes ki codes (MetaVarIK ki) ix
            -> Subst ki codes (MetaVarIK ki)
            -> Except MergeError (Holes ki codes (MetaVarIK ki) ix)
@@ -144,8 +163,6 @@ recChgChg :: (C ki fam codes at)
           -> Holes2 ki codes at
           -> MergeM ki codes (Phase2 ki codes at)
 recChgChg ca cb
-  | cpy  ca   = recApp ca (Hole' cb)
-  | cpy  cb   = recApp cb (Hole' ca)
   | perm ca   = recApp ca (Hole' cb)
   | perm cb   = recApp cb (Hole' ca)
   | otherwise = return $ P2TestEq ca cb
