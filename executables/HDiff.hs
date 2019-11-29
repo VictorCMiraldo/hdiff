@@ -356,7 +356,7 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
     case D.noConflicts res of
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
               >> putStrLnErr (unlines
-                             $ map (\(Exists (D.Conflict _ _ l)) -> l)
+                             $ map (\(Exists (D.Conflict _ _)) -> "conf")
                              $ D.getConflicts res)
               >> return (ExitFailure 1)
       Just om -> do
