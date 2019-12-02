@@ -25,7 +25,8 @@ import Generics.MRSOP.HDiff.Digest
 
 import qualified Languages.While   as While
 import qualified Languages.Lines   as Lines
-#define WITH_REAL_LANGUAGES
+import qualified Languages.Dyk.Lua as LuaDyk
+-- #define WITH_REAL_LANGUAGES
 #ifdef WITH_REAL_LANGUAGES
 import qualified Languages.Lua     as Lua
 #endif
@@ -47,6 +48,7 @@ mainParsers
 #ifdef WITH_REAL_LANGUAGES
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
 #endif
+    ,LangParser "lua-dyk" (fmap (dfrom . into @LuaDyk.FamStmt) . LuaDyk.parseFile)
     ]
 
 type LangCnstr ki fam codes ix
