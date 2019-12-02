@@ -1,18 +1,18 @@
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE QuantifiedConstraints  #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE PolyKinds              #-}
+{-# LANGUAGE KindSignatures         #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE CPP                    #-}
 module Languages.Interface where
 
-import Data.List (isSuffixOf)
+import Data.List (elemIndex , splitAt)
 import Data.Type.Equality
 
-import Control.Applicative
 import Control.Monad.Except
 
 import System.IO
@@ -23,13 +23,55 @@ import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.HDiff.Renderer
 import Generics.MRSOP.HDiff.Digest
 
+import qualified Languages.While   as While
+import qualified Languages.Lines   as Lines
+#ifdef WITH_REAL_LANGUAGES
+import qualified Languages.Lua     as Lua
+#endif
+
+redirectErr :: ExceptT String IO a -> IO a
+redirectErr f = runExceptT f >>= either myerr return
+  where
+    myerr str = hPutStrLn stderr str
+             >> exitWith (ExitFailure exitFailureParse)
+
+exitFailureParse :: Int
+exitFailureParse = 10
+
+-- |The parsers that we support
+mainParsers :: [LangParser]
+mainParsers
+  = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
+    ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
+#ifdef WITH_REAL_LANGUAGES
+    ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
+#endif
+    ]
+
+type LangCnstr ki fam codes ix
+  = ( HasDatatypeInfo ki fam codes
+    , RendererHO ki, DigestibleHO ki, TestEquality ki
+    , EqHO ki, ShowHO ki
+    , IsNat ix)
+
 data LangParser :: * where
-  LangParser :: (LangCnstr ki fam codes ix, EqHO ki , ShowHO ki)
+  LangParser :: (LangCnstr ki fam codes ix)
              -- |Language extension
              => String
              -- |Parser that
-             -> (FilePath -> IO (Fix ki codes ix))
+             -> (FilePath -> ExceptT String IO (Fix ki codes ix))
              -> LangParser
+
+parserExtension :: LangParser -> String
+parserExtension (LangParser ext _) = ext
+
+-- |Selects a given parser on a list.
+getParserForExt :: String -> [LangParser] -> Maybe LangParser
+getParserForExt _   []     = Nothing
+getParserForExt ext (p:ps)
+  | parserExtension p == ext = Just p
+  | otherwise                = getParserForExt ext ps
+
 
 data VectorOf (a :: *) (n :: Nat) :: * where
   V0 :: VectorOf a 'Z
@@ -39,100 +81,93 @@ vecMapM :: (Monad m) => (a -> m b) -> VectorOf a n -> m (VectorOf b n)
 vecMapM _ V0 = return V0
 vecMapM f (VS x xs) = VS <$> f x <*> vecMapM f xs
 
-type LangCnstr ki fam codes ix
-  = (HasDatatypeInfo ki fam codes, RendererHO ki, IsNat ix, DigestibleHO ki, TestEquality ki)
-
--- |Given a list of languages, parses a number of files
+-- |Given a language parser and a vector of files, attempts
+-- to parse these files; if all parses succeed we run the given
+-- continuation. If one parser fails the error is returned within
+-- the except monad.
 withParsedEl :: LangParser
              -> VectorOf FilePath ('S n)
              -> (forall kon (ki :: kon -> *) fam codes ix
-                 . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => VectorOf (Fix ki codes ix) ('S n)
+                 . (LangCnstr ki fam codes ix) 
+                => (FilePath -> IO (Fix ki codes ix)) 
+                -> VectorOf (Fix ki codes ix) ('S n)
                 -> IO res)
              -> ExceptT String IO res
-withParsedEl (LangParser ext parser) vec f
-  = do fs <- vecMapM (parseWithExt ext parser) vec
-       liftIO $ f fs
+withParsedEl (LangParser _ parser) vec f
+  = do fs <- vecMapM parser vec
+       lift $ f (redirectErr . parser) fs
+
+parserSelect :: (Monad m)
+             => Maybe String -> [LangParser] -> VectorOf FilePath ('S n)
+             -> ExceptT String m LangParser
+parserSelect sel ps xs = maybe (throwError "No available parser") return
+                       $ join . fmap (flip getParserForExt ps)
+                       $ maybe (getSuffix $ vHead xs) Just sel
   where
-    parseWithExt :: (HasDatatypeInfo ki fam codes)
-                 => String
-                 -> (FilePath -> IO (Fix ki codes ix))
-                 -> FilePath
-                 -> ExceptT String IO (Fix ki codes ix)
-    parseWithExt e p file
-      | ("." ++ ext) `isSuffixOf` file = liftIO $ p file
-      | otherwise
-      = throwError ("Wrong Extension; expecting: " ++ show e ++ "\n")
+    vHead :: VectorOf a ('S n) -> a
+    vHead (VS a _) = a
+    
+    getSuffix :: String -> Maybe String
+    getSuffix str = maybe Nothing (Just . tail . snd . flip splitAt str)
+                  $ elemIndex '.' str
 
--- |Tries a variety of parsers on a number of
---  files.
-withParsedEls :: [LangParser]
-              -> VectorOf FilePath ('S n)
-              -> (forall kon (ki :: kon -> *) fam codes ix
-                  . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                 => VectorOf (Fix ki codes ix) ('S n)
-                 -> IO res)
-              -> ExceptT String IO res
-withParsedEls []     _     _ = throwError "No parser succeeded\n"
-withParsedEls (p:ps) files f = withParsedEl  p  files f
-                           <|> withParsedEls ps files f
+withParsedElSel :: Maybe String
+                -> [LangParser]
+                -> VectorOf FilePath ('S n)
+                -> (forall kon (ki :: kon -> *) fam codes ix
+                    . (LangCnstr ki fam codes ix) 
+                   => (FilePath -> IO (Fix ki codes ix))
+                   -> VectorOf (Fix ki codes ix) ('S n)
+                   -> IO res)
+                -> ExceptT String IO res
+withParsedElSel sel parsers fs f = do
+  p <- parserSelect sel parsers fs
+  withParsedEl p fs f
 
-
--- * Fixed interface for one, two and three files
-
-exitFailureParse :: Int
-exitFailureParse = 10
-
-redirectErr :: ExceptT String IO a -> IO a
-redirectErr f = runExceptT f >>= either myerr return
-  where
-    myerr str = hPutStrLn stderr str
-             >> exitWith (ExitFailure exitFailureParse)
-         
-withParsed1 :: [LangParser]
+withParsed1 :: Maybe String
+            -> [LangParser]
             -> FilePath
             -> (forall kon (ki :: kon -> *) fam codes ix
                  . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => Fix ki codes ix
+                => (FilePath -> IO (Fix ki codes ix))
+                -> Fix ki codes ix
                 -> IO res)
             -> IO res
-withParsed1 parsers file f
+withParsed1 sel parsers file f
   = redirectErr
-  $ withParsedEls parsers (VS file V0)
-  $ \(VS x V0) -> f x
+  $ withParsedElSel sel parsers (VS file V0)
+  $ \p (VS x V0) -> f p x
 
-withParsed2 :: [LangParser]
+withParsed2 :: Maybe String
+            -> [LangParser]
             -> FilePath -> FilePath
             -> (forall kon (ki :: kon -> *) fam codes ix
                  . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => Fix ki codes ix -> Fix ki codes ix
+                => (FilePath -> IO (Fix ki codes ix))
+                -> Fix ki codes ix
+                -> Fix ki codes ix
                 -> IO res)
             -> IO res
-withParsed2 parsers a b f
+withParsed2 sel parsers fa fb f
   = redirectErr
-  $ withParsedEls parsers (VS a (VS b V0))
-  $ \(VS x (VS y V0)) -> f x y
-         
-withParsed3 :: [LangParser]
+  $ withParsedElSel sel parsers (VS fa (VS fb V0))
+  $ \p (VS x (VS y V0)) -> f p x y
+
+withParsed3 :: Maybe String
+            -> [LangParser]
             -> FilePath -> FilePath -> FilePath
             -> (forall kon (ki :: kon -> *) fam codes ix
                  . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => Fix ki codes ix -> Fix ki codes ix -> Fix ki codes ix
+                => (FilePath -> IO (Fix ki codes ix))
+                -> Fix ki codes ix
+                -> Fix ki codes ix
+                -> Fix ki codes ix
                 -> IO res)
             -> IO res
-withParsed3 parsers a b c f
+withParsed3 sel parsers fa fb fc f
   = redirectErr
-  $ withParsedEls parsers (VS a (VS b (VS c V0)))
-  $ \(VS x (VS y (VS z V0))) -> f x y z
+  $ withParsedElSel sel parsers (VS fa (VS fb (VS fc V0)))
+  $ \p (VS x (VS y (VS z V0))) -> f p x y z
 
-withParsed4 :: [LangParser]
-            -> FilePath -> FilePath -> FilePath -> FilePath
-            -> (forall kon (ki :: kon -> *) fam codes ix
-                 . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => Fix ki codes ix -> Fix ki codes ix -> Fix ki codes ix -> Fix ki codes ix
-                -> IO res)
-            -> IO res
-withParsed4 parsers a b c d f
-  = redirectErr
-  $ withParsedEls parsers (VS a (VS b (VS c (VS d V0))))
-  $ \(VS x (VS y (VS z (VS w V0)))) -> f x y z w
+
+

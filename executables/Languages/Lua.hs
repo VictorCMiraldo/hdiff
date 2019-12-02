@@ -8,11 +8,10 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE CPP                   #-}
-
+{-# OPTIONS_GHC -Wno-orphans                            #-}
+{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Lua where
-
-#ifdef ENABLE_LUA_SUPPORT
 
 import Language.Lua.Syntax
 import qualified Language.Lua.Parser as Lua
@@ -21,28 +20,21 @@ import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Type.Equality
 
-import           Data.Proxy
-import           Data.Functor.Const
-import           Data.Functor.Sum
 import           Data.Text.Prettyprint.Doc hiding (braces,parens,semi)
-import qualified Data.Text.Prettyprint.Doc as PP  (braces,parens,semi) 
-import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified Data.Text as T
 
-import System.Exit
-import System.IO
+import Control.Monad.Except
 
 import Generics.MRSOP.TH
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 
 import Generics.MRSOP.HDiff.Digest
 import Generics.MRSOP.HDiff.Renderer
 
 data LuaKon = LuaText | LuaBool
 data LuaSingl (kon :: LuaKon) :: * where
-  SLuaText :: Text -> LuaSingl LuaText
-  SLuaBool :: Bool -> LuaSingl LuaBool
+  SLuaText :: Text -> LuaSingl 'LuaText
+  SLuaBool :: Bool -> LuaSingl 'LuaBool
 
 instance RendererHO LuaSingl where
   renderHO (SLuaText t) = pretty (T.unpack t)
@@ -52,7 +44,7 @@ instance Digestible Text where
   digest = hash . encodeUtf8
 
 instance DigestibleHO LuaSingl where
-  digestHO (SLuaText text) = digest text
+  digestHO (SLuaText text) = hash (encodeUtf8 text)
   digestHO (SLuaBool bool) = hashStr (show bool)
 
 deriving instance Show (LuaSingl k)
@@ -72,16 +64,14 @@ instance TestEquality LuaSingl where
 
 deriveFamilyWith ''LuaSingl [t| Block |]
 
-parseFile :: String -> IO Block
+parseFile :: String -> ExceptT String IO Block
 parseFile file = do
-  res <- Lua.parseFile file
+  res <- lift $ Lua.parseFile file
   case res of
-    Left e  -> hPutStrLn stderr (show e) >> exitWith (ExitFailure 10)
+    Left e  -> throwError (show e) 
     Right r -> return r
 
 type W = LuaSingl
 type Stmt = Block
 type FamStmt = FamBlock
 type CodesStmt = CodesBlock
-
-#endif

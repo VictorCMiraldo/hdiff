@@ -17,6 +17,8 @@ module Languages.Lines where
 import           Data.Type.Equality
 import           Data.Text.Prettyprint.Doc (pretty)
 
+import           Control.Monad.Except
+
 import Generics.MRSOP.Base hiding (Infix)
 import Generics.MRSOP.TH
 import Generics.MRSOP.HDiff.Renderer
@@ -64,8 +66,8 @@ instance RendererHO W where
 instance TestEquality W where
   testEquality (W_String _)  (W_String _)  = Just Refl
 
-parseFile :: String -> IO Stmt
+parseFile :: String -> ExceptT String IO Stmt
 parseFile file =
-  do program  <- readFile file
+  do program  <- lift $ readFile file
      return (Stmt $ map Line $ lines program)
 

@@ -20,6 +20,7 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
 import           Control.Monad
+import           Control.Monad.Except
 import           Data.Type.Equality
 import           Data.Text.Prettyprint.Doc (pretty)
 
@@ -241,11 +242,11 @@ testString str
   = do let stmt = parseString str
        putStrLn $ show $ renderEl renderHO (into @FamStmt stmt)
 
-parseFile :: String -> IO Stmt
+parseFile :: String -> ExceptT String IO Stmt
 parseFile file =
-  do program  <- readFile file
+  do program  <- lift $ readFile file
      case parse whileParser "" program of
-       Left e  -> hPutStrLn stderr (show e) >> exitWith (ExitFailure 10)
+       Left e  -> throwError (show e)
        Right r -> return r
 
 type Block = Stmt

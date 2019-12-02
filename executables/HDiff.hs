@@ -4,7 +4,6 @@
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
-{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
@@ -25,7 +24,6 @@ import Control.Monad
 import Control.Applicative
 import Data.Foldable (asum)
 
-import Development.GitRev
 import Options.Applicative
 import Data.Semigroup ((<>))
 
@@ -51,258 +49,26 @@ import qualified Data.HDiff.Change.Merge as D
 import qualified Data.HDiff.Change.TreeEditDistance as TEDC
 
 import           Languages.Interface
-import qualified Languages.While   as While
-import qualified Languages.Lines   as Lines
-
-#ifdef ENABLE_LUA_SUPPORT
-import qualified Languages.Lua     as Lua
-#endif
-
-#ifdef ENABLE_CLOJURE_SUPPORT
-import qualified Languages.Clojure as Clj
-#endif
-
-
-   -- |The parsers that we support
-mainParsers :: [LangParser]
-mainParsers
-  = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
-#ifdef ENABLE_LUA_SUPPORT
-    ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
-#endif
-#ifdef ENABLE_CLOJURE_SUPPORT
-    ,LangParser "clj"   (fmap (dfrom . into @Clj.FamExpr)   . Clj.parseFile)
-#endif
-    ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
-    ]
-
----------------------------
--- * Version
-
-vERSION :: String
-vERSION = "v0.0.3"
-
----------------------------
--- * Cmd Line Options
-
-data PatchOrChange
-  = Patch | Chg
-  deriving (Eq , Show)
-
-data Options
-  = AST     { optFileA :: FilePath
-            }
-  | GDiff   { optFileA     :: FilePath
-            , optFileB     :: FilePath
-            , showES       :: Bool
-            }
-  | Diff    { optFileA     :: FilePath
-            , optFileB     :: FilePath
-            , testApply    :: Bool
-            , minHeight    :: Int
-            , diffMode     :: D.DiffMode
-            , opqHandling  :: D.DiffOpaques
-            , toEditScript :: Maybe PatchOrChange
-            , showES       :: Bool
-            }
-  | Merge   { optFileA     :: FilePath
-            , optFileO     :: FilePath
-            , optFileB     :: FilePath
-            , optFileRes   :: Maybe FilePath
-            , minHeight    :: Int
-            , diffMode     :: D.DiffMode
-            , opqHandling  :: D.DiffOpaques
-            }
-  | STMerge { optFileA     :: FilePath
-            , optFileO     :: FilePath
-            , optFileB     :: FilePath
-            }
-  deriving (Eq , Show)
-
-astOpts :: Parser Options
-astOpts = AST <$> argument str (metavar "FILE")
-
-showesOpt :: Parser Bool
-showesOpt = switch (long "show-es" <> help "Display the generated edit script" <> hidden)
-
-minheightOpt :: Parser Int
-minheightOpt = option auto $
-     long "min-height"
-  <> short 'm'
-  <> showDefault
-  <> value 1
-  <> metavar "INT"
-  <> help "Minimum height of subtrees considered for sharing"
-  <> hidden
-
-readmOneOf :: [(String, a)] -> ReadM a
-readmOneOf = maybeReader . flip L.lookup
-
-diffmodeOpt :: Parser D.DiffMode
-diffmodeOpt = option (readmOneOf [("proper"  , D.DM_ProperShare)
-                                 ,("nonest"  , D.DM_NoNested)
-                                 ,("patience", D.DM_Patience)
-                                 ])
-            ( long "diff-mode"
-           <> short 'd'
-           <> metavar "proper | nonest | patience ; default: proper"
-           <> value D.DM_ProperShare
-           <> help aux
-           <> hidden)
-  where    
-    aux = unwords
-      ["Controls how context extraction works. If you are unaware about how"
-      ,"this works, check 'Data.HDiff.Diff.Types' and 'Data.HDiff.Diff.Modes'"
-      ,"for more information."
-      ]
-      
-
-opqhandlingOpt :: Parser D.DiffOpaques
-opqhandlingOpt = option (readmOneOf [("never" , D.DO_Never)
-                                    ,("spine" , D.DO_OnSpine)
-                                    ,("always", D.DO_AsIs)
-                                    ])
-               ( long "diff-opq"
-              <> short 'k'
-              <> metavar "never | spine | always ; default: spine"
-              <> value D.DO_OnSpine
-              <> help aux
-              <> hidden)
-  where    
-    aux = unwords
-      ["Controls how to handle opaque values. We either treat them like normal"
-      ,"trees, with 'always', never share them, or share only the opaque values"
-      ,"that end up on the spine"
-      ]
-
-toesOpt :: Parser (Maybe PatchOrChange)
-toesOpt =  flag' (Just Patch) ( long "patch-to-es"
-                             <> help "Translates a patch to an edit script at the patch level"
-                             <> hidden)
-       <|> flag' (Just Chg)   ( long "change-to-es"
-                             <> help ("Translates a patch to an edit script at the change"
-                                      ++ " level; does so by using distrCChange on the patch")
-                             <> hidden)
-       <|> pure Nothing
-
-gdiffOpts :: Parser Options
-gdiffOpts = GDiff <$> argument str (metavar "OLDFILE")
-                  <*> argument str (metavar "NEWFILE")
-                  <*> showesOpt
-
-diffOpts :: Parser Options
-diffOpts =
-  Diff <$> argument str (metavar "OLDFILE")
-       <*> argument str (metavar "NEWFILE")
-       <*> switch ( long "test-apply"
-                    -- TODO: check this doc
-                 <> help "Attempts application; returns ExitFailure if apply fails."
-                 <> hidden)
-       <*> minheightOpt
-       <*> diffmodeOpt
-       <*> opqhandlingOpt
-       <*> toesOpt
-       <*> showesOpt
-
-testmergeOpts :: Parser (Maybe FilePath)
-testmergeOpts
-  = option (fmap Just str)
-           ( long "test-merge"
-           <> help ("Attempts to apply the merged patch to "
-                 ++ "OLDILFE and checks it matches this given file")
-           <> value Nothing
-           <> hidden)
-
-mergeOpts :: Parser Options
-mergeOpts =
-  Merge <$> argument str (metavar "MYFILE")
-        <*> argument str (metavar "OLDFILE")
-        <*> argument str (metavar "YOURFILE")
-        <*> testmergeOpts
-        <*> minheightOpt
-        <*> diffmodeOpt
-        <*> opqhandlingOpt
-
-stmergeOpts :: Parser Options
-stmergeOpts =
-  STMerge <$> argument str (metavar "MYFILE")
-          <*> argument str (metavar "OLDFILE")
-          <*> argument str (metavar "YOURFILE")
-
-parseOptions :: Parser Options
-parseOptions = hsubparser
-  (  command "ast"   (info astOpts
-        (progDesc "Parses and displays an ast"))
-  <> command "gdiff" (info gdiffOpts
-        (progDesc "Runs Generics.MRSOP.GDiff on the targets"))
-  <> command "diff"  (info diffOpts
-        (progDesc "Runs Data.HDiff.Diff on the targes"))
-  <> command "merge" (info mergeOpts
-        (progDesc "Runs the merge algorithm on the specified files"))
-  <> command "st-merge" (info stmergeOpts
-        (progDesc "Runs the Generics.MRSOP.STDiff.Merge algo on the specified files"))
-  ) <|> diffOpts
-  
-data Verbosity
-  = Quiet
-  | Normal
-  | Loud
-  | VeryLoud
-  deriving (Eq, Show)
-
-verbosity :: Parser Verbosity
-verbosity = asum
-  [ flag' Quiet    ( long "quiet"
-                  <> short 'q'
-                  <> help "Runs on quiet mode; almost no information out"
-                  <> hidden )
-  , flag' Loud     ( long "verbose"
-                  <> short 'v'
-                  <> help "Runs with a more output than normal"
-                  <> hidden )
-  , flag' VeryLoud ( long "debug"
-                  <> internal )
-  , pure Normal
-  ]
-
-versionOpts :: Parser (a -> a)
-versionOpts = infoOption vERSION (long "version")
-
-data OptionMode
-  = OptAST | OptDiff | OptMerge | OptGDiff | OptSTMerge
-  deriving (Eq , Show)
-
-optionMode :: Options -> OptionMode
-optionMode (AST _)                  = OptAST
-optionMode (GDiff _ _ _)            = OptGDiff
-optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
-optionMode (STMerge _ _ _)          = OptSTMerge
-optionMode (Diff _ _ _ _ _ _ _ _)   = OptDiff
+import           HDiff.Options
 
 main :: IO ()
-main = execParser fullOpts >>= \(verb , opts)
+main = execParser hdiffOpts >>= \(verb , pars, opts)
     -> case optionMode opts of
-         OptAST     -> mainAST     verb opts
-         OptDiff    -> mainDiff    verb opts
-         OptGDiff   -> mainGDiff   verb opts
-         OptMerge   -> mainMerge   verb opts
-         OptSTMerge -> mainSTMerge verb opts
+         OptAST     -> mainAST     verb pars opts
+         OptDiff    -> mainDiff    verb pars opts
+         OptGDiff   -> mainGDiff   verb pars opts
+         OptMerge   -> mainMerge   verb pars opts
+         OptSTMerge -> mainSTMerge verb pars opts
     >>= exitWith
- where
-   fullOpts = info ((,) <$> verbosity <*> parseOptions <**> helper <**> versionOpts)
-            $  fullDesc
-            <> header ("hdiff " ++ vERSION ++ " [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
-            <> progDesc "Runs digem with the specified command, 'diff' is the default command." 
-            <> footer "Run digem COMMAND --help for more help on specific commands"
-            
+
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
 
 -- * Generic interface
 
-mainAST :: Verbosity -> Options -> IO ExitCode
-mainAST v opts = withParsed1 mainParsers (optFileA opts)
-  $ \fa -> do
+mainAST :: Verbosity -> Maybe String -> Options -> IO ExitCode
+mainAST v sel opts = withParsed1 sel mainParsers (optFileA opts)
+  $ \_ fa -> do
     unless (v == Quiet) $ putStrLn (show (renderFix renderHO fa))
     return ExitSuccess
 
@@ -336,17 +102,17 @@ diffWithOpts opts fa fb = do
   let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) 
   return (D.diffOpts localopts fa fb)
 
-mainGDiff :: Verbosity -> Options -> IO ExitCode
-mainGDiff _ opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
-  $ \fa fb -> do
+mainGDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode
+mainGDiff _ sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts)
+  $ \_ fa fb -> do
     let es = GDiff.diff' fa fb
     putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
     when (showES opts) (putStrLn $ show es)
     return ExitSuccess
 
-mainDiff :: Verbosity -> Options -> IO ExitCode
-mainDiff v opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
-  $ \fa fb -> do
+mainDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode
+mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts)
+  $ \_ fa fb -> do
     patch <- diffWithOpts opts fa fb
     unless (v == Quiet)   $ displayRawPatch stdout patch
     when (testApply opts) $ void (tryApply v patch fa (Just fb))
@@ -361,9 +127,9 @@ mainDiff v opts = withParsed2 mainParsers (optFileA opts) (optFileB opts)
     return ExitSuccess
 
 -- TODO: Implement testing for result
-mainMerge :: Verbosity -> Options -> IO ExitCode
-mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
-  $ \fa fo fb -> do
+mainMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
+mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
+  $ \pp fa fo fb -> do
     when (v == Loud) $ do
       putStrLnErr $ "O: " ++ optFileO opts
       putStrLnErr $ "A: " ++ optFileA opts
@@ -387,9 +153,9 @@ mainMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optF
           putStrLnErr $ show $ renderFix renderHO m
         return ExitSuccess
           
-mainSTMerge :: Verbosity -> Options -> IO ExitCode
-mainSTMerge v opts = withParsed3 mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
-  $ \fa fo fb -> do
+mainSTMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
+mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
+  $ \_ fa fo fb -> do
     when (v == Loud) $ do
       putStrLnErr $ "O: " ++ optFileO opts
       putStrLnErr $ "A: " ++ optFileA opts
