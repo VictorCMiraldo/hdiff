@@ -88,7 +88,11 @@ tryApply v patch fa fb
                >> when (v == Loud)
                    (hPutStrLn stderr (show $ renderFix renderHO fa))
                >> exitFailure
-      Right b' -> return $ maybe (Just b') (const Nothing) fb
+      Right b' -> return $ maybe (Just b') (testEq b') fb
+ where
+   testEq :: (EqHO ki , TestEquality ki , IsNat ix)
+          => Fix ki codes ix -> Fix ki codes ix -> Maybe (Fix ki codes ix)
+   testEq x y = if eqHO x y then Just x else Nothing
 
 -- |Runs our diff algorithm with particular options parsed
 -- from the CLI options.
@@ -115,47 +119,44 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
   $ \_ fa fb -> do
     patch <- diffWithOpts opts fa fb
     unless (v == Quiet)   $ displayRawPatch stdout patch
-    when (testApply opts) $ void (tryApply v patch fa (Just fb))
-    when (isJust (toEditScript opts)) $ do
-      let (role , ees) = case toEditScript opts of
-                           Just Patch -> ("patch" , TED.toES  patch                  (NA_I fa))
-                           Just Chg   -> ("change", TEDC.toES (D.distrCChange patch) (NA_I fa))
-      case ees of
-        Left  err -> putStrLnErr ("!! " ++ err)
-        Right es  -> putStrLn ("tree-edit-distance: " ++ role ++ " " ++ show (GDiff.cost es))
-                  >> when (v == Loud) (putStrLn $ show es)
+    -- TODO: Restore this functionality!!!
+    --when (testApply opts) $ void (tryApply v patch fa (Just fb))
+    --when (isJust (toEditScript opts)) $ do
+    --  let (role , ees) = case toEditScript opts of
+    --                       Just Patch -> ("patch" , TED.toES  patch                  (NA_I fa))
+    --                       Just Chg   -> ("change", TEDC.toES (D.distrCChange patch) (NA_I fa))
+    --  case ees of
+    --    Left  err -> putStrLnErr ("!! " ++ err)
+    --    Right es  -> putStrLn ("tree-edit-distance: " ++ role ++ " " ++ show (GDiff.cost es))
+    --              >> when (v == Loud) (putStrLn $ show es)
     return ExitSuccess
 
--- TODO: Implement testing for result
 mainMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \pp fa fo fb -> do
-    when (v == Loud) $ do
-      putStrLnErr $ "O: " ++ optFileO opts
-      putStrLnErr $ "A: " ++ optFileA opts
-      putStrLnErr $ "B: " ++ optFileB opts
     patchOA <- diffWithOpts opts fo fa
     patchOB <- diffWithOpts opts fo fb
-    let res = D.diff3 patchOA patchOB
+    let omc = D.diff3 patchOA patchOB
     when (v == VeryLoud) $ do
       putStrLnErr $ "diff3 O->A O->B " ++ replicate 55 '#'
-      displayPatchC stderr res
-    case D.noConflicts res of
+      displayPatchC stderr omc
+    case D.noConflicts omc of
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
               >> putStrLnErr (unlines
                              $ map (\(Exists (D.Conflict _ _)) -> "conf")
-                             $ D.getConflicts res)
+                             $ D.getConflicts omc)
               >> return (ExitFailure 1)
       Just om -> do
         when (v == Loud) (putStrLnErr "!! apply om o")
-        Just m <- tryApply v om fo Nothing
-        when (v == Loud) $ do
-          putStrLnErr $ show $ renderFix renderHO m
-        return ExitSuccess
+        mtgt <- sequence (fmap pp (optFileRes opts))
+        res  <- tryApply v om fo mtgt
+        case res of
+          Just _  -> return ExitSuccess
+          Nothing -> return (ExitFailure 2)
           
 mainSTMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
-  $ \_ fa fo fb -> do
+  $ \pp fa fo fb -> do
     when (v == Loud) $ do
       putStrLnErr $ "O: " ++ optFileO opts
       putStrLnErr $ "A: " ++ optFileA opts
@@ -171,6 +172,13 @@ mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO o
         case (,) <$> STDiff.apply ab fa <*> STDiff.apply ba fb of
           Nothing        -> putStrLnErr " !! Application Failed !!"
                          >> exitFailure
-          Just (fb' , fa') -> return $ if eqHO fb' fa'
-                                       then ExitSuccess
-                                       else ExitFailure 2
+          Just (fb' , fa')
+            | not (eqHO fb' fa') -> when (v == Loud) (putStrLnErr "!! Apply differs")
+                                 >> return (ExitFailure 3)
+            | otherwise -> case optFileRes opts of
+                             Nothing  -> return ExitSuccess
+                             Just res -> do
+                               pres <- pp res
+                               return $ if eqHO fb' pres
+                                        then ExitSuccess
+                                        else ExitFailure 2

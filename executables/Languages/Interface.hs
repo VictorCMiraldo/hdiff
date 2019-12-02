@@ -25,6 +25,7 @@ import Generics.MRSOP.HDiff.Digest
 
 import qualified Languages.While   as While
 import qualified Languages.Lines   as Lines
+-- #define WITH_REAL_LANGUAGES
 #ifdef WITH_REAL_LANGUAGES
 import qualified Languages.Lua     as Lua
 #endif
@@ -71,7 +72,6 @@ getParserForExt _   []     = Nothing
 getParserForExt ext (p:ps)
   | parserExtension p == ext = Just p
   | otherwise                = getParserForExt ext ps
-
 
 data VectorOf (a :: *) (n :: Nat) :: * where
   V0 :: VectorOf a 'Z
@@ -122,6 +122,7 @@ withParsedElSel :: Maybe String
                 -> ExceptT String IO res
 withParsedElSel sel parsers fs f = do
   p <- parserSelect sel parsers fs
+  liftIO $ putStrLn ("Using parser: " ++ parserExtension p)
   withParsedEl p fs f
 
 withParsed1 :: Maybe String

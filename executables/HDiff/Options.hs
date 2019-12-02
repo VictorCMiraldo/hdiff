@@ -22,15 +22,11 @@ readmOneOf = maybeReader . flip L.lookup
 ---------------------------
 -- * Version
 
-vERSION :: String
-vERSION = "v0.0.3"
+vERSION_STR :: String
+vERSION_STR = "hdiff 0.0.3 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]"
 
 ---------------------------
 -- * Cmd Line Options
-
-data PatchOrChange
-  = Patch | Chg
-  deriving (Eq , Show)
 
 data Options
   = AST     { optFileA :: FilePath
@@ -45,7 +41,6 @@ data Options
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
             , opqHandling  :: D.DiffOpaques
-            , toEditScript :: Maybe PatchOrChange
             , showES       :: Bool
             }
   | Merge   { optFileA     :: FilePath
@@ -59,6 +54,7 @@ data Options
   | STMerge { optFileA     :: FilePath
             , optFileO     :: FilePath
             , optFileB     :: FilePath
+            , optFileRes   :: Maybe FilePath
             }
   deriving (Eq , Show)
 
@@ -118,16 +114,6 @@ opqhandlingOpt = option (readmOneOf [("never" , D.DO_Never)
       ,"that end up on the spine"
       ]
 
-toesOpt :: Parser (Maybe PatchOrChange)
-toesOpt =  flag' (Just Patch) ( long "patch-to-es"
-                             <> help "Translates a patch to an edit script at the patch level"
-                             <> hidden)
-       <|> flag' (Just Chg)   ( long "change-to-es"
-                             <> help ("Translates a patch to an edit script at the change"
-                                      ++ " level; does so by using distrCChange on the patch")
-                             <> hidden)
-       <|> pure Nothing
-
 gdiffOpts :: Parser Options
 gdiffOpts = GDiff <$> argument str (metavar "OLDFILE")
                   <*> argument str (metavar "NEWFILE")
@@ -144,11 +130,10 @@ diffOpts =
        <*> minheightOpt
        <*> diffmodeOpt
        <*> opqhandlingOpt
-       <*> toesOpt
        <*> showesOpt
 
-testmergeOpts :: Parser (Maybe FilePath)
-testmergeOpts
+testmergeOpt :: Parser (Maybe FilePath)
+testmergeOpt
   = option (fmap Just str)
            ( long "test-merge"
            <> help ("Attempts to apply the merged patch to "
@@ -161,7 +146,7 @@ mergeOpts =
   Merge <$> argument str (metavar "MYFILE")
         <*> argument str (metavar "OLDFILE")
         <*> argument str (metavar "YOURFILE")
-        <*> testmergeOpts
+        <*> testmergeOpt
         <*> minheightOpt
         <*> diffmodeOpt
         <*> opqhandlingOpt
@@ -171,6 +156,7 @@ stmergeOpts =
   STMerge <$> argument str (metavar "MYFILE")
           <*> argument str (metavar "OLDFILE")
           <*> argument str (metavar "YOURFILE")
+          <*> testmergeOpt
 
 parseOptions :: Parser Options
 parseOptions = hsubparser
@@ -182,7 +168,7 @@ parseOptions = hsubparser
         (progDesc "Runs Data.HDiff.Diff on the targes"))
   <> command "merge" (info mergeOpts
         (progDesc "Runs the merge algorithm on the specified files"))
-  <> command "st-merge" (info stmergeOpts
+  <> command "stmerge" (info stmergeOpts
         (progDesc "Runs the Generics.MRSOP.STDiff.Merge algo on the specified files"))
   ) <|> diffOpts
   
@@ -223,21 +209,31 @@ possibleParsers :: [String]
 possibleParsers = map parserExtension mainParsers
 
 versionOpts :: Parser (a -> a)
-versionOpts = infoOption vERSION (long "version")
+versionOpts = infoOption vERSION_STR (long "version")
 
 optionMode :: Options -> OptionMode
 optionMode (AST _)                  = OptAST
 optionMode (GDiff _ _ _)            = OptGDiff
 optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
-optionMode (STMerge _ _ _)          = OptSTMerge
-optionMode (Diff _ _ _ _ _ _ _ _)   = OptDiff
+optionMode (STMerge _ _ _ _)        = OptSTMerge
+optionMode (Diff _ _ _ _ _ _ _)     = OptDiff
 
 
 hdiffOpts :: ParserInfo (Verbosity , SelectedFileParser , Options)
 hdiffOpts = info ((,,) <$> verbosity <*> parserOpts <*> parseOptions
                         <**> helper <**> versionOpts)
             $  fullDesc
-            <> header ("hdiff " ++ vERSION ++ " [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]")
-            <> progDesc "Runs hdiff with the specified command, 'diff' is the default command." 
+            <> header vERSION_STR
             <> footer "Run hdiff COMMAND --help for more help on specific commands"
+            <> progDesc pd
+  where
+    pd = unwords
+           [ "Runs hdiff with the specified command, 'diff' is the default command."
+           , "The program exists with 0 for success and non-zero for failure."
+           , "[1 ; Conflicting patches; returned by 'merge' and 'stmerge']"
+           , "[2 ; Application failed; returned by 'merge' and 'stmerge' with"
+           , "the --test-merge option and 'diff' with the --test-apply option]"
+           , "[3 ; Merge Differs; returned by 'stmerge']"
+           , "[10; Parse Failure]" 
+           ]
             
