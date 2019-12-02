@@ -85,8 +85,8 @@ diffmodeOpt = option (readmOneOf [("proper"  , D.DM_ProperShare)
                                  ])
             ( long "diff-mode"
            <> short 'd'
-           <> metavar "proper | nonest | patience ; default: proper"
-           <> value D.DM_ProperShare
+           <> metavar "proper | nonest | patience ; default: nonest"
+           <> value D.DM_NoNested
            <> help aux
            <> hidden)
   where    
