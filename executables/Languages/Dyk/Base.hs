@@ -36,21 +36,26 @@ data DykSep
   deriving (Eq , Show)
 
 data Dyk tok
-  = DykEnclose DykSep (Dyk tok)
-  | DykSeq [Dyk tok] 
+  = DykEnclose DykSep (DykSeq tok)
   | DykTok tok
   deriving (Eq , Show)
 
+data DykSeq tok
+  = DykSeq [Dyk tok]
+  deriving (Eq , Show)
+
+parseDykSeq :: Parser tok -> Parser (DykSeq tok)
+parseDykSeq ptok = DykSeq <$> many (parseDyk ptok)
+
 parseDyk :: Parser tok -> Parser (Dyk tok)
 parseDyk ptok = parseDykSep ptok
-            <|> (DykSeq <$> many1 (parseDyk ptok))
-            <|> (DykTok <$> try ptok)
+            <|> (DykTok <$> ptok)
 
 parseDykSep :: Parser tok -> Parser (Dyk tok)
 parseDykSep pt = do
-  c  <- try (oneOf "([{")
-  d  <- parseDyk pt
-  char (closingFor c)
+  c  <- try $ oneOf "([{"
+  d  <- parseDykSeq pt
+  _  <- char (closingFor c)
   return (DykEnclose (dykSep c) d)
  where
    dykSep '(' = DykParen
@@ -61,10 +66,10 @@ parseDykSep pt = do
    closingFor '[' = ']'
    closingFor '{' = '}'
 
-parseDykFile :: Parser tok -> String -> ExceptT String IO (Dyk tok)
+parseDykFile :: Parser tok -> String -> ExceptT String IO (DykSeq tok)
 parseDykFile ptok file =
   do program  <- lift $ readFile file
-     case parse (parseDyk ptok <* eof) "" program of
+     case parse (parseDykSeq ptok <* eof) "" program of
        Left e  -> throwError (show e)
        Right r -> return r
 
