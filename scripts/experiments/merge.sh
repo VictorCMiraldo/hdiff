@@ -28,7 +28,7 @@ done
 timeout="5s"
 function doMerge() {
   local mode=$1
-  timeout "${timeout}" hdiff merge -d $mode -m $height "$fa" "$fo" "$fb"
+  timeout "${timeout}" hdiff -p "lua-dyck" merge -d $mode -m $height "$fa" "$fo" "$fb"
   res=$?
   case $res in
     0)  echo "$prefix $height $mode success"               ;;
@@ -39,6 +39,6 @@ function doMerge() {
   esac
 }
 
-doMerge "proper"
+# doMerge "proper"
 doMerge "nonest"
-doMerge "patience"
+# doMerge "patience"

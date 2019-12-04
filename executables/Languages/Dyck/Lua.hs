@@ -8,7 +8,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-missing-signatures                 #-}
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
-module Languages.Dyk.Lua where
+module Languages.Dyck.Lua where
 
 import Data.Char
 import Text.ParserCombinators.Parsec
@@ -17,7 +17,7 @@ import Generics.MRSOP.TH
 
 import Control.Monad.Except
 
-import Languages.Dyk.Base
+import Languages.Dyck.Base
 
 data LuaTok
   = LuaWS     String
@@ -59,16 +59,16 @@ parseLuaName = (:) <$> letter <*> many alphaNum
 parseLuaAny :: Parser String
 parseLuaAny = many1 (satisfy isAny)
   where
-    isAny c = and [ not (isSpace c) , not (isAlpha c) , not (c `elem` "()[]{}") ]
+    isAny c = and [ not (isSpace c) , not (isAlpha c) , not (c `elem` "\"()[]{}") ]
 
-type Stmt = DykSeq LuaTok
-deriveFamilyWithTy [t| DykOpq |] [t| Stmt |]
+type Stmt = DyckSeq LuaTok
+deriveFamilyWithTy [t| DyckOpq |] [t| Stmt |]
 
 parseFile :: String -> ExceptT String IO Stmt
-parseFile = parseDykFile parseLuaTok
+parseFile = parseDyckFile parseLuaTok
 
 parseString str =
-  case parse (parseDykSeq parseLuaTok <* eof) "" str of
+  case parse (parseDyckSeq parseLuaTok <* eof) "" str of
     Left e  -> error $ show e
     Right r -> r
 
