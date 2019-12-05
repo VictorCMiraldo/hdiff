@@ -26,7 +26,7 @@ import Generics.MRSOP.HDiff.Digest
 import qualified Languages.While   as While
 import qualified Languages.Lines   as Lines
 import qualified Languages.Dyck.Lua as LuaDyck
--- #define WITH_REAL_LANGUAGES
+#define WITH_REAL_LANGUAGES
 #ifdef WITH_REAL_LANGUAGES
 import qualified Languages.Lua     as Lua
 #endif
