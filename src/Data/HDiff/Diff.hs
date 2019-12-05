@@ -35,7 +35,7 @@ import           Data.HDiff.Change
 
 -- |We use a number of 'PrePatch'es, that is, a utx with a distinguished prefix
 -- and some pair of 'Holes's inside.
-type PrePatch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki codes phi)
+type Patch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki codes phi)
 
 -- * Diffing
 --
@@ -111,50 +111,15 @@ extractSpine dopq meta maxI dx dy
                                 then doCopy
                                 else noCopy)
 
-   noCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
+   noCopy :: ki k -> State Int (Patch ki codes (MetaVarIK ki) ('K k))
    noCopy kik = return (HOpq' kik)
                         
-   doCopy :: ki k -> State Int (PrePatch ki codes (MetaVarIK ki) ('K k))
+   doCopy :: ki k -> State Int (Patch ki codes (MetaVarIK ki) ('K k))
    doCopy ki = do
      i <- get
      put (i+1)
      let ann = NA_K . Annotate i $ ki
      return $ Hole' (Hole' ann :*: Hole' ann)
-
-
--- |Combines changes until they are closed
-close :: Holes ki codes (Sum (OChange ki codes) (CChange ki codes)) at
-      -> Holes ki codes (CChange ki codes) at
-close utx = case closure utx of
-              InR cc -> cc
-              InL (OMatch used unused del ins)
-                -> Hole' $ CMatch (S.union used unused) del ins
-  where
-    closure :: Holes ki codes (Sum (OChange ki codes) (CChange ki codes)) at
-            -> Sum (OChange ki codes) (Holes ki codes (CChange ki codes)) at
-    closure (HOpq _ k)        = InR $ HOpq' k
-    closure (Hole _ (InL oc)) = InL oc
-    closure (Hole _ (InR cc)) = InR $ Hole' cc
-    -- There is some magic going on here. First we compute
-    -- the recursive closures and check whether any of them is open.
-    -- If not, we are done.
-    -- Otherwise, we apply a bunch of "monad distributive properties" around.
-    closure (HPeel _ cx dx)
-      = let aux = mapNP closure dx
-         in case mapNPM fromInR aux of
-              Just np -> InR $ HPeel' cx np
-              Nothing -> let chgs = mapNP (either' InL (InR . distrCChange)) aux
-                             dels = mapNP (either' oCtxDel cCtxDel) chgs
-                             inss = mapNP (either' oCtxIns cCtxIns) chgs
-                             vx   = S.unions $ elimNP (either'' oCtxVDel cCtxVars) chgs 
-                             vy   = S.unions $ elimNP (either'' oCtxVIns cCtxVars) chgs
-                          in if vx == vy
-                             then InR (Hole' $ CMatch vx (HPeel' cx dels) (HPeel' cx inss))
-                             else InL (OMatch vx vy (HPeel' cx dels) (HPeel' cx inss))
-
-    fromInR :: Sum f g x -> Maybe (g x)
-    fromInR (InL _) = Nothing
-    fromInR (InR x) = Just x
 
 
 -- |Diffs two generic merkelized structures.
