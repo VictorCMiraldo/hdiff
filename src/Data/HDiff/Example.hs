@@ -31,7 +31,8 @@ import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
 import Generics.MRSOP.HDiff.Digest
-import Data.HDiff.Patch
+import Data.HDiff.Base
+import Data.HDiff.Base.Apply
 -- import Data.HDiff.Diff
 import Data.HDiff.MetaVar
 import Data.HDiff.Change
@@ -77,7 +78,7 @@ big3 = Node3 100
         (Node2 100 Leaf mt1)
         (Node3 300 Leaf Leaf Leaf)
 
-big2 = Node2 100
+big2 = Node2 1000
         (Node2 800 mt4 mt3)
         (Node2 200 mt4 (Node3 300 mt1 mt3 Leaf))
 
@@ -123,8 +124,8 @@ unif1 = HPeel' CZ (HOpq' (SInt 100)
                  :* Nil)
 unif12 :: TreeTerm
 unif12 = HPeel' CZ (HOpq' (SInt 500)
-                 :* Hole' (NA_I $ Const 4)
                  :* Hole' (NA_I $ Const 2)
+                 :* Hole' (NA_I $ Const 1)
                  :* Nil)
 
 unif2 :: TreeTerm

@@ -14,7 +14,6 @@ module Data.HDiff.Diff
   , module Data.HDiff.Diff.Types
   ) where
 
-import qualified Data.Set as S
 import           Data.Void
 import           Data.Functor.Const
 import           Data.Functor.Sum
@@ -29,13 +28,8 @@ import qualified Data.WordTrie as T
 import           Data.HDiff.Diff.Types
 import           Data.HDiff.Diff.Modes
 import           Data.HDiff.Diff.Preprocess
-import           Data.HDiff.Patch
+import           Data.HDiff.Base
 import           Data.HDiff.MetaVar
-import           Data.HDiff.Change
-
--- |We use a number of 'PrePatch'es, that is, a utx with a distinguished prefix
--- and some pair of 'Holes's inside.
-type Patch ki codes phi = Holes ki codes (Holes ki codes phi :*: Holes ki codes phi)
 
 -- * Diffing
 --
@@ -97,12 +91,14 @@ extractSpine :: forall ki codes phi at
              -> Int
              -> Holes ki codes phi at
              -> Holes ki codes phi at
-             -> Holes ki codes (Sum (OChange ki codes) (CChange ki codes)) at
+             -> Holes ki codes (Chg ki codes) at
 extractSpine dopq meta maxI dx dy
-  = holesMap (uncurry' change)
+  = holesMap (uncurry' Chg)
   $ issueOpqCopiesSpine
   $ holesLCP dx dy
  where
+   issueOpqCopiesSpine :: Holes ki codes (Holes2 ki codes phi) at
+                       -> Holes ki codes (Holes2 ki codes (MetaVarIK ki)) at
    issueOpqCopiesSpine
      = flip evalState maxI
      . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x
@@ -111,10 +107,10 @@ extractSpine dopq meta maxI dx dy
                                 then doCopy
                                 else noCopy)
 
-   noCopy :: ki k -> State Int (Patch ki codes (MetaVarIK ki) ('K k))
+   noCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
    noCopy kik = return (HOpq' kik)
                         
-   doCopy :: ki k -> State Int (Patch ki codes (MetaVarIK ki) ('K k))
+   doCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
    doCopy ki = do
      i <- get
      put (i+1)
@@ -162,11 +158,11 @@ diffOpts :: (EqHO ki , DigestibleHO ki , IsNat ix)
          => DiffOptions
          -> Fix ki codes ix
          -> Fix ki codes ix
-         -> Patch ki codes ix
+         -> Patch ki codes ('I ix)
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts (na2holes $ NA_I x)
                                            (na2holes $ NA_I y)
-     in close (extractSpine (doOpaqueHandling opts) cast i del ins)
+     in extractSpine (doOpaqueHandling opts) cast i del ins
  where 
    cast :: Sum (Const Void) f i -> f i
    cast (InR fi) = fi
@@ -176,5 +172,5 @@ diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight
      -> Fix ki codes ix
      -> Fix ki codes ix
-     -> Patch ki codes ix
+     -> Patch ki codes ('I ix)
 diff h = diffOpts (diffOptionsDefault { doMinHeight = h})

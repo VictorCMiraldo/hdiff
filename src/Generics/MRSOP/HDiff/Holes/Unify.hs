@@ -85,14 +85,20 @@ unifyWith sigma x y = execStateT (unifyM [Exists (x :*: y)]) sigma
 unifyLkup :: (EqHO ki , Ord (Exists phi))
           => phi at
           -> UnifyM ki codes phi (Maybe (Holes ki codes phi at))
-unifyLkup var = do
-  sigma <- get
+unifyLkup var = flip substLkup var <$> get
+
+
+substLkup :: (EqHO ki , Ord (Exists phi))
+          => Subst ki codes phi
+          -> phi at
+          -> Maybe (Holes ki codes phi at)
+substLkup sigma var =
   case M.lookup (Exists var) sigma of
-    Nothing         -> return Nothing
+    Nothing         -> Nothing
     -- In case we found something, it must be of the same
     -- type as what we got because we only insert
     -- well-typed things.
-    Just (Exists t) -> return (Just $ unsafeCoerce t)
+    Just (Exists t) -> Just $ unsafeCoerce t
     
 -- |Compares two variables based on their Ord instance
 unifySameVar :: (Ord (Exists phi)) => Exists phi -> phi at -> Bool
