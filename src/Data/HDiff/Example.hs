@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE PatternSynonyms       #-}
@@ -20,15 +21,18 @@ module Data.HDiff.Example where
 import qualified Data.Set as S
 import Data.Functor.Const
 
+import Control.Monad.Except
+
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
+import Generics.MRSOP.HDiff.Holes.Unify
 import Generics.MRSOP.Opaque
 import Generics.MRSOP.TH
 
 import Generics.MRSOP.HDiff.Digest
 import Data.HDiff.Patch
-import Data.HDiff.Diff
+-- import Data.HDiff.Diff
 import Data.HDiff.MetaVar
 import Data.HDiff.Change
 
@@ -80,8 +84,8 @@ big2 = Node2 100
 tr :: Tree23 -> Fix Singl CodesTree23 'Z
 tr = dfrom . into
 
-dgms :: Tree23 -> Tree23 -> Patch Singl CodesTree23 'Z
-dgms x y = diff 1 (dfrom $ into x) (dfrom $ into y)
+-- dgms :: Tree23 -> Tree23 -> Patch Singl CodesTree23 'Z
+-- dgms x y = diff 1 (dfrom $ into x) (dfrom $ into y)
 
 o , p , q :: Tree23
 o = Node2 10 (Node3 100 Leaf Leaf Leaf) (Node2 1000 Leaf Leaf)
@@ -107,6 +111,11 @@ genFib2 = tr $ test1 "fab" "m" "b"
 
 type TreeTerm = Holes Singl CodesTree23 (MetaVarIK Singl) ('I 'Z)
 
+instance (ShowHO ki , ShowHO phi , HasDatatypeInfo ki fam codes)
+  => Show (UnifyErr ki codes phi) where
+    show (OccursCheck x vx) = "occurs-check-fail"
+    show (SymbolClash x vx) = "sym-clash-fail"
+
 unif1 :: TreeTerm
 unif1 = HPeel' CZ (HOpq' (SInt 100)
                  :* Hole' (NA_I $ Const 1)
@@ -114,7 +123,7 @@ unif1 = HPeel' CZ (HOpq' (SInt 100)
                  :* Nil)
 unif12 :: TreeTerm
 unif12 = HPeel' CZ (HOpq' (SInt 500)
-                 :* Hole' (NA_I $ Const 1)
+                 :* Hole' (NA_I $ Const 4)
                  :* Hole' (NA_I $ Const 2)
                  :* Nil)
 
@@ -125,7 +134,7 @@ unif2 = HPeel' CZ (HOpq' (SInt 200)
                  :* Nil)
 unif22 :: TreeTerm
 unif22 = HPeel' CZ (HOpq' (SInt 500)
-                 :* Hole' (NA_I $ Const 4)
+                 :* unif1
                  :* Hole' (NA_I $ Const 5)
                  :* Nil)
 

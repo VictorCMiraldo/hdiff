@@ -110,7 +110,6 @@ type Domain ki codes = Holes ki codes (MetaVarIK ki)
 domain :: Chg ki codes at -> Domain ki codes at
 domain = chgDel
 
-
 -- * Patches
 --
 -- $patchintro
@@ -144,6 +143,8 @@ patchVars = flip execState M.empty . holesMapM go
 patchMaxVar :: Patch ki codes at -> Maybe Int
 patchMaxVar = fmap fst . M.lookupMax . patchVars
 
+-- |Returns a patch that is guaranteed to have
+-- distinci variable names from the first argument.
 withFreshNamesFrom :: Patch ki codes at
                    -> Patch ki codes at
                    -> Patch ki codes at
