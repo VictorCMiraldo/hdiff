@@ -1,7 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE PolyKinds             #-}
@@ -11,18 +10,14 @@ module Data.HDiff.Base where
 
 import           Control.Monad.Cont
 import           Control.Monad.State
-import           Data.Functor.Sum
 import           Data.Functor.Const
 import           Data.Type.Equality
 import qualified Data.Map as M
-import qualified Data.Set as S
 ------------------------------------
 import Generics.MRSOP.Util
-import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 ------------------------------------
 import Generics.MRSOP.HDiff.Holes
-import Data.Exists
 import Data.HDiff.MetaVar
 
 -- | Usefull synonym for carrying around two
@@ -121,6 +116,9 @@ type Patch ki codes
 chgDistr :: Patch ki codes at -> Chg ki codes at
 chgDistr p = Chg (holesJoin $ holesMap chgDel p)
                  (holesJoin $ holesMap chgIns p)
+
+chgPatch :: (EqHO ki) => Chg ki codes at -> Patch ki codes at
+chgPatch c = holesMap (uncurry' Chg) $ holesLCP (chgDel c) (chgIns c) 
 
 -- |Alpha equality for patches
 patchEq :: (EqHO ki)

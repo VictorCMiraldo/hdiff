@@ -168,7 +168,8 @@ diffOpts opts x y
    cast (InR fi) = fi
    cast (InL _)  = error "impossible"
 
-diff :: (EqHO ki , DigestibleHO ki , IsNat ix)
+diff :: forall (ki :: kon -> *) (codes :: [[[Atom kon]]]) (ix :: Nat)
+      . (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight
      -> Fix ki codes ix
      -> Fix ki codes ix
