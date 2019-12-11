@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ConstraintKinds       #-}
@@ -24,6 +25,9 @@ import Data.Exists
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
+import Generics.MRSOP.HDiff.Holes
+
+import Debug.Trace
 
 ----------------------
 -- TODO: move to mrsop
@@ -51,14 +55,19 @@ instance (EqHO f , TestEquality f , OrdHO f) => Ord (Exists f) where
 data UnifyErr ki codes phi :: * where
   -- |The occurs-check fails when the variable in question
   -- occurs within the term its supposed to be unified with.
-  OccursCheck :: phi at1
-              -> Holes    ki codes phi at2
+  OccursCheck :: [Exists phi]
               -> UnifyErr ki codes phi
   -- |A symbol-clash is thrown when the head of the
   -- two terms is different and neither is a variabe.
   SymbolClash :: Holes    ki codes phi at
               -> Holes    ki codes phi at
               -> UnifyErr ki codes phi
+
+instance (ShowHO ki , ShowHO phi , HasDatatypeInfo ki fam codes)
+      => Show (UnifyErr ki codes phi) where
+  show (OccursCheck vs) = "(OccursCheck " ++ unwords (map (mkpar . exElim showHO) vs) ++ ")"
+    where mkpar x = "(" ++ x ++ ")"
+  show (SymbolClash x y) = "(SymbolClash {" ++ show x ++ "} {" ++ show y ++ "})"
 
 -- |A substitution is but a map; the existential quantifiers are
 -- necessary to ensure we can reuse from "Data.Map"
@@ -120,7 +129,7 @@ unifyM :: forall ki codes phi at
        => Holes ki codes phi at
        -> Holes ki codes phi at
        -> UnifyM ki codes phi ()
-unifyM x y = getEquivs x y >> modify minimize
+unifyM x y = getEquivs x y >> get >>= minimize >>= put
   where
     getEquivs :: Holes ki codes phi b
               -> Holes ki codes phi b
@@ -163,7 +172,7 @@ unifyM x y = getEquivs x y >> modify minimize
 minimize :: forall ki codes phi
           . (EqHO ki , Ord (Exists phi))
          => Subst ki codes phi
-         -> Subst ki codes phi
+         -> UnifyM ki codes phi (Subst ki codes phi)
 minimize sigma = whileM sigma [] $ \s _
   -> M.fromList <$> (mapM (secondF (exMapM go)) (M.toList s))
   where
@@ -185,14 +194,19 @@ minimize sigma = whileM sigma [] $ \s _
 
     -- We loop while there is work to be done or no progress
     -- was done.
-    whileM :: (Ord x)
-           => a -> [x] -> (a -> [x] -> Writer [x] a) -> a
-    whileM a xs f = let (x' , xs') = runWriter (f a xs)
-                     in if null xs' || (sort xs' == sort xs)
-                        then x'
-                        else whileM x' xs' f
+    whileM :: (Ord (Exists phi))
+           => a -> [Exists phi] -> (a -> [Exists phi] -> Writer [Exists phi] a)
+           -> UnifyM ki codes phi a
+    whileM a xs f = do
+      let (x' , xs') = runWriter (f a xs)
+      if null xs'
+      then return x'
+      else if (sort xs' == sort xs)
+           then throwError (OccursCheck xs')
+           else whileM x' xs' f
 
 {-
+Prettier code; worst complexity:
 
 unifyInsert :: forall ki codes phi at
              . (EqHO ki , Ord (Exists phi))

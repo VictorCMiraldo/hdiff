@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TupleSections         #-}
@@ -28,20 +29,20 @@ import Generics.MRSOP.HDiff.Renderer
 -- |Pretty-prints a treefix using a specific function to
 --  print holes.
 holesPretty :: forall ki fam codes f at ann
-             . (HasDatatypeInfo ki fam codes , RendererHO ki)
+             . (HasDatatypeInfo ki fam codes)
             => Proxy fam
             -> (PP.Doc ann -> PP.Doc ann) -- ^ styling
-            -> (forall at' . f at' -> PP.Doc ann)
+            -> (forall at' . f at' -> PP.Doc ann) -- ^ Render holes
+            -> (forall k   . ki k  -> PP.Doc ann) -- ^ Render opaques
             -> Holes ki codes f at
             -> PP.Doc ann
-holesPretty _pfam sty sx  (Hole _ x)
+holesPretty _pfam sty sx _sk (Hole _ x)
   = sty $ sx x
-holesPretty _pfam sty _sx (HOpq _ k)
-  = sty $ renderHO k
-holesPretty pfam sty sx utx@(HPeel _ c rest)
+holesPretty _pfam sty _sx sk (HOpq _ k)
+  = sty $ sk k
+holesPretty pfam sty sx sk utx@(HPeel _ c rest)
   = renderNP pfam sty (holesSNat utx) c
-  $ mapNP (Const . holesPretty pfam sty sx) rest
-
+  $ mapNP (Const . holesPretty pfam sty sx sk) rest 
 
 -- |Zips a 'Holes' and a generic value together. Returns
 -- 'mzero' whenever the structure of the value is not compatible

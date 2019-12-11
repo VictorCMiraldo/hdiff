@@ -23,6 +23,7 @@ import Generics.MRSOP.Holes
 import Generics.MRSOP.HDiff.Digest
 
 import Languages.RTree
+import Data.HDiff.MetaVar
 import Data.HDiff.Base
 import Data.HDiff.Base.Show
 import Data.HDiff.Base.Apply
@@ -85,3 +86,9 @@ c = "a" :>: ["j" :>: [],"i" :>: [],"m" :>: []]
 
 ab = chgDistr $ hdiffRTreeHM DM_NoNested 1 a b
 bc = chgDistr $ hdiffRTreeHM DM_NoNested 1 b c
+
+xx , yy :: Holes W CodesRTree (MetaVarIK W) ('I 'Z)
+xx = Hole' (NA_I (Const 0))
+
+yy = HPeel' CZ (Hole' (NA_K (Annotate 3 (W_String "lala")
+                          )) :* HPeel' CZ Nil :* Nil)

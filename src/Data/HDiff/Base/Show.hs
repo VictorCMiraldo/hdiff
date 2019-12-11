@@ -64,8 +64,8 @@ showRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
              -> [String]
 showRawPatch patch 
   = doubleColumn 75
-      (holesPretty (Proxy :: Proxy fam) id prettyCChangeDel patch)
-      (holesPretty (Proxy :: Proxy fam) id prettyCChangeIns patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyCChangeDel renderHO patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyCChangeIns renderHO patch)
   where
     prettyCChangeDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                     => D.Chg ki codes at
@@ -74,6 +74,7 @@ showRawPatch patch
       = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
                   (metavarPretty (annotate mydullred))
+                  renderHO
                   del
 
     prettyCChangeIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
@@ -83,6 +84,7 @@ showRawPatch patch
       = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)
                   (metavarPretty (annotate mydullgreen))
+                  renderHO
                   ins
 
 instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki)
@@ -93,16 +95,16 @@ instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , Sho
       => Show (Delta (Holes ki codes phi) at) where
   show (del :*: ins)
     = unlines $ doubleColumn 75
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) del)
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) ins)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) renderHO del)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) renderHO ins)
   show _ = undefined -- ghc seems to really want this to see the patterns are complete.
 
 
 instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (D.Chg ki codes at) where
   show (D.Chg del ins) = unlines $ doubleColumn 75
-    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred))   del)
-    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) ins)
+    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred)) renderHO  del)
+    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) renderHO ins)
 
 
 -- |Outputs the result of 'showRawPatch' to the specified handle
