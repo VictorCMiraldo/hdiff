@@ -11,7 +11,7 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Data.HDiff.Change.Merge where
+module Data.HDiff.Base.Merge where
 
 import           Control.Monad.Cont
 import           Control.Monad.State
