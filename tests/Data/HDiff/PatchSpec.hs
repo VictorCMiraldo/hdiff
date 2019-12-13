@@ -14,7 +14,7 @@ import Generics.MRSOP.Holes
 import Data.Exists
 import Data.HDiff.Diff
 import Data.HDiff.Base
-import Data.HDiff.Base.Compose
+import Data.HDiff.Compose
 import Languages.RTree
 import Languages.RTree.Diff
 

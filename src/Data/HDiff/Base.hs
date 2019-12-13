@@ -114,10 +114,6 @@ instance (TestEquality ki) => TestEquality (Chg ki codes) where
 -- identify what's what on the algorithms below.
 type Domain ki codes = Holes ki codes (MetaVarIK ki) 
 
--- | Rename of 'chgDel'
-domain :: Chg ki codes at -> Domain ki codes at
-domain = chgDel
-
 -- * Patches
 --
 -- $patchintro
@@ -170,3 +166,6 @@ withFreshNamesFrom p q =
       = Chg (holesMap (metavarAdd n) del)
             (holesMap (metavarAdd n) ins)
       
+-- | The deletion context of a patch
+domain :: Patch ki codes at -> Domain ki codes at
+domain = chgDel . chgDistr

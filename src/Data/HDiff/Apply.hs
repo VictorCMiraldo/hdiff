@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
-module Data.HDiff.Base.Apply where
+module Data.HDiff.Apply where
 
 import Control.Monad.Except
 ------------------------------------

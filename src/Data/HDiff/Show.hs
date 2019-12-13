@@ -5,7 +5,7 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Data.HDiff.Base.Show where
+module Data.HDiff.Show where
 
 import           System.IO
 import           Data.Proxy
@@ -22,9 +22,9 @@ import Generics.MRSOP.HDiff.Holes
 import Generics.MRSOP.HDiff.Renderer
 
 import           Data.Exists
-import qualified Data.HDiff.Base       as D
-import qualified Data.HDiff.Base.Merge as D
-import qualified Data.HDiff.MetaVar    as D
+import qualified Data.HDiff.Base    as D
+import qualified Data.HDiff.Merge   as D
+import qualified Data.HDiff.MetaVar as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
 spliced :: Doc ann -> Doc ann -> Doc ann

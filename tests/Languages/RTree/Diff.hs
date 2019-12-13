@@ -16,7 +16,6 @@ module Languages.RTree.Diff where
 
 import Data.Functor.Const
 import Data.Void
-import Control.Monad.Except
 
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
@@ -25,8 +24,7 @@ import Generics.MRSOP.HDiff.Digest
 import Languages.RTree
 import Data.HDiff.MetaVar
 import Data.HDiff.Base
-import Data.HDiff.Base.Show
-import Data.HDiff.Base.Apply
+import Data.HDiff.Apply
 import Data.HDiff.Diff
 import Data.HDiff.Diff.Preprocess
 

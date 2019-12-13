@@ -1,8 +1,8 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -11,26 +11,17 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Data.HDiff.Base.Instantiate where
+module Data.HDiff.Instantiate where
 
-import           Control.Monad.Cont
-import           Control.Monad.State
-import           Control.Monad.Except
-import           Data.Functor.Const
 import qualified Data.Map as M
-import           Data.Type.Equality
+import           Unsafe.Coerce
 ----------------------------------------
 import           Generics.MRSOP.Util
-import           Generics.MRSOP.Base hiding (match)
 ----------------------------------------
 import           Data.Exists
 import           Data.HDiff.MetaVar
-import           Data.HDiff.Base
 import           Generics.MRSOP.Holes
-import           Generics.MRSOP.HDiff.Holes.Unify
 
-import Unsafe.Coerce
--- import Debug.Trace
 
 
 type Inst phi = M.Map Int (Exists phi)

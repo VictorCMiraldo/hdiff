@@ -1,8 +1,8 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -11,7 +11,7 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Data.HDiff.Base.Merge where
+module Data.HDiff.Merge where
 
 import           Control.Monad.Cont
 import           Control.Monad.State
@@ -26,12 +26,9 @@ import           Generics.MRSOP.Base hiding (match)
 import           Data.Exists
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
-import           Data.HDiff.Base.Instantiate
+import           Data.HDiff.Instantiate
 import           Generics.MRSOP.Holes
 import           Generics.MRSOP.HDiff.Holes.Unify
-
-import Unsafe.Coerce
--- import Debug.Trace
 
 -- |This is specific to merging; which is why we left it here.
 -- When instantiatting a deletion context against a patch,

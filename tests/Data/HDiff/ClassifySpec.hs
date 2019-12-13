@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
-module Data.HDiff.Change.ClassifySpec (spec) where
+module Data.HDiff.ClassifySpec (spec) where
 
 import qualified Data.Set as S
 
@@ -11,12 +11,10 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 
 import Data.Exists
-import Data.HDiff.Patch
+import Data.HDiff.Base
+import Data.HDiff.Classify
 import Data.HDiff.Diff
-import Data.HDiff.Patch.Show
 import Data.HDiff.MetaVar
-import Data.HDiff.Change
-import Data.HDiff.Change.Classify
 import Languages.RTree
 import Languages.RTree.Diff
 

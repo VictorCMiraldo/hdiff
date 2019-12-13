@@ -4,11 +4,12 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-module Data.HDiff.Base.TED where
+module Data.HDiff.TreeEditDistance where
 
 import qualified Data.Map as M
 import           Data.STRef
 import           Data.Proxy
+import           Data.Functor.Const
 import           Data.Type.Equality
 import           Control.Arrow (second)
 import           Control.Monad.ST
@@ -25,6 +26,21 @@ import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 
 -- import Debug.Trace
+
+patchCost :: Patch ki codes at -> Int
+patchCost = getConst
+          . holesGetHolesAnnWith
+              (Const 0)
+              (\(Const x) (Const y) -> Const $ x + y)
+              (Const . chgCost)
+
+chgCost :: Chg ki codes at -> Int
+chgCost (Chg del ins) = holesCost del + holesCost ins
+
+holesCost :: Holes ki codes phi at -> Int
+holesCost (Hole _ _) = 0
+holesCost (HOpq _ _) = 1
+holesCost (HPeel _ _ ps) = 1 + sum (elimNP holesCost ps)
 
 --------------------------------------------
 -- * Regular Longest Common Subsequence * --

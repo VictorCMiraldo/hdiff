@@ -1,14 +1,12 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
-module Data.HDiff.Base.Compose where
+module Data.HDiff.Compose where
 
 import Data.Type.Equality
 import Control.Monad.Except
-import qualified Data.Map as M
 -------------------------------
 import Generics.MRSOP.Util
-import Generics.MRSOP.Base
 -------------------------------
 import Generics.MRSOP.HDiff.Holes.Unify
 import Data.HDiff.Base

@@ -5,13 +5,12 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
-module Data.HDiff.Patch.MergeSpec (spec) where
+module Data.HDiff.MergeSpec (spec) where
 
 import Generics.MRSOP.Base
 
 import Data.HDiff.Base
-import Data.HDiff.Base.Show
-import Data.HDiff.Base.Merge
+import Data.HDiff.Merge
 import Data.HDiff.Diff
 import Languages.RTree
 import Languages.RTree.Diff

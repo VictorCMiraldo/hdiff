@@ -4,7 +4,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
 -- |change classification algorithm
-module Data.HDiff.Change.Classify where
+module Data.HDiff.Classify where
 
 import Data.List (nub)
 import Data.Proxy
@@ -15,7 +15,7 @@ import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 -------------------------------
 import Data.Exists
-import Data.HDiff.Change
+import Data.HDiff.Base
 import Data.HDiff.MetaVar
 
 -----------------------------------------
@@ -43,14 +43,14 @@ data ChangeClass
   deriving (Eq , Show , Ord)
 
 changeClassify :: (EqHO ki , TestEquality ki)
-               => CChange ki codes at -> ChangeClass
+               => Chg ki codes at -> ChangeClass
 changeClassify c
-  | isCpy c   = CId
+  | cpy c     = CId
   | otherwise =
-  let mis = holesGetMultiplicities 0 (cCtxIns c)
-      mds = holesGetMultiplicities 0 (cCtxDel c)
-      vi = holesGetHolesAnnWith' metavarGet (cCtxIns c)
-      vd = holesGetHolesAnnWith' metavarGet (cCtxDel c)
+  let mis = holesGetMultiplicities 0 (chgIns c)
+      mds = holesGetMultiplicities 0 (chgDel c)
+      vi = holesGetHolesAnnWith' metavarGet (chgIns c)
+      vd = holesGetHolesAnnWith' metavarGet (chgDel c)
       -- permutes = vi == vd
       dups     = vi /= nub vi || vd /= nub vd
    in case (length mis , length mds) of
@@ -61,7 +61,7 @@ changeClassify c
         (_ , 0) -> if dups       then CMod else CIns
         (_ , _) -> if mis == mds then CPerm else CMod
 
-isIns , isDel :: (TestEquality ki , EqHO ki) => CChange ki codes ix -> Bool
+isIns , isDel :: (TestEquality ki , EqHO ki) => Chg ki codes ix -> Bool
 isIns c = changeClassify c == CIns
 isDel c = changeClassify c == CDel
 
