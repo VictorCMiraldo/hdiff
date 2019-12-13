@@ -9,14 +9,9 @@ module Data.HDiff.Patch.MergeSpec (spec) where
 
 import Generics.MRSOP.Base
 
-import Data.HDiff.Patch
+import Data.HDiff.Base
+import Data.HDiff.Base.Merge
 import Data.HDiff.Diff
-import Data.HDiff.Patch.Merge
-import Data.HDiff.Patch.Show
-import Data.HDiff.Change
-import Data.HDiff.Change.Merge
-import Data.HDiff.Change.Thinning
-import Data.HDiff.Change.Apply
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -430,66 +425,6 @@ mytest a o b r =
                                      then Right ()
                                      else Left "Different Result"
 
--}
-
-{-
-cc :: RTree -> RTree -> RTree -> Bool
-cc a o b =
-  let p = distrCChange $ hdiffRTree o a
-      q = distrCChange $ hdiffRTree o b
-   in case (,) <$> thin p (domain q) <*> thin q (domain p) of
-        Left err -> error "imp; its a span!"
-        Right (p' , q')
-          -> (     changeEq q q'  &&      changeEq p p')
-          || (     changeEq q q'  && not (changeEq p p'))
-          || (not (changeEq q q') &&      changeEq p p')
--}
-
-oa9 = hdiffRTree o9 a9
-ob9 = hdiffRTree o9 b9
-
-oa8 = hdiffRTree o8 a8
-ob8 = hdiffRTree o8 b8 `withFreshNamesFrom` oa8
-
-coa8 = distrCChange oa8
-cob8 = distrCChange ob8
-
-myprocess ca cb =
-  let Right ca' = thin ca (domain cb)
-      Right cb' = thin cb (domain ca)
-      newinsa   = pmatch (cCtxDel ca') (cCtxDel cb') >>= transport (cCtxIns ca')
-   in case runExcept newinsa of
-        Left err -> error ("impossible: " ++ show err)
-        Right r  -> (r , cCtxDel cb' , cCtxIns cb')
-
-{-
-mymerge :: RTree -> RTree -> RTree -> IO ()
-mymerge a o b = do
-  let oa = hdiffRTree o a
-  let ob = hdiffRTree o b `withFreshNamesFrom` oa
-  let ca' = distrCChange oa
-  let cb' = distrCChange ob
-  let (ca , d , cb) = myprocess ca' cb'
-  let (i , res)  = diff' 0 d ca
-  let (_ , res') = diff' 0 d cb
-  print res
-  putStrLn "-----------------"
-  print res'
--}
-{-
-p = distrCChange oa8
-q = distrCChange ob8 
-thinned p q = uncurry' cmatch <$> thin' (cCtxDel p :*: cCtxIns p)
-                                        (cCtxDel q :*: cCtxIns q)
-
-mymerge p q = do
-  p' <- thin p (domain q)
-  q' <- thin q (domain p)
-  if changeEq q' q
-  then return p
-  else case tr p' q' of
-    Left err -> error $ show err
-    Right r  -> return r
 -}
 
 myHdiffRTree = hdiffRTreeHM DM_ProperShare 1

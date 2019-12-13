@@ -129,7 +129,12 @@ unifyM :: forall ki codes phi at
        => Holes ki codes phi at
        -> Holes ki codes phi at
        -> UnifyM ki codes phi ()
-unifyM x y = getEquivs x y >> get >>= minimize >>= put
+unifyM x y = do
+  _ <- getEquivs x y
+  s <- get
+  case minimize s of
+    Left vs  -> throwError (OccursCheck vs)
+    Right s' -> put s'
   where
     getEquivs :: Holes ki codes phi b
               -> Holes ki codes phi b
@@ -168,11 +173,12 @@ unifyM x y = getEquivs x y >> get >>= minimize >>= put
 --  >           , (1 , bin 4 4) ]
 --
 -- Then, @minimize sigma@ will return @fromList [(0 , bin (bin 4 4) 2) , (1 , bin 4 4)]@
+-- This returns 'Left' if occurs-check fail.
 --
 minimize :: forall ki codes phi
           . (EqHO ki , Ord (Exists phi))
          => Subst ki codes phi
-         -> UnifyM ki codes phi (Subst ki codes phi)
+         -> Either [Exists phi] (Subst ki codes phi)
 minimize sigma = whileM sigma [] $ \s _
   -> M.fromList <$> (mapM (secondF (exMapM go)) (M.toList s))
   where
@@ -196,13 +202,13 @@ minimize sigma = whileM sigma [] $ \s _
     -- was done.
     whileM :: (Ord (Exists phi))
            => a -> [Exists phi] -> (a -> [Exists phi] -> Writer [Exists phi] a)
-           -> UnifyM ki codes phi a
+           -> Either [Exists phi] a
     whileM a xs f = do
       let (x' , xs') = runWriter (f a xs)
       if null xs'
       then return x'
       else if (sort xs' == sort xs)
-           then throwError (OccursCheck xs')
+           then Left xs'
            else whileM x' xs' f
 
 {-

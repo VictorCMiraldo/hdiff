@@ -88,6 +88,9 @@ unChg (Chg d i) = d :*: i
 changeEq :: (EqHO ki) => Chg ki codes at -> Chg ki codes at -> Bool
 changeEq c1 c2 = holes2Eq (unChg c1) (unChg c2)
 
+instance (EqHO ki) => EqHO (Chg ki codes) where
+  eqHO = changeEq
+
 instance HasIKProjInj ki (Chg ki codes) where
   konInj k = Chg (HOpq' k) (HOpq' k)
   varProj pk (Chg (Hole' h)     _) = varProj pk h
