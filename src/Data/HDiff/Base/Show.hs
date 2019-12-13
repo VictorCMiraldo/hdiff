@@ -21,8 +21,10 @@ import Generics.MRSOP.Holes
 import Generics.MRSOP.HDiff.Holes
 import Generics.MRSOP.HDiff.Renderer
 
-import qualified Data.HDiff.Base    as D
-import qualified Data.HDiff.MetaVar as D
+import           Data.Exists
+import qualified Data.HDiff.Base       as D
+import qualified Data.HDiff.Base.Merge as D
+import qualified Data.HDiff.MetaVar    as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
 spliced :: Doc ann -> Doc ann -> Doc ann
@@ -99,10 +101,26 @@ instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , Sho
         (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) renderHO ins)
   show _ = undefined -- ghc seems to really want this to see the patterns are complete.
 
+instance (ShowHO ki , HasDatatypeInfo ki fam codes , RendererHO ki)
+      => ShowHO (D.Conflict ki codes) where
+  showHO (D.FailedContr exs)
+    = "(FailedContr " ++ unwords (map (exElim showHO) exs) ++ ")"
+  showHO (D.Conflict str x y) = unlines
+    $   [ "{ " ++ show str ++ " }"
+        , "<<<<<<<<<<<<<<<<<<<<<<"
+        , showHO x
+        , "======================"
+        , showHO y
+        , ">>>>>>>>>>>>>>>>>>>>>>"
+        ]
 
 instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
       => Show (D.Chg ki codes at) where
-  show (D.Chg del ins) = unlines $ doubleColumn 75
+  show = showHO
+
+instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
+      => ShowHO (D.Chg ki codes) where
+  showHO (D.Chg del ins) = unlines $ doubleColumn 75
     (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred)) renderHO  del)
     (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) renderHO ins)
 

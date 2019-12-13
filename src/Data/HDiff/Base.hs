@@ -88,6 +88,16 @@ unChg (Chg d i) = d :*: i
 changeEq :: (EqHO ki) => Chg ki codes at -> Chg ki codes at -> Bool
 changeEq c1 c2 = holes2Eq (unChg c1) (unChg c2)
 
+-- |A /copy/ is a change with the form @x |-> x@
+cpy :: Chg ki codes at -> Bool
+cpy (Chg (Hole' v) (Hole' u)) = metavarGet v == metavarGet u
+cpy _                         = False
+
+-- |Returns whether or not a change is a permutation
+perm :: Chg ki codes at -> Bool
+perm (Chg (Hole' _) (Hole' _)) = True
+perm _                         = False
+
 instance (EqHO ki) => EqHO (Chg ki codes) where
   eqHO = changeEq
 

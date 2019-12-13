@@ -48,9 +48,9 @@ renderNP pf sty idx c Nil
   = sty $ PP.pretty (constructorName (constrInfoFor pf idx c))
 renderNP pf sty idx c p
   = let ci = constrInfoFor pf idx c
-     in PP.parens $ PP.vcat [ sty $ PP.pretty (constructorName ci)
-                            , PP.indent 1 (PP.vsep (elimNP getConst p))
-                            ]
+     in PP.parens $ PP.sep [ sty $ PP.pretty (constructorName ci)
+                           , PP.indent 1 (PP.vsep (elimNP getConst p))
+                           ]
 
 -- |Renders elements of the family
 renderEl :: forall ki fam codes ix ann

@@ -10,6 +10,7 @@ module Data.HDiff.Patch.MergeSpec (spec) where
 import Generics.MRSOP.Base
 
 import Data.HDiff.Base
+import Data.HDiff.Base.Show
 import Data.HDiff.Base.Merge
 import Data.HDiff.Diff
 import Languages.RTree
