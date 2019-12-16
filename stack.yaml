@@ -5,4 +5,5 @@ extra-deps:
   - generics-mrsop-gdiff-0.0.2
   - language-lua-0.11.0.1
   - alex-tools-0.4
+  - language-bash-0.8.0@sha256:2a7b0498c029f0e7c30d3b273897e32036a629ff9ffa5c92ec2f3a51f46af86f
 

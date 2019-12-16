@@ -25,6 +25,13 @@ packages:
       sha256: 3d2950b44d00c10819efdf3576a14768e3433641f3cc7414cc589552432adb23
   original:
     hackage: alex-tools-0.4
+- completed:
+    hackage: language-bash-0.8.0@sha256:2a7b0498c029f0e7c30d3b273897e32036a629ff9ffa5c92ec2f3a51f46af86f,1620
+    pantry-tree:
+      size: 1006
+      sha256: c39ea8b393d342ce492400f97c98a5af1edac5a345d34af84c3f9ca643553418
+  original:
+    hackage: language-bash-0.8.0@sha256:2a7b0498c029f0e7c30d3b273897e32036a629ff9ffa5c92ec2f3a51f46af86f
 snapshots:
 - completed:
     size: 523448
