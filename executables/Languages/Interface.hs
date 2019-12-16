@@ -126,7 +126,6 @@ withParsedElSel :: Maybe String
                 -> ExceptT String IO res
 withParsedElSel sel parsers fs f = do
   p <- parserSelect sel parsers fs
-  liftIO $ putStrLn ("Using parser: " ++ parserExtension p)
   withParsedEl p fs f
 
 withParsed1 :: Maybe String
