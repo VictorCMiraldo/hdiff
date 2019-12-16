@@ -1,7 +1,7 @@
 resolver: lts-14.1
 
 extra-deps:
-  - generics-mrsop-2.3.0
+  - ../generics-mrsop
   - generics-mrsop-gdiff-0.0.2
   - language-lua-0.11.0.1
   - alex-tools-0.4

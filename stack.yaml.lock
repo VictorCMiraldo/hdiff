@@ -5,13 +5,6 @@
 
 packages:
 - completed:
-    hackage: generics-mrsop-2.3.0@sha256:ef8e9216397ef881dd276d3ca5486371d6e1a60fb54b35fddf0f29f045982b6f,1790
-    pantry-tree:
-      size: 1402
-      sha256: 2a536ddc326f32ff9176234436f25bf35d9ba651587a169a23bb3095b2b0cde5
-  original:
-    hackage: generics-mrsop-2.3.0
-- completed:
     hackage: generics-mrsop-gdiff-0.0.2@sha256:c8172829bd87dc2f52e44206d6c1f0e131e1d74415517baff2c5cde390fe571e,1756
     pantry-tree:
       size: 631
