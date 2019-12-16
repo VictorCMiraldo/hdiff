@@ -21,14 +21,9 @@ module Main (main) where
 import System.IO
 import System.Exit
 import Control.Monad
-import Control.Applicative
-import Data.Foldable (asum)
 
 import Options.Applicative
-import Data.Semigroup ((<>))
 
-import           Data.Maybe (isJust)
-import qualified Data.List as L (lookup)
 import           Data.Type.Equality
 
 import Generics.MRSOP.Base hiding (Infix)
@@ -38,15 +33,12 @@ import Generics.MRSOP.HDiff.Digest
 import qualified Generics.MRSOP.GDiff          as GDiff
 import qualified Generics.MRSOP.STDiff         as STDiff
 
-import           Data.Exists
-import qualified Data.HDiff.Patch        as D
+import qualified Data.HDiff.Base         as D
+import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
-import qualified Data.HDiff.Patch.Merge  as D
-import qualified Data.HDiff.Patch.TreeEditDistance as TED
-import           Data.HDiff.Patch.Show
-import qualified Data.HDiff.Change       as D
-import qualified Data.HDiff.Change.Merge as D
-import qualified Data.HDiff.Change.TreeEditDistance as TEDC
+import qualified Data.HDiff.Merge        as D
+import qualified Data.HDiff.TreeEditDistance as TED
+import           Data.HDiff.Show
 
 import           Languages.Interface
 import           HDiff.Options
@@ -77,18 +69,18 @@ mainAST v sel opts = withParsed1 sel mainParsers (optFileA opts)
 tryApply :: (EqHO ki , ShowHO ki , TestEquality ki , IsNat ix, RendererHO ki
             ,HasDatatypeInfo ki fam codes)
          => Verbosity
-         -> D.Patch ki codes ix
+         -> D.Patch ki codes (I ix)
          -> Fix ki codes ix
          -> Maybe (Fix ki codes ix)
          -> IO (Maybe (Fix ki codes ix))
 tryApply v patch fa fb
-  = case D.apply patch fa of
-      Left err -> hPutStrLn stderr "!! apply failed"
-               >> hPutStrLn stderr ("  " ++ err)
-               >> when (v == Loud)
-                   (hPutStrLn stderr (show $ renderFix renderHO fa))
-               >> exitFailure
-      Right b' -> return $ maybe (Just b') (testEq b') fb
+  = case D.patchApply patch (NA_I fa) of
+      Nothing -> hPutStrLn stderr "!! apply failed"
+              >> when (v == Loud)
+                  (hPutStrLn stderr (show $ renderFix renderHO fa))
+              >> exitFailure
+      Just (NA_I b')
+              -> return $ maybe (Just b') (testEq b') fb
  where
    testEq :: (EqHO ki , TestEquality ki , IsNat ix)
           => Fix ki codes ix -> Fix ki codes ix -> Maybe (Fix ki codes ix)
@@ -101,7 +93,7 @@ diffWithOpts :: ( EqHO ki , ShowHO ki , TestEquality ki , IsNat ix, RendererHO k
              => Options
              -> Fix ki codes ix
              -> Fix ki codes ix
-             -> IO (D.Patch ki codes ix)
+             -> IO (D.Patch ki codes (I ix))
 diffWithOpts opts fa fb = do
   let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) 
   return (D.diffOpts localopts fa fb)
@@ -119,16 +111,13 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
   $ \_ fa fb -> do
     patch <- diffWithOpts opts fa fb
     unless (v == Quiet)   $ displayRawPatch stdout patch
-    -- TODO: Restore this functionality!!!
-    --when (testApply opts) $ void (tryApply v patch fa (Just fb))
-    --when (isJust (toEditScript opts)) $ do
-    --  let (role , ees) = case toEditScript opts of
-    --                       Just Patch -> ("patch" , TED.toES  patch                  (NA_I fa))
-    --                       Just Chg   -> ("change", TEDC.toES (D.distrCChange patch) (NA_I fa))
-    --  case ees of
-    --    Left  err -> putStrLnErr ("!! " ++ err)
-    --    Right es  -> putStrLn ("tree-edit-distance: " ++ role ++ " " ++ show (GDiff.cost es))
-    --              >> when (v == Loud) (putStrLn $ show es)
+    when (testApply opts) $ void (tryApply v patch fa (Just fb))
+    when (showES opts) $ do
+      let ees = TED.toES (D.chgDistr patch) (NA_I fa)
+      case ees of
+        Left  err -> putStrLnErr ("!! " ++ err)
+        Right es  -> putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
+                  >> when (v == Loud) (putStrLn $ show es)
     return ExitSuccess
 
 mainMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
@@ -137,13 +126,13 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
     patchOA <- diffWithOpts opts fo fa
     patchOB <- diffWithOpts opts fo fb
     let omc = D.diff3 patchOA patchOB
-    when (v == VeryLoud) $ do
-      putStrLnErr $ "diff3 O->A O->B " ++ replicate 55 '#'
-      displayPatchC stderr omc
+    -- when (v == VeryLoud) $ do
+    --   putStrLnErr $ "diff3 O->A O->B " ++ replicate 55 '#'
+    --   displayPatchC stderr omc
     case D.noConflicts omc of
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
               >> putStrLnErr (unlines
-                             $ map (\(Exists (D.Conflict _ _)) -> "conf")
+                             $ map (\(Exists (D.Conflict str _ _)) -> str)
                              $ D.getConflicts omc)
               >> return (ExitFailure 1)
       Just om -> do

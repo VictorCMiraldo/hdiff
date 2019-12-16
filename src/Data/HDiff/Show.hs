@@ -5,12 +5,11 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
-module Data.HDiff.Patch.Show where
+module Data.HDiff.Show where
 
 import           System.IO
 import           Data.Proxy
 import           Data.Functor.Const
-import           Data.Functor.Sum
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Terminal
 import qualified Data.Text.Prettyprint.Doc.Render.Text as Text
@@ -21,9 +20,9 @@ import Generics.MRSOP.Holes
 import Generics.MRSOP.HDiff.Holes
 import Generics.MRSOP.HDiff.Renderer
 
-import qualified Data.HDiff.Change       as D
-import qualified Data.HDiff.Change.Merge as D
-import qualified Data.HDiff.MetaVar      as D
+import qualified Data.HDiff.Base    as D
+import qualified Data.HDiff.Merge   as D
+import qualified Data.HDiff.MetaVar as D
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
 spliced :: Doc ann -> Doc ann -> Doc ann
@@ -61,96 +60,73 @@ conflictPretty renderK (InR (D.Conflict l r))
 
 -- |Pretty prints a patch on the terminal
 showRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-             => Holes ki codes (D.CChange ki codes) v
+             => Holes ki codes (D.Chg ki codes) v
              -> [String]
 showRawPatch patch 
   = doubleColumn 75
-      (holesPretty (Proxy :: Proxy fam) id prettyCChangeDel patch)
-      (holesPretty (Proxy :: Proxy fam) id prettyCChangeIns patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyCChangeDel renderHO patch)
+      (holesPretty (Proxy :: Proxy fam) id prettyCChangeIns renderHO patch)
   where
     prettyCChangeDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-                    => D.CChange ki codes at
+                    => D.Chg ki codes at
                     -> Doc AnsiStyle
-    prettyCChangeDel (D.CMatch _ del _)
+    prettyCChangeDel (D.Chg del _)
       = holesPretty (Proxy :: Proxy fam)
                   (annotate myred)
                   (metavarPretty (annotate mydullred))
+                  renderHO
                   del
 
     prettyCChangeIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-                    => D.CChange ki codes at
+                    => D.Chg ki codes at
                     -> Doc AnsiStyle
-    prettyCChangeIns (D.CMatch _ _ ins)
+    prettyCChangeIns (D.Chg _ ins)
       = holesPretty (Proxy :: Proxy fam)
                   (annotate mygreen)
                   (metavarPretty (annotate mydullgreen))
-                  ins
-
-showPatchC :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-           => Holes ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
-           -> [String]
-showPatchC patch 
-  = doubleColumn 75
-      (holesPretty (Proxy :: Proxy fam) id prettyConfDel patch)
-      (holesPretty (Proxy :: Proxy fam) id prettyConfIns patch)
-  where
-    prettyConfDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-                    => Sum (D.Conflict ki codes) (D.CChange ki codes) at
-                    -> Doc AnsiStyle
-    prettyConfDel (InL (D.Conflict _ _))
-      = annotate (color Blue) (pretty "conflict")
-    prettyConfDel (InR (D.CMatch _ del _))
-      = holesPretty (Proxy :: Proxy fam)
-                  (annotate myred)
-                  (metavarPretty (annotate mydullred))
-                  del
-
-    prettyConfIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-                    => Sum (D.Conflict ki codes) (D.CChange ki codes) at
-                    -> Doc AnsiStyle
-    prettyConfIns (InL (D.Conflict _ _ ))
-      = annotate (color Blue) (pretty "conflict")
-    prettyConfIns (InR (D.CMatch _ _ ins))
-      = holesPretty (Proxy :: Proxy fam)
-                  (annotate mygreen)
-                  (metavarPretty (annotate mydullgreen))
+                  renderHO
                   ins
 
 instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => Show (Holes ki codes (D.CChange ki codes) at) where
+      => Show (Holes ki codes (D.Chg ki codes) at) where
   show = unlines . showRawPatch
 
 instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , ShowHO phi)
       => Show (Delta (Holes ki codes phi) at) where
   show (del :*: ins)
     = unlines $ doubleColumn 75
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) del)
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) ins)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) renderHO del)
+        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) renderHO ins)
   show _ = undefined -- ghc seems to really want this to see the patterns are complete.
 
+instance (ShowHO ki , HasDatatypeInfo ki fam codes , RendererHO ki)
+      => ShowHO (D.Conflict ki codes) where
+  showHO (D.FailedContr exs)
+    = "(FailedContr " ++ unwords (map (exElim showHO) exs) ++ ")"
+  showHO (D.Conflict str x y) = unlines
+    $   [ "{ " ++ show str ++ " }"
+        , "<<<<<<<<<<<<<<<<<<<<<<"
+        , showHO x
+        , "======================"
+        , showHO y
+        , ">>>>>>>>>>>>>>>>>>>>>>"
+        ]
 
 instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => Show (D.CChange ki codes at) where
-  show (D.CMatch _ del ins) = unlines $ doubleColumn 75
-    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred))   del)
-    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) ins)
+      => Show (D.Chg ki codes at) where
+  show = showHO
 
+instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
+      => ShowHO (D.Chg ki codes) where
+  showHO (D.Chg del ins) = unlines $ doubleColumn 75
+    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred)) renderHO  del)
+    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) renderHO ins)
 
-instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => Show (Holes ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at) where
-  show = unlines . showPatchC
-
--- |Outputs the result of 'showPatchC' to the specified handle
-displayPatchC :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-              => Handle
-              -> Holes ki codes (Sum (D.Conflict ki codes) (D.CChange ki codes)) at
-              -> IO ()
-displayPatchC hdl = mapM_ (hPutStrLn hdl) . showPatchC
 
 -- |Outputs the result of 'showRawPatch' to the specified handle
 displayRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
                 => Handle
-                -> Holes ki codes (D.CChange ki codes) at
+                -> Holes ki codes (D.Chg ki codes) at
                 -> IO ()
 displayRawPatch hdl = mapM_ (hPutStrLn hdl) . showRawPatch
 

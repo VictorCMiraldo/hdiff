@@ -17,9 +17,7 @@ import Data.Type.Equality
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 --------------------------------------
-import Data.Exists
 import Generics.MRSOP.HDiff.Digest
-import Generics.MRSOP.HDiff.Holes
 
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
 --  by forcing the atom to be an 'I'.
@@ -66,16 +64,20 @@ metavarGet :: MetaVarIK ki at -> Int
 metavarGet = elimNA go getConst
   where go (Annotate x _) = x
 
+metavarSet :: Int -> MetaVarIK ki at -> MetaVarIK ki at 
+metavarSet x (NA_K (Annotate _ k)) = NA_K (Annotate x k)
+metavarSet x (NA_I (Const _))      = NA_I (Const x)
+
 -- |Adds a number to a metavar
 metavarAdd :: Int -> MetaVarIK ki at -> MetaVarIK ki at
 metavarAdd n (NA_K (Annotate i x)) = NA_K $ Annotate (n + i) x
 metavarAdd n (NA_I (Const i))      = NA_I $ Const    (n + i)
 
 -- TODO: Goes away with Annotate
-instance HasIKProjInj ki (MetaVarIK ki) where
-  konInj    k        = NA_K (Annotate 0 k)
-  varProj _ (NA_I _) = Just IsI
-  varProj _ _        = Nothing
+-- instance HasIKProjInj ki (MetaVarIK ki) where
+--   konInj    k        = NA_K (Annotate 0 k)
+--   varProj _ (NA_I _) = Just IsI
+--   varProj _ _        = Nothing
 
 -- * Existential MetaVars
 

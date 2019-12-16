@@ -1,13 +1,11 @@
 {-# LANGUAGE TypeApplications #-}
 module Data.HDiff.DiffSpec (spec) where
 
-import qualified Data.Set as S
-
 import Generics.MRSOP.Holes
 
+import Data.HDiff.Base
 import Data.HDiff.Diff
 import Data.HDiff.MetaVar
-import Data.HDiff.Change
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -18,14 +16,13 @@ import Test.Hspec
 diff_wellscoped_changes :: DiffMode -> Property
 diff_wellscoped_changes mode = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = hdiffRTreeHM mode 1 t1 t2
-      in conjoin $ holesGetHolesAnnWith' go patch
+      in go $ chgDistr patch
   where
-    go :: CChange W CodesRTree ix -> Property
-    go (CMatch vars del ins)
+    go :: Chg W CodesRTree ix -> Property
+    go (Chg del ins)
       = let vd = holesGetHolesAnnWith'' metavarGet del
             vi = holesGetHolesAnnWith'' metavarGet ins
-            v  = S.map metavarIK2Int vars
-         in v === vd .&&. vi === v
+         in vd === vi
 
 apply_correctness :: DiffMode -> Property
 apply_correctness mode = forAll genSimilarTrees' $ \(t1 , t2)

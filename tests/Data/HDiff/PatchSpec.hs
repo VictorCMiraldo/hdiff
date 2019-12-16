@@ -4,21 +4,14 @@
 {-# LANGUAGE GADTs            #-}
 module Data.HDiff.PatchSpec (spec) where
 
-import qualified Data.Set as S
 import Data.Functor.Const
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 
-import Data.Exists
-import Data.HDiff.Patch
 import Data.HDiff.Diff
-import Data.HDiff.Patch.Show
-import Data.HDiff.Patch.Compose
-import Data.HDiff.MetaVar
-import Data.HDiff.Change
-import Data.HDiff.Change.Compose
+import Data.HDiff.Base
+import Data.HDiff.Compose
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -30,20 +23,22 @@ import Test.Hspec hiding (after)
 copy_composes :: DiffMode -> Property
 copy_composes mode = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = hdiffRTreeHM mode 1 t1 t2
-         cpy   = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
-      in composes patch cpy .&&. composes cpy patch
+         mcpy  = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
+      in composes patch mcpy .&&. composes mcpy patch
+ where
+   changeCopy v = Chg (Hole' v) (Hole' v)
 
 composes_correct :: DiffMode -> Property
-composes_correct mode = forAll (choose (0 , 4) >>= genSimilarTreesN 3)
+composes_correct mode = forAll (choose (0 , 2) >>= genSimilarTreesN 3)
   $ \[a , b , c] ->
   let ab = hdiffRTreeHM mode 1 a b
       bc = hdiffRTreeHM mode 1 b c
    in case bc .! ab of
-        Left err -> counterexample ("Not composable: " ++ show err) False
-        Right ac -> applyRTree ac a === Right c
+        Nothing -> counterexample "Not composable" False
+        Just ac -> applyRTree ac a === Right c
 
 composes_assoc :: DiffMode -> Property
-composes_assoc mode = forAll (choose (0 , 4) >>= genSimilarTreesN 4)
+composes_assoc mode = forAll (choose (0 , 2) >>= genSimilarTreesN 4)
   $ \[a , b , c , d] ->
   let ab = hdiffRTreeHM mode 1 a b
       bc = hdiffRTreeHM mode 1 b c
@@ -51,8 +46,8 @@ composes_assoc mode = forAll (choose (0 , 4) >>= genSimilarTreesN 4)
    in case (,) <$> (bc .! ab >>= (cd .!))
                <*> (cd .! bc >>= (.! ab))
           of
-        Left err          -> counterexample ("Not composable: " ++ show err) False
-        Right (ad0 , ad1) -> property $ patchEq ad0 ad1
+        Nothing          -> counterexample "Not composable" False
+        Just (ad0 , ad1) -> property $ patchEq ad0 ad1
 
 
 {-

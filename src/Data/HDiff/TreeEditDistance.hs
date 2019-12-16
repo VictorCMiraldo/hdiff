@@ -1,29 +1,40 @@
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-module Data.HDiff.Change.TreeEditDistance where
+module Data.HDiff.TreeEditDistance where
 
 import qualified Data.Map as M
 import           Data.STRef
 import           Data.Proxy
+import           Data.Functor.Const
 import           Data.Type.Equality
 import           Control.Arrow (second)
 import           Control.Monad.ST
 import           Control.Monad.Except
 import           Control.Monad.Reader
-
-import           Generics.MRSOP.Holes
+------------------------------
 import           Generics.MRSOP.Base
+import           Generics.MRSOP.Holes
+import           Generics.MRSOP.Holes.Unify
 import qualified Generics.MRSOP.GDiff as GD
-
-import           Data.Exists
+------------------------------
 import           Data.HDiff.MetaVar
-import           Data.HDiff.Change
-import           Data.HDiff.Change.Apply
+import           Data.HDiff.Base
 
 -- import Debug.Trace
+
+patchCost :: Patch ki codes at -> Int
+patchCost = getConst
+          . holesGetHolesAnnWith
+              (Const 0)
+              (\(Const x) (Const y) -> Const $ x + y)
+              (Const . chgCost)
+
+chgCost :: Chg ki codes at -> Int
+chgCost (Chg del ins) = holesSize del + holesSize ins
 
 --------------------------------------------
 -- * Regular Longest Common Subsequence * --
@@ -34,7 +45,7 @@ data ListES a
   | LD Int a (ListES a)
   | LI Int a (ListES a)
   | LLP_Nil
-  deriving (Eq , Show)
+  deriving (Eq , Show , Functor)
 
 cost :: ListES a -> Int
 cost LLP_Nil       = 0
@@ -107,21 +118,22 @@ lcsW weight xs0 ys0 = runST $ do
 fromNA :: NA ki (Fix ki codes) at -> Holes ki codes (MetaVarIK ki) at
 fromNA = na2holes
 
-toES :: (EqHO ki , ShowHO ki , TestEquality ki)
-     => CChange ki codes at -> NA ki (Fix ki codes) at
+toES :: (EqHO ki , ShowHO ki , TestEquality ki , HasDatatypeInfo ki fam codes)
+     => Chg ki codes at -> NA ki (Fix ki codes) at
      -> Either String (GD.ES ki codes '[ at ] '[ at ])
-toES (CMatch _ del ins) elm =
+toES (Chg del ins) elm =
   -- Since we can't have duplications or swaps in the edit-script
   -- world, we must decide which variables will be copied.
   -- To do that, we will run a least-common-subsequence weighting
   -- each variable by the size of the tree it was instantiated too.
-  let vd   = reverse $ holesGetHolesAnnWith' metavarGet del
-      vi   = reverse $ holesGetHolesAnnWith' metavarGet ins
-   in case runExcept (pmatch del (fromNA elm)) of
+  let vd   = reverse $ holesGetHolesAnnWith' Exists del
+      vi   = reverse $ holesGetHolesAnnWith' Exists ins
+   in case runExcept (unify del (fromNA elm)) of
         Left err -> Left ("Element not in domain. " ++ show err)
         Right s  ->
           let sizes_s = M.map (exElim holesSize) s
-              ves     = pushCopiesIns $ lcsW (\v -> sizes_s M.! v) vd vi
+              ves     = fmap (exElim metavarGet)
+                      $ pushCopiesIns $ lcsW (\v -> sizes_s M.! v) vd vi
            in runExcept (runReaderT (compress <$> delPhase (del :* Nil) (ins :* Nil)) (s , ves))
 
 type ToES ki codes = ReaderT (Subst ki codes (MetaVarIK ki) , ListES Int)
@@ -256,10 +268,9 @@ fetch :: (EqHO ki , ShowHO ki , TestEquality ki)
       -> ToES ki codes (Holes ki codes (MetaVarIK ki) at)
 fetch var = do
   sigma <- askSubst
-  case runExcept (lookupVar var sigma) of
-    Left  err      -> throwError $ "fetch: " ++ show err
-    Right Nothing  -> throwError $ "fetch: var not found"
-    Right (Just t) -> return t
+  case substLkup sigma var of
+    Nothing  -> throwError $ "fetch: var not found"
+    (Just t) -> return t
 
 delSync :: (EqHO ki , ShowHO ki , TestEquality ki)
         => MetaVarIK ki at
