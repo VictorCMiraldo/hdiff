@@ -3,12 +3,11 @@
 {-# LANGUAGE GADTs                 #-}
 module Data.HDiff.Thinning where
 
-import Data.Type.Equality
 import Control.Monad.Except
 -------------------------------
 import Generics.MRSOP.Util
+import Generics.MRSOP.Holes.Unify
 -------------------------------
-import Generics.MRSOP.HDiff.Holes.Unify
 import Data.HDiff.MetaVar
 import Data.HDiff.Base
 

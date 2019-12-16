@@ -22,23 +22,22 @@ import           Data.Type.Equality
 ----------------------------------------
 import           Generics.MRSOP.Util
 import           Generics.MRSOP.Base hiding (match)
+import           Generics.MRSOP.Holes
+import           Generics.MRSOP.Holes.Unify
 ----------------------------------------
-import           Data.Exists
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 import           Data.HDiff.Instantiate
-import           Generics.MRSOP.Holes
-import           Generics.MRSOP.HDiff.Holes.Unify
 
 -- |This is specific to merging; which is why we left it here.
 -- When instantiatting a deletion context against a patch,
 -- we do /not/ fail when the deletion context requires something
 -- but the patch is a permutation.
-instM :: forall ki codes phi at . (EqHO ki) 
+instM :: forall ki codes at . (EqHO ki) 
       => Holes ki codes (MetaVarIK ki) at
       -> Patch ki codes at
       -> ExceptT String (MergeM ki codes) ()
-instM x = void . holesMapM (\h -> uncurry' go h >> return h) . holesLCP x
+instM p = void . holesMapM (\h -> uncurry' go h >> return h) . holesLCP p
   where
     go :: Holes ki codes (MetaVarIK ki) ix
        -> Patch ki codes ix
@@ -48,13 +47,16 @@ instM x = void . holesMapM (\h -> uncurry' go h >> return h) . holesLCP x
       case instAdd iota v x of
         Just iota' -> put iota'
         Nothing    -> throwError $ "Failed contraction: " ++ show (metavarGet v)
-    go x (Hole' (Chg (Hole' _) (Hole' _))) = return ()
-    go x (Hole' _)                         = throwError $ "Conflict"
+    go _ (Hole' (Chg (Hole' _) (Hole' _))) = return ()
+    go _ (Hole' _)                         = throwError $ "Conflict"
     go _ _ = throwError $ "Symbol Clash"
 
 
 type MergeState ki codes = Inst (Patch ki codes)
+
+mergeState0 :: MergeState ki codes
 mergeState0 = M.empty
+
 type MergeM ki codes = State (MergeState ki codes)
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where

@@ -22,23 +22,13 @@ import Generics.MRSOP.Holes
 import Generics.MRSOP.HDiff.Digest
 
 import Languages.RTree
-import Data.HDiff.MetaVar
 import Data.HDiff.Base
 import Data.HDiff.Apply
 import Data.HDiff.Diff
 import Data.HDiff.Diff.Preprocess
 
-type PatchRTree = Patch W CodesRTree (I 'Z)
+type PatchRTree = Patch W CodesRTree ('I 'Z)
 
-rbin :: RTree -> RTree -> RTree
-rbin l r = "bin" :>: [l , r]
-
-rlf :: String -> RTree
-rlf = (:>: [])
-
-x1 , y1 :: RTree
-x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "k")
-y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "t")
 
 hdiffRTreeH :: Int -> RTree -> RTree -> PatchRTree
 hdiffRTreeH h a b = diff h (dfrom $ into @FamRTree a)
@@ -75,8 +65,17 @@ applyRTree' :: PatchRTree -> RTree -> Maybe RTree
 applyRTree' p = either (const Nothing) Just . applyRTree p
 
 
---------------
+{-
 
+rbin :: RTree -> RTree -> RTree
+rbin l r = "bin" :>: [l , r]
+
+rlf :: String -> RTree
+rlf = (:>: [])
+
+x1 , y1 :: RTree
+x1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "k")
+y1 = rbin (rbin (rlf "t") (rbin (rlf "u") (rlf "f"))) (rlf "t")
 
 a = "m" :>: []
 b = "l" :>: ["l" :>: [],"m" :>: [],"m" :>: []]
@@ -90,3 +89,5 @@ xx = Hole' (NA_I (Const 0))
 
 yy = HPeel' CZ (Hole' (NA_K (Annotate 3 (W_String "lala")
                           )) :* HPeel' CZ Nil :* Nil)
+
+-}

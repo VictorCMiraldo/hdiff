@@ -4,14 +4,11 @@
 {-# LANGUAGE GADTs            #-}
 module Data.HDiff.PatchSpec (spec) where
 
-import qualified Data.Set as S
 import Data.Functor.Const
 
 import Generics.MRSOP.Base
-import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 
-import Data.Exists
 import Data.HDiff.Diff
 import Data.HDiff.Base
 import Data.HDiff.Compose
@@ -26,8 +23,8 @@ import Test.Hspec hiding (after)
 copy_composes :: DiffMode -> Property
 copy_composes mode = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = hdiffRTreeHM mode 1 t1 t2
-         cpy   = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
-      in composes patch cpy .&&. composes cpy patch
+         mcpy  = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
+      in composes patch mcpy .&&. composes mcpy patch
  where
    changeCopy v = Chg (Hole' v) (Hole' v)
 

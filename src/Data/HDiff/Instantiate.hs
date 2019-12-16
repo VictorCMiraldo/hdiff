@@ -18,7 +18,6 @@ import           Unsafe.Coerce
 ----------------------------------------
 import           Generics.MRSOP.Util
 ----------------------------------------
-import           Data.Exists
 import           Data.HDiff.MetaVar
 import           Generics.MRSOP.Holes
 

@@ -14,18 +14,20 @@ import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
 -------------------------------
-import Data.Exists
 import Data.HDiff.Base
 import Data.HDiff.MetaVar
 
+import Unsafe.Coerce
 -----------------------------------------
 -- Change Classification algo
 
 instance (EqHO ki , TestEquality ki) => Eq (Exists (Holes ki codes (MetaVarIK ki))) where
-  (Exists v) == (Exists u) =
+  (Exists v) == (Exists u) = eqHO v (unsafeCoerce u)
+{-
     case testEquality v u of
       Nothing   -> False
       Just Refl -> eqHO v u
+-}
 
 getConstrSNat :: (IsNat n) => Constr sum n -> SNat n
 getConstrSNat _ = getSNat (Proxy :: Proxy n)

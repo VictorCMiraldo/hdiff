@@ -39,6 +39,6 @@ function doMerge() {
   esac
 }
 
-doMerge "proper"
+# doMerge "proper"
 doMerge "nonest"
-doMerge "patience"
+# doMerge "patience"

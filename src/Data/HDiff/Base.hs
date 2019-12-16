@@ -11,13 +11,11 @@ module Data.HDiff.Base where
 import           Control.Monad.Cont
 import           Control.Monad.State
 import           Data.Functor.Const
-import           Data.Type.Equality
 import qualified Data.Map as M
 ------------------------------------
 import Generics.MRSOP.Util
 import Generics.MRSOP.Holes
 ------------------------------------
-import Generics.MRSOP.HDiff.Holes
 import Data.HDiff.MetaVar
 
 -- | Usefull synonym for carrying around two
@@ -101,6 +99,7 @@ perm _                         = False
 instance (EqHO ki) => EqHO (Chg ki codes) where
   eqHO = changeEq
 
+{-
 instance HasIKProjInj ki (Chg ki codes) where
   konInj k = Chg (HOpq' k) (HOpq' k)
   varProj pk (Chg (Hole' h)     _) = varProj pk h
@@ -109,6 +108,7 @@ instance HasIKProjInj ki (Chg ki codes) where
 
 instance (TestEquality ki) => TestEquality (Chg ki codes) where
   testEquality (Chg x _) (Chg y _) = testEquality x y
+-}
 
 -- |A 'Domain' is just a deletion context. Type-synonym helps us
 -- identify what's what on the algorithms below.

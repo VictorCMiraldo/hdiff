@@ -21,14 +21,9 @@ module Main (main) where
 import System.IO
 import System.Exit
 import Control.Monad
-import Control.Applicative
-import Data.Foldable (asum)
 
 import Options.Applicative
-import Data.Semigroup ((<>))
 
-import           Data.Maybe (isJust)
-import qualified Data.List as L (lookup)
 import           Data.Type.Equality
 
 import Generics.MRSOP.Base hiding (Infix)
@@ -38,7 +33,6 @@ import Generics.MRSOP.HDiff.Digest
 import qualified Generics.MRSOP.GDiff          as GDiff
 import qualified Generics.MRSOP.STDiff         as STDiff
 
-import           Data.Exists
 import qualified Data.HDiff.Base         as D
 import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
@@ -117,16 +111,13 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
   $ \_ fa fb -> do
     patch <- diffWithOpts opts fa fb
     unless (v == Quiet)   $ displayRawPatch stdout patch
-    -- TODO: Restore this functionality!!!
-    --when (testApply opts) $ void (tryApply v patch fa (Just fb))
-    --when (isJust (toEditScript opts)) $ do
-    --  let (role , ees) = case toEditScript opts of
-    --                       Just Patch -> ("patch" , TED.toES  patch                  (NA_I fa))
-    --                       Just Chg   -> ("change", TEDC.toES (D.distrCChange patch) (NA_I fa))
-    --  case ees of
-    --    Left  err -> putStrLnErr ("!! " ++ err)
-    --    Right es  -> putStrLn ("tree-edit-distance: " ++ role ++ " " ++ show (GDiff.cost es))
-    --              >> when (v == Loud) (putStrLn $ show es)
+    when (testApply opts) $ void (tryApply v patch fa (Just fb))
+    when (showES opts) $ do
+      let ees = TED.toES (D.chgDistr patch) (NA_I fa)
+      case ees of
+        Left  err -> putStrLnErr ("!! " ++ err)
+        Right es  -> putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
+                  >> when (v == Loud) (putStrLn $ show es)
     return ExitSuccess
 
 mainMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode

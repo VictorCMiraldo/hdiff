@@ -8,8 +8,8 @@ import Control.Monad.Except
 import Generics.MRSOP.Util
 import Generics.MRSOP.Base
 import Generics.MRSOP.Holes
+import Generics.MRSOP.Holes.Unify
 ------------------------------------
-import Generics.MRSOP.HDiff.Holes.Unify
 import Data.HDiff.Base
 
 patchApply :: (EqHO ki)

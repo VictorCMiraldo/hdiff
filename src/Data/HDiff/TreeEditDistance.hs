@@ -15,13 +15,12 @@ import           Control.Arrow (second)
 import           Control.Monad.ST
 import           Control.Monad.Except
 import           Control.Monad.Reader
-
-import           Generics.MRSOP.Holes
+------------------------------
 import           Generics.MRSOP.Base
+import           Generics.MRSOP.Holes
+import           Generics.MRSOP.Holes.Unify
 import qualified Generics.MRSOP.GDiff as GD
-
-import           Generics.MRSOP.HDiff.Holes.Unify
-import           Data.Exists
+------------------------------
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 
@@ -35,12 +34,7 @@ patchCost = getConst
               (Const . chgCost)
 
 chgCost :: Chg ki codes at -> Int
-chgCost (Chg del ins) = holesCost del + holesCost ins
-
-holesCost :: Holes ki codes phi at -> Int
-holesCost (Hole _ _) = 0
-holesCost (HOpq _ _) = 1
-holesCost (HPeel _ _ ps) = 1 + sum (elimNP holesCost ps)
+chgCost (Chg del ins) = holesSize del + holesSize ins
 
 --------------------------------------------
 -- * Regular Longest Common Subsequence * --

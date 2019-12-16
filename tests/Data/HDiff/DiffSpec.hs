@@ -1,8 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 module Data.HDiff.DiffSpec (spec) where
 
-import qualified Data.Set as S
-
 import Generics.MRSOP.Holes
 
 import Data.HDiff.Base

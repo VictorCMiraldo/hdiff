@@ -10,7 +10,6 @@ module Data.HDiff.Show where
 import           System.IO
 import           Data.Proxy
 import           Data.Functor.Const
-import           Data.Functor.Sum
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Terminal
 import qualified Data.Text.Prettyprint.Doc.Render.Text as Text
@@ -21,7 +20,6 @@ import Generics.MRSOP.Holes
 import Generics.MRSOP.HDiff.Holes
 import Generics.MRSOP.HDiff.Renderer
 
-import           Data.Exists
 import qualified Data.HDiff.Base    as D
 import qualified Data.HDiff.Merge   as D
 import qualified Data.HDiff.MetaVar as D

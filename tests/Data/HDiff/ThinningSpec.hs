@@ -57,7 +57,7 @@ context_alpha_eq x y = aux
 thin_domain_eq :: DiffMode -> Property
 thin_domain_eq mode = forAll genSimilarTrees'' $ \(a , o , b)
   -> let oa = hdiffRTreeHM mode 1 o a
-         ob = hdiffRTreeHM mode 1 o b
+         ob = hdiffRTreeHM mode 1 o b `withFreshNamesFrom` oa
       in case runExcept $ (,) <$> thin oa (domain ob)
                               <*> thin ob (domain oa) of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
@@ -71,7 +71,7 @@ thin_domain_eq mode = forAll genSimilarTrees'' $ \(a , o , b)
 thin_respect_spans :: DiffMode -> Property
 thin_respect_spans mode = forAll genSimilarTrees'' $ \(a , o , b)
   -> let oa = hdiffRTreeHM mode 1 o a
-         ob = hdiffRTreeHM mode 1 o b
+         ob = hdiffRTreeHM mode 1 o b `withFreshNamesFrom` oa
       in case runExcept $ thin oa (domain ob) of
            Left err -> counterexample ("Thinning failed with: " ++ show err) False
            Right oa' -> property $ applyRTree oa' o == Right a
