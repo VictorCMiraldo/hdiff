@@ -28,7 +28,8 @@ import qualified Languages.Lines   as Lines
 import qualified Languages.Dyck.Lua as LuaDyck
 #define WITH_REAL_LANGUAGES
 #ifdef WITH_REAL_LANGUAGES
-import qualified Languages.Lua     as Lua
+import qualified Languages.Lua               as Lua
+import qualified Languages.Clojure.Interface as Clj
 #endif
 
 redirectErr :: ExceptT String IO a -> IO a
@@ -47,6 +48,7 @@ mainParsers
     ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
 #ifdef WITH_REAL_LANGUAGES
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
+    ,LangParser "clj"   (fmap (dfrom . into @Clj.FamStmt)   . Clj.parseFile)
 #endif
     ,LangParser "lua-dyck" (fmap (dfrom . into @LuaDyck.FamStmt) . LuaDyck.parseFile)
     ]
