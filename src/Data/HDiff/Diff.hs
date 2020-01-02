@@ -87,7 +87,7 @@ buildSharingTrie opts x y
 extractSpine :: forall ki codes phi at
               . (EqHO ki)
              => DiffOpaques
-             -> (forall ix . phi ix -> MetaVarIK ki ix)
+             -> (forall ix . phi ix -> MetaVar ix)
              -> Int
              -> Holes ki codes phi at
              -> Holes ki codes phi at
@@ -98,7 +98,7 @@ extractSpine dopq meta maxI dx dy
   $ holesLCP dx dy
  where
    issueOpqCopiesSpine :: Holes ki codes (Holes2 ki codes phi) at
-                       -> Holes ki codes (Holes2 ki codes (MetaVarIK ki)) at
+                       -> Holes ki codes (Holes2 ki codes MetaVar) at
    issueOpqCopiesSpine
      = flip evalState maxI
      . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x
@@ -107,14 +107,14 @@ extractSpine dopq meta maxI dx dy
                                 then doCopy
                                 else noCopy)
 
-   noCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
+   noCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes MetaVar) ('K k))
    noCopy kik = return (HOpq' kik)
                         
-   doCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
-   doCopy ki = do
+   doCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes MetaVar) ('K k))
+   doCopy _ki = do
      i <- get
      put (i+1)
-     let ann = NA_K . Annotate i $ ki
+     let ann = Const i
      return $ Hole' (Hole' ann :*: Hole' ann)
 
 
@@ -133,7 +133,7 @@ diffOpts' :: forall ki codes phi at
           => DiffOptions
           -> Holes ki codes phi at
           -> Holes ki codes phi at
-          -> (Int , Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at)
+          -> (Int , Delta (Holes ki codes (Sum phi MetaVar)) at)
 diffOpts' opts x y
   = let dx      = preprocess x
         dy      = preprocess y

@@ -34,12 +34,12 @@ import           Data.HDiff.Instantiate
 -- we do /not/ fail when the deletion context requires something
 -- but the patch is a permutation.
 instM :: forall ki codes at . (EqHO ki) 
-      => Holes ki codes (MetaVarIK ki) at
+      => Holes ki codes MetaVar at
       -> Patch ki codes at
       -> ExceptT String (MergeM ki codes) ()
 instM p = void . holesMapM (\h -> uncurry' go h >> return h) . holesLCP p
   where
-    go :: Holes ki codes (MetaVarIK ki) ix
+    go :: Holes ki codes MetaVar ix
        -> Patch ki codes ix
        -> ExceptT String (MergeM ki codes) ()
     go (Hole' v) x = do
@@ -60,7 +60,7 @@ mergeState0 = M.empty
 type MergeM ki codes = State (MergeState ki codes)
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
-  FailedContr :: [Exists (MetaVarIK ki)]
+  FailedContr :: [Exists MetaVar]
               -> Conflict ki codes at
   
   Conflict :: String
@@ -118,12 +118,19 @@ diff3 :: forall ki fam codes ix
       -> PatchC ki codes ix
 diff3 oa ob = merge oa (ob `withFreshNamesFrom` oa)
 
-type Subst2 ki codes = ( Subst ki codes (MetaVarIK ki)
-                       , Subst ki codes (MetaVarIK ki))
+type Subst2 ki codes = ( Subst ki codes MetaVar
+                       , Subst ki codes MetaVar)
 
-makeDelInsMaps :: (C ki fam codes at)
+-- minimize :: forall ki codes phi
+--           . (EqHO ki , Ord (Exists phi))
+--          => Subst ki codes phi -- ^
+--          -> Either [Exists phi] (Subst ki codes phi)
+
+
+makeDelInsMaps :: forall ki codes
+                . () -- (C ki fam codes at)
                => MergeState ki codes
-               -> Either [Exists (MetaVarIK ki)]
+               -> Either [Exists MetaVar]
                          (Subst2 ki codes)
 makeDelInsMaps iota =
   let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iota
@@ -133,15 +140,15 @@ makeDelInsMaps iota =
     i <- minimize (toSubst si)
     return (d , i)
  where
-   toSubst :: [(Int , Exists (Holes ki codes (MetaVarIK ki)))]
-           -> Subst ki codes (MetaVarIK ki)
+   toSubst :: [(Int , Exists (Holes ki codes MetaVar))]
+           -> Subst ki codes MetaVar
    toSubst = M.fromList
-           . map (\(i , Exists h) -> (Exists (mkVar i h) , Exists h))
+           . map (\(i , Exists h) -> (Exists (Const i) , Exists h))
 
-   mkVar :: Int -> Holes ki codes (MetaVarIK ki) at -> MetaVarIK ki at
-   mkVar vx (HOpq _ k)    = NA_K (Annotate vx k)
+   mkVar :: Int -> Holes ki codes MetaVar at -> MetaVar at
+   mkVar vx (HOpq _ k)    = Const vx
    mkVar vx (Hole _ v)    = metavarSet vx v
-   mkVar vx (HPeel _ _ _) = NA_I (Const vx)
+   mkVar vx (HPeel _ _ _) = Const vx
         
 phase2' :: (C ki fam codes at)
         => Subst2 ki codes

@@ -21,7 +21,7 @@ import Unsafe.Coerce
 -----------------------------------------
 -- Change Classification algo
 
-instance (EqHO ki , TestEquality ki) => Eq (Exists (Holes ki codes (MetaVarIK ki))) where
+instance (EqHO ki , TestEquality ki) => Eq (Exists (Holes ki codes MetaVar)) where
   (Exists v) == (Exists u) = eqHO v (unsafeCoerce u)
 {-
     case testEquality v u of

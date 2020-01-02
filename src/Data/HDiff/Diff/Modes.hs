@@ -29,7 +29,7 @@ extractHoles :: DiffMode
              -> CanShare ki codes phi
              -> IsSharedMap
              -> Delta (PrepFix a ki codes phi) at
-             -> Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at
+             -> Delta (Holes ki codes (Sum phi MetaVar)) at
 extractHoles DM_NoNested h tr sd
   = extractNoNested h tr sd
 extractHoles DM_ProperShare h tr (src :*: dst)
@@ -42,7 +42,7 @@ extractHoles DM_Patience h tr (src :*: dst)
 extractProperShare :: CanShare ki codes phi
                    -> IsSharedMap
                    -> PrepFix a ki codes phi at
-                   -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+                   -> Holes ki codes (Sum phi MetaVar) at
 extractProperShare h tr a = properShare h tr (tagProperShare tr a)
 
 tagProperShare :: forall a ki codes phi at
@@ -78,7 +78,7 @@ properShare :: forall ki codes phi at
              . CanShare ki codes phi
             -> IsSharedMap
             -> PrepFix (Int , Bool) ki codes phi at
-            -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+            -> Holes ki codes (Sum phi MetaVar) at
 properShare h tr pr
   = let prep  = getConst $ holesAnn pr
         isPS  = snd $ treeParm prep
@@ -93,31 +93,31 @@ properShare h tr pr
     -- and make the life of whoever is making an extraction strategy
     -- simpler.
     properShare' :: PrepFix (Int , Bool) ki codes phi at
-                 -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+                 -> Holes ki codes (Sum phi MetaVar) at
     properShare' (Hole _ d)    = Hole' (InL d)
     properShare' (HOpq _ k)    = HOpq' k
     properShare' (HPeel _ c d) = HPeel' c (mapNP (properShare h tr) d)
 
     mkHole :: Int
            -> PrepFix (Int , Bool) ki codes phi at
-           -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+           -> Holes ki codes (Sum phi MetaVar) at
     mkHole _ (Hole _ d)    = Hole' (InL d)
-    mkHole v (HPeel _ _ _) = Hole' (InR (NA_I (Const v)))
-    mkHole v (HOpq _ k)    = Hole' (InR (NA_K (Annotate v k)))
+    mkHole v (HPeel _ _ _) = Hole' (InR (Const v))
+    mkHole v (HOpq _ _)    = Hole' (InR (Const v))
 
 -- ** Patience
 
 extractPatience :: CanShare ki codes phi
                 -> IsSharedMap
                 -> PrepFix a ki codes phi at
-                -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+                -> Holes ki codes (Sum phi MetaVar) at
 extractPatience h tr a = patience h tr a
 
 patience :: forall ki codes phi at a
           . CanShare ki codes phi 
          -> IsSharedMap
          -> PrepFix a ki codes phi at
-         -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+         -> Holes ki codes (Sum phi MetaVar) at
 patience h tr pr
   = if not (h pr)
     then patience' pr
@@ -127,23 +127,16 @@ patience h tr pr
                   | otherwise       -> patience' pr
   where
     patience' :: PrepFix a ki codes phi at
-              -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+              -> Holes ki codes (Sum phi MetaVar) at
     patience' (Hole _ d)    = Hole' (InL d)
     patience' (HOpq _ k)    = HOpq' k
     patience' (HPeel _ c d) = HPeel' c (mapNP (patience h tr) d)
 
-    mkMetaVar :: PrepFix a ki codes phi at
-              -> Int
-              -> MetaVarIK ki at
-    mkMetaVar (Hole _ _)    _ = error "This should be impossible"
-    mkMetaVar (HPeel _ _ _) v = NA_I (Const v)
-    mkMetaVar (HOpq _ k)    v = NA_K (Annotate v k)
-
     mkHole :: Int
            -> PrepFix a ki codes phi at
-           -> Holes ki codes (Sum phi (MetaVarIK ki)) at
+           -> Holes ki codes (Sum phi MetaVar) at
     mkHole _ (Hole _ d) = Hole' (InL d)
-    mkHole v x          = Hole' (InR $ mkMetaVar x v)
+    mkHole v x          = Hole' (InR $ Const v)
 
 
 
@@ -152,7 +145,7 @@ patience h tr pr
 extractNoNested :: CanShare ki codes phi
                 -> IsSharedMap
                 -> Delta (PrepFix a ki codes phi) at
-                -> Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at
+                -> Delta (Holes ki codes (Sum phi MetaVar)) at
 extractNoNested h tr (src :*: dst)
   = let del'  = noNested h tr src
         ins'  = noNested h tr dst
@@ -167,19 +160,12 @@ extractNoNested h tr (src :*: dst)
     getHole (InL _)               = Nothing
     getHole (InR (Const v :*: _)) = Just v
 
-    mkMetaVar :: PrepFix a ki codes phi at
-              -> Int
-              -> MetaVarIK ki at
-    mkMetaVar (Hole _ _)    _ = error "This should be impossible"
-    mkMetaVar (HPeel _ _ _) v = NA_I (Const v)
-    mkMetaVar (HOpq _ k)    v = NA_K (Annotate v k)
-    
     refineHole :: S.Set (Maybe Int)
                -> Sum phi (Const Int :*: PrepFix a ki codes phi) ix
-               -> Holes ki codes (Sum phi (MetaVarIK ki)) ix
+               -> Holes ki codes (Sum phi MetaVar) ix
     refineHole _ (InL phi) = Hole' (InL phi)
     refineHole s (InR (Const i :*: f))
-      | Just i `S.member` s = Hole' (InR $ mkMetaVar f i)
+      | Just i `S.member` s = Hole' (InR $ Const i)
       | otherwise           = holesMapAnn InL (const $ Const ()) f 
 
 noNested :: forall ki codes phi at a
