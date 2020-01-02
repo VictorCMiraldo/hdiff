@@ -112,20 +112,17 @@ instance Ord (Exists (MetaVarIK ki)) where
 
 -}
 
-type MetaVar = Const Int
+data MetaVar (ki :: kon -> *) at = MetaVar { metavarGet :: Int }
 
-metavarGet :: MetaVar at -> Int
-metavarGet = getConst
+metavarSet :: Int -> MetaVar ki at -> MetaVar ki at
+metavarSet x _ = MetaVar x
 
-metavarSet :: Int -> MetaVar at -> MetaVar at
-metavarSet x (Const _) = Const x
+metavarAdd :: Int -> MetaVar ki at -> MetaVar ki at
+metavarAdd x = MetaVar . (+x) . metavarGet
 
-metavarAdd :: Int -> MetaVar at -> MetaVar at
-metavarAdd n (Const i) = Const (n + i)
-
-instance Eq (Exists MetaVar) where
+instance Eq (Exists (MetaVar ki)) where
   (==) = (==) `on` (exElim metavarGet)
 
-instance Ord (Exists MetaVar) where
+instance Ord (Exists (MetaVar ki)) where
   compare = compare `on` (exElim metavarGet)
 

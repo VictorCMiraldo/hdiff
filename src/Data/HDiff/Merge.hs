@@ -34,12 +34,12 @@ import           Data.HDiff.Instantiate
 -- we do /not/ fail when the deletion context requires something
 -- but the patch is a permutation.
 instM :: forall ki codes at . (EqHO ki) 
-      => Holes ki codes MetaVar at
+      => Holes ki codes (MetaVar ki) at
       -> Patch ki codes at
       -> ExceptT String (MergeM ki codes) ()
 instM p = void . holesMapM (\h -> uncurry' go h >> return h) . holesLCP p
   where
-    go :: Holes ki codes MetaVar ix
+    go :: Holes ki codes (MetaVar ki) ix
        -> Patch ki codes ix
        -> ExceptT String (MergeM ki codes) ()
     go (Hole' v) x = do
@@ -60,7 +60,7 @@ mergeState0 = M.empty
 type MergeM ki codes = State (MergeState ki codes)
 
 data Conflict :: (kon -> *) -> [[[Atom kon]]] -> Atom kon -> * where
-  FailedContr :: [Exists MetaVar]
+  FailedContr :: [Exists (MetaVar ki)]
               -> Conflict ki codes at
   
   Conflict :: String
@@ -118,8 +118,8 @@ diff3 :: forall ki fam codes ix
       -> PatchC ki codes ix
 diff3 oa ob = merge oa (ob `withFreshNamesFrom` oa)
 
-type Subst2 ki codes = ( Subst ki codes MetaVar
-                       , Subst ki codes MetaVar)
+type Subst2 ki codes = ( Subst ki codes (MetaVar ki)
+                       , Subst ki codes (MetaVar ki))
 
 -- minimize :: forall ki codes phi
 --           . (EqHO ki , Ord (Exists phi))
@@ -127,28 +127,23 @@ type Subst2 ki codes = ( Subst ki codes MetaVar
 --          -> Either [Exists phi] (Subst ki codes phi)
 
 
-makeDelInsMaps :: forall ki codes
+makeDelInsMaps :: forall (kon :: *) (ki :: kon -> *) (codes :: [[[Atom kon]]])
                 . () -- (C ki fam codes at)
                => MergeState ki codes
-               -> Either [Exists MetaVar]
+               -> Either [Exists (MetaVar ki)]
                          (Subst2 ki codes)
 makeDelInsMaps iota =
   let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iota
       si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iota
    in do
-    d <- minimize (toSubst sd)
+    d <- minimize _ -- (toSubst sd)
     i <- minimize (toSubst si)
     return (d , i)
  where
-   toSubst :: [(Int , Exists (Holes ki codes MetaVar))]
-           -> Subst ki codes MetaVar
+   toSubst :: [(Int , Exists (Holes ki codes (MetaVar ki)))]
+           -> Subst ki codes (MetaVar ki)
    toSubst = M.fromList
-           . map (\(i , Exists h) -> (Exists (Const i) , Exists h))
-
-   mkVar :: Int -> Holes ki codes MetaVar at -> MetaVar at
-   mkVar vx (HOpq _ k)    = Const vx
-   mkVar vx (Hole _ v)    = metavarSet vx v
-   mkVar vx (HPeel _ _ _) = Const vx
+           . map (\(i , Exists h) -> (Exists _ , Exists h))
         
 phase2' :: (C ki fam codes at)
         => Subst2 ki codes
