@@ -30,6 +30,7 @@ import qualified Languages.Dyck.Lua as LuaDyck
 #ifdef WITH_REAL_LANGUAGES
 import qualified Languages.Lua               as Lua
 import qualified Languages.Clojure.Interface as Clj
+import qualified Languages.Bash              as Bash
 #endif
 
 redirectErr :: ExceptT String IO a -> IO a
@@ -49,6 +50,7 @@ mainParsers
 #ifdef WITH_REAL_LANGUAGES
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
     ,LangParser "clj"   (fmap (dfrom . into @Clj.FamStmt)   . Clj.parseFile)
+    ,LangParser "sh"    (fmap (dfrom . into @Bash.FamList)   . Bash.parseFile)
 #endif
     ,LangParser "lua-dyck" (fmap (dfrom . into @LuaDyck.FamStmt) . LuaDyck.parseFile)
     ]
