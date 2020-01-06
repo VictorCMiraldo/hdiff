@@ -13,11 +13,11 @@ packages:
     git: git@github.com:VictorCMiraldo/generics-mrsop.git
     pantry-tree:
       size: 2168
-      sha256: e357720fafc0d2090d025bad8f4c658d30ae8a98aca6a34e7d5ac0c03679c87e
-    commit: a45f12cb41f72afc6ab2ac94a09928be1c05219a
+      sha256: 5992bc73044bd22d956434055b03a86fe45c0f28d0900052a1969a5c93ee9c36
+    commit: 058eb73e5cc12fa021d0a235603de1ff07e2cd2d
   original:
     git: git@github.com:VictorCMiraldo/generics-mrsop.git
-    commit: a45f12cb41f72afc6ab2ac94a09928be1c05219a
+    commit: 058eb73e5cc12fa021d0a235603de1ff07e2cd2d
 - completed:
     hackage: generics-mrsop-gdiff-0.0.2@sha256:c8172829bd87dc2f52e44206d6c1f0e131e1d74415517baff2c5cde390fe571e,1756
     pantry-tree:
