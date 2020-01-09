@@ -29,6 +29,8 @@ import Control.Monad.Except
 import Generics.Simplistic
 import Generics.Simplistic.Digest
 
+import Data.HDiff.Diff
+
 type LuaPrim = '[ Text , Bool ]
 instance Deep LuaPrim Block
 instance Deep LuaPrim (Maybe Block)
@@ -100,3 +102,9 @@ parseFile file = do
     Left e  -> throwError (show e) 
     Right r -> return r
 
+twofiles :: ExceptT String IO (Block , Block)
+twofiles = (,) <$> parseFile "examples/Lua/parser/binsearch.lua"
+               <*> parseFile "examples/Lua/parser/binsearch2.lua"
+
+dfrom' :: Block -> SFix LuaPrim Block
+dfrom' = dfrom
