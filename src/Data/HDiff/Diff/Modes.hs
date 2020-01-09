@@ -12,7 +12,6 @@ module Data.HDiff.Diff.Modes where
 import           Data.Proxy
 import qualified Data.Set as S
 import           Data.Functor.Const
-import           Data.Functor.Sum
 
 import           GHC.Generics
 import           Generics.Simplistic
@@ -54,7 +53,7 @@ tagProperShare :: forall a prim phi at
                => IsSharedMap
                -> PrepFix a prim at
                -> PrepFix (Int , Bool) prim at
-tagProperShare ism = synthesize onRec (Const . onPrim)
+tagProperShare ism = synthesize onRec onPrim
   where
     myar :: PrepData x -> Int
     myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest 
@@ -62,9 +61,11 @@ tagProperShare ism = synthesize onRec (Const . onPrim)
     pp :: Proxy prim
     pp = Proxy
     
-    onPrim :: (Elem b prim) => b -> PrepData (Int , Bool)
-    onPrim b = let pd = PrepData (digPrim pp b) 0 ()
-                in pd { treeParm = (myar pd , True) }
+    onPrim :: (Elem b prim)
+           => Const (PrepData a) b
+           -> b
+           -> Const (PrepData (Int , Bool)) b
+    onPrim (Const pd) b = Const $ pd { treeParm = (myar pd , True) }
 
 
     onRec :: Const (PrepData a) b
@@ -80,7 +81,7 @@ properShare :: forall prim at
             -> IsSharedMap
             -> PrepFix (Int , Bool) prim at
             -> Holes prim MetaVar at
-properShare h tr (PrimAnn   k) = Prim k
+properShare h tr (PrimAnn _ k) = Prim k
 properShare h tr pr@(SFixAnn ann pr')
   = let prep  = getConst ann
         isPS  = snd $ treeParm prep
@@ -111,7 +112,7 @@ patience :: forall prim at a
          -> IsSharedMap
          -> PrepFix a prim at
          -> Holes prim MetaVar at
-patience h tr (PrimAnn k) = Prim k
+patience h tr (PrimAnn _ k) = Prim k
 patience h tr pr@(SFixAnn ann pr')
   = if not (h pr)
     then patience' pr
@@ -122,7 +123,7 @@ patience h tr pr@(SFixAnn ann pr')
   where
     patience' :: PrepFix a prim at
               -> Holes prim MetaVar at
-    patience' (PrimAnn   k) = Prim k
+    patience' (PrimAnn _ k) = Prim k
     patience' (SFixAnn _ d) = Roll (repMap (patience h tr) d) 
 
 
@@ -157,7 +158,7 @@ noNested :: forall prim at a
          -> IsSharedMap
          -> PrepFix a prim at
          -> Holes prim (Const Int :*: PrepFix a prim) at
-noNested h tr (PrimAnn x) = Prim x
+noNested h tr (PrimAnn _ x) = Prim x
 noNested h tr pr@(SFixAnn ann pr')
   = if not (h pr)
     then noNested' pr

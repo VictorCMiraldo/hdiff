@@ -94,12 +94,14 @@ digPrim :: forall prim b
 digPrim p b = case witness p :: Witness Digestible b of
                 Witness -> digest b
     
+{-
 merkelize :: forall prim x
            . (All Digestible prim)
           => SFix prim x -> SFixAnn prim (Const Digest) x
 merkelize = runIdentity . synthesizeM
   (\_ -> return . Const . authAlg getConst)
   (Const . digPrim (Proxy :: Proxy prim))
+-}
 
 {-
 

@@ -66,13 +66,18 @@ data SRep w f where
   S_M1   :: SMeta i t -> SRep w f -> SRep w (M1 i t f)
 deriving instance (forall a. Show (w a)) => Show (SRep w f)
 
+type PrimCnstr b prim
+  = (Elem b prim , Show b , Eq b)
+
 -- |The cofree comonad and free monad on the same type;
 -- this allows us to use the same recursion operator
 -- for everything.
 data HolesAnn prim phi h a where
-  Hole' :: h a -> HolesAnn prim phi h a
-  Prim' :: (Elem a prim , Show a , Eq a)
-        => a -> HolesAnn prim phi h a
+  Hole' :: phi a
+        -> h a -> HolesAnn prim phi h a
+  Prim' :: (PrimCnstr a prim)
+        => phi a
+        -> a -> HolesAnn prim phi h a
   Roll' :: (NotElem a prim , Generic a)
         => phi a
         -> SRep (HolesAnn prim phi h) (Rep a)
@@ -94,11 +99,11 @@ pattern SFix x = Roll x
 type Holes prim = HolesAnn prim U1
 
 pattern Hole :: h a -> Holes prim h a
-pattern Hole x = Hole' x
+pattern Hole x = Hole' U1 x
 
-pattern Prim :: () => (Elem a prim , Show a , Eq a)
+pattern Prim :: () => (PrimCnstr a prim)
              => a -> Holes prim h a
-pattern Prim a = Prim' a
+pattern Prim a = Prim' U1 a
 
 pattern Roll :: () => (NotElem a prim , Generic a)
              => SRep (Holes prim h) (Rep a)
@@ -111,9 +116,9 @@ pattern Roll x = Roll' U1 x
 -- the representation.
 type SFixAnn prim phi = HolesAnn prim phi V1
 
-pattern PrimAnn :: () => (Elem a prim , Show a , Eq a)
-                => a -> SFixAnn prim phi a
-pattern PrimAnn a = Prim' a
+pattern PrimAnn :: () => (PrimCnstr a prim)
+                => phi a -> a -> SFixAnn prim phi a
+pattern PrimAnn ann a = Prim' ann a
 
 
 pattern SFixAnn :: () => (NotElem a prim , Generic a)
@@ -132,7 +137,7 @@ pattern SFixAnn ann x = Roll' ann x
 -- when @a@ is recursive; defined as @NotElem a prim@
 -- for a given list of primitive types @prim@
 data OnRec prim f a where
-  NRec :: (Elem a prim , Show a , Eq a)
+  NRec :: (PrimCnstr a prim)
        => a -> OnRec prim f a
   Rec  :: (NotElem a prim)
        => f a -> OnRec prim f a
@@ -140,6 +145,7 @@ data OnRec prim f a where
 data WrapRep f a where
   WrapRep :: (Generic a) => {unwrapRep :: f (Rep a)} -> WrapRep f a
 
+{-
 unfix :: SFixAnn prim phi a
       -> OnRec prim (phi :*: WrapRep (SRep (SFixAnn prim phi))) a
 unfix (PrimAnn x)   = NRec x
@@ -148,6 +154,7 @@ unfix (SFixAnn a h) = Rec (a :*: WrapRep h)
 refix :: OnRec prim (SFixAnn prim phi) a -> SFixAnn prim phi a
 refix (NRec x) = Prim' x
 refix (Rec x)  = x
+-}
       
 mapOnRecM :: (Monad m)
           => (forall y . (NotElem y prim) => f y -> m (g y))
@@ -167,7 +174,7 @@ mapOnRec f = runIdentity . mapOnRecM (return . f)
 -- when @a@ is recursive; defined as @NotElem a prim@
 -- for a given list of primitive types @prim@
 data NA prim f g a where
-  NA_Prim :: (Elem a prim , Show a , Eq a)
+  NA_Prim :: (PrimCnstr a prim)
           => f a -> NA prim f g a
   NA_Rec  :: (NotElem a prim)
           => g a -> NA prim f g a
@@ -175,6 +182,12 @@ data NA prim f g a where
 ----------------------------------
 -- Maps, zips, catas and synths --
 ----------------------------------
+
+getAnn :: HolesAnn prim phi h a
+       -> phi a
+getAnn (Hole' ann _) = ann
+getAnn (Prim' ann _) = ann
+getAnn (Roll' ann _) = ann
 
 zipSRep :: SRep w f -> SRep z f -> Maybe (SRep (w :*: z) f)
 zipSRep S_U1         S_U1         = return S_U1
@@ -219,8 +232,8 @@ holesMapAnnM :: (Monad m)
              => (forall x . f x   -> m (g x))
              -> (forall x . phi x -> m (psi x))
              -> HolesAnn prim phi f a -> m (HolesAnn prim psi g a)
-holesMapAnnM f _ (Hole' x)   = Hole' <$> f x
-holesMapAnnM _ _ (Prim' x)   = return $ Prim' x
+holesMapAnnM f g (Hole' a x)   = Hole' <$> g a <*> f x
+holesMapAnnM _ g (Prim' a x)   = flip Prim' x <$> g a
 holesMapAnnM f g (Roll' a x) = Roll' <$> g a <*> repMapM (holesMapAnnM f g) x
 
 holesMapM :: (Monad m)
@@ -236,7 +249,6 @@ holesMapAnn :: (forall x . f x -> g x)
             -> (forall x . w x -> z x)
             -> HolesAnn prim w f a -> HolesAnn prim z g a
 holesMapAnn f g = runIdentity . holesMapAnnM (return . f) (return . g)
-
 
 holesJoin :: Holes prim (Holes prim f) a -> Holes prim f a
 holesJoin (Hole x) = x
@@ -263,6 +275,17 @@ holesRefineVars :: (forall b . f b -> Holes prim g b)
                 -> Holes prim g a
 holesRefineVars f = holesJoin . runIdentity . holesMapM (return . f)
       
+holesRefineM :: (Monad m)
+             => (forall b . f b -> m (Holes prim g b))
+             -> (forall b . (PrimCnstr b prim) => b -> m (Holes prim g b))
+             -> Holes prim f a
+             -> m (Holes prim g a)
+holesRefineM f g (Hole x) = f x
+holesRefineM f g (Prim x) = g x
+holesRefineM f g (Roll x) = Roll <$> repMapM (holesRefineM f g) x
+     
+
+{-
 -- Cata for recursive positions only; a little bit
 -- nastier in implementation but the type is nice
 cataRecM :: forall m a prim ann phi
@@ -289,6 +312,7 @@ synthesizeRecM f = cataRecM (\ann r -> flip SFixAnn (repMap refix r)
   where
     getRecAnn :: (NotElem y prim) => SFixAnn prim xsi y -> xsi y
     getRecAnn (SFixAnn x _) = x
+-}
 
 -- Simpler cata; separate action injecting primitives
 -- into the annotation type.
@@ -296,38 +320,32 @@ cataM :: (Monad m)
       => (forall b . (NotElem b prim , Generic b)
             => ann b -> SRep phi (Rep b) -> m (phi b))
       -> (forall b . (Elem b prim , Show b , Eq b)
-            => b -> m (phi b))
+            => ann b -> b -> m (phi b))
       -> SFixAnn prim ann a
       -> m (phi a)
 cataM f g (SFixAnn ann x) = repMapM (cataM f g) x >>= f ann
-cataM _ g (PrimAnn x)     = g x
-
-getAnn :: (forall b . (Elem b prim , Show b , Eq b)
-            => b -> phi b)
-       -> SFixAnn prim phi a
-       -> phi a
-getAnn _   (SFixAnn ann _) = ann
-getAnn def (PrimAnn x)     = def x
+cataM _ g (PrimAnn ann x) = g ann x
 
 synthesizeM :: (Monad m)
             => (forall b . Generic b
                   => ann b -> SRep phi (Rep b) -> m (phi b))
-            -> (forall b . (Elem b prim , Show b , Eq b)
-                  => b -> phi b)
+            -> (forall b . (Elem b prim)
+                  => ann b -> b -> m (phi b))
             -> SFixAnn prim ann a
             -> m (SFixAnn prim phi a)
-synthesizeM f def = cataM (\ann r -> flip SFixAnn r
-                             <$> f ann (repMap (getAnn def) r))
-                        (return . PrimAnn)
+synthesizeM f g = cataM (\ann r -> flip SFixAnn r
+                              <$> f ann (repMap getAnn r))
+                        (\ann b -> flip PrimAnn b <$> g ann b)
 
 synthesize :: (forall b . Generic b
                  => ann b -> SRep phi (Rep b) -> phi b)
-           -> (forall b . (Elem b prim , Show b , Eq b)
-                 => b -> phi b)
+           -> (forall b . (Elem b prim)
+                 => ann b -> b -> phi b)
            -> SFixAnn prim ann a
            -> SFixAnn prim phi a
-synthesize f def = runIdentity
-                 . synthesizeM (\ann -> return . f ann) def
+synthesize f g = runIdentity
+               . synthesizeM (\ann -> return . f ann)
+                             (\ann -> return . g ann)
 
 
 ----------------------------------
@@ -336,8 +354,6 @@ synthesize f def = runIdentity
 
 lcp :: Holes prim h a -> Holes prim i a
     -> Holes prim (Holes prim h :*: Holes prim i) a
-lcp (Hole x) (Hole y)
- = Hole (Hole x :*: Hole y)
 lcp (Prim x) (Prim y)
  | x == y    = Prim x
  | otherwise = Hole (Prim x :*: Prim y)
@@ -345,6 +361,7 @@ lcp x@(Roll rx) y@(Roll ry) =
   case zipSRep rx ry of
     Nothing -> Hole (x :*: y)
     Just r  -> Roll (repMap (uncurry' lcp) r)
+lcp x y = Hole (x :*: y)
 
 ----------------------------------
 

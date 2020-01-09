@@ -82,7 +82,7 @@ substApply :: (Ord (Exists phi))
            -> Holes prim phi at
            -> Holes prim phi at
 substApply sigma = holesJoin
-                 . holesMap (\v -> maybe (Hole' v) (substApply sigma)
+                 . holesMap (\v -> maybe (Hole v) (substApply sigma)
                                  $ substLkup sigma v)
 
 -- |Inserts a point in a substitution. Note how the index of
@@ -145,8 +145,8 @@ unifyM x y = do
     getEq :: Holes prim phi b
           -> Holes prim phi b
           -> UnifyM prim phi (Holes prim phi b)
-    getEq p (Hole' var)   = record_eq var p >> return p
-    getEq p@(Hole' var) q = record_eq var q >> return p
+    getEq p (Hole var)   = record_eq var p >> return p
+    getEq p@(Hole var) q = record_eq var q >> return p
     getEq p q | eqHO p q   = return p
               | otherwise  = throwError (SymbolClash p q)
            
@@ -158,7 +158,7 @@ unifyM x y = do
       sigma <- get
       case substLkup sigma var of
         -- First time we see 'var', we instantiate it and get going.
-        Nothing -> when (not $ eqHO q (Hole' var))
+        Nothing -> when (not $ eqHO q (Hole var))
                  $ modify (\s -> substInsert s var q)
         -- It's not the first time we thin 'var'; previously, we had
         -- that 'var' was supposed to be p'. We will check whether it
@@ -194,7 +194,7 @@ minimize sigma = whileM sigma [] $ \s _
        -> Writer [Exists phi] (Holes prim phi at)
     go = holesRefineVarsM $ \var -> do
            case substLkup sigma var of
-             Nothing -> return (Hole' var)
+             Nothing -> return (Hole var)
              Just r  -> tell [Exists var]
                      >> return r
 

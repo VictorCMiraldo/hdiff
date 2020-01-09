@@ -45,7 +45,7 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
        -> Holes prim (MetaVar) at
        -> Holes prim (MetaVar) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   reg _ (Hole' m1) (Hole' m2) 
+   reg _ (Hole m1) (Hole m2) 
      = modify (M.insert (metavarGet m1) (metavarGet m2))
      >> return (Const ())
    reg exit _ _ 
@@ -55,7 +55,7 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
        -> Holes prim (MetaVar) at
        -> Holes prim (MetaVar) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   chk exit (Hole' m1) (Hole' m2) 
+   chk exit (Hole m1) (Hole m2) 
      = do st <- get
           case M.lookup (metavarGet m1) st of
             Nothing -> lift $ exit False
@@ -72,9 +72,9 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
 -- | Changes are pairs of context; one deletion
 -- and one insertion.
 data Chg prim at = Chg
-  { chgDel :: Holes prim (MetaVar) at
-  , chgIns :: Holes prim (MetaVar) at
-  }
+  { chgDel :: Holes prim MetaVar at
+  , chgIns :: Holes prim MetaVar at
+  } deriving Show
 
 -- | Translates from a change to an indexed product.
 unChg :: Chg prim at
@@ -87,12 +87,12 @@ changeEq c1 c2 = holes2Eq (unChg c1) (unChg c2)
 
 -- |A /copy/ is a change with the form @x |-> x@
 cpy :: Chg prim at -> Bool
-cpy (Chg (Hole' v) (Hole' u)) = metavarGet v == metavarGet u
+cpy (Chg (Hole v) (Hole u)) = metavarGet v == metavarGet u
 cpy _                         = False
 
 -- |Returns whether or not a change is a permutation
 perm :: Chg prim at -> Bool
-perm (Chg (Hole' _) (Hole' _)) = True
+perm (Chg (Hole _) (Hole _)) = True
 perm _                         = False
 
 instance EqHO (Chg prim) where

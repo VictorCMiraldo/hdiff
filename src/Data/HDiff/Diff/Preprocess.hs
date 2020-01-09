@@ -39,13 +39,13 @@ preprocess :: forall prim at
             . (All Digestible prim)
            => SFix prim at
            -> PrepFix () prim at
-preprocess = synthesize (const onRec) (Const . onPrim)
+preprocess = synthesize (const onRec) (const onPrim)
   where
     pp :: Proxy prim
     pp = Proxy
     
-    onPrim :: (Elem b prim) => b -> PrepData ()
-    onPrim b = PrepData (digPrim pp b) 0 ()
+    onPrim :: (Elem b prim) => b -> Const (PrepData ()) b
+    onPrim b = Const $ PrepData (digPrim pp b) 0 ()
 
     onRec :: SRep (Const (PrepData ())) (Rep b)
           -> Const (PrepData ()) b

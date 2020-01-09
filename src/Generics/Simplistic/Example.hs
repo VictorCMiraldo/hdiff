@@ -18,6 +18,8 @@ import Generics.Simplistic.Util
 import Generics.Simplistic.Digest
 import Generics.Simplistic.Unify
 
+import Data.HDiff.Diff
+import Data.HDiff.Diff.Preprocess
 
 data Exp
   = Add Exp Exp
@@ -43,10 +45,12 @@ pyth = Let [Decl "hypSq" (Add (Pow (Var "x") (Lit 2)) (Pow (Var "y") (Lit 2)))]
            (Sqrt (Var "hypSq"))
 
 ex1 , ex2 :: Exp
-ex1 = (Add (Var "x") (Add (Lit 4) (Lit 2)))
-ex2 = (Add (Var "z") (Lit 42))
+ex1 = (Add (Var "x") (Var "y"))
+ex2 = (Add ex1 ex1)
 
 dfromPrim :: (Deep Prims a) => a -> SFix Prims a
 dfromPrim = dfrom
 
 
+a = dfromPrim ex1
+b = dfromPrim ex2

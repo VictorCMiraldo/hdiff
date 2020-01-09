@@ -52,7 +52,7 @@ data DiffOptions = DiffOptions
   } deriving (Eq , Show)
 
 diffOptionsDefault :: DiffOptions
-diffOptionsDefault = DiffOptions 1 DO_OnSpine DM_ProperShare
+diffOptionsDefault = DiffOptions 1 DO_OnSpine DM_NoNested
 
 -- |The data structure that captures which subtrees are shared
 --  between source and destination. Besides providing an efficient
