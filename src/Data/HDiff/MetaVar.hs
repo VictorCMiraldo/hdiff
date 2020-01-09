@@ -12,13 +12,28 @@ module Data.HDiff.MetaVar where
 
 import Data.Function (on)
 import Data.Functor.Const
-import Data.Type.Equality
 --------------------------------------
-import Generics.MRSOP.Util
-import Generics.MRSOP.Base
+import Generics.Simplistic.Util
 --------------------------------------
-import Generics.MRSOP.HDiff.Digest
 
+type MetaVar = Const Int
+
+metavarGet :: MetaVar at -> Int
+metavarGet = getConst
+
+metavarSet :: Int -> MetaVar at -> MetaVar at
+metavarSet x (Const _) = Const x
+
+metavarAdd :: Int -> MetaVar at -> MetaVar at
+metavarAdd n (Const i) = Const (n + i)
+
+instance Eq (Exists MetaVar) where
+  (==) = (==) `on` (exElim metavarGet)
+
+instance Ord (Exists MetaVar) where
+  compare = compare `on` (exElim metavarGet)
+
+{-
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
 --  by forcing the atom to be an 'I'.
 data ForceI :: (Nat -> *) -> Atom kon -> * where
@@ -109,3 +124,4 @@ instance Eq (Exists (MetaVarIK ki)) where
 instance Ord (Exists (MetaVarIK ki)) where
   compare = compare `on` metavarIK2Int
 
+-}

@@ -26,7 +26,9 @@ import Data.Functor.Const
 import GHC.Generics
 import Control.Monad.Identity
 
-import Generics.Simplistic.Util
+import qualified Data.Set as S
+
+import Generics.Simplistic.Util 
 
 
 ---------------------
@@ -157,6 +159,19 @@ mapOnRec :: (forall y . (NotElem y prim) => f y -> g y)
          -> OnRec prim f a -> OnRec prim g a
 mapOnRec f = runIdentity . mapOnRecM (return . f)
 
+-----------------
+-- And something that looks like NA
+
+
+-- |Enable us to apply @f@ to @a@ only
+-- when @a@ is recursive; defined as @NotElem a prim@
+-- for a given list of primitive types @prim@
+data NA prim f g a where
+  NA_Prim :: (Elem a prim , Show a , Eq a)
+          => f a -> NA prim f g a
+  NA_Rec  :: (NotElem a prim)
+          => g a -> NA prim f g a
+
 ----------------------------------
 -- Maps, zips, catas and synths --
 ----------------------------------
@@ -171,13 +186,19 @@ zipSRep (x1 :**: x2) (y1 :**: y2) = (:**:) <$> (zipSRep x1 y1)
 zipSRep (S_K1 x)     (S_K1 y)     = return $ S_K1 (x :*: y)
 zipSRep _            _            = Nothing
 
-repLeaves :: SRep w f -> [Exists w]
-repLeaves S_U1 = []
-repLeaves (S_L1 x) = repLeaves x
-repLeaves (S_R1 x) = repLeaves x
-repLeaves (S_M1 _ x) = repLeaves x
-repLeaves (x :**: y) = repLeaves x ++ repLeaves y
-repLeaves (S_K1 x) = [Exists x]
+repLeaves :: (forall x . w x -> r) -- ^ leaf extraction
+          -> (r -> r -> r)         -- ^ join product
+          -> r                     -- ^ empty
+          -> SRep w rep -> r
+repLeaves _ _ e S_U1       = e
+repLeaves l j e (S_L1 x)   = repLeaves l j e x
+repLeaves l j e (S_R1 x)   = repLeaves l j e x
+repLeaves l j e (S_M1 _ x) = repLeaves l j e x
+repLeaves l j e (x :**: y) = j (repLeaves l j e x) (repLeaves l j e y)
+repLeaves l _ _ (S_K1 x)   = l x
+
+repLeavesList :: SRep w rep -> [Exists w]
+repLeavesList = repLeaves ((:[]) . Exists) (++) []
 
 repMapM :: (Monad m)
         => (forall y . f y -> m (g y))
@@ -194,26 +215,41 @@ repMap :: (forall y . f y -> g y)
        -> SRep f rep -> SRep g rep
 repMap f = runIdentity . repMapM (return . f)
 
+holesMapAnnM :: (Monad m)
+             => (forall x . f x   -> m (g x))
+             -> (forall x . phi x -> m (psi x))
+             -> HolesAnn prim phi f a -> m (HolesAnn prim psi g a)
+holesMapAnnM f _ (Hole' x)   = Hole' <$> f x
+holesMapAnnM _ _ (Prim' x)   = return $ Prim' x
+holesMapAnnM f g (Roll' a x) = Roll' <$> g a <*> repMapM (holesMapAnnM f g) x
+
 holesMapM :: (Monad m)
           => (forall x . f x -> m (g x))
           -> Holes prim f a -> m (Holes prim g a)
-holesMapM f (Hole x) = Hole <$> f x
-holesMapM _ (Prim x) = return $ Prim x
-holesMapM f (Roll x) = Roll <$> repMapM (holesMapM f) x
+holesMapM f = holesMapAnnM f return
 
 holesMap :: (forall x . f x -> g x)
          -> Holes prim f a -> Holes prim g a
 holesMap f = runIdentity . holesMapM (return . f)
+
+holesMapAnn :: (forall x . f x -> g x)
+            -> (forall x . w x -> z x)
+            -> HolesAnn prim w f a -> HolesAnn prim z g a
+holesMapAnn f g = runIdentity . holesMapAnnM (return . f) (return . g)
+
 
 holesJoin :: Holes prim (Holes prim f) a -> Holes prim f a
 holesJoin (Hole x) = x
 holesJoin (Prim x) = Prim x
 holesJoin (Roll x) = Roll (repMap holesJoin x)
 
-holesHoles :: Holes prim f a -> [Exists f]
-holesHoles (Hole x) = [Exists x]
-holesHoles (Prim _) = []
-holesHoles (Roll x) = concatMap (exElim holesHoles) $ repLeaves x
+holesHolesList :: Holes prim f a -> [Exists f]
+holesHolesList (Hole x) = [Exists x]
+holesHolesList (Prim _) = []
+holesHolesList (Roll x) = concatMap (exElim holesHolesList) $ repLeavesList x
+
+holesHolesSet :: (Ord (Exists f)) => Holes prim f a -> S.Set (Exists f)
+holesHolesSet = S.fromList . holesHolesList
 
 holesRefineVarsM :: (Monad m)
                  => (forall b . f b -> m (Holes prim g b))
@@ -221,6 +257,12 @@ holesRefineVarsM :: (Monad m)
                  -> m (Holes prim g a)
 holesRefineVarsM f = fmap holesJoin . holesMapM f
         
+
+holesRefineVars :: (forall b . f b -> Holes prim g b)
+                -> Holes prim f a
+                -> Holes prim g a
+holesRefineVars f = holesJoin . runIdentity . holesMapM (return . f)
+      
 -- Cata for recursive positions only; a little bit
 -- nastier in implementation but the type is nice
 cataRecM :: forall m a prim ann phi
@@ -278,6 +320,16 @@ synthesizeM f def = cataM (\ann r -> flip SFixAnn r
                              <$> f ann (repMap (getAnn def) r))
                         (return . PrimAnn)
 
+synthesize :: (forall b . Generic b
+                 => ann b -> SRep phi (Rep b) -> phi b)
+           -> (forall b . (Elem b prim , Show b , Eq b)
+                 => b -> phi b)
+           -> SFixAnn prim ann a
+           -> SFixAnn prim phi a
+synthesize f def = runIdentity
+                 . synthesizeM (\ann -> return . f ann) def
+
+
 ----------------------------------
 -- Anti unification is so simple it doesn't
 -- deserve its own module
@@ -297,7 +349,7 @@ lcp x@(Roll rx) y@(Roll ry) =
 ----------------------------------
 
 instance EqHO h => EqHO (Holes prim h) where
-  eqHO x y = all (exElim $ uncurry' go) $ holesHoles (lcp x y)
+  eqHO x y = all (exElim $ uncurry' go) $ holesHolesList (lcp x y)
     where
       go :: Holes prim h a -> Holes prim h a -> Bool
       go (Hole h1) (Hole h2) = eqHO h1 h2

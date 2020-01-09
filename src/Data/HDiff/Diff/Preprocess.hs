@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE GADTs     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- |Here we perform a bunch of preprocessing steps
 --  from a 'Generics.MRSOP.Base.Fix' into
@@ -13,10 +14,10 @@ module Data.HDiff.Diff.Preprocess where
 import Data.Proxy
 import Data.Functor.Const
 
-import Generics.MRSOP.Base
-import Generics.MRSOP.Holes
-
-import Generics.MRSOP.HDiff.Digest
+import GHC.Generics
+import Generics.Simplistic
+import Generics.Simplistic.Util
+import Generics.Simplistic.Digest
 
 -- |We precompute the digest of a tree and its height
 --  and annotate our fixpoints with this data before
@@ -29,39 +30,36 @@ data PrepData a = PrepData
 
 -- |A 'PrepFix' is a prepared fixpoint. In our case, it is
 -- just a 'HolesAnn' with the prepared data inside of it.
-type PrepFix a ki codes phi
-  = HolesAnn (Const (PrepData a)) ki codes phi
+type PrepFix a prim
+  = SFixAnn prim (Const (PrepData a))
 
 -- |Here we receive an expression with holes an annotate
 -- it with hashes and height information at every node.
-preprocess :: forall ki codes phi at
-            . (DigestibleHO ki, DigestibleHO phi)
-           => Holes ki codes phi at
-           -> PrepFix () ki codes phi at
-preprocess = holesSynthesize (const ppHole) (const ppOpq) ppPeel
+preprocess :: forall prim at
+            . (All Digestible prim)
+           => SFix prim at
+           -> PrepFix () prim at
+preprocess = synthesize (const onRec) (Const . onPrim)
   where
-    pCodes :: Proxy codes
-    pCodes = Proxy
+    pp :: Proxy prim
+    pp = Proxy
     
-    safeMax [] = 0
-    safeMax l  = maximum l
+    onPrim :: (Elem b prim) => b -> PrepData ()
+    onPrim b = PrepData (digPrim pp b) 0 ()
 
-    ppHole :: forall at' . phi at' -> Const (PrepData ()) at'
-    ppHole x = Const $ PrepData (digestHO x) 1 ()
-    
-    ppOpq :: forall k . ki k -> Const (PrepData ()) ('K k)
-    ppOpq x = Const $ PrepData (digestHO x) 1 ()
+    onRec :: SRep (Const (PrepData ())) (Rep b)
+          -> Const (PrepData ()) b
+    onRec sr = let dig = authAlg (treeDigest . getConst) sr
+                   h   = 1 + maxAlg (treeHeight . getConst) sr
+                in Const $ PrepData dig h ()
 
-    ppPeel :: forall i x
-            . IsNat x
-           => Const () ('I x)
-           -> Constr (Lkup x codes) i
-           -> NP (Const (PrepData ())) (Lkup i (Lkup x codes))
-           -> Const (PrepData ()) ('I x)
-    ppPeel _ c p
-      = let pix :: Proxy x
-            pix = Proxy
-            
-            dig = authPeel (treeDigest . getConst) pCodes pix c p
-            h   = 1 + safeMax (elimNP (treeHeight . getConst) p)
-         in Const $ PrepData dig h ()
+maxAlg :: forall phi f
+        . (forall a . phi a -> Int)
+       -> SRep phi f
+       -> Int
+maxAlg _ S_U1       = 0
+maxAlg f (S_L1 x)   = maxAlg f x
+maxAlg f (S_R1 x)   = maxAlg f x
+maxAlg f (S_M1 _ x) = maxAlg f x
+maxAlg f (x :**: y) = max (maxAlg f x) (maxAlg f y)
+maxAlg f (S_K1 x)   = f x

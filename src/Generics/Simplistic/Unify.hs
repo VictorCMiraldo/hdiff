@@ -11,13 +11,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 module Generics.Simplistic.Unify
-{-
   ( -- * Substitution
     Subst , substEmpty , substInsert , substLkup , substApply
     -- * Unification
   , UnifyErr(..) , unify , unifyWith , minimize
-  ) -}
-  where
+  ) where
 
 import           Data.List (sort)
 import qualified Data.Map as M

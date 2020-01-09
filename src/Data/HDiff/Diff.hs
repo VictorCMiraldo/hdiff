@@ -20,9 +20,9 @@ import           Data.Functor.Sum
 
 import           Control.Monad.State
 
-import           Generics.MRSOP.Base
-import           Generics.MRSOP.Holes
-import           Generics.MRSOP.HDiff.Digest
+import           Generics.Simplistic
+import           Generics.Simplistic.Util
+import           Generics.Simplistic.Digest
 
 import qualified Data.WordTrie as T
 import           Data.HDiff.Diff.Types
@@ -38,7 +38,7 @@ import           Data.HDiff.MetaVar
 --  every subtree, as long as they are taller than
 --  minHeight. This trie keeps track of the arity, so
 --  we can later annotate the trees that can be propper shares.
-buildArityTrie :: DiffOptions -> PrepFix a ki codes phi ix -> T.Trie Int
+buildArityTrie :: DiffOptions -> PrepFix a prim phi ix -> T.Trie Int
 buildArityTrie opts df = go df T.empty
   where
     ins :: Digest -> T.Trie Int -> T.Trie Int
@@ -46,7 +46,7 @@ buildArityTrie opts df = go df T.empty
 
     minHeight = doMinHeight opts
     
-    go :: PrepFix a ki codes phi ix -> T.Trie Int -> T.Trie Int
+    go :: PrepFix a prim phi ix -> T.Trie Int -> T.Trie Int
     go (HOpq (Const prep) _) t
       -- We only populat the sharing map if opaques are supposed
       -- to be handled as recursive trees
@@ -71,8 +71,8 @@ buildArityTrie opts df = go df T.empty
 --  to be associated with a tree and the tree's arity.
 --
 buildSharingTrie :: DiffOptions
-                 -> PrepFix a ki codes phi ix
-                 -> PrepFix a ki codes phi ix
+                 -> PrepFix a prim phi ix
+                 -> PrepFix a prim phi ix
                  -> (Int , IsSharedMap)
 buildSharingTrie opts x y
   = T.mapAccum (\i ar -> (i+1 , MAA i ar) ) 0
@@ -84,21 +84,20 @@ buildSharingTrie opts x y
 --  This is somehow analogous to a @zipWith@. Moreover, however,
 --  we also copy the opaque values present in the spine by issuing
 --  /"copy"/ changes
-extractSpine :: forall ki codes phi at
-              . (EqHO ki)
-             => DiffOpaques
-             -> (forall ix . phi ix -> MetaVarIK ki ix)
+extractSpine :: forall prim phi at
+              . DiffOpaques
+             -> (forall ix . phi ix -> MetaVar ix)
              -> Int
-             -> Holes ki codes phi at
-             -> Holes ki codes phi at
-             -> Holes ki codes (Chg ki codes) at
+             -> Holes prim phi at
+             -> Holes prim phi at
+             -> Holes prim (Chg prim) at
 extractSpine dopq meta maxI dx dy
   = holesMap (uncurry' Chg)
   $ issueOpqCopiesSpine
   $ holesLCP dx dy
  where
-   issueOpqCopiesSpine :: Holes ki codes (Holes2 ki codes phi) at
-                       -> Holes ki codes (Holes2 ki codes (MetaVarIK ki)) at
+   issueOpqCopiesSpine :: Holes prim (Holes2 prim phi) at
+                       -> Holes prim (Holes2 prim (MetaVar)) at
    issueOpqCopiesSpine
      = flip evalState maxI
      . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x
@@ -107,10 +106,10 @@ extractSpine dopq meta maxI dx dy
                                 then doCopy
                                 else noCopy)
 
-   noCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
+   noCopy :: ki k -> State Int (Holes prim (Holes2 prim (MetaVar)) ('K k))
    noCopy kik = return (HOpq' kik)
                         
-   doCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
+   doCopy :: ki k -> State Int (Holes prim (Holes2 prim (MetaVar)) ('K k))
    doCopy ki = do
      i <- get
      put (i+1)
@@ -128,12 +127,12 @@ extractSpine dopq meta maxI dx dy
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
-diffOpts' :: forall ki codes phi at
-           . (EqHO ki , DigestibleHO ki , DigestibleHO phi)
+diffOpts' :: forall prim phi at
+           . (DigestibleHO phi)
           => DiffOptions
-          -> Holes ki codes phi at
-          -> Holes ki codes phi at
-          -> (Int , Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at)
+          -> Holes prim phi at
+          -> Holes prim phi at
+          -> (Int , Delta (Holes prim (Sum phi (MetaVar))) at)
 diffOpts' opts x y
   = let dx      = preprocess x
         dy      = preprocess y
@@ -144,7 +143,7 @@ diffOpts' opts x y
      in (i , delins)
  where
    mkCanShare :: forall a ix
-               . PrepFix a ki codes phi ix
+               . PrepFix a prim phi ix
               -> Bool
    mkCanShare (HOpq _ _)
      = doOpaqueHandling opts == DO_AsIs
@@ -156,9 +155,9 @@ diffOpts' opts x y
 -- an actual patch.
 diffOpts :: (EqHO ki , DigestibleHO ki , IsNat ix)
          => DiffOptions
-         -> Fix ki codes ix
-         -> Fix ki codes ix
-         -> Patch ki codes ('I ix)
+         -> Fix prim ix
+         -> Fix prim ix
+         -> Patch prim ('I ix)
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts (na2holes $ NA_I x)
                                            (na2holes $ NA_I y)
@@ -171,7 +170,7 @@ diffOpts opts x y
 diff :: forall (ki :: kon -> *) (codes :: [[[Atom kon]]]) (ix :: Nat)
       . (EqHO ki , DigestibleHO ki , IsNat ix)
      => MinHeight
-     -> Fix ki codes ix
-     -> Fix ki codes ix
-     -> Patch ki codes ('I ix)
+     -> SFix prim ix
+     -> SFix prim ix
+     -> Patch prim ix
 diff h = diffOpts (diffOptionsDefault { doMinHeight = h})

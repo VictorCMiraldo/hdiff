@@ -90,16 +90,16 @@ authAlg proj = digestConcat . allDigs . repMap (Const . proj)
 -- than needed; ask alejandro!
 digPrim :: forall prim b
          . (All Digestible prim , Elem b prim)
-        => Proxy prim -> b -> Const Digest b
+        => Proxy prim -> b -> Digest
 digPrim p b = case witness p :: Witness Digestible b of
-                Witness -> Const (digest b)
+                Witness -> digest b
     
 merkelize :: forall prim x
            . (All Digestible prim)
           => SFix prim x -> SFixAnn prim (Const Digest) x
 merkelize = runIdentity . synthesizeM
   (\_ -> return . Const . authAlg getConst)
-  (digPrim (Proxy :: Proxy prim))
+  (Const . digPrim (Proxy :: Proxy prim))
 
 {-
 
