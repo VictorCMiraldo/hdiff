@@ -22,7 +22,7 @@ import qualified Crypto.Hash            as Hash
 import qualified Crypto.Hash.Algorithms as Hash (Blake2s_256)
 
 import Generics.Simplistic
-import Generics.Simplistic.Constraints
+import Generics.Simplistic.Util
 
 -- * Digest Capabilities
 
@@ -74,7 +74,7 @@ authAlg :: forall phi f
          . (forall a . phi a -> Digest)
         -> SRep phi f
         -> Digest
-authAlg proj = digestConcat . allDigs . mapRep (Const . proj)
+authAlg proj = digestConcat . allDigs . repMap (Const . proj)
   where
     allDigs :: SRep (Const Digest) g -> [Digest]
     allDigs S_U1     = []
@@ -86,6 +86,8 @@ authAlg proj = digestConcat . allDigs . mapRep (Const . proj)
     allDigs (S_M1 m@SM_C x) = hashStr (getConstructorName m) : allDigs x
     allDigs (S_M1 _      x) = allDigs x
 
+-- This is some fancy trickery; might be a more complex
+-- than needed; ask alejandro!
 digPrim :: forall prim b
          . (All Digestible prim , Elem b prim)
         => Proxy prim -> b -> Const Digest b

@@ -22,18 +22,13 @@
 module Generics.Simplistic where
 
 import Data.Proxy
+import Data.Functor.Const
 import GHC.Generics
 import Control.Monad.Identity
 
-import Generics.Simplistic.Constraints
+import Generics.Simplistic.Util
 
------------
--- Utils --
------------
 
-uncurry' :: (f x -> g x -> res) -> (f :*: g) x -> res
-uncurry' f (x :*: y) = f x y
- 
 ---------------------
 -- Representations --
 ---------------------
@@ -166,7 +161,7 @@ mapOnRec f = runIdentity . mapOnRecM (return . f)
 -- Maps, zips, catas and synths --
 ----------------------------------
 
-zipSRep :: SRep w f -> SRep w f -> Maybe (SRep (w :*: w) f)
+zipSRep :: SRep w f -> SRep z f -> Maybe (SRep (w :*: z) f)
 zipSRep S_U1         S_U1         = return S_U1
 zipSRep (S_L1 x)     (S_L1 y)     = S_L1 <$> zipSRep x y
 zipSRep (S_R1 x)     (S_R1 y)     = S_R1 <$> zipSRep x y
@@ -176,20 +171,55 @@ zipSRep (x1 :**: x2) (y1 :**: y2) = (:**:) <$> (zipSRep x1 y1)
 zipSRep (S_K1 x)     (S_K1 y)     = return $ S_K1 (x :*: y)
 zipSRep _            _            = Nothing
 
-mapRepM :: (Monad m)
+repLeaves :: SRep w f -> [Exists w]
+repLeaves S_U1 = []
+repLeaves (S_L1 x) = repLeaves x
+repLeaves (S_R1 x) = repLeaves x
+repLeaves (S_M1 _ x) = repLeaves x
+repLeaves (x :**: y) = repLeaves x ++ repLeaves y
+repLeaves (S_K1 x) = [Exists x]
+
+repMapM :: (Monad m)
         => (forall y . f y -> m (g y))
         -> SRep f rep -> m (SRep g rep)
-mapRepM _f (S_U1)    = return S_U1
-mapRepM f (S_K1 x)   = S_K1 <$> f x
-mapRepM f (S_M1 m x) = S_M1 m <$> mapRepM f x
-mapRepM f (S_L1 x)   = S_L1 <$> mapRepM f x
-mapRepM f (S_R1 x)   = S_R1 <$> mapRepM f x
-mapRepM f (x :**: y)
-  = (:**:) <$> mapRepM f x <*> mapRepM f y
+repMapM _f (S_U1)    = return S_U1
+repMapM f (S_K1 x)   = S_K1 <$> f x
+repMapM f (S_M1 m x) = S_M1 m <$> repMapM f x
+repMapM f (S_L1 x)   = S_L1 <$> repMapM f x
+repMapM f (S_R1 x)   = S_R1 <$> repMapM f x
+repMapM f (x :**: y)
+  = (:**:) <$> repMapM f x <*> repMapM f y
 
-mapRep :: (forall y . f y -> g y)
+repMap :: (forall y . f y -> g y)
        -> SRep f rep -> SRep g rep
-mapRep f = runIdentity . mapRepM (return . f)
+repMap f = runIdentity . repMapM (return . f)
+
+holesMapM :: (Monad m)
+          => (forall x . f x -> m (g x))
+          -> Holes prim f a -> m (Holes prim g a)
+holesMapM f (Hole x) = Hole <$> f x
+holesMapM _ (Prim x) = return $ Prim x
+holesMapM f (Roll x) = Roll <$> repMapM (holesMapM f) x
+
+holesMap :: (forall x . f x -> g x)
+         -> Holes prim f a -> Holes prim g a
+holesMap f = runIdentity . holesMapM (return . f)
+
+holesJoin :: Holes prim (Holes prim f) a -> Holes prim f a
+holesJoin (Hole x) = x
+holesJoin (Prim x) = Prim x
+holesJoin (Roll x) = Roll (repMap holesJoin x)
+
+holesHoles :: Holes prim f a -> [Exists f]
+holesHoles (Hole x) = [Exists x]
+holesHoles (Prim _) = []
+holesHoles (Roll x) = concatMap (exElim holesHoles) $ repLeaves x
+
+holesRefineVarsM :: (Monad m)
+                 => (forall b . f b -> m (Holes prim g b))
+                 -> Holes prim f a
+                 -> m (Holes prim g a)
+holesRefineVarsM f = fmap holesJoin . holesMapM f
         
 -- Cata for recursive positions only; a little bit
 -- nastier in implementation but the type is nice
@@ -200,7 +230,7 @@ cataRecM :: forall m a prim ann phi
          -> SFixAnn prim ann a
          -> m (phi a)
 cataRecM f (SFixAnn ann x) =
-  mapRepM (mapOnRecM (uncurry' relayer) . unfix) x >>= f ann
+  repMapM (mapOnRecM (uncurry' relayer) . unfix) x >>= f ann
  where
    relayer :: (NotElem x prim)
            => ann x -> WrapRep (SRep (SFixAnn prim ann)) x -> m (phi x)
@@ -212,8 +242,8 @@ synthesizeRecM :: forall m a ann phi prim
                      => ann b -> SRep (OnRec prim phi) (Rep b) -> m (phi b))
                -> SFixAnn prim ann a
                -> m (SFixAnn prim phi a)
-synthesizeRecM f = cataRecM (\ann r -> flip SFixAnn (mapRep refix r)
-                               <$> f ann (mapRep (mapOnRec getRecAnn) r))
+synthesizeRecM f = cataRecM (\ann r -> flip SFixAnn (repMap refix r)
+                               <$> f ann (repMap (mapOnRec getRecAnn) r))
   where
     getRecAnn :: (NotElem y prim) => SFixAnn prim xsi y -> xsi y
     getRecAnn (SFixAnn x _) = x
@@ -227,7 +257,7 @@ cataM :: (Monad m)
             => b -> m (phi b))
       -> SFixAnn prim ann a
       -> m (phi a)
-cataM f g (SFixAnn ann x) = mapRepM (cataM f g) x >>= f ann
+cataM f g (SFixAnn ann x) = repMapM (cataM f g) x >>= f ann
 cataM _ g (PrimAnn x)     = g x
 
 getAnn :: (forall b . (Elem b prim , Show b , Eq b)
@@ -245,24 +275,33 @@ synthesizeM :: (Monad m)
             -> SFixAnn prim ann a
             -> m (SFixAnn prim phi a)
 synthesizeM f def = cataM (\ann r -> flip SFixAnn r
-                             <$> f ann (mapRep (getAnn def) r))
+                             <$> f ann (repMap (getAnn def) r))
                         (return . PrimAnn)
 
 ----------------------------------
 -- Anti unification is so simple it doesn't
 -- deserve its own module
 
-lcp :: SFix prim a -> SFix prim a
-    -> Holes prim (SFix prim :*: SFix prim) a
+lcp :: Holes prim h a -> Holes prim i a
+    -> Holes prim (Holes prim h :*: Holes prim i) a
+lcp (Hole x) (Hole y)
+ = Hole (Hole x :*: Hole y)
 lcp (Prim x) (Prim y)
  | x == y    = Prim x
  | otherwise = Hole (Prim x :*: Prim y)
-lcp x@(SFix rx) y@(SFix ry) =
+lcp x@(Roll rx) y@(Roll ry) =
   case zipSRep rx ry of
     Nothing -> Hole (x :*: y)
-    Just r  -> Roll (mapRep (uncurry' lcp) r)
+    Just r  -> Roll (repMap (uncurry' lcp) r)
 
 ----------------------------------
+
+instance EqHO h => EqHO (Holes prim h) where
+  eqHO x y = all (exElim $ uncurry' go) $ holesHoles (lcp x y)
+    where
+      go :: Holes prim h a -> Holes prim h a -> Bool
+      go (Hole h1) (Hole h2) = eqHO h1 h2
+      go _         _         = False
 
 
 -- Converting values to deep representations is easy and follows
@@ -339,5 +378,8 @@ instance (GDeepMeta i c , GDeep prim f)
   gdfrom (M1 x)   = S_M1 smeta (gdfrom x)
   gdto (S_M1 _ x) = M1 (gdto x)
 
+
+
+-------------------------------
 
 

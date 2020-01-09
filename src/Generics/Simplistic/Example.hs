@@ -14,8 +14,9 @@ module Generics.Simplistic.Example where
 
 import GHC.Generics
 import Generics.Simplistic
-import Generics.Simplistic.Constraints
+import Generics.Simplistic.Util
 import Generics.Simplistic.Digest
+import Generics.Simplistic.Unify
 
 
 data Exp
