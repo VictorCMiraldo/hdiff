@@ -26,12 +26,43 @@ import qualified Data.Text as T
 
 import Control.Monad.Except
 
-import Generics.MRSOP.TH
-import Generics.MRSOP.Base
+import Generics.Simplistic
+import Generics.Simplistic.Digest
 
-import Generics.MRSOP.HDiff.Digest
-import Generics.MRSOP.HDiff.Renderer
+type LuaPrim = '[ Text , Bool ]
+instance Deep LuaPrim Block
+instance Deep LuaPrim (Maybe Block)
+instance Deep LuaPrim [Stat]
+instance Deep LuaPrim Stat
+instance Deep LuaPrim [(Exp , Block)]
+instance Deep LuaPrim (Exp , Block)
+instance Deep LuaPrim Exp
+instance Deep LuaPrim (Maybe Exp)
+instance Deep LuaPrim [TableField]
+instance Deep LuaPrim TableField
+instance Deep LuaPrim Name
+instance Deep LuaPrim NumberType
+instance Deep LuaPrim FunBody
+instance Deep LuaPrim [Name]
+instance Deep LuaPrim PrefixExp
+instance Deep LuaPrim Var
+instance Deep LuaPrim FunCall
+instance Deep LuaPrim FunArg
+instance Deep LuaPrim FunName
+instance Deep LuaPrim (Maybe Name)
+instance Deep LuaPrim [Exp]
+instance Deep LuaPrim (Maybe [Exp])
+instance Deep LuaPrim Binop
+instance Deep LuaPrim Unop
+instance Deep LuaPrim [Var]
 
+instance Digestible Text where
+  digest = hash . encodeUtf8
+
+instance Digestible Bool where
+  digest = hashStr . show
+
+{-
 data LuaKon = LuaText | LuaBool
 data LuaSingl (kon :: LuaKon) :: * where
   SLuaText :: Text -> LuaSingl 'LuaText
@@ -41,10 +72,8 @@ instance RendererHO LuaSingl where
   renderHO (SLuaText t) = pretty (T.unpack t)
   renderHO (SLuaBool b) = pretty b
 
-instance Digestible Text where
-  digest = hash . encodeUtf8
 
-instance DigestibleHO LuaSingl where
+instance Digestible LuaSingl where
   digestHO (SLuaText text) = hash (encodeUtf8 text)
   digestHO (SLuaBool bool) = hashStr (show bool)
 
@@ -62,8 +91,7 @@ instance TestEquality LuaSingl where
   testEquality (SLuaText _) (SLuaText _) = Just Refl
   testEquality (SLuaBool _) (SLuaBool _) = Just Refl
   testEquality _ _ = Nothing
-
-deriveFamilyWith ''LuaSingl [t| Block |]
+-}
 
 parseFile :: String -> ExceptT String IO Block
 parseFile file = do
@@ -72,7 +100,3 @@ parseFile file = do
     Left e  -> throwError (show e) 
     Right r -> return r
 
-type W = LuaSingl
-type Stmt = Block
-type FamStmt = FamBlock
-type CodesStmt = CodesBlock
