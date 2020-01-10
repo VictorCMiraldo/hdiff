@@ -106,9 +106,6 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
     --   displayPatchC stderr omc
     case D.noConflicts omc of
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
-              >> putStrLnErr (unlines
-                             $ map (\(Exists (D.Conflict str _ _)) -> str)
-                             $ D.getConflicts omc)
               >> return (ExitFailure 1)
       Just om -> do
         when (v == Loud) (putStrLnErr "!! apply om o")
