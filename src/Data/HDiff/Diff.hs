@@ -14,9 +14,7 @@ module Data.HDiff.Diff
   , module Data.HDiff.Diff.Types
   ) where
 
-import           Data.Void
 import           Data.Functor.Const
-import           Data.Functor.Sum
 
 import           Control.Monad.State
 

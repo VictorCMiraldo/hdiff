@@ -15,24 +15,32 @@ import           Data.Text.Prettyprint.Doc.Render.Terminal
 import qualified Data.Text.Prettyprint.Doc.Render.Text as Text
 import qualified Data.Text as T
 
-import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Holes
-import Generics.MRSOP.HDiff.Holes
-import Generics.MRSOP.HDiff.Renderer
+import Generics.Simplistic
+import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
 import qualified Data.HDiff.Merge   as D
 import qualified Data.HDiff.MetaVar as D
 
--- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
-spliced :: Doc ann -> Doc ann -> Doc ann
-spliced lbl d = brackets (lbl <> surround d (pretty "| ") (pretty " |")) 
 
-metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle) -> D.MetaVarIK ki ix -> Doc AnsiStyle
-metavarPretty sty (NA_I (Const i)) 
-  = sty $ spliced (pretty "I") (pretty i)
-metavarPretty sty (NA_K (D.Annotate i _)) 
-  = sty $ spliced (pretty "K") (pretty i)
+myRender :: Doc AnsiStyle -> String
+myRender =
+  let maxWidth = 80
+      pgdim = LayoutOptions (AvailablePerLine maxWidth 1)
+      lyout = layoutSmart pgdim
+   in T.unpack . renderStrict . lyout
+
+-- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
+spliced :: Doc ann -> Doc ann
+spliced d = pretty "#" <> d
+
+metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle)
+              -> D.MetaVar ix -> Doc AnsiStyle
+metavarPretty sty (Const i) 
+  = sty $ spliced (pretty i)
+
+instance Show (Holes prim D.MetaVar x) where
+  show = myRender . holesPretty (metavarPretty id)
 
 -- when using emacs, the output of the repl is in red;
 -- hence, life is easier when we show a different color isntead.
@@ -43,6 +51,25 @@ mygreen     = colorDull Green
 mydullred   = colorDull Yellow
 mydullgreen = colorDull Green
 
+chgPretty :: D.Chg prim x
+          -> Doc AnsiStyle
+chgPretty (D.Chg d i)
+  = group $ sep [group (chgD d) , group (chgI i) ]
+ where
+   chgD = chg (annotate myred)   (pretty "{-") (pretty "-}")
+   chgI = chg (annotate mygreen) (pretty "{+") (pretty "+}")
+   
+   chg f o c h
+     = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
+
+instance Show (D.Chg prim x) where
+  show = myRender . chgPretty
+
+instance Show (D.Patch prim x) where
+  show = myRender . holesPretty chgPretty
+
+-- renderStrict $ lyout da
+{-
 {-
 -- |Shows a conflict in a pretty fashion  
 conflictPretty :: (HasDatatypeInfo ki fam codes)
@@ -164,3 +191,5 @@ doubleColumn maxWidth da db
   where
     complete n (clr , nocolor)
       = T.concat [clr , T.replicate (n - T.length nocolor) $ T.singleton ' ']
+
+-}

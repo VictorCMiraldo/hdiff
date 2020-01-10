@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -19,10 +20,9 @@ import           Data.Text.Prettyprint.Doc (pretty)
 
 import           Control.Monad.Except
 
-import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.TH
-import Generics.MRSOP.HDiff.Renderer
-import Generics.MRSOP.HDiff.Digest
+import GHC.Generics
+import Generics.Simplistic
+import Generics.Simplistic.Digest
 
 -----------------------
 -- * Parser
@@ -32,39 +32,21 @@ import Generics.MRSOP.HDiff.Digest
 -- the content of the lines will be seen as an opaque type.
 -- Opaque values are NOT shared by design.
 data Stmt = Stmt [Line]
+  deriving Generic
 
 data Line = Line String
+  deriving Generic
 
--- |Custom Opaque type
-data WKon = WString 
+type LinesPrims = '[ String ]
+instance Deep LinesPrims Line
+instance Deep LinesPrims [Line]
+instance Deep LinesPrims Stmt
 
--- |And their singletons.
---
---  Note we need instances of Eq1, Show1 and DigestibleHO
-data W :: WKon -> * where
-  W_String  :: String  -> W 'WString
+dfromLines :: Stmt -> SFix LinesPrims Stmt
+dfromLines = dfrom
 
-deriving instance Show (W x)
-deriving instance Eq (W x)
-
-instance EqHO W where
-  eqHO = (==)
-
-instance ShowHO W where
-  showHO = show
-
-instance DigestibleHO W where
-  digestHO (W_String s)  = hashStr s
-
--- Now we derive the 'Family' instance
--- using 'W' for the constants.
-deriveFamilyWithTy [t| W |] [t| Stmt |]
-
-instance RendererHO W where
-  renderHO (W_String s)  = pretty s
-
-instance TestEquality W where
-  testEquality (W_String _)  (W_String _)  = Just Refl
+dtoLines   :: SFix LinesPrims Stmt -> Stmt
+dtoLines   = dto
 
 parseFile :: String -> ExceptT String IO Stmt
 parseFile file =

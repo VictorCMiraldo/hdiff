@@ -31,17 +31,12 @@ vERSION_STR = "hdiff 0.0.3 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]"
 data Options
   = AST     { optFileA :: FilePath
             }
-  | GDiff   { optFileA     :: FilePath
-            , optFileB     :: FilePath
-            , showES       :: Bool
-            }
   | Diff    { optFileA     :: FilePath
             , optFileB     :: FilePath
             , testApply    :: Bool
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
             , opqHandling  :: D.DiffOpaques
-            , showES       :: Bool
             }
   | Merge   { optFileA     :: FilePath
             , optFileO     :: FilePath
@@ -51,22 +46,14 @@ data Options
             , diffMode     :: D.DiffMode
             , opqHandling  :: D.DiffOpaques
             }
-  | STMerge { optFileA     :: FilePath
-            , optFileO     :: FilePath
-            , optFileB     :: FilePath
-            , optFileRes   :: Maybe FilePath
-            }
   deriving (Eq , Show)
 
 data OptionMode
-  = OptAST | OptDiff | OptMerge | OptGDiff | OptSTMerge
+  = OptAST | OptDiff | OptMerge -- | OptGDiff | OptSTMerge
   deriving (Eq , Show)
 
 astOpts :: Parser Options
 astOpts = AST <$> argument str (metavar "FILE")
-
-showesOpt :: Parser Bool
-showesOpt = switch (long "show-es" <> help "Display the generated edit script" <> hidden)
 
 minheightOpt :: Parser Int
 minheightOpt = option auto $
@@ -114,11 +101,6 @@ opqhandlingOpt = option (readmOneOf [("never" , D.DO_Never)
       ,"that end up on the spine"
       ]
 
-gdiffOpts :: Parser Options
-gdiffOpts = GDiff <$> argument str (metavar "OLDFILE")
-                  <*> argument str (metavar "NEWFILE")
-                  <*> showesOpt
-
 diffOpts :: Parser Options
 diffOpts =
   Diff <$> argument str (metavar "OLDFILE")
@@ -130,7 +112,6 @@ diffOpts =
        <*> minheightOpt
        <*> diffmodeOpt
        <*> opqhandlingOpt
-       <*> showesOpt
 
 testmergeOpt :: Parser (Maybe FilePath)
 testmergeOpt
@@ -151,25 +132,14 @@ mergeOpts =
         <*> diffmodeOpt
         <*> opqhandlingOpt
 
-stmergeOpts :: Parser Options
-stmergeOpts =
-  STMerge <$> argument str (metavar "MYFILE")
-          <*> argument str (metavar "OLDFILE")
-          <*> argument str (metavar "YOURFILE")
-          <*> testmergeOpt
-
 parseOptions :: Parser Options
 parseOptions = hsubparser
   (  command "ast"   (info astOpts
         (progDesc "Parses and displays an ast"))
-  <> command "gdiff" (info gdiffOpts
-        (progDesc "Runs Generics.MRSOP.GDiff on the targets"))
   <> command "diff"  (info diffOpts
         (progDesc "Runs Data.HDiff.Diff on the targes"))
   <> command "merge" (info mergeOpts
         (progDesc "Runs the merge algorithm on the specified files"))
-  <> command "stmerge" (info stmergeOpts
-        (progDesc "Runs the Generics.MRSOP.STDiff.Merge algo on the specified files"))
   ) <|> diffOpts
   
 data Verbosity
@@ -213,10 +183,8 @@ versionOpts = infoOption vERSION_STR (long "version")
 
 optionMode :: Options -> OptionMode
 optionMode (AST _)                  = OptAST
-optionMode (GDiff _ _ _)            = OptGDiff
 optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
-optionMode (STMerge _ _ _ _)        = OptSTMerge
-optionMode (Diff _ _ _ _ _ _ _)     = OptDiff
+optionMode (Diff _ _ _ _ _ _)     = OptDiff
 
 
 hdiffOpts :: ParserInfo (Verbosity , SelectedFileParser , Options)

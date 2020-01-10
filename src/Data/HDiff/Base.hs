@@ -74,7 +74,7 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
 data Chg prim at = Chg
   { chgDel :: Holes prim MetaVar at
   , chgIns :: Holes prim MetaVar at
-  } deriving Show
+  }
 
 -- | Translates from a change to an indexed product.
 unChg :: Chg prim at

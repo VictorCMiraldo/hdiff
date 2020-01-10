@@ -5,8 +5,6 @@
 module Data.HDiff.ThinningSpec (spec) where
 
 
-import Generics.MRSOP.Base
-import Generics.MRSOP.Holes
 import Control.Monad.Except
 
 import Data.Functor.Const
@@ -20,20 +18,23 @@ import Languages.RTree.Diff
 import Test.QuickCheck
 import Test.Hspec
 
+import Generics.Simplistic
+import Generics.Simplistic.Util
+
+
 import Control.Monad.State
 import Control.Monad.Cont
 import qualified Data.Map as M
 
-context_alpha_eq :: (EqHO ki)
-                 => Holes ki codes (MetaVarIK ki) at
-                 -> Holes ki codes (MetaVarIK ki) at
+context_alpha_eq :: Holes prim MetaVar at
+                 -> Holes prim MetaVar at
                  -> Bool
 context_alpha_eq x y = aux
   where
     aux :: Bool
     aux = (`runCont` id) $
         callCC $ \exit -> flip evalStateT M.empty $ do
-          _ <- holesMapM (uncurry' (check (cast exit $ False))) (holesLCP x y)
+          _ <- holesMapM (uncurry' (check (cast exit $ False))) (lcp x y)
           return True
 
     cast :: (Bool -> Cont Bool b)
@@ -41,10 +42,10 @@ context_alpha_eq x y = aux
     cast f b = (const (Const ())) <$> f b
 
     check :: (Cont Bool (Const () at))
-          -> Holes ki codes (MetaVarIK ki) at
-          -> Holes ki codes (MetaVarIK ki) at
+          -> Holes prim MetaVar at
+          -> Holes prim MetaVar at
           -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-    check exitF (Hole _ vx) (Hole _ vy) = do
+    check exitF (Hole vx) (Hole vy) = do
       m <- get
       case M.lookup (metavarGet vx) m of
         Nothing -> modify (M.insert (metavarGet vx) (metavarGet vy))
@@ -60,7 +61,7 @@ thin_domain_eq mode = forAll genSimilarTrees'' $ \(a , o , b)
          ob = hdiffRTreeHM mode 1 o b `withFreshNamesFrom` oa
       in case runExcept $ (,) <$> thin oa (domain ob)
                               <*> thin ob (domain oa) of
-           Left err -> counterexample ("Thinning failed with: " ++ show err) False
+           Left err -> counterexample ("Thinning failed") False
            Right (oa' , ob') -> 
              property $ context_alpha_eq
                           (domain oa')
@@ -73,7 +74,7 @@ thin_respect_spans mode = forAll genSimilarTrees'' $ \(a , o , b)
   -> let oa = hdiffRTreeHM mode 1 o a
          ob = hdiffRTreeHM mode 1 o b `withFreshNamesFrom` oa
       in case runExcept $ thin oa (domain ob) of
-           Left err -> counterexample ("Thinning failed with: " ++ show err) False
+           Left err -> counterexample ("Thinning failed") False
            Right oa' -> property $ applyRTree oa' o == Right a
                
 ---------------------------
@@ -82,7 +83,7 @@ thin_pp_is_p :: DiffMode -> Property
 thin_pp_is_p mode = forAll genSimilarTrees' $ \(a , b)
   -> let ab = hdiffRTreeHM mode 1 a b
       in case runExcept $ thin ab (domain ab) of
-           Left err -> counterexample ("Thinning failed with: " ++ show err) False
+           Left err -> counterexample ("Thinning failed ") False
            Right ab' -> property $ patchEq ab ab'
                
 -------------------------------

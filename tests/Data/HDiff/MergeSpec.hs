@@ -7,8 +7,6 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 module Data.HDiff.MergeSpec (spec) where
 
-import Generics.MRSOP.Base
-
 import Data.HDiff.Base
 import Data.HDiff.Merge
 import Data.HDiff.Diff

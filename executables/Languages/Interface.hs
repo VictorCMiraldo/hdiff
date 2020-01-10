@@ -11,26 +11,20 @@
 module Languages.Interface where
 
 import Data.List (elemIndex , splitAt)
-import Data.Type.Equality
 
 import Control.Monad.Except
+
+import Generics.Simplistic
+import Generics.Simplistic.Digest
+import Generics.Simplistic.Util
 
 import System.IO
 import System.Exit
 
-import Generics.MRSOP.Util
-import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.HDiff.Renderer
-import Generics.MRSOP.HDiff.Digest
-
-import qualified Languages.While   as While
-import qualified Languages.Lines   as Lines
-import qualified Languages.Dyck.Lua as LuaDyck
-#define WITH_REAL_LANGUAGES
-#ifdef WITH_REAL_LANGUAGES
+import qualified Languages.While             as While
+import qualified Languages.Lines             as Lines
 import qualified Languages.Lua               as Lua
 import qualified Languages.Clojure.Interface as Clj
-#endif
 
 redirectErr :: ExceptT String IO a -> IO a
 redirectErr f = runExceptT f >>= either myerr return
@@ -44,27 +38,21 @@ exitFailureParse = 10
 -- |The parsers that we support
 mainParsers :: [LangParser]
 mainParsers
-  = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
-    ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
-#ifdef WITH_REAL_LANGUAGES
-    ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
-    ,LangParser "clj"   (fmap (dfrom . into @Clj.FamStmt)   . Clj.parseFile)
-#endif
-    ,LangParser "lua-dyck" (fmap (dfrom . into @LuaDyck.FamStmt) . LuaDyck.parseFile)
+  = [LangParser "while" (fmap While.dfromWhile . While.parseFile)
+    ,LangParser "lines" (fmap Lines.dfromLines . Lines.parseFile)
+    ,LangParser "lua"   (fmap Lua.dfromLua     . Lua.parseFile)
+    ,LangParser "clj"   (fmap Clj.dfromClj     . Clj.parseFile)
     ]
 
-type LangCnstr ki fam codes ix
-  = ( HasDatatypeInfo ki fam codes
-    , RendererHO ki, DigestibleHO ki, TestEquality ki
-    , EqHO ki, ShowHO ki
-    , IsNat ix)
-
+type LangCnstr prims ix
+  = (All Digestible prims)
+    
 data LangParser :: * where
-  LangParser :: (LangCnstr ki fam codes ix)
+  LangParser :: (LangCnstr prims ix)
              -- |Language extension
              => String
              -- |Parser that
-             -> (FilePath -> ExceptT String IO (Fix ki codes ix))
+             -> (FilePath -> ExceptT String IO (SFix prims ix))
              -> LangParser
 
 parserExtension :: LangParser -> String
@@ -91,10 +79,10 @@ vecMapM f (VS x xs) = VS <$> f x <*> vecMapM f xs
 -- the except monad.
 withParsedEl :: LangParser
              -> VectorOf FilePath ('S n)
-             -> (forall kon (ki :: kon -> *) fam codes ix
-                 . (LangCnstr ki fam codes ix) 
-                => (FilePath -> IO (Fix ki codes ix)) 
-                -> VectorOf (Fix ki codes ix) ('S n)
+             -> (forall prim ix
+                 . (LangCnstr prim ix) 
+                => (FilePath -> IO (SFix prim ix)) 
+                -> VectorOf (SFix prim ix) ('S n)
                 -> IO res)
              -> ExceptT String IO res
 withParsedEl (LangParser _ parser) vec f
@@ -118,10 +106,10 @@ parserSelect sel ps xs = maybe (throwError "No available parser") return
 withParsedElSel :: Maybe String
                 -> [LangParser]
                 -> VectorOf FilePath ('S n)
-                -> (forall kon (ki :: kon -> *) fam codes ix
-                    . (LangCnstr ki fam codes ix) 
-                   => (FilePath -> IO (Fix ki codes ix))
-                   -> VectorOf (Fix ki codes ix) ('S n)
+                -> (forall prim ix
+                    . (LangCnstr prim ix)
+                   => (FilePath -> IO (SFix prim ix))
+                   -> VectorOf (SFix prim ix) ('S n)
                    -> IO res)
                 -> ExceptT String IO res
 withParsedElSel sel parsers fs f = do
@@ -131,10 +119,10 @@ withParsedElSel sel parsers fs f = do
 withParsed1 :: Maybe String
             -> [LangParser]
             -> FilePath
-            -> (forall kon (ki :: kon -> *) fam codes ix
-                 . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => (FilePath -> IO (Fix ki codes ix))
-                -> Fix ki codes ix
+            -> (forall prim ix
+                 . (LangCnstr prim ix)
+                => (FilePath -> IO (SFix prim ix))
+                -> SFix prim ix
                 -> IO res)
             -> IO res
 withParsed1 sel parsers file f
@@ -145,11 +133,11 @@ withParsed1 sel parsers file f
 withParsed2 :: Maybe String
             -> [LangParser]
             -> FilePath -> FilePath
-            -> (forall kon (ki :: kon -> *) fam codes ix
-                 . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => (FilePath -> IO (Fix ki codes ix))
-                -> Fix ki codes ix
-                -> Fix ki codes ix
+            -> (forall prim ix
+                 . (LangCnstr prim ix)
+                => (FilePath -> IO (SFix prim ix))
+                -> SFix prim ix
+                -> SFix prim ix
                 -> IO res)
             -> IO res
 withParsed2 sel parsers fa fb f
@@ -160,12 +148,12 @@ withParsed2 sel parsers fa fb f
 withParsed3 :: Maybe String
             -> [LangParser]
             -> FilePath -> FilePath -> FilePath
-            -> (forall kon (ki :: kon -> *) fam codes ix
-                 . (LangCnstr ki fam codes ix , EqHO ki , ShowHO ki)
-                => (FilePath -> IO (Fix ki codes ix))
-                -> Fix ki codes ix
-                -> Fix ki codes ix
-                -> Fix ki codes ix
+            -> (forall prim ix
+                 . (LangCnstr prim ix)
+                => (FilePath -> IO (SFix prim ix))
+                -> SFix prim ix
+                -> SFix prim ix
+                -> SFix prim ix
                 -> IO res)
             -> IO res
 withParsed3 sel parsers fa fb fc f

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE StandaloneDeriving    #-}
@@ -18,47 +19,38 @@ import Languages.Clojure.Syntax
 import qualified Languages.Clojure.Parser as Clj
 
 import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8)
-import Data.Type.Equality
-
-import           Data.Text.Prettyprint.Doc hiding (braces,parens,semi)
-import qualified Data.Text as T
-
 import Control.Monad.Except
 
-import Generics.MRSOP.TH
-import Generics.MRSOP.Base
+import GHC.Generics
+import Generics.Simplistic
 
-import Generics.MRSOP.HDiff.Digest
-import Generics.MRSOP.HDiff.Renderer
+type CljPrims = '[ Text ]
 
-data CljKon = CljText | CljBool
-data CljSingl (kon :: CljKon) :: * where
-  SCljText :: Text -> CljSingl 'CljText
+-- import Generics.Simplistic.TH
+-- Got types with: getTypesInvolved [ ''Text ] [t| Expr |]
 
-instance RendererHO CljSingl where
-  renderHO (SCljText t) = pretty (T.unpack t)
 
-instance Digestible Text where
-  digest = hash . encodeUtf8
+deriving instance Generic Expr
+deriving instance Generic FormTy
+deriving instance Generic CollTy
+deriving instance Generic SepExprList
+deriving instance Generic Term
+deriving instance Generic Sep
+deriving instance Generic Tag
 
-instance DigestibleHO CljSingl where
-  digestHO (SCljText text) = hash (encodeUtf8 text)
+instance Deep CljPrims Expr
+instance Deep CljPrims FormTy
+instance Deep CljPrims CollTy
+instance Deep CljPrims SepExprList
+instance Deep CljPrims Term
+instance Deep CljPrims Sep
+instance Deep CljPrims Tag
 
-deriving instance Show (CljSingl k)
-deriving instance Eq (CljSingl k)
+dfromClj :: Expr -> SFix CljPrims Expr
+dfromClj = dfrom
 
-instance EqHO CljSingl where
-  eqHO = (==)
-
-instance ShowHO CljSingl where
-  showHO = show
-
-instance TestEquality CljSingl where
-  testEquality (SCljText _) (SCljText _) = Just Refl
-  testEquality _ _ = Nothing
-
-deriveFamilyWith ''CljSingl [t| Expr |]
+dtoClj   :: SFix CljPrims Expr -> Expr
+dtoClj   = dto
 
 parseFile :: String -> ExceptT String IO Expr
 parseFile file = do
@@ -66,5 +58,3 @@ parseFile file = do
   case Clj.parse Clj.parseTop file res of
     Left e  -> throwError (show e) 
     Right r -> return r
-
-type FamStmt = FamExpr

@@ -58,43 +58,6 @@ instance Deep LuaPrim Binop
 instance Deep LuaPrim Unop
 instance Deep LuaPrim [Var]
 
-instance Digestible Text where
-  digest = hash . encodeUtf8
-
-instance Digestible Bool where
-  digest = hashStr . show
-
-{-
-data LuaKon = LuaText | LuaBool
-data LuaSingl (kon :: LuaKon) :: * where
-  SLuaText :: Text -> LuaSingl 'LuaText
-  SLuaBool :: Bool -> LuaSingl 'LuaBool
-
-instance RendererHO LuaSingl where
-  renderHO (SLuaText t) = pretty (T.unpack t)
-  renderHO (SLuaBool b) = pretty b
-
-
-instance Digestible LuaSingl where
-  digestHO (SLuaText text) = hash (encodeUtf8 text)
-  digestHO (SLuaBool bool) = hashStr (show bool)
-
-deriving instance Show (LuaSingl k)
-deriving instance Eq (LuaSingl k)
-
-instance EqHO LuaSingl where
-  eqHO = (==)
-
-instance ShowHO LuaSingl where
-  showHO = show
-
-
-instance TestEquality LuaSingl where
-  testEquality (SLuaText _) (SLuaText _) = Just Refl
-  testEquality (SLuaBool _) (SLuaBool _) = Just Refl
-  testEquality _ _ = Nothing
--}
-
 parseFile :: String -> ExceptT String IO Block
 parseFile file = do
   res <- lift $ Lua.parseFile file
@@ -106,5 +69,5 @@ twofiles :: ExceptT String IO (Block , Block)
 twofiles = (,) <$> parseFile "examples/Lua/parser/binsearch.lua"
                <*> parseFile "examples/Lua/parser/binsearch2.lua"
 
-dfrom' :: Block -> SFix LuaPrim Block
-dfrom' = dfrom
+dfromLua :: Block -> SFix LuaPrim Block
+dfromLua = dfrom

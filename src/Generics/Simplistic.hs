@@ -66,6 +66,18 @@ data SRep w f where
   S_M1   :: SMeta i t -> SRep w f -> SRep w (M1 i t f)
 deriving instance (forall a. Show (w a)) => Show (SRep w f)
 
+repConstructorName :: SRep w f -> String
+repConstructorName (S_M1 x@SM_C _)
+  = getConstructorName x
+repConstructorName (S_M1 _ x)
+  = repConstructorName x
+repConstructorName (S_L1 x)
+  = repConstructorName x
+repConstructorName (S_R1 x)
+  = repConstructorName x
+repConstructorName _
+  = error "Please; use GHC's deriving mechanism. This keeps M1's at the top of the Rep"
+
 type PrimCnstr b prim
   = (Elem b prim , Show b , Eq b)
 
@@ -82,8 +94,6 @@ data HolesAnn prim phi h a where
         => phi a
         -> SRep (HolesAnn prim phi h) (Rep a)
         -> HolesAnn prim phi h a
-deriving instance (forall a . Show (h a) , forall a . Show (phi a))
-  => Show (HolesAnn prim phi h x)
 
 -- |Deep representations are easily achieved by forbiding
 -- the 'Hole'' constructor and providing unit annotations.
@@ -372,6 +382,8 @@ instance EqHO h => EqHO (Holes prim h) where
       go (Hole h1) (Hole h2) = eqHO h1 h2
       go _         _         = False
 
+instance EqHO V1 where
+  eqHO _ _ = True
 
 -- Converting values to deep representations is easy and follows
 -- almost the usual convention; one top level class
@@ -446,8 +458,6 @@ instance (GDeepMeta i c , GDeep prim f)
     => GDeep prim (M1 i c f) where
   gdfrom (M1 x)   = S_M1 smeta (gdfrom x)
   gdto (S_M1 _ x) = M1 (gdto x)
-
-
 
 -------------------------------
 

@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Generics.Simplistic.Example where
 
@@ -17,9 +18,12 @@ import Generics.Simplistic
 import Generics.Simplistic.Util
 import Generics.Simplistic.Digest
 import Generics.Simplistic.Unify
+import Generics.Simplistic.Pretty
+import Generics.Simplistic.TH
 
 import Data.HDiff.Diff
 import Data.HDiff.Diff.Preprocess
+import Data.HDiff.Show
 
 data Exp
   = Add Exp Exp
@@ -34,14 +38,14 @@ data Decl
   = Decl String Exp
   deriving (Eq , Show , Generic)
 
-type Prims = '[ String , Double ]
 
+type Prims = '[ String , Double ]
 instance Deep Prims Exp
 instance Deep Prims [Decl]
 instance Deep Prims Decl
 
-pyth :: Exp
-pyth = Let [Decl "hypSq" (Add (Pow (Var "x") (Lit 2)) (Pow (Var "y") (Lit 2)))]
+pyth :: String -> Exp
+pyth x = Let [Decl "hypSq" (Add (Pow (Var x) (Lit 2)) (Pow (Var "y") (Lit 2)))]
            (Sqrt (Var "hypSq"))
 
 ex1 , ex2 :: Exp
@@ -51,6 +55,7 @@ ex2 = (Add ex1 ex1)
 dfromPrim :: (Deep Prims a) => a -> SFix Prims a
 dfromPrim = dfrom
 
-
 a = dfromPrim ex1
 b = dfromPrim ex2
+
+p = diff 1 a b

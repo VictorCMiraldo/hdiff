@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -19,10 +20,10 @@ module Languages.RTree where
 
 import Data.Type.Equality
 
-import Generics.MRSOP.Base
-import Generics.MRSOP.TH
-import Generics.MRSOP.HDiff.Digest
-import Generics.MRSOP.HDiff.Renderer
+import GHC.Generics
+import Generics.Simplistic
+import Generics.Simplistic.TH
+import Generics.Simplistic.Digest
 
 import Data.Text.Prettyprint.Doc (pretty)
 
@@ -36,32 +37,24 @@ height :: RTree -> Int
 height (_ :>: []) = 0
 height (_ :>: ns) = 1 + maximum (map height ns)
 
-data WKon = WString
+-- Workflow: use
+--   getTypesInvolved [ ''String ] [t| RTree |]
+-- Then inspect the result,
+--   :i TypesInvolved
+-- get the list of types; then use emacs macros!
 
-data W :: WKon -> * where
-  W_String  :: String  -> W 'WString
+type RTreePrims = '[ String ]
 
-deriving instance Eq (W x)
+deriving instance Generic RTree
+instance Deep RTreePrims RTree 
+instance Deep RTreePrims [ RTree ]
 
-instance EqHO W where
-  eqHO = (==)
+dfromRTree :: RTree -> SFix RTreePrims RTree
+dfromRTree = dfrom
 
-instance DigestibleHO W where
-  digestHO (W_String s)  = hashStr s
+dtoRTree :: SFix RTreePrims RTree -> RTree
+dtoRTree = dto
 
-instance RendererHO W where
-  renderHO (W_String s) = pretty s
-
-instance Show (W x) where
-  show (W_String s)  = s
-
-instance ShowHO W where
-  showHO (W_String s) = s
-
-instance TestEquality W where
-  testEquality (W_String _)  (W_String _)  = Just Refl
-
-deriveFamilyWith ''W [t| RTree |]
 
 genConName :: Gen String
 genConName = (:[]) <$> choose ('a' , 'm')

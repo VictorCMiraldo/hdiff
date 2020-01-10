@@ -5,24 +5,22 @@ module Data.HDiff.Apply where
 
 import Control.Monad.Except
 ------------------------------------
-import Generics.MRSOP.Util
-import Generics.MRSOP.Base
-import Generics.MRSOP.Holes
-import Generics.MRSOP.Holes.Unify
+import Generics.Simplistic
+import Generics.Simplistic.Unify
 ------------------------------------
 import Data.HDiff.Base
 
-patchApply :: (EqHO ki)
-           => Patch ki codes at
-           -> NA ki (Fix ki codes) at
-           -> Maybe (NA ki (Fix ki codes) at)
+patchApply :: Patch prim at
+           -> SFix prim at
+           -> Maybe (SFix prim at)
 patchApply p = chgApply (chgDistr p) 
 
-chgApply :: (EqHO ki)
-         => Chg ki codes at
-         -> NA ki (Fix ki codes) at
-         -> Maybe (NA ki (Fix ki codes) at)
+-- TODO: holesMapAnn (error "imp") should really be a coercion
+chgApply :: Chg prim at
+         -> SFix prim at
+         -> Maybe (SFix prim at)
 chgApply chg p = 
-  case runExcept $ unify (chgDel chg) (na2holes p) of
+  case runExcept $ unify (chgDel chg) (holesMapAnn (error "imp") id p) of
     Left  _     -> Nothing
-    Right sigma -> holes2naM (const Nothing) $ substApply sigma (chgIns chg)
+    Right sigma -> holesMapAnnM (const Nothing) return
+                 $ substApply sigma (chgIns chg)

@@ -24,20 +24,15 @@ import Control.Monad
 
 import Options.Applicative
 
+import Generics.Simplistic
+import Generics.Simplistic.Util
+
 import           Data.Type.Equality
-
-import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.HDiff.Renderer
-import Generics.MRSOP.HDiff.Digest
-
-import qualified Generics.MRSOP.GDiff          as GDiff
-import qualified Generics.MRSOP.STDiff         as STDiff
 
 import qualified Data.HDiff.Base         as D
 import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
 import qualified Data.HDiff.Merge        as D
-import qualified Data.HDiff.TreeEditDistance as TED
 import           Data.HDiff.Show
 
 import           Languages.Interface
@@ -48,9 +43,7 @@ main = execParser hdiffOpts >>= \(verb , pars, opts)
     -> case optionMode opts of
          OptAST     -> mainAST     verb pars opts
          OptDiff    -> mainDiff    verb pars opts
-         OptGDiff   -> mainGDiff   verb pars opts
          OptMerge   -> mainMerge   verb pars opts
-         OptSTMerge -> mainSTMerge verb pars opts
     >>= exitWith
 
 putStrLnErr :: String -> IO ()
@@ -61,63 +54,45 @@ putStrLnErr = hPutStrLn stderr
 mainAST :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainAST v sel opts = withParsed1 sel mainParsers (optFileA opts)
   $ \_ fa -> do
-    unless (v == Quiet) $ putStrLn (show (renderFix renderHO fa))
+    unless (v == Quiet) $ putStrLn (show fa)
     return ExitSuccess
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
-tryApply :: (EqHO ki , ShowHO ki , TestEquality ki , IsNat ix, RendererHO ki
-            ,HasDatatypeInfo ki fam codes)
+tryApply :: (LangCnstr prim ix)
          => Verbosity
-         -> D.Patch ki codes (I ix)
-         -> Fix ki codes ix
-         -> Maybe (Fix ki codes ix)
-         -> IO (Maybe (Fix ki codes ix))
+         -> D.Patch prim ix
+         -> SFix prim ix
+         -> Maybe (SFix prim ix)
+         -> IO (Maybe (SFix prim ix))
 tryApply v patch fa fb
-  = case D.patchApply patch (NA_I fa) of
+  = case D.patchApply patch fa of
       Nothing -> hPutStrLn stderr "!! apply failed"
               >> when (v == Loud)
-                  (hPutStrLn stderr (show $ renderFix renderHO fa))
+                  (hPutStrLn stderr (show fa))
               >> exitFailure
-      Just (NA_I b')
-              -> return $ maybe (Just b') (testEq b') fb
+      Just b' -> return $ maybe (Just b') (testEq b') fb
  where
-   testEq :: (EqHO ki , TestEquality ki , IsNat ix)
-          => Fix ki codes ix -> Fix ki codes ix -> Maybe (Fix ki codes ix)
+   testEq :: SFix prim ix -> SFix prim ix -> Maybe (SFix prim ix)
    testEq x y = if eqHO x y then Just x else Nothing
 
 -- |Runs our diff algorithm with particular options parsed
 -- from the CLI options.
-diffWithOpts :: ( EqHO ki , ShowHO ki , TestEquality ki , IsNat ix, RendererHO ki
-                , DigestibleHO ki, HasDatatypeInfo ki fam codes)
+diffWithOpts :: (LangCnstr prim ix) 
              => Options
-             -> Fix ki codes ix
-             -> Fix ki codes ix
-             -> IO (D.Patch ki codes (I ix))
+             -> SFix prim ix
+             -> SFix prim ix
+             -> IO (D.Patch prim ix)
 diffWithOpts opts fa fb = do
   let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) 
   return (D.diffOpts localopts fa fb)
-
-mainGDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode
-mainGDiff _ sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts)
-  $ \_ fa fb -> do
-    let es = GDiff.diff' fa fb
-    putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
-    when (showES opts) (putStrLn $ show es)
-    return ExitSuccess
 
 mainDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts)
   $ \_ fa fb -> do
     patch <- diffWithOpts opts fa fb
-    unless (v == Quiet)   $ displayRawPatch stdout patch
+    unless (v == Quiet)   $ hPutStrLn stdout (show patch)
     when (testApply opts) $ void (tryApply v patch fa (Just fb))
-    when (showES opts) $ do
-      let ees = TED.toES (D.chgDistr patch) (NA_I fa)
-      case ees of
-        Left  err -> putStrLnErr ("!! " ++ err)
-        Right es  -> putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
-                  >> when (v == Loud) (putStrLn $ show es)
     return ExitSuccess
 
 mainMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
@@ -143,6 +118,7 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
           Just _  -> return ExitSuccess
           Nothing -> return (ExitFailure 2)
           
+{-
 mainSTMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \pp fa fo fb -> do
@@ -171,3 +147,4 @@ mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO o
                                return $ if eqHO fb' pres
                                         then ExitSuccess
                                         else ExitFailure 2
+-}

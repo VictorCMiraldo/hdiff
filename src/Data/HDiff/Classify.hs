@@ -6,6 +6,7 @@
 -- |change classification algorithm
 module Data.HDiff.Classify where
 
+{-
 import Data.List (nub)
 import Data.Proxy
 import Data.Type.Equality
@@ -66,4 +67,5 @@ changeClassify c
 isIns , isDel :: (TestEquality ki , EqHO ki) => Chg ki codes ix -> Bool
 isIns c = changeClassify c == CIns
 isDel c = changeClassify c == CDel
+-}
 

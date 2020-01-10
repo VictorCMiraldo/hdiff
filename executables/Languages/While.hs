@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -24,10 +25,9 @@ import           Control.Monad.Except
 import           Data.Type.Equality
 import           Data.Text.Prettyprint.Doc (pretty)
 
-import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.TH
-import Generics.MRSOP.HDiff.Renderer
-import Generics.MRSOP.HDiff.Digest
+import GHC.Generics hiding (Prefix , Infix)
+import Generics.Simplistic.TH (getTypesInvolved)
+import Generics.Simplistic
 
 import System.IO
 import System.Exit
@@ -67,45 +67,28 @@ data Stmt = Seq [Stmt]
           | Skip
             deriving (Show , Eq)
 
--- |Custom Opaque type
-data WKon = WInt | WString | WBool
+type WhilePrims = '[ Integer , Bool , String ]
 
--- |And their singletons.
---
---  Note we need instances of EqHO, ShowHO and DigestibleHO
-data W :: WKon -> * where
-  W_Integer :: Integer -> W 'WInt
-  W_String  :: String  -> W 'WString
-  W_Bool    :: Bool    -> W 'WBool
+deriving instance Generic Stmt
+deriving instance Generic AExpr
+deriving instance Generic BExpr
+deriving instance Generic ABinOp
+deriving instance Generic BBinOp
+deriving instance Generic RBinOp
 
-deriving instance Eq (W x)
-deriving instance Show (W x)
+instance Deep WhilePrims Stmt
+instance Deep WhilePrims [Stmt]
+instance Deep WhilePrims AExpr
+instance Deep WhilePrims BExpr
+instance Deep WhilePrims ABinOp
+instance Deep WhilePrims BBinOp
+instance Deep WhilePrims RBinOp
 
-instance EqHO W where
-  eqHO = (==)
+dfromWhile :: Stmt -> SFix WhilePrims Stmt
+dfromWhile = dfrom
 
-instance ShowHO W where
-  showHO = show
-
-instance DigestibleHO W where
-  digestHO (W_Integer i) = hashStr (show i)
-  digestHO (W_String s)  = hashStr s
-  digestHO (W_Bool b)    = hashStr (show b)
-
--- Now we derive the 'Family' instance
--- using 'W' for the constants.
-deriveFamilyWithTy [t| W |] [t| Stmt |]
-
-instance RendererHO W where
-  renderHO (W_Integer i) = pretty i
-  renderHO (W_String s)  = pretty s
-  renderHO (W_Bool b)    = pretty b
-
-instance TestEquality W where
-  testEquality (W_Integer _) (W_Integer _) = Just Refl
-  testEquality (W_String _)  (W_String _)  = Just Refl
-  testEquality (W_Bool _)    (W_Bool _)    = Just Refl
-  testEquality _             _             = Nothing
+dtoWhile   :: SFix WhilePrims Stmt -> Stmt
+dtoWhile   = dto
 
 -- ** Parser definition
 
@@ -237,17 +220,9 @@ parseString str =
     Left e  -> error $ show e
     Right r -> r
 
-testString :: String -> IO ()
-testString str
-  = do let stmt = parseString str
-       putStrLn $ show $ renderEl renderHO (into @FamStmt stmt)
-
 parseFile :: String -> ExceptT String IO Stmt
 parseFile file =
   do program  <- lift $ readFile file
      case parse whileParser "" program of
        Left e  -> throwError (show e)
        Right r -> return r
-
-type Block = Stmt
-

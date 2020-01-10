@@ -11,8 +11,6 @@ category:    Other
 
 dependencies:
   - base >= 4.9 && < 5
-  - generics-mrsop >= 2.3.1
-  - generics-mrsop-gdiff >= 0.0.2
   - bytestring
   - cryptonite
   - containers
@@ -23,6 +21,7 @@ dependencies:
   - QuickCheck
   - hspec
   - memory
+  - template-haskell
 
 library:
   source-dirs: src/

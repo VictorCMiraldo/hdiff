@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RankNTypes #-}
@@ -61,12 +62,9 @@ digestConcat = hash . BA.concat . map getDigest
 class Digestible v where
   digest :: v -> Digest
 
-instance Digestible String where
-  digest = hashStr
-
-instance Digestible Double where
+instance Show a => Digestible a where
   digest = hashStr . show
-
+  
 ----------------------------------
 -- Digest a SFix into a SFixAnn --
 
