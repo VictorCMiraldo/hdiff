@@ -1,6 +1,7 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# OPTIONS_GHC -Wno-orphans      #-}
 module Generics.Simplistic.Pretty where
 
 import           Data.Text.Prettyprint.Doc    (Doc)

@@ -1,12 +1,11 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE GADTs #-}
-
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE GADTs                #-}
 module Generics.Simplistic.Digest where
 
 import Data.Proxy
@@ -14,7 +13,6 @@ import Data.Functor.Const
 import Data.Word (Word8,Word64)
 import Data.Bits
 import Data.List (splitAt,foldl')
-import Control.Monad.Identity
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Char8  as BS8
 import qualified Data.ByteArray         as BA
@@ -91,27 +89,3 @@ digPrim :: forall prim b
         => Proxy prim -> b -> Digest
 digPrim p b = case witness p :: Witness Digestible b of
                 Witness -> digest b
-    
-{-
-merkelize :: forall prim x
-           . (All Digestible prim)
-          => SFix prim x -> SFixAnn prim (Const Digest) x
-merkelize = runIdentity . synthesizeM
-  (\_ -> return . Const . authAlg getConst)
-  (Const . digPrim (Proxy :: Proxy prim))
--}
-
-{-
-
--- |This function correctly salts 'authPeel'' and produces
--- a unique hash per constructor.
-authAlg :: forall codes ix ann i
-          . IsNat ix
-         => (forall iy . ann iy -> Digest)
-         -> Proxy codes
-         -> Proxy ix
-         -> Constr (Lkup ix codes) i
-         -> NP ann (Lkup i (Lkup ix codes))
-         -> Digest
-
--}

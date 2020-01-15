@@ -9,7 +9,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Data.HDiff.Diff.Modes where
 
-import           Data.Proxy
 import qualified Data.Set as S
 import           Data.Functor.Const
 
@@ -48,7 +47,7 @@ extractProperShare :: (All Digestible prim)
                    -> Holes prim MetaVar at
 extractProperShare h tr a = properShare h tr (tagProperShare tr a)
 
-tagProperShare :: forall a prim phi at
+tagProperShare :: forall a prim at
                 . (All Digestible prim)
                => IsSharedMap
                -> PrepFix a prim at
@@ -57,16 +56,11 @@ tagProperShare ism = synthesize onRec onPrim
   where
     myar :: PrepData x -> Int
     myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest 
-
-    pp :: Proxy prim
-    pp = Proxy
-    
     onPrim :: (Elem b prim)
            => Const (PrepData a) b
            -> b
            -> Const (PrepData (Int , Bool)) b
-    onPrim (Const pd) b = Const $ pd { treeParm = (myar pd , True) }
-
+    onPrim (Const pd) _ = Const $ pd { treeParm = (myar pd , True) }
 
     onRec :: Const (PrepData a) b
           -> SRep (Const (PrepData (Int, Bool))) (Rep b)
@@ -81,8 +75,8 @@ properShare :: forall prim at
             -> IsSharedMap
             -> PrepFix (Int , Bool) prim at
             -> Holes prim MetaVar at
-properShare h tr (PrimAnn _ k) = Prim k
-properShare h tr pr@(SFixAnn ann pr')
+properShare _ _ (PrimAnn _ k) = Prim k
+properShare h tr pr@(SFixAnn ann _)
   = let prep  = getConst ann
         isPS  = snd $ treeParm prep
      in if not (isPS && h pr)
@@ -112,8 +106,8 @@ patience :: forall prim at a
          -> IsSharedMap
          -> PrepFix a prim at
          -> Holes prim MetaVar at
-patience h tr (PrimAnn _ k) = Prim k
-patience h tr pr@(SFixAnn ann pr')
+patience _ _ (PrimAnn _ k) = Prim k
+patience h tr pr@(SFixAnn ann _)
   = if not (h pr)
     then patience' pr
     else case T.lookup (toW64s $ treeDigest $ getConst ann) tr of
@@ -158,8 +152,8 @@ noNested :: forall prim at a
          -> IsSharedMap
          -> PrepFix a prim at
          -> Holes prim (Const Int :*: PrepFix a prim) at
-noNested h tr (PrimAnn _ x) = Prim x
-noNested h tr pr@(SFixAnn ann pr')
+noNested _ _ (PrimAnn _ x) = Prim x
+noNested h tr pr@(SFixAnn ann _)
   = if not (h pr)
     then noNested' pr
     else case T.lookup (toW64s $ treeDigest $ getConst ann) tr of

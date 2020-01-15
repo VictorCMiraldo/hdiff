@@ -42,14 +42,18 @@ exitFailureParse = 10
 -- |The parsers that we support
 mainParsers :: [LangParser]
 mainParsers
-  = [LangParser "while" (fmap While.dfromWhile . While.parseFile)
-    ,LangParser "lines" (fmap Lines.dfromLines . Lines.parseFile)
-    ,LangParser "lua"   (fmap Lua.dfromLua     . Lua.parseFile)
-    ,LangParser "clj"   (fmap Clj.dfromClj     . Clj.parseFile)
-    ,LangParser "java"  (fmap Java.dfromJava   . Java.parseFile)
-    ,LangParser "js"    (fmap JS.dfromJS       . JS.parseFile)
-    ,LangParser "py"    (fmap Py.dfromPy       . Py.parseFile)
-    ,LangParser "sh"    (fmap Sh.dfromSh       . Sh.parseFile)
+  = [LangParser "while"  (fmap While.dfromWhile . While.parseFile)
+    ,LangParser "lines"  (fmap Lines.dfromLines . Lines.parseFile)
+    ,LangParser "lua"    (fmap Lua.dfromLua     . Lua.parseFile)
+    ,LangParser "clj"    (fmap Clj.dfromClj     . Clj.parseFile)
+    ,LangParser "java"   (fmap Java.dfromJava   . Java.parseFile)
+    ,LangParser "js"     (fmap JS.dfromJS'      . JS.parseFile)
+    ,LangParser "py"     (fmap Py.dfromPy'      . Py.parseFile)
+    ,LangParser "sh"     (fmap Sh.dfromSh       . Sh.parseFile)
+
+    -- The *-loc parsers maintian source location informaton
+    ,LangParser "py-loc" (fmap Py.dfromPy       . Py.parseFile)
+    ,LangParser "js-loc" (fmap JS.dfromJS       . JS.parseFile)
     ]
 
 type LangCnstr prims ix

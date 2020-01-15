@@ -7,7 +7,6 @@
 module Generics.Simplistic.TH where
 
 import Data.Function (on)
-import Data.Char (isAlphaNum)
 import Data.List (sortBy)
 
 import Control.Monad
@@ -220,11 +219,11 @@ styFlatten sty         = (sty , [])
 
 -- * Parsing Haskell's AST
 
-reifyDec :: Name -> Q Dec
+reifyDec :: Name -> Q (Maybe Dec)
 reifyDec name =
   do info <- reify name
-     case info of TyConI dec -> return dec
-                  _          -> fail $ show name ++ " is not a declaration"
+     case info of TyConI dec -> return (Just dec)
+                  _          -> return Nothing
 
 argInfo :: TyVarBndr -> Name
 argInfo (PlainTV  n)   = n
@@ -354,13 +353,18 @@ reifySTy prims sty0
        (dec , args) <- preprocess sty0
        go dec args
   where
+    basedti :: String -> DTI STy
+    basedti s = ADT (mkName $ "LookInto " ++ s) [] []
+
     preprocess :: STy -> M (DTI STy , [STy])
     preprocess ty = 
-      let (head , args) = styFlatten ty
-       in case head of
+      let (head0 , args) = styFlatten ty
+       in case head0 of
          ConST name -> do
            dec <- lift (reifyDec name)
-           resolveTySyn (addTySynEquiv ty) dec args
+           case dec of
+             Just dec' -> resolveTySyn (addTySynEquiv ty) dec' args
+             Nothing   -> return (basedti (show name), [])
          _ -> fail "I can't convert appST or varST in reifySTy"
 
     resolveTySyn :: (STy -> M ()) -> Dec -> [STy] -> M (DTI STy , [STy])
@@ -383,12 +387,12 @@ reifySTy prims sty0
     -- Convert the STy's in the fields of the constructors;
     -- tells a list of STy's we still need to process.
     convertSTy :: [Name] -> STy -> WriterT [STy] M IK
-    convertSTy prims ty
+    convertSTy prims0 ty
       -- We remove sty from the list of todos
       -- otherwise we get an infinite loop
       | ty == sty0 = AtomI <$> lift (indexOf ty)
       | isClosed ty
-      = case makeCons prims ty of
+      = case makeCons prims0 ty of
           Just k  -> return (AtomK k)
           Nothing -> do ix     <- lift (indexOf ty)
                         hasDti <- lift (hasData ty)
@@ -399,7 +403,7 @@ reifySTy prims sty0
               ++ " when converting " ++ show sty0
 
     makeCons :: [Name] -> STy -> Maybe Name
-    makeCons prims (ConST n)
-      | n `elem` prims = Just n
+    makeCons prims0 (ConST n)
+      | n `elem` prims0 = Just n
       | otherwise      = Nothing
     makeCons _      _        = Nothing

@@ -135,7 +135,7 @@ makeDelInsMaps iota =
            . map (\(i , Exists h) -> (Exists (mkVar i h) , Exists h))
 
    mkVar :: Int -> Holes prim MetaVar at -> MetaVar at
-   mkVar vx (Prim k) = Const vx
+   mkVar vx (Prim _) = Const vx
    mkVar vx (Hole v) = metavarSet vx v
    mkVar vx (Roll _) = Const vx
         

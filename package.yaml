@@ -62,7 +62,7 @@ executables:
       - optparse-applicative
       - language-lua
       - language-java
-      - language-javascript
+      - language-ecmascript
       - language-bash
       - language-python
       - hdiff

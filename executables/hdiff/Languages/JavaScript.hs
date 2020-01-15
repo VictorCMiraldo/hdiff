@@ -1,127 +1,88 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE CPP                   #-}
-{-# OPTIONS_GHC -Wno-orphans                            #-}
-{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
-{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 module Languages.JavaScript where
 
-import Language.JavaScript.Parser.AST
-import Language.JavaScript.Parser
+import Language.ECMAScript3.Syntax
+import Language.ECMAScript3.Parser
+import Text.Parsec.Pos 
 
-import System.IO
-
-import Data.Text (Text)
 import Control.Monad.Except
 
 import GHC.Generics
 import Generics.Simplistic
 
-type JSPrim = '[ String , Int ]
+type JSPrim = '[ String , Int , Integer , Double , Bool , Char]
 
-deriving instance Generic JSAST
-deriving instance Generic JSAnnot
-deriving instance Generic JSStatement
-deriving instance Generic JSExpression
-deriving instance Generic JSSemi
-deriving instance Generic JSIdent
-deriving instance Generic (JSCommaList JSExpression)
-deriving instance Generic JSBinOp
-deriving instance Generic (JSCommaList JSIdent)
-deriving instance Generic JSBlock
-deriving instance Generic JSAssignOp
-deriving instance Generic JSTryFinally
-deriving instance Generic TokenPosn
-deriving instance Generic CommentAnnotation
-deriving instance Generic JSUnaryOp
-deriving instance Generic JSArrowParameterList
-deriving instance Generic JSObjectPropertyList
-deriving instance Generic JSVarInitializer
-deriving instance Generic JSArrayElement
-deriving instance Generic (JSCommaList JSObjectProperty)
-deriving instance Generic JSObjectProperty
-deriving instance Generic JSAccessor
-deriving instance Generic JSPropertyName
-deriving instance Generic JSSwitchParts
-deriving instance Generic JSTryCatch
-deriving instance Generic JSModuleItem
-deriving instance Generic JSImportDeclaration
-deriving instance Generic JSExportDeclaration
-deriving instance Generic JSImportClause
-deriving instance Generic JSFromClause
-deriving instance Generic JSImportNameSpace
-deriving instance Generic JSImportsNamed
-deriving instance Generic (JSCommaList JSImportSpecifier)
-deriving instance Generic JSImportSpecifier
-deriving instance Generic JSExportClause
-deriving instance Generic (JSCommaList JSExportSpecifier)
-deriving instance Generic JSExportSpecifier
+data Loc = Loc String Int Int
+    deriving ( Eq, Ord , Generic)
 
-instance Deep JSPrim JSAST
-instance Deep JSPrim [JSStatement]
-instance Deep JSPrim JSAnnot
-instance Deep JSPrim [JSModuleItem]
-instance Deep JSPrim JSStatement
-instance Deep JSPrim JSExpression
-instance Deep JSPrim JSSemi
-instance Deep JSPrim JSIdent
-instance Deep JSPrim (JSCommaList JSExpression)
-instance Deep JSPrim JSBinOp
-instance Deep JSPrim (JSCommaList JSIdent)
-instance Deep JSPrim JSBlock
-instance Deep JSPrim JSAssignOp
-instance Deep JSPrim (Maybe JSExpression)
-instance Deep JSPrim [JSSwitchParts]
-instance Deep JSPrim [JSTryCatch]
-instance Deep JSPrim JSTryFinally
-instance Deep JSPrim TokenPosn
-instance Deep JSPrim [CommentAnnotation]
-instance Deep JSPrim CommentAnnotation
-instance Deep JSPrim [JSArrayElement]
-instance Deep JSPrim JSUnaryOp
-instance Deep JSPrim JSArrowParameterList
-instance Deep JSPrim JSObjectPropertyList
-instance Deep JSPrim JSVarInitializer
-instance Deep JSPrim JSArrayElement
-instance Deep JSPrim (JSCommaList JSObjectProperty)
-instance Deep JSPrim JSObjectProperty
-instance Deep JSPrim JSAccessor
-instance Deep JSPrim JSPropertyName
-instance Deep JSPrim [JSExpression]
-instance Deep JSPrim JSSwitchParts
-instance Deep JSPrim JSTryCatch
-instance Deep JSPrim JSModuleItem
-instance Deep JSPrim JSImportDeclaration
-instance Deep JSPrim JSExportDeclaration
-instance Deep JSPrim JSImportClause
-instance Deep JSPrim JSFromClause
-instance Deep JSPrim JSImportNameSpace
-instance Deep JSPrim JSImportsNamed
-instance Deep JSPrim (JSCommaList JSImportSpecifier)
-instance Deep JSPrim JSImportSpecifier
-instance Deep JSPrim JSExportClause
-instance Deep JSPrim (JSCommaList JSExportSpecifier)
-instance Deep JSPrim JSExportSpecifier
+deriving instance (Generic a) => Generic (JavaScript a)
+deriving instance (Generic a) => Generic (Statement a)
+deriving instance (Generic a) => Generic (Expression a)
+deriving instance (Generic a) => Generic (Id a)
+deriving instance (Generic a) => Generic (ForInInit a)
+deriving instance (Generic a) => Generic (ForInit a)
+deriving instance Generic PrefixOp
+deriving instance Generic UnaryAssignOp
+deriving instance (Generic a) => Generic (LValue a)
+deriving instance Generic InfixOp
+deriving instance Generic AssignOp
+deriving instance (Generic a) => Generic (Prop a)
+deriving instance (Generic a) => Generic (CaseClause a)
+deriving instance (Generic a) => Generic (VarDecl a)
+deriving instance (Generic a) => Generic (CatchClause a)
 
-parseFile :: String -> ExceptT String IO JSAST
+instance Deep JSPrim Loc
+instance Deep JSPrim ()
+instance (Deep JSPrim a) => Deep JSPrim (JavaScript a)
+instance (Deep JSPrim a) => Deep JSPrim [Statement a]
+instance (Deep JSPrim a) => Deep JSPrim (Statement a)
+instance (Deep JSPrim a) => Deep JSPrim (Expression a)
+instance (Deep JSPrim a) => Deep JSPrim [CaseClause a]
+instance (Deep JSPrim a) => Deep JSPrim (Maybe (Id a))
+instance (Deep JSPrim a) => Deep JSPrim (Id a)
+instance (Deep JSPrim a) => Deep JSPrim (ForInInit a)
+instance (Deep JSPrim a) => Deep JSPrim (ForInit a)
+instance (Deep JSPrim a) => Deep JSPrim (Maybe (Expression a))
+instance (Deep JSPrim a) => Deep JSPrim (Maybe (CatchClause a))
+instance (Deep JSPrim a) => Deep JSPrim (Maybe (Statement a))
+instance (Deep JSPrim a) => Deep JSPrim [VarDecl a]
+instance (Deep JSPrim a) => Deep JSPrim [Id a]
+instance (Deep JSPrim a) => Deep JSPrim [Expression a]
+instance (Deep JSPrim a) => Deep JSPrim [(Prop a, Expression a)]
+instance Deep JSPrim PrefixOp
+instance Deep JSPrim UnaryAssignOp
+instance (Deep JSPrim a) => Deep JSPrim (LValue a)
+instance Deep JSPrim InfixOp
+instance Deep JSPrim AssignOp
+instance (Deep JSPrim a) => Deep JSPrim (Prop a, Expression a)
+instance (Deep JSPrim a) => Deep JSPrim (Prop a)
+instance (Deep JSPrim a) => Deep JSPrim (CaseClause a)
+instance (Deep JSPrim a) => Deep JSPrim (VarDecl a)
+instance (Deep JSPrim a) => Deep JSPrim (CatchClause a)
+
+
+parseFile :: String -> ExceptT String IO (JavaScript Loc)
 parseFile file = do
-  res <- lift $
-    -- TODO: do I care for utf8?
-    do h <- openFile file ReadMode
-       hSetEncoding h utf8
-       hGetContents h
-  case parseModule res file of
+  res <- lift $ readFile file
+  case parseFromString res of
     Left e  -> throwError (show e) 
-    Right r -> return r
+    Right r -> return (fmap mkLoc r)
+ where
+   mkLoc :: SourcePos -> Loc
+   mkLoc sp = Loc (sourceName sp) (sourceLine sp) (sourceColumn sp)
 
-dfromJS :: JSAST -> SFix JSPrim JSAST
+-- Drops location information
+dfromJS' :: JavaScript Loc -> SFix JSPrim (JavaScript ())
+dfromJS' = dfrom . fmap (const ())
+
+dfromJS :: JavaScript Loc -> SFix JSPrim (JavaScript Loc)
 dfromJS = dfrom

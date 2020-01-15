@@ -1,21 +1,13 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE CPP                   #-}
-{-# OPTIONS_GHC -Wno-orphans                            #-}
-{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
-{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 module Languages.Python where
 
-import Data.Text (Text)
 import Control.Monad.Except
 
 import GHC.Generics
@@ -26,85 +18,87 @@ import Language.Python.Common.SrcLocation
 import Language.Python.Version3.Parser
 
 type PyPrim = '[ String , Int , Integer , Double , Bool ]
-deriving instance Generic (Module SrcSpan)
-deriving instance Generic (Statement SrcSpan)
-deriving instance Generic SrcSpan
-deriving instance Generic (ImportRelative SrcSpan)
-deriving instance Generic (FromItems SrcSpan)
-deriving instance Generic (Expr SrcSpan)
-deriving instance Generic (Ident SrcSpan)
-deriving instance Generic (AssignOp SrcSpan)
-deriving instance Generic (RaiseExpr SrcSpan)
-deriving instance Generic (ImportItem SrcSpan)
-deriving instance Generic (FromItem SrcSpan)
-deriving instance Generic (Op SrcSpan)
-deriving instance Generic (Comprehension SrcSpan)
-deriving instance Generic (Argument SrcSpan)
-deriving instance Generic (Slice SrcSpan)
-deriving instance Generic (Parameter SrcSpan)
-deriving instance Generic (ParamTuple SrcSpan)
-deriving instance Generic (YieldArg SrcSpan)
-deriving instance Generic (ComprehensionExpr SrcSpan)
-deriving instance Generic (CompFor SrcSpan)
-deriving instance Generic (DictKeyDatumList SrcSpan)
-deriving instance Generic (CompIter SrcSpan)
-deriving instance Generic (CompIf SrcSpan)
-deriving instance Generic (Decorator SrcSpan)
-deriving instance Generic (Handler SrcSpan)
-deriving instance Generic (ExceptClause SrcSpan)
 
-instance Deep PyPrim (Module SrcSpan)
-instance Deep PyPrim (Statement SrcSpan)
-instance Deep PyPrim ([ImportItem SrcSpan])
+deriving instance Generic SrcSpan
+deriving instance Generic a => Generic (Module a)
+deriving instance Generic a => Generic (Statement a)
+deriving instance Generic a => Generic (ImportRelative a)
+deriving instance Generic a => Generic (FromItems a)
+deriving instance Generic a => Generic (Expr a)
+deriving instance Generic a => Generic (Ident a)
+deriving instance Generic a => Generic (AssignOp a)
+deriving instance Generic a => Generic (RaiseExpr a)
+deriving instance Generic a => Generic (ImportItem a)
+deriving instance Generic a => Generic (FromItem a)
+deriving instance Generic a => Generic (Op a)
+deriving instance Generic a => Generic (Comprehension a)
+deriving instance Generic a => Generic (Argument a)
+deriving instance Generic a => Generic (Slice a)
+deriving instance Generic a => Generic (Parameter a)
+deriving instance Generic a => Generic (ParamTuple a)
+deriving instance Generic a => Generic (YieldArg a)
+deriving instance Generic a => Generic (ComprehensionExpr a)
+deriving instance Generic a => Generic (CompFor a)
+deriving instance Generic a => Generic (DictKeyDatumList a)
+deriving instance Generic a => Generic (CompIter a)
+deriving instance Generic a => Generic (CompIf a)
+deriving instance Generic a => Generic (Decorator a)
+deriving instance Generic a => Generic (Handler a)
+deriving instance Generic a => Generic (ExceptClause a)
+
+instance Deep PyPrim ()
 instance Deep PyPrim SrcSpan
-instance Deep PyPrim (ImportRelative SrcSpan)
-instance Deep PyPrim (FromItems SrcSpan)
-instance Deep PyPrim (Expr SrcSpan)
-instance Deep PyPrim (Suite SrcSpan)
-instance Deep PyPrim ([Expr SrcSpan])
-instance Deep PyPrim (Ident SrcSpan)
-instance Deep PyPrim ([Parameter SrcSpan])
-instance Deep PyPrim (Maybe (Expr SrcSpan))
-instance Deep PyPrim ([Argument SrcSpan])
-instance Deep PyPrim ([(Expr SrcSpan, Suite SrcSpan)])
-instance Deep PyPrim (AssignOp SrcSpan)
-instance Deep PyPrim ([Decorator SrcSpan])
-instance Deep PyPrim ([Handler SrcSpan])
-instance Deep PyPrim (RaiseExpr SrcSpan)
-instance Deep PyPrim ([(Expr SrcSpan, Maybe (Expr SrcSpan))])
-instance Deep PyPrim (Maybe (Expr SrcSpan, Maybe (Expr SrcSpan)))
-instance Deep PyPrim (ImportItem SrcSpan)
-instance Deep PyPrim (DottedName SrcSpan)
-instance Deep PyPrim (Maybe (Ident SrcSpan))
-instance Deep PyPrim (Maybe (DottedName SrcSpan))
-instance Deep PyPrim ([FromItem SrcSpan])
-instance Deep PyPrim (FromItem SrcSpan)
 instance Deep PyPrim [String]
-instance Deep PyPrim ([Slice SrcSpan])
-instance Deep PyPrim (Op SrcSpan)
-instance Deep PyPrim (Maybe (YieldArg SrcSpan))
-instance Deep PyPrim (Comprehension SrcSpan)
-instance Deep PyPrim ([DictKeyDatumList SrcSpan])
-instance Deep PyPrim (Argument SrcSpan)
-instance Deep PyPrim (Slice SrcSpan)
-instance Deep PyPrim (Maybe (Maybe (Expr SrcSpan)))
-instance Deep PyPrim (Parameter SrcSpan)
-instance Deep PyPrim (ParamTuple SrcSpan)
-instance Deep PyPrim ([ParamTuple SrcSpan])
-instance Deep PyPrim (YieldArg SrcSpan)
-instance Deep PyPrim (ComprehensionExpr SrcSpan)
-instance Deep PyPrim (CompFor SrcSpan)
-instance Deep PyPrim (DictKeyDatumList SrcSpan)
-instance Deep PyPrim (Maybe (CompIter SrcSpan))
-instance Deep PyPrim (CompIter SrcSpan)
-instance Deep PyPrim (CompIf SrcSpan)
-instance Deep PyPrim ((Expr SrcSpan , Suite SrcSpan))
-instance Deep PyPrim (Decorator SrcSpan)
-instance Deep PyPrim (Handler SrcSpan)
-instance Deep PyPrim (ExceptClause SrcSpan)
-instance Deep PyPrim ((Expr SrcSpan, Maybe (Expr SrcSpan)))
-instance Deep PyPrim (Maybe (Expr SrcSpan, Maybe (Expr SrcSpan, Maybe (Expr SrcSpan))))
-instance Deep PyPrim ((Expr SrcSpan, Maybe (Expr SrcSpan, Maybe (Expr SrcSpan))))
+instance Deep PyPrim a => Deep PyPrim (Module a)
+instance Deep PyPrim a => Deep PyPrim (Statement a)
+instance Deep PyPrim a => Deep PyPrim ([ImportItem a])
+instance Deep PyPrim a => Deep PyPrim (ImportRelative a)
+instance Deep PyPrim a => Deep PyPrim (FromItems a)
+instance Deep PyPrim a => Deep PyPrim (Expr a)
+instance Deep PyPrim a => Deep PyPrim (Suite a)
+instance Deep PyPrim a => Deep PyPrim ([Expr a])
+instance Deep PyPrim a => Deep PyPrim (Ident a)
+instance Deep PyPrim a => Deep PyPrim ([Parameter a])
+instance Deep PyPrim a => Deep PyPrim (Maybe (Expr a))
+instance Deep PyPrim a => Deep PyPrim ([Argument a])
+instance Deep PyPrim a => Deep PyPrim ([(Expr a, Suite a)])
+instance Deep PyPrim a => Deep PyPrim (AssignOp a)
+instance Deep PyPrim a => Deep PyPrim ([Decorator a])
+instance Deep PyPrim a => Deep PyPrim ([Handler a])
+instance Deep PyPrim a => Deep PyPrim (RaiseExpr a)
+instance Deep PyPrim a => Deep PyPrim ([(Expr a, Maybe (Expr a))])
+instance Deep PyPrim a => Deep PyPrim (Maybe (Expr a, Maybe (Expr a)))
+instance Deep PyPrim a => Deep PyPrim (ImportItem a)
+instance Deep PyPrim a => Deep PyPrim (DottedName a)
+instance Deep PyPrim a => Deep PyPrim (Maybe (Ident a))
+instance Deep PyPrim a => Deep PyPrim (Maybe (DottedName a))
+instance Deep PyPrim a => Deep PyPrim ([FromItem a])
+instance Deep PyPrim a => Deep PyPrim (FromItem a)
+instance Deep PyPrim a => Deep PyPrim ([Slice a])
+instance Deep PyPrim a => Deep PyPrim (Op a)
+instance Deep PyPrim a => Deep PyPrim (Maybe (YieldArg a))
+instance Deep PyPrim a => Deep PyPrim (Comprehension a)
+instance Deep PyPrim a => Deep PyPrim ([DictKeyDatumList a])
+instance Deep PyPrim a => Deep PyPrim (Argument a)
+instance Deep PyPrim a => Deep PyPrim (Slice a)
+instance Deep PyPrim a => Deep PyPrim (Maybe (Maybe (Expr a)))
+instance Deep PyPrim a => Deep PyPrim (Parameter a)
+instance Deep PyPrim a => Deep PyPrim (ParamTuple a)
+instance Deep PyPrim a => Deep PyPrim ([ParamTuple a])
+instance Deep PyPrim a => Deep PyPrim (YieldArg a)
+instance Deep PyPrim a => Deep PyPrim (ComprehensionExpr a)
+instance Deep PyPrim a => Deep PyPrim (CompFor a)
+instance Deep PyPrim a => Deep PyPrim (DictKeyDatumList a)
+instance Deep PyPrim a => Deep PyPrim (Maybe (CompIter a))
+instance Deep PyPrim a => Deep PyPrim (CompIter a)
+instance Deep PyPrim a => Deep PyPrim (CompIf a)
+instance Deep PyPrim a => Deep PyPrim ((Expr a , Suite a))
+instance Deep PyPrim a => Deep PyPrim (Decorator a)
+instance Deep PyPrim a => Deep PyPrim (Handler a)
+instance Deep PyPrim a => Deep PyPrim (ExceptClause a)
+instance Deep PyPrim a => Deep PyPrim ((Expr a, Maybe (Expr a)))
+instance Deep PyPrim a => Deep PyPrim (Maybe (Expr a, Maybe (Expr a, Maybe (Expr a))))
+instance Deep PyPrim a => Deep PyPrim ((Expr a, Maybe (Expr a, Maybe (Expr a))))
 
 parseFile :: String -> ExceptT String IO (Module SrcSpan)
 parseFile file = do
@@ -115,3 +109,7 @@ parseFile file = do
 
 dfromPy :: Module SrcSpan -> SFix PyPrim (Module SrcSpan)
 dfromPy = dfrom
+
+-- Forgets source location information
+dfromPy' :: Module SrcSpan -> SFix PyPrim (Module ())
+dfromPy' = dfrom . fmap (const ())

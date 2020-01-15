@@ -16,13 +16,13 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- |This is a inplace clone of @simplistic-generics@ with
 -- added deep representations; I should move this stuff
 -- to @simplistic-generics@ at one point.
 module Generics.Simplistic where
 
 import Data.Proxy
-import Data.Functor.Const
 import GHC.Generics
 import Control.Monad.Identity
 
@@ -290,8 +290,8 @@ holesRefineM :: (Monad m)
              -> (forall b . (PrimCnstr b prim) => b -> m (Holes prim g b))
              -> Holes prim f a
              -> m (Holes prim g a)
-holesRefineM f g (Hole x) = f x
-holesRefineM f g (Prim x) = g x
+holesRefineM f _ (Hole x) = f x
+holesRefineM _ g (Prim x) = g x
 holesRefineM f g (Roll x) = Roll <$> repMapM (holesRefineM f g) x
      
 
