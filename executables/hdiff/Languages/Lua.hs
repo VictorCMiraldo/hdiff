@@ -18,18 +18,9 @@ import Language.Lua.Syntax
 import qualified Language.Lua.Parser as Lua
 
 import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8)
-import Data.Type.Equality
-
-import           Data.Text.Prettyprint.Doc hiding (braces,parens,semi)
-import qualified Data.Text as T
-
 import Control.Monad.Except
 
 import Generics.Simplistic
-import Generics.Simplistic.Digest
-
-import Data.HDiff.Diff
 
 type LuaPrim = '[ Text , Bool ]
 instance Deep LuaPrim Block
@@ -64,10 +55,6 @@ parseFile file = do
   case res of
     Left e  -> throwError (show e) 
     Right r -> return r
-
-twofiles :: ExceptT String IO (Block , Block)
-twofiles = (,) <$> parseFile "examples/Lua/parser/binsearch.lua"
-               <*> parseFile "examples/Lua/parser/binsearch2.lua"
 
 dfromLua :: Block -> SFix LuaPrim Block
 dfromLua = dfrom

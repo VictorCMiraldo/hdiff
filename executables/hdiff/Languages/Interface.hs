@@ -25,6 +25,7 @@ import qualified Languages.While             as While
 import qualified Languages.Lines             as Lines
 import qualified Languages.Lua               as Lua
 import qualified Languages.Clojure.Interface as Clj
+import qualified Languages.Java              as Java
 
 redirectErr :: ExceptT String IO a -> IO a
 redirectErr f = runExceptT f >>= either myerr return
@@ -42,6 +43,7 @@ mainParsers
     ,LangParser "lines" (fmap Lines.dfromLines . Lines.parseFile)
     ,LangParser "lua"   (fmap Lua.dfromLua     . Lua.parseFile)
     ,LangParser "clj"   (fmap Clj.dfromClj     . Clj.parseFile)
+    ,LangParser "java"  (fmap Java.dfromJava   . Java.parseFile)
     ]
 
 type LangCnstr prims ix
