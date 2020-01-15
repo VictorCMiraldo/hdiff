@@ -65,6 +65,7 @@ executables:
       - language-javascript
       - language-bash
       - language-python
+      - ghc-lib-parser
       - hdiff
     ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 

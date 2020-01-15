@@ -81,6 +81,13 @@ packages:
       sha256: e0c12c665be3f14ff26f28d7c6c5b0e0493de2fb6ab829d3596f43e801b26719
   original:
     hackage: language-rust-0.2.0.27@sha256:d96ec43076689ca8932a78b523b668de30a6b1f3b4fb6386017732028e591da7,6835
+- completed:
+    hackage: hpc-0.6.0.3@sha256:de3f7982345d315f1d7713df38b4f2cf09bd274f7d64dffec0cf2a0d9c8aab19,1185
+    pantry-tree:
+      size: 432
+      sha256: 4686c367eb25eb4d32d66bd4c080d6caa2b5e78c73beea3993db690137e1d6cb
+  original:
+    hackage: hpc-0.6.0.3@sha256:de3f7982345d315f1d7713df38b4f2cf09bd274f7d64dffec0cf2a0d9c8aab19,1185
 snapshots:
 - completed:
     size: 523884
