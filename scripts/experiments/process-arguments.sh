@@ -11,11 +11,15 @@ function showHelpPA() {
   echo " --prefix <path>"
   echo "   Prefixes the output with this prefix"
   echo ""
-  echo " --fa path, --fb path, --fo path"
+  echo " --fa path, --fb path, --fo path, --fm path"
   echo "   Which are the files being processed."
   echo ""
   echo " --rest"
   echo "   Identifies the start of user supplied arguments."
+  echo ""
+  echo " --memlimit kbytes"
+  echo "   Argument to 'ulimit -v'; limiting how much memory we allow ourselves to use"
+  echo "   Defaults to $memlim (8 GiBs)"
   echo ""
   echo ""
   echo " All of these arguments should be supplied directly through run-experiment.sh and"
@@ -29,6 +33,7 @@ showHeader=false
 fa=""
 fb=""
 fo=""
+fm=""
 
 while [[ "$#" -gt 0 ]]; do
   arg=$1;
@@ -38,12 +43,11 @@ while [[ "$#" -gt 0 ]]; do
     --fa) fa=$2; shift ;;
     --fb) fb=$2; shift ;;
     --fo) fo=$2; shift ;;
+    --fm) fo=$2; shift ;;
     --rest) shift; break;;
     *) showHelpPA ;;
   esac
   shift
 done
 
-# limit to 8GiBs of memory per process
-ulimit -v 8589934592
 

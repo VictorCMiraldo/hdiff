@@ -3,6 +3,7 @@ set -uo pipefail
 
 root="${BASH_SOURCE%/*}"
 
+memlim=8
 interval=1
 verbose=false
 logfile=""
@@ -39,6 +40,12 @@ function showUsage() {
   echo "    Sleeping in between calls to the experiment script gives the computer some"
   echo "    time to cool off"
   echo ""
+  echo "  -m , --memlim gigs"
+  echo "    How many gigabytes of memory do we allow the experiment to use."
+  echo "    Passed to 'ulimit -v \$(( gigs * 1024 * 1024 ))'."
+  echo "    Defaults to: $memlim"
+  echo ""
+  echo ""
   echo "  Example usage:"
   echo ""
   echo "    ./run-experiment.sh dataset/conflicts-el hdiff merge A.el O.el B.el | tee LOG"
@@ -59,6 +66,7 @@ while [[ "$1" == -* ]]; do
   shift;
   case $arg in
     -s|--sleep) interval=$1; shift ;;
+    -m|--memlim) memlim=$1; shift ;;
     -h|--help) showUsage ;;
     *)         showUsage ;;
   esac
@@ -83,6 +91,9 @@ fi
 
 trap "exit" SIGINT SIGTERM
 
+# limit the memory usage
+ulimit -v $(( $memlim * 1024 * 1024 ))
+
 ver=alpha # TODO: fix $(hdiff --version)
 echo "[run-experiment; hdiff at version $ver]"
 $exp --header
@@ -92,7 +103,8 @@ for d in ${dir}/*; do
   fa=$(find "${d}" -name "A.*")
   fo=$(find "${d}" -name "O.*")
   fb=$(find "${d}" -name "B.*")
-  if [[ -z "$fa" ]] || [[ -z "$fb" ]] || [[ -z "$fo" ]]; then
+  fm=$(find "${d}" -name "M.*")
+  if [[ -z "$fa" ]] || [[ -z "$fb" ]] || [[ -z "$fo" ]] || [[ -z "$fm" ]]; then
     echo "!!! ${d} !!! Wrong structure; some files not found" >> run-experiment-errors.log
     continue
   else
@@ -101,8 +113,7 @@ for d in ${dir}/*; do
     $exp --prefix "$(basename ${d})" --fa "$fa" --fb "$fb" --fo "$fo" --rest $@
     ecode=$?
     if [[ "$ecode" -ne "0" ]]; then
-      echo "!!! ${d} !!! Abort($ecode)"
-      exit 1
+      echo "!!! ${d} !!! Experiment Returned $ecode" >> run-experiment-errors.log
     fi
   fi
 done
