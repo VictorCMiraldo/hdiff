@@ -31,28 +31,30 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-timeout="45s"
-function doMerge() {
+timeout="30s"
+function doDiff() {
+  local a=$1
+  local b=$2
   local hdr=""
   if $stdiff; then
     hdr="$prefix _ stdiff"
-    timeout "${timeout}" stdiff -p $parser merge --test-merge "$fm" "$fa" "$fo" "$fb"
+    str=$(timeout "${timeout}" stdiff -p $parser stdiff --with-stats "$1" "$2")
     res=$?
   else
     hdr="$prefix $height $mode"
-    timeout "${timeout}" hdiff -p $parser merge -d $mode -m $height --test-merge "$fm" "$fa" "$fo" "$fb"
+    str=$(timeout "${timeout}" hdiff -p $parser diff --with-stats "$1" "$2")
     res=$?
   fi
   case $res in
-    0)   output "$hdr success"       ;;
-    1)   output "$hdr conflicting"   ;;
-    2)   output "$hdr apply-fail"    ;;
-    3)   output "$hdr merge-diff"    ;;
-    10)  output "$hdr parse-error"   ;;
-    124) output "$hdr timeout"       ;;
+    0)   output "$hdr $str"          ;;
+    124) output "$hdr _ _ _ timeout" ;;
     *)   output "$hdr unknown($res)" ;;
   esac
 }
 
 echo "[$$]: Running at $prefix"
-doMerge 
+
+doDiff "$fo" "$fa" 
+doDiff "$fo" "$fb" 
+doDiff "$fo" "$fm" 
+doDiff "$fa" "$fb"

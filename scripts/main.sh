@@ -1,0 +1,103 @@
+#!/bin/bash
+set -uo pipefail
+
+root="${BASH_SOURCE%/*}"
+
+# Make sure to cleanup if we kill this monster
+trap "pkill -P $$" SIGINT SIGTERM
+
+if [[ "$#" -ne "1" ]]; then
+  echo "usage: main.sh path/to/dataset"
+  exit 1
+fi
+dataset="$1"
+
+if [[ -d "results" ]]; then
+  echo "Directory results already exists"
+  exit 1
+fi
+mkdir results
+
+
+meta () {
+  echo "$(date) | $1" >> results/meta
+}
+
+runHDiff() {
+  local path=$dataset/$1
+  local parser=$2
+  local exp=$3
+  local name=${exp%%.*}
+  local log="results/h-$name-$parser"
+
+  meta "Running hdiff $name $parser"
+
+  # hdiff
+  for hh in 1 3 9; do
+    for mm in nonest proper patience; do
+      echo "Launching $name $hh $mm"
+       ./scripts/run-experiment.sh -l "$log" -m 16 "$path" $exp \
+          -h $hh -m $mm -p $parser 2> /dev/null &
+    done
+  done
+}
+
+runSTDiff() {
+  local path=$dataset/$1
+  local parser=$2
+  local exp=$3
+  local name=${exp%%.*}
+  local log="results/st-$name-$parser"
+
+  meta "Running stdiff $name $parser"
+
+  # stdiff
+  ./scripts/run-experiment.sh -l "$log" -m 16 "$path" $exp --stdiff 2> /dev/null &
+}
+
+runSTMerge () {
+  runSTDiff $1 $2 merge.sh
+}
+
+runHMerge () {
+  runSTDiff $1 $2 merge.sh
+}
+
+timeSTDiff () {
+  runSTDiff $1 $2 diff.sh
+}
+
+timeHDiff () {
+  runHDiff $1 $2 diff.sh
+}
+
+meta "Let the experiments begin"
+
+#Runs stdiff on the supported languages
+for lang in lua clj sh; do
+  runSTMerge "conflicts-$lang" "$lang"
+  timeSTDiff "conflicts-$lang" "$lang"
+done
+wait
+
+#Runs hdiff on the supported languages
+for lang in lua clj sh java; do
+  runHMerge "conflicts-$lang" "$lang"
+  timeHDiff "conflicts-$lang" "$lang"
+  wait
+done
+
+#Runs js and py with and without location information
+for lang in js py; do
+  runHMerge "conflicts-$lang" "$lang"
+  timeHDiff "conflicts-$lang" "$lang"
+  wait
+
+  runHMerge "conflicts-$lang" "$lang-loc"
+  timeHDiff "conflicts-$lang" "$lang-loc"
+  wait
+done
+
+meta "We are done!"
+
+

@@ -34,6 +34,7 @@ fa=""
 fb=""
 fo=""
 fm=""
+logfile=""
 
 while [[ "$#" -gt 0 ]]; do
   arg=$1;
@@ -43,11 +44,19 @@ while [[ "$#" -gt 0 ]]; do
     --fa) fa=$2; shift ;;
     --fb) fb=$2; shift ;;
     --fo) fo=$2; shift ;;
-    --fm) fo=$2; shift ;;
+    --fm) fm=$2; shift ;;
+    --log) logfile=$2; shift ;;
     --rest) shift; break;;
     *) showHelpPA ;;
   esac
   shift
 done
 
+output() {
+  if [[ -z "$logfile" ]]; then
+    echo "$1" 
+  else
+    echo "$1" >> "$logfile"
+  fi
+}
 
