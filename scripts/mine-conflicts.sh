@@ -42,7 +42,7 @@ for commit in $(git -C $repo rev-list --merges HEAD); do
   parents=$(git -C $repo log -1 --format=%P $commit)
   fst=${parents%% *}
   rest=${parents#* }
-  git -C $repo checkout -q $fst
+  git -C $repo checkout -f -q $fst
   git -C $repo merge --no-commit $rest >/dev/null 2>&1
   if git -C $repo ls-files --unmerged | grep -q '^'; then
     echo "found conflict in $repo - $commit"
@@ -69,5 +69,5 @@ for commit in $(git -C $repo rev-list --merges HEAD); do
   git -C $repo reset -q --hard
   git -C $repo clean -fdxq
 done
-git -C $repo checkout -q $old_branch
+git -C $repo checkout -f -q $old_branch
 
