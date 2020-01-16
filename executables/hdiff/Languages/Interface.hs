@@ -23,12 +23,14 @@ import System.Exit
 
 import qualified Languages.While             as While
 import qualified Languages.Lines             as Lines
+#ifdef REAL_LANGUAGES
 import qualified Languages.Lua               as Lua
 import qualified Languages.Clojure.Interface as Clj
 import qualified Languages.Java              as Java
 import qualified Languages.JavaScript        as JS
 import qualified Languages.Python            as Py
 import qualified Languages.Bash              as Sh
+#endif
 
 redirectErr :: ExceptT String IO a -> IO a
 redirectErr f = runExceptT f >>= either myerr return
@@ -44,6 +46,7 @@ mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while"  (fmap While.dfromWhile . While.parseFile)
     ,LangParser "lines"  (fmap Lines.dfromLines . Lines.parseFile)
+#ifdef REAL_LANGUAGES
     ,LangParser "lua"    (fmap Lua.dfromLua     . Lua.parseFile)
     ,LangParser "clj"    (fmap Clj.dfromClj     . Clj.parseFile)
     ,LangParser "java"   (fmap Java.dfromJava   . Java.parseFile)
@@ -54,6 +57,7 @@ mainParsers
     -- The *-loc parsers maintian source location informaton
     ,LangParser "py-loc" (fmap Py.dfromPy       . Py.parseFile)
     ,LangParser "js-loc" (fmap JS.dfromJS       . JS.parseFile)
+#endif
     ]
 
 type LangCnstr prims ix

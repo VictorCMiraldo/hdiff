@@ -9,6 +9,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE BangPatterns          #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE CPP                   #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
@@ -20,22 +21,75 @@ import Control.Monad
 
 import Options.Applicative
 
-import           Data.Type.Equality
+import           Data.Time.Clock.POSIX (getPOSIXTime)
 
 import Generics.MRSOP.Base hiding (Infix)
 
 import qualified Generics.MRSOP.GDiff          as GDiff
-import qualified Generics.MRSOP.STDiff         as STDiff
+
+import Generics.MRSOP.Holes
+import Generics.MRSOP.STDiff
+import Generics.MRSOP.STDiff.Compute 
+import Generics.MRSOP.STDiff.Merge
 
 import           Languages.Interface
 
 import           Options
+
+-- Mess
+
+size :: (IsNat k) => Fix ki codes k -> Int
+size = getConst . cata (Const . (1+) . elimRep (const 1) getConst sum) 
+
+time :: IO a -> IO (Double, a)
+time act = do
+  start <- getTime
+  result <- act
+  end <- getTime
+  let !delta = end - start
+  return (delta, result)
+
+getTime :: IO Double
+getTime = realToFrac `fmap` getPOSIXTime
+
+-- cost of patch
+cost ::(EqHO ki) =>  Almu ki codes x y -> Int
+cost (Spn sp) = costSpine sp
+cost (Ins c ctx) = 1 + costCtx cost ctx
+cost (Del c ctx) = 1 + costCtx costAlmuMin ctx
+
+costAl ::(EqHO ki) =>  Al ki codes xs ys -> Int
+costAl A0 = 0
+costAl (AX x xs) = costAt x + costAl xs
+costAl (AIns x xs) = elimNA (const 1) size x + costAl xs
+costAl (ADel x xs) = elimNA (const 1) size x + costAl xs
+
+costAlmuMin ::(EqHO ki) =>  AlmuMin ki codes x y -> Int
+costAlmuMin (AlmuMin x) = cost x
+
+costSpine :: (EqHO ki) =>  Spine ki codes i j -> Int
+costSpine Scp = 0
+costSpine (SChg c d al) = 1 + costAl al
+costSpine (SCns _ xs) = sum (elimNP costAt xs) 
+
+costAt :: (EqHO ki) => At ki codes i -> Int
+costAt (AtSet (Trivial x y))
+  | eqHO x y = 0
+  | otherwise = 2
+costAt (AtFix r) = cost r
+
+costCtx :: (EqHO ki) => (forall x y . p x y -> Int) -> Ctx ki codes p x y -> Int
+costCtx p (H x xs) = p x + sum (elimNP (elimNA (const 1) size) xs)
+costCtx p (T x xs) = elimNA (const 1) size x + costCtx p xs
+
+-- Actual executable
 
 main :: IO ()
 main = execParser stdiffOpts >>= \(verb , pars, opts)
     -> case optionMode opts of
          OptAST     -> mainAST     verb pars opts
          OptGDiff   -> mainGDiff   verb pars opts
+         OptSTDiff  -> mainSTDiff  verb pars opts
          OptSTMerge -> mainSTMerge verb pars opts
     >>= exitWith
 
@@ -57,6 +111,27 @@ mainGDiff _ sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opt
     putStrLn ("tree-edit-distance: " ++ show (GDiff.cost es))
     when (showES opts) (putStrLn $ show es)
     return ExitSuccess
+
+
+mainSTDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode
+mainSTDiff _ sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts)
+  $ \_ fa fb -> do
+    (secs , (es , c , p)) <- time $ do
+      let es = GDiff.diff' fa fb
+      let !ed = es `seq` GDiff.cost es
+      let ax  = countCopies $ annSrc  fa es
+      let ay  = countCopies $ annDest fb es
+      let res = diffAlmu ax ay
+      let c   = cost res `seq` cost res
+      return (es , c , res)
+    when (withStats opts) $ 
+      putStrLn . unwords $
+        [ "time:" ++ show secs
+        , "n+m:" ++ show (size fa + size fb)
+        , "cost:" ++ show c
+        ]
+    return ExitSuccess
+
          
 mainSTMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
@@ -65,24 +140,24 @@ mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO o
       putStrLnErr $ "O: " ++ optFileO opts
       putStrLnErr $ "A: " ++ optFileA opts
       putStrLnErr $ "B: " ++ optFileB opts
-    let oa = STDiff.diff fo fa
-    let ob = STDiff.diff fo fb
-    let resAB = STDiff.merge oa ob
-    let resBA = STDiff.merge ob oa
+    let oa = diff fo fa
+    let ob = diff fo fb
+    let resAB = merge oa ob
+    let resBA = merge ob oa
     case (,) <$> resAB <*> resBA of
       Nothing        -> putStrLnErr " !! Conflicts somewhere !!"
                      >> return (ExitFailure 1)
       Just (ab , ba) ->
-        case (,) <$> STDiff.apply ab fa <*> STDiff.apply ba fb of
+        case (,) <$> apply ab fa <*> apply ba fb of
           Nothing        -> putStrLnErr " !! Application Failed !!"
                          >> exitFailure
           Just (fb' , fa')
             | not (eqHO fb' fa') -> when (v == Loud) (putStrLnErr "!! Apply differs")
-                                 >> return (ExitFailure 3)
+                                 >> return (ExitFailure 4)
             | otherwise -> case optFileRes opts of
                              Nothing  -> return ExitSuccess
                              Just res -> do
                                pres <- pp res
                                return $ if eqHO fb' pres
                                         then ExitSuccess
-                                        else ExitFailure 2
+                                        else ExitFailure 3

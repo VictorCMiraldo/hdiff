@@ -156,3 +156,11 @@ withFreshNamesFrom p q =
 -- | The deletion context of a patch
 domain :: Patch prim at -> Domain prim at
 domain = chgDel . chgDistr
+
+-- | Counts how many constructors are inserted and deleted.
+cost :: Patch prim at -> Int
+cost = sum . map (exElim chgCost) . holesHolesList 
+  where
+    chgCost :: Chg prim at -> Int
+    chgCost (Chg d i) = holesSize d + holesSize i
+

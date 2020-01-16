@@ -37,6 +37,7 @@ data Options
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
             , opqHandling  :: D.DiffOpaques
+            , withStats    :: Bool
             }
   | Merge   { optFileA     :: FilePath
             , optFileO     :: FilePath
@@ -106,12 +107,15 @@ diffOpts =
   Diff <$> argument str (metavar "OLDFILE")
        <*> argument str (metavar "NEWFILE")
        <*> switch ( long "test-apply"
-                    -- TODO: check this doc
                  <> help "Attempts application; returns ExitFailure if apply fails."
                  <> hidden)
        <*> minheightOpt
        <*> diffmodeOpt
        <*> opqhandlingOpt
+       <*> switch ( long "with-stats"
+                 <> help "Produces statistics; suppresses the output of the patch")
+                 
+
 
 testmergeOpt :: Parser (Maybe FilePath)
 testmergeOpt
@@ -184,7 +188,7 @@ versionOpts = infoOption vERSION_STR (long "version")
 optionMode :: Options -> OptionMode
 optionMode (AST _)                  = OptAST
 optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
-optionMode (Diff _ _ _ _ _ _)     = OptDiff
+optionMode (Diff _ _ _ _ _ _ _)     = OptDiff
 
 
 hdiffOpts :: ParserInfo (Verbosity , SelectedFileParser , Options)
@@ -198,10 +202,11 @@ hdiffOpts = info ((,,) <$> verbosity <*> parserOpts <*> parseOptions
     pd = unwords
            [ "Runs hdiff with the specified command, 'diff' is the default command."
            , "The program exists with 0 for success and non-zero for failure."
-           , "[1 ; Conflicting patches; returned by 'merge' and 'stmerge']"
-           , "[2 ; Application failed; returned by 'merge' and 'stmerge' with"
+           , "[1 ; Conflicting patches; returned by 'merge']"
+           , "[2 ; Application failed; returned by 'merge' with"
            , "the --test-merge option and 'diff' with the --test-apply option]"
-           , "[3 ; Merge Differs; returned by 'stmerge']"
+           , "[3 ; Application differs; returned by 'merge' with"
+           , "the --test-merge option]"
            , "[10; Parse Failure]" 
            ]
             

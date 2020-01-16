@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns          #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -21,6 +22,7 @@ module Main (main) where
 import System.IO
 import System.Exit
 import Control.Monad
+import Control.DeepSeq
 
 import Options.Applicative
 
@@ -28,6 +30,7 @@ import Generics.Simplistic
 import Generics.Simplistic.Util
 
 import           Data.Type.Equality
+import           Data.Time.Clock.POSIX (getPOSIXTime)
 
 import qualified Data.HDiff.Base         as D
 import qualified Data.HDiff.Apply        as D
@@ -37,6 +40,21 @@ import           Data.HDiff.Show
 
 import           Languages.Interface
 import           HDiff.Options
+
+instance NFData (D.Chg prim x) where
+  rnf (D.Chg d i) = rnf d `seq` rnf i
+  
+time :: (NFData a) => IO a -> IO (Double, a)
+time act = do
+  start <- getTime
+  result <- act
+  let !res = result `deepseq` result
+  end <- getTime
+  let !delta = end - start
+  return (delta, res)
+
+getTime :: IO Double
+getTime = realToFrac `fmap` getPOSIXTime
 
 main :: IO ()
 main = execParser hdiffOpts >>= \(verb , pars, opts)
@@ -70,7 +88,7 @@ tryApply v patch fa fb
       Nothing -> hPutStrLn stderr "!! apply failed"
               >> when (v == Loud)
                   (hPutStrLn stderr (show fa))
-              >> exitFailure
+              >> exitWith (ExitFailure 2)
       Just b' -> return $ maybe (Just b') (testEq b') fb
  where
    testEq :: SFix prim ix -> SFix prim ix -> Maybe (SFix prim ix)
@@ -90,9 +108,16 @@ diffWithOpts opts fa fb = do
 mainDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts)
   $ \_ fa fb -> do
-    patch <- diffWithOpts opts fa fb
-    unless (v == Quiet)   $ hPutStrLn stdout (show patch)
+    (secs , patch) <- time (diffWithOpts opts fa fb)
+    unless (v == Quiet || withStats opts)
+      $ hPutStrLn stdout (show patch)
     when (testApply opts) $ void (tryApply v patch fa (Just fb))
+    when (withStats opts) $ 
+      putStrLn . unwords $
+        [ "time:" ++ show secs
+        , "n+m:" ++ show (holesSize fa + holesSize fb)
+        , "cost:" ++ show (D.cost patch)
+        ]
     return ExitSuccess
 
 mainMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
@@ -101,9 +126,6 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
     patchOA <- diffWithOpts opts fo fa
     patchOB <- diffWithOpts opts fo fb
     let omc = D.diff3 patchOA patchOB
-    -- when (v == VeryLoud) $ do
-    --   putStrLnErr $ "diff3 O->A O->B " ++ replicate 55 '#'
-    --   displayPatchC stderr omc
     case D.noConflicts omc of
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
               >> return (ExitFailure 1)
@@ -113,35 +135,5 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
         res  <- tryApply v om fo mtgt
         case res of
           Just _  -> return ExitSuccess
-          Nothing -> return (ExitFailure 2)
+          Nothing -> return (ExitFailure 3)
           
-{-
-mainSTMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
-mainSTMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
-  $ \pp fa fo fb -> do
-    when (v == Loud) $ do
-      putStrLnErr $ "O: " ++ optFileO opts
-      putStrLnErr $ "A: " ++ optFileA opts
-      putStrLnErr $ "B: " ++ optFileB opts
-    let oa = STDiff.diff fo fa
-    let ob = STDiff.diff fo fb
-    let resAB = STDiff.merge oa ob
-    let resBA = STDiff.merge ob oa
-    case (,) <$> resAB <*> resBA of
-      Nothing        -> putStrLnErr " !! Conflicts somewhere !!"
-                     >> return (ExitFailure 1)
-      Just (ab , ba) ->
-        case (,) <$> STDiff.apply ab fa <*> STDiff.apply ba fb of
-          Nothing        -> putStrLnErr " !! Application Failed !!"
-                         >> exitFailure
-          Just (fb' , fa')
-            | not (eqHO fb' fa') -> when (v == Loud) (putStrLnErr "!! Apply differs")
-                                 >> return (ExitFailure 3)
-            | otherwise -> case optFileRes opts of
-                             Nothing  -> return ExitSuccess
-                             Just res -> do
-                               pres <- pp res
-                               return $ if eqHO fb' pres
-                                        then ExitSuccess
-                                        else ExitFailure 2
--}

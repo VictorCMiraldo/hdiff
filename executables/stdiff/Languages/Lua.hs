@@ -14,6 +14,7 @@
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Lua where
 
+#ifdef WITH_LUA
 import Language.Lua.Syntax
 import qualified Language.Lua.Parser as Lua
 
@@ -62,3 +63,4 @@ type W = LuaSingl
 type Stmt = Block
 type FamStmt = FamBlock
 type CodesStmt = CodesBlock
+#endif

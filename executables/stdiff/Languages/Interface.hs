@@ -40,8 +40,12 @@ mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
     ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
+#ifdef WITH_LUA
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
+#endif
+#ifdef WITH_CLOJURE
     ,LangParser "clj"   (fmap (dfrom . into @Clj.FamStmt)   . Clj.parseFile)
+#endif
     ]
 
 type LangCnstr ki fam codes ix

@@ -25,6 +25,7 @@ module Generics.Simplistic where
 import Data.Proxy
 import GHC.Generics
 import Control.Monad.Identity
+import Control.DeepSeq
 
 import qualified Data.Set as S
 
@@ -138,6 +139,28 @@ pattern SFixAnn :: () => (NotElem a prim , Generic a)
 pattern SFixAnn ann x = Roll' ann x
 {-# COMPLETE SFixAnn , PrimAnn #-}
 
+---------------------------------
+
+instance (forall x . NFData (phi x) , forall x . NFData (h x))
+    => NFData (HolesAnn prim phi h f) where
+  rnf (Prim' ann _) = rnf ann
+  rnf (Hole' ann h) = rnf ann `seq` rnf h
+  rnf (Roll' ann x) = rnf ann `seq` rnf x
+
+instance (forall x . NFData (w x)) => NFData (SRep w f) where
+  rnf S_U1       = ()
+  rnf (S_K1 w)   = rnf w
+  rnf (S_M1 _ x) = rnf x
+  rnf (S_L1 x)   = rnf x
+  rnf (S_R1 x)   = rnf x
+  rnf (x :**: y) = rnf x `seq` rnf y
+
+instance NFData (V1 x) where
+  rnf _ = ()
+
+instance NFData (U1 x) where
+  rnf U1 = ()
+  
 ---------------------------------
 
 -- This is still uncertain; it does provide a nice way of writing
@@ -294,6 +317,10 @@ holesRefineM f _ (Hole x) = f x
 holesRefineM _ g (Prim x) = g x
 holesRefineM f g (Roll x) = Roll <$> repMapM (holesRefineM f g) x
      
+holesSize :: HolesAnn prim phi h a -> Int
+holesSize (Hole' _ _) = 0
+holesSize (Prim' _ _) = 1
+holesSize (Roll' _ x) = 1 + sum (map (exElim holesSize) $ repLeavesList x)
 
 {-
 -- Cata for recursive positions only; a little bit

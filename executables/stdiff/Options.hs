@@ -33,6 +33,10 @@ data Options
             , optFileB     :: FilePath
             , showES       :: Bool
             }
+  | STDiff  { optFileA     :: FilePath
+            , optFileB     :: FilePath
+            , withStats    :: Bool
+            }
   | STMerge { optFileA     :: FilePath
             , optFileO     :: FilePath
             , optFileB     :: FilePath
@@ -41,7 +45,7 @@ data Options
   deriving (Eq , Show)
 
 data OptionMode
-  = OptAST | OptGDiff | OptSTMerge
+  = OptAST | OptGDiff | OptSTDiff | OptSTMerge
   deriving (Eq , Show)
 
 astOpts :: Parser Options
@@ -54,6 +58,13 @@ gdiffOpts :: Parser Options
 gdiffOpts = GDiff <$> argument str (metavar "OLDFILE")
                   <*> argument str (metavar "NEWFILE")
                   <*> showesOpt
+
+stdiffOpts1 :: Parser Options
+stdiffOpts1 = STDiff <$> argument str (metavar "OLDFILE")
+                    <*> argument str (metavar "NEWFILE")
+                    <*> switch ( long "with-stats"
+                           <> help "Produces statistics; suppresses the output of the patch")
+
 
 testmergeOpt :: Parser (Maybe FilePath)
 testmergeOpt
@@ -77,9 +88,11 @@ parseOptions = hsubparser
         (progDesc "Parses and displays an ast"))
   <> command "gdiff" (info gdiffOpts
         (progDesc "Runs Generics.MRSOP.GDiff on the targets"))
+  <> command "diff" (info stdiffOpts1
+        (progDesc "Runs Generics.MRSOP.STDiff on the targets"))
   <> command "merge" (info stmergeOpts
         (progDesc "Runs the Generics.MRSOP.STDiff.Merge algo on the specified files"))
-  ) <|> stmergeOpts
+  ) <|> stdiffOpts1
   
 data Verbosity
   = Quiet
@@ -123,6 +136,7 @@ versionOpts = infoOption vERSION_STR (long "version")
 optionMode :: Options -> OptionMode
 optionMode (AST _)            = OptGDiff
 optionMode (GDiff _ _ _)            = OptGDiff
+optionMode (STDiff _ _ _)            = OptSTDiff
 optionMode (STMerge _ _ _ _)        = OptSTMerge
 
 
@@ -137,10 +151,12 @@ stdiffOpts = info ((,,) <$> verbosity <*> parserOpts <*> parseOptions
     pd = unwords
            [ "Runs stdiff with the specified command, 'merge' is the default command."
            , "The program exists with 0 for success and non-zero for failure."
-           , "[1 ; Conflicting patches; returned by 'merge' and 'stmerge']"
-           , "[2 ; Application failed; returned by 'merge' and 'stmerge' with"
+           , "[1 ; Conflicting patches; returned by 'stmerge']"
+           , "[2 ; Application failed; returned by 'stmerge' with"
            , "the --test-merge option and 'diff' with the --test-apply option]"
-           , "[3 ; Merge Differs; returned by 'stmerge']"
+           , "[3 ; Application differs; returned by 'stmerge' with"
+           , "the --test-merge option]"
+           , "[4 ; Merge Differs; returned by 'stmerge']"
            , "[10; Parse Failure]" 
            ]
             

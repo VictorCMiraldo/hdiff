@@ -22,6 +22,7 @@ dependencies:
   - hspec
   - memory
   - template-haskell
+  - deepseq
 
 library:
   source-dirs: src/
@@ -38,19 +39,20 @@ tests:
 executables:
   #  Here's the STDiff executable we need to run the tests
   #  with stdiff
-  #
-  #  stdiff:
-  #    source-dirs:
-  #      - executables/stdiff
-  #    main: STDiff.hs
-  #    dependencies:
-  #      - generics-mrsop
-  #      - generics-mrsop-gdiff
-  #      - parsec
-  #      - gitrev
-  #      - optparse-applicative
-  #      - language-lua
-  #    ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
+  
+  stdiff:
+    source-dirs:
+      - executables/stdiff
+    main: STDiff.hs
+    dependencies:
+      - generics-mrsop
+      - generics-mrsop-gdiff
+      - parsec
+      - gitrev
+      - optparse-applicative
+      - language-lua
+      - time
+    ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 
   hdiff:
     source-dirs:
@@ -65,7 +67,10 @@ executables:
       - language-ecmascript
       - language-bash
       - language-python
+      - time
+      - deepseq
       - hdiff
+    cpp-options: -DREAL_LANGUAGES 
     ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 
 

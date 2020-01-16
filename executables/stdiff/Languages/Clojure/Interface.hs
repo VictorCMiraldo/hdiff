@@ -14,6 +14,7 @@
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Clojure.Interface where
 
+#ifdef WITH_CLOJURE
 import Languages.Clojure.Syntax
 import qualified Languages.Clojure.Parser as Clj
 
@@ -56,3 +57,4 @@ parseFile file = do
     Right r -> return r
 
 type FamStmt = FamExpr
+#endif
