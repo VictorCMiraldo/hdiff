@@ -53,7 +53,7 @@ runSTDiff() {
   meta "Running stdiff $name $parser"
 
   # stdiff
-  echo "Launching stdiff $parser $name $hh $mm"
+  echo "Launching stdiff $parser $name"
   ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp \
     --stdiff -p $parser 2> /dev/null &
 }
