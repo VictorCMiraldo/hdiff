@@ -18,6 +18,7 @@ if [[ -d "results" ]]; then
 fi
 mkdir results
 
+dry="--dry"
 
 meta () {
   echo "$(date) | $1" >> results/meta
@@ -36,7 +37,7 @@ runHDiff() {
   for hh in 1 3 9; do
     for mm in nonest proper patience; do
       echo "Launching $name $hh $mm"
-       ./scripts/run-experiment.sh -l "$log" -m 16 "$path" $exp \
+       ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp \
           -h $hh -m $mm -p $parser 2> /dev/null &
     done
   done
@@ -52,7 +53,7 @@ runSTDiff() {
   meta "Running stdiff $name $parser"
 
   # stdiff
-  ./scripts/run-experiment.sh -l "$log" -m 16 "$path" $exp --stdiff 2> /dev/null &
+  ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp --stdiff 2> /dev/null &
 }
 
 runSTMerge () {
@@ -95,6 +96,19 @@ for lang in js py; do
 
   runHMerge "conflicts-$lang" "$lang-loc"
   timeHDiff "conflicts-$lang" "$lang-loc"
+  wait
+done
+
+#Runs all experiments with the dyck parser
+for lang in lua clj sh js py; do
+  runSTMerge "conflicts-$lang" "dyck"
+  runSTMerge "conflicts-$lang" "dyck-loc"
+done
+wait
+
+for lang in lua clj sh js py; do
+  runHMerge "conflicts-$lang" "dyck"
+  runHMerge "conflicts-$lang" "dyck-loc"
   wait
 done
 
