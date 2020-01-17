@@ -23,14 +23,13 @@ import System.IO
 import System.Exit
 import Control.Monad
 import Control.DeepSeq
-
+import System.CPUTime
 import Options.Applicative
 
 import Generics.Simplistic
 import Generics.Simplistic.Util
 
 import           Data.Type.Equality
-import           Data.Time.Clock.POSIX (getPOSIXTime)
 
 import qualified Data.HDiff.Base         as D
 import qualified Data.HDiff.Apply        as D
@@ -46,15 +45,13 @@ instance NFData (D.Chg prim x) where
   
 time :: (NFData a) => IO a -> IO (Double, a)
 time act = do
-  start <- getTime
-  result <- act
-  let !res = result `deepseq` result
-  end <- getTime
-  let !delta = end - start
-  return (delta, res)
-
-getTime :: IO Double
-getTime = realToFrac `fmap` getPOSIXTime
+    t1 <- getCPUTime
+    result <- act
+    let !res = result `deepseq` result
+    t2 <- getCPUTime
+    let t :: Double
+        t = fromIntegral (t2-t1) * 1e-12
+    return (t, res)
 
 main :: IO ()
 main = execParser hdiffOpts >>= \(verb , pars, opts)
@@ -114,7 +111,7 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
     when (testApply opts) $ void (tryApply v patch fa (Just fb))
     when (withStats opts) $ 
       putStrLn . unwords $
-        [ "time:" ++ show secs
+        [ "time(s):" ++ show secs
         , "n+m:" ++ show (holesSize fa + holesSize fb)
         , "cost:" ++ show (D.cost patch)
         ]

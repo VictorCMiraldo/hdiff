@@ -21,7 +21,8 @@ import Control.Monad
 
 import Options.Applicative
 
-import           Data.Time.Clock.POSIX (getPOSIXTime)
+
+import System.CPUTime
 
 import Generics.MRSOP.Base hiding (Infix)
 
@@ -43,14 +44,12 @@ size = getConst . cata (Const . (1+) . elimRep (const 1) getConst sum)
 
 time :: IO a -> IO (Double, a)
 time act = do
-  start <- getTime
+  start <- getCPUTime
   result <- act
-  end <- getTime
-  let !delta = end - start
-  return (delta, result)
-
-getTime :: IO Double
-getTime = realToFrac `fmap` getPOSIXTime
+  end <- getCPUTime
+  let t :: Double
+      t = fromIntegral (t2-t1) * 1e-12
+  return (t, res)
 
 -- cost of patch
 cost ::(EqHO ki) =>  Almu ki codes x y -> Int
@@ -126,9 +125,10 @@ mainSTDiff _ sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB op
       return (es , c , res)
     when (withStats opts) $ 
       putStrLn . unwords $
-        [ "time:" ++ show secs
+        [ "time(s):" ++ show secs
         , "n+m:" ++ show (size fa + size fb)
-        , "cost:" ++ show c
+        , "cost(st):" ++ show c
+        , "cost(es):" ++ show (GDiff.cost es)
         ]
     return ExitSuccess
 
