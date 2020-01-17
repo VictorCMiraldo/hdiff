@@ -34,6 +34,7 @@ done
 timeout="45s"
 function doMerge() {
   local hdr=""
+  local res=42
   if $stdiff; then
     hdr="$prefix _ stdiff"
     timeout "${timeout}" stdiff -p $parser merge --test-merge "$fm" "$fa" "$fo" "$fb"

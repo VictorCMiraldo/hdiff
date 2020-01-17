@@ -4,7 +4,7 @@ set -uo pipefail
 root="${BASH_SOURCE%/*}"
 
 # Make sure to cleanup if we kill this monster
-trap "pkill -P $$" SIGINT SIGTERM
+trap "pkill -P $$; exit 1" SIGINT SIGTERM
 
 if [[ "$#" -ne "1" ]]; then
   echo "usage: main.sh path/to/dataset"
@@ -36,7 +36,7 @@ runHDiff() {
   # hdiff
   for hh in 1 3 9; do
     for mm in nonest proper patience; do
-      echo "Launching $name $hh $mm"
+      echo "Launching hdiff $parser $name $hh $mm"
        ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp \
           -h $hh -m $mm -p $parser 2> /dev/null &
     done
@@ -53,7 +53,9 @@ runSTDiff() {
   meta "Running stdiff $name $parser"
 
   # stdiff
-  ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp --stdiff 2> /dev/null &
+  echo "Launching stdiff $parser $name $hh $mm"
+  ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp \
+    --stdiff -p $parser 2> /dev/null &
 }
 
 runSTMerge () {
@@ -61,7 +63,7 @@ runSTMerge () {
 }
 
 runHMerge () {
-  runSTDiff $1 $2 merge.sh
+  runHDiff $1 $2 merge.sh
 }
 
 timeSTDiff () {
@@ -84,18 +86,13 @@ wait
 #Runs hdiff on the supported languages
 for lang in lua clj sh java; do
   runHMerge "conflicts-$lang" "$lang"
-  timeHDiff "conflicts-$lang" "$lang"
   wait
 done
 
 #Runs js and py with and without location information
 for lang in js py; do
   runHMerge "conflicts-$lang" "$lang"
-  timeHDiff "conflicts-$lang" "$lang"
-  wait
-
   runHMerge "conflicts-$lang" "$lang-loc"
-  timeHDiff "conflicts-$lang" "$lang-loc"
   wait
 done
 

@@ -38,7 +38,7 @@ function doDiff() {
   local hdr=""
   if $stdiff; then
     hdr="$prefix _ stdiff"
-    str=$(timeout "${timeout}" stdiff -p $parser stdiff --with-stats "$1" "$2")
+    str=$(timeout "${timeout}" stdiff -p $parser diff --with-stats "$1" "$2")
     res=$?
   else
     hdr="$prefix $height $mode"

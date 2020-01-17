@@ -102,9 +102,8 @@ trap "exit" SIGINT SIGTERM
 # limit the memory usage
 ulimit -v $(( $memlim * 1024 * 1024 ))
 
-ver=$(hdiff --version)
-echo "[run-experiment; $ver]"
-$exp --header
+# ver=$(hdiff --version)
+# echo "[run-experiment; $ver]"
 
 for d in ${dir}/*; do
   sleep "$interval"
