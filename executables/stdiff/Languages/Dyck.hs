@@ -24,6 +24,8 @@
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Dyck where
 
+import Data.Type.Equality
+
 import Control.Monad.Except
 import Text.ParserCombinators.Parsec
 
@@ -36,19 +38,25 @@ data Sep
   = Paren | Brace | Curly
   deriving (Eq , Show , Generic)
 
-data DyckAtom lex
+data DyckAtom 
   = Word     String 
-  | Enclose  Sep (Dyck lex)
-  deriving (Eq , Show , Generic , Functor)
+  | Enclose  Sep Dyck 
+  deriving (Eq , Show , Generic)
 
-data Dyck lex
-  = Lexeme lex (DyckAtom lex) (Dyck lex)
-  | Done lex
-  deriving (Eq , Show , Generic , Functor)
+data Dyck 
+  = Lexeme String DyckAtom Dyck
+  | Done String
+  deriving (Eq , Show , Generic)
 
-type WS = String
+rmWS :: Dyck -> Dyck
+rmWS (Done _) = Done ""
+rmWS (Lexeme _ a d) = Lexeme "" (rmWS' a) (rmWS d)
 
-parseDyckSep :: Parser (DyckAtom WS)
+rmWS' :: DyckAtom -> DyckAtom
+rmWS' (Word s) = Word s
+rmWS' (Enclose s d) = Enclose s (rmWS d)
+
+parseDyckSep :: Parser DyckAtom 
 parseDyckSep = do
   c  <- try $ oneOf "([{"
   d  <- parseDyck
@@ -63,16 +71,16 @@ parseDyckSep = do
    closingFor '[' = ']'
    closingFor '{' = '}'
 
-parseDyckWord :: Parser (DyckAtom WS)
+parseDyckWord :: Parser DyckAtom 
 parseDyckWord = Word <$> many1 (noneOf "\n \t\r([{}])")
 
-parseDyckAtom :: Parser (DyckAtom WS)
+parseDyckAtom :: Parser DyckAtom 
 parseDyckAtom = parseDyckSep <|> parseDyckWord
 
-parseDyck :: Parser (Dyck WS)
+parseDyck :: Parser Dyck 
 parseDyck = parseDyckLex <|> (Done <$> many space)
 
-parseDyckLex :: Parser (Dyck WS)
+parseDyckLex :: Parser Dyck 
 parseDyckLex = try (Lexeme <$> many space <*> parseDyckAtom <*> parseDyck)
 
 
@@ -85,6 +93,9 @@ data WKon = WString
 data W :: WKon -> * where
   W_String  :: String  -> W 'WString
 
+instance TestEquality W where
+  testEquality (W_String x) (W_String y) = Just Refl
+
 deriving instance Show (W x)
 deriving instance Eq (W x)
 
@@ -96,9 +107,9 @@ instance ShowHO W where
 
 -- Now we derive the 'Family' instance
 -- using 'W' for the constants.
-deriveFamilyWithTy [t| W |] [t| Dyck WS |]
+deriveFamilyWithTy [t| W |] [t| Dyck |]
 
-parseFile :: String -> ExceptT String IO (Dyck WS)
+parseFile :: String -> ExceptT String IO Dyck
 parseFile file = do
   res <- lift $ readFile file
   case parse (parseDyck <* eof) file res of
@@ -106,5 +117,5 @@ parseFile file = do
     Right r -> return r
 
 
-parseFile' :: String -> ExceptT String IO (Dyck WS)
-parseFile' = fmap (const "") . parseFile
+parseFile' :: String -> ExceptT String IO Dyck
+parseFile' = fmap rmWS . parseFile

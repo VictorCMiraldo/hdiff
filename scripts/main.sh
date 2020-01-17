@@ -17,6 +17,8 @@ if [[ -d "results" ]]; then
   exit 1
 fi
 mkdir results
+mkdir results/h
+mkdir results/st
 
 dry="--dry"
 
@@ -29,7 +31,7 @@ runHDiff() {
   local parser=$2
   local exp=$3
   local name=${exp%%.*}
-  local log="results/h-$name-$parser"
+  local log="results/h/$name-$parser"
 
   meta "Running hdiff $name $parser"
 
@@ -37,7 +39,7 @@ runHDiff() {
   for hh in 1 3 9; do
     for mm in nonest proper patience; do
       echo "Launching hdiff $parser $name $hh $mm"
-       ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp \
+       ./scripts/run-experiment.sh $dry -l "$log.$hh.$mm.log" -m 16 "$path" $exp \
           -h $hh -m $mm -p $parser 2> /dev/null &
     done
   done
@@ -48,13 +50,13 @@ runSTDiff() {
   local parser=$2
   local exp=$3
   local name=${exp%%.*}
-  local log="results/st-$name-$parser"
+  local log="results/st/$name-$parser"
 
   meta "Running stdiff $name $parser"
 
   # stdiff
-  echo "Launching stdiff $parser $name $hh $mm"
-  ./scripts/run-experiment.sh $dry -l "$log" -m 16 "$path" $exp \
+  echo "Launching stdiff $parser $name"
+  ./scripts/run-experiment.sh $dry -l "$log.log" -m 16 "$path" $exp \
     --stdiff -p $parser 2> /dev/null &
 }
 
@@ -79,7 +81,6 @@ meta "Let the experiments begin"
 #Runs stdiff on the supported languages
 for lang in lua clj sh; do
   runSTMerge "conflicts-$lang" "$lang"
-  timeSTDiff "conflicts-$lang" "$lang"
 done
 wait
 
@@ -108,6 +109,13 @@ for lang in lua clj sh js py; do
   runHMerge "conflicts-$lang" "dyck-loc"
   wait
 done
+
+# Get timings for stdiff and hdiff
+for lang in lua clj sh; do
+  timeSTDiff "conflicts-$lang" "$lang"
+  timeHDiff  "conflicts-$lang" "$lang"
+done
+wait
 
 meta "We are done!"
 

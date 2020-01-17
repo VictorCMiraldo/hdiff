@@ -23,8 +23,10 @@ import Generics.MRSOP.Base hiding (Infix)
 
 import qualified Languages.While   as While
 import qualified Languages.Lines   as Lines
+import qualified Languages.Dyck    as Dyck
 import qualified Languages.Lua               as Lua
 import qualified Languages.Clojure.Interface as Clj
+import qualified Languages.Bash    as Sh
 
 redirectErr :: ExceptT String IO a -> IO a
 redirectErr f = runExceptT f >>= either myerr return
@@ -40,11 +42,16 @@ mainParsers :: [LangParser]
 mainParsers
   = [LangParser "while" (fmap (dfrom . into @While.FamStmt) . While.parseFile)
     ,LangParser "lines" (fmap (dfrom . into @Lines.FamStmt) . Lines.parseFile)
+    ,LangParser "dyck"  (fmap (dfrom . into @Dyck.FamDyck) . Dyck.parseFile')
+    ,LangParser "dyck-loc"  (fmap (dfrom . into @Dyck.FamDyck) . Dyck.parseFile)
 #ifdef WITH_LUA
     ,LangParser "lua"   (fmap (dfrom . into @Lua.FamStmt)   . Lua.parseFile)
 #endif
 #ifdef WITH_CLOJURE
     ,LangParser "clj"   (fmap (dfrom . into @Clj.FamStmt)   . Clj.parseFile)
+#endif
+#ifdef WITH_BASH
+    ,LangParser "sh"   (fmap (dfrom . into @Sh.FamList)   . Sh.parseFile)
 #endif
     ]
 
