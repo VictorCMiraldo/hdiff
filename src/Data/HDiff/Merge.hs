@@ -26,6 +26,9 @@ import           Generics.Simplistic.Unify
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 import           Data.HDiff.Instantiate
+import           Data.HDiff.Show
+
+import Debug.Trace
 
 -- |This is specific to merging; which is why we left it here.
 -- When instantiatting a deletion context against a patch,
@@ -125,8 +128,9 @@ makeDelInsMaps iota =
   let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iota
       si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iota
    in do
-    d <- minimize (toSubst sd)
-    i <- minimize (toSubst si)
+    d <- trace ("D:\n" ++ unlines (map show sd)) $ minimize (toSubst sd)
+    i <- trace ("I:\n" ++ unlines (map show si)) $ minimize (toSubst si)
+    
     return (d , i)
  where
    toSubst :: [(Int , Exists (Holes prim MetaVar))]

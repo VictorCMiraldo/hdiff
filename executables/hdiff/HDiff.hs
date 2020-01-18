@@ -127,7 +127,7 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
               >> return (ExitFailure 1)
       Just om -> do
-        when (v == Loud) (putStrLnErr "!! apply om o")
+        when (v == Loud) (hPutStrLn stdout $ show om)
         mtgt <- sequence (fmap pp (optFileRes opts))
         res  <- tryApply v om fo mtgt
         case res of

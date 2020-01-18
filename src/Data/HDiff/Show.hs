@@ -18,7 +18,7 @@ import Generics.Simplistic.Util
 import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
-import qualified Data.HDiff.Merge   as D
+-- import qualified Data.HDiff.Merge   as D
 import qualified Data.HDiff.MetaVar as D
 
 
@@ -37,6 +37,9 @@ metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle)
               -> D.MetaVar ix -> Doc AnsiStyle
 metavarPretty sty (Const i) 
   = sty $ spliced (pretty i)
+
+instance ShowHO phi => ShowHO (Holes prim phi) where
+  showHO = myRender . holesPretty (pretty . showHO)
 
 instance Show (Holes prim D.MetaVar x) where
   show = myRender . holesPretty (metavarPretty id)
@@ -61,6 +64,7 @@ chgPretty (D.Chg d i)
    chg f o c h
      = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
 
+{-
 confPretty :: D.Conflict prim x
            -> Doc AnsiStyle
 confPretty (D.FailedContr vars)
@@ -71,6 +75,7 @@ confPretty (D.Conflict _ c d)
          , pretty "==========="
          , chgPretty d
          , pretty "<<<<<<< !!}"]
+-}
 
 instance Show (D.Chg prim x) where
   show = myRender . chgPretty
@@ -78,9 +83,11 @@ instance Show (D.Chg prim x) where
 instance Show (D.Patch prim x) where
   show = myRender . holesPretty chgPretty
 
+{-
 instance Show (D.PatchC prim x) where
   show = myRender . holesPretty go
     where
       go x = case x of
                InL c -> confPretty c
                InR c -> chgPretty c
+-}
