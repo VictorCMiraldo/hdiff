@@ -26,6 +26,7 @@ import qualified Data.WordTrie as T
 import           Data.HDiff.Diff.Types
 import           Data.HDiff.Diff.Modes
 import           Data.HDiff.Diff.Preprocess
+import           Data.HDiff.Diff.Closure
 import           Data.HDiff.Base
 import           Data.HDiff.MetaVar
 
@@ -166,7 +167,9 @@ diffOpts :: (All Digestible prim)
          -> Patch prim ix
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts x y
-     in extractSpine (doOpaqueHandling opts) id i del ins
+     in case close $ extractSpine (doOpaqueHandling opts) id i del ins of
+          Nothing -> error "invariant broke: has open variables"
+          Just r  -> r
 
 diff :: forall prim ix
       . (All Digestible prim)

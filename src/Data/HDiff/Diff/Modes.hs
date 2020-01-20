@@ -6,7 +6,6 @@
 {-# LANGUAGE DataKinds                   #-}
 {-# LANGUAGE PolyKinds                   #-}
 {-# LANGUAGE GADTs                       #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Data.HDiff.Diff.Modes where
 
 import qualified Data.Set as S

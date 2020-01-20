@@ -28,7 +28,8 @@ import           Data.HDiff.Base
 import           Data.HDiff.Instantiate
 import           Data.HDiff.Show
 
-import Debug.Trace
+trace :: x -> a -> a
+trace _ = id
 
 -- |This is specific to merging; which is why we left it here.
 -- When instantiatting a deletion context against a patch,
