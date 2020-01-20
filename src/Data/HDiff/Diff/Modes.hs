@@ -51,7 +51,7 @@ tagProperShare :: forall a prim at
                => IsSharedMap
                -> PrepFix a prim at
                -> PrepFix (Int , Bool) prim at
-tagProperShare ism = synthesize onRec onPrim
+tagProperShare ism = synthesize onRec onPrim (const botElim)
   where
     myar :: PrepData x -> Int
     myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest 

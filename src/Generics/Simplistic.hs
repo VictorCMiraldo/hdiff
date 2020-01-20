@@ -67,6 +67,18 @@ data SRep w f where
   S_M1   :: SMeta i t -> SRep w f -> SRep w (M1 i t f)
 deriving instance (forall a. Show (w a)) => Show (SRep w f)
 
+repDatatypeName :: SRep w f -> String
+repDatatypeName (S_M1 x@SM_D _)
+  = getDatatypeName x
+repDatatypeName (S_M1 _ x)
+  = repDatatypeName x
+repDatatypeName (S_L1 x)
+  = repDatatypeName x
+repDatatypeName (S_R1 x)
+  = repDatatypeName x
+repDatatypeName _
+  = error "Please; use GHC's deriving mechanism. This keeps M1's at the top of the Rep"
+
 repConstructorName :: SRep w f -> String
 repConstructorName (S_M1 x@SM_C _)
   = getConstructorName x
@@ -358,32 +370,40 @@ cataM :: (Monad m)
             => ann b -> SRep phi (Rep b) -> m (phi b))
       -> (forall b . (Elem b prim , Show b , Eq b)
             => ann b -> b -> m (phi b))
-      -> SFixAnn prim ann a
+      -> (forall b . ann b -> h b -> m (phi b))
+      -> HolesAnn prim ann h a
       -> m (phi a)
-cataM f g (SFixAnn ann x) = repMapM (cataM f g) x >>= f ann
-cataM _ g (PrimAnn ann x) = g ann x
+cataM f g h (Roll' ann x) = repMapM (cataM f g h) x >>= f ann
+cataM _ g _ (Prim' ann x) = g ann x
+cataM _ _ h (Hole' ann x) = h ann x
 
 synthesizeM :: (Monad m)
             => (forall b . Generic b
                   => ann b -> SRep phi (Rep b) -> m (phi b))
             -> (forall b . (Elem b prim)
                   => ann b -> b -> m (phi b))
-            -> SFixAnn prim ann a
-            -> m (SFixAnn prim phi a)
-synthesizeM f g = cataM (\ann r -> flip SFixAnn r
-                              <$> f ann (repMap getAnn r))
-                        (\ann b -> flip PrimAnn b <$> g ann b)
+           -> (forall b . ann b -> h b -> m (phi b))
+            -> HolesAnn prim ann h a
+            -> m (HolesAnn prim phi h a)
+synthesizeM f g h = cataM (\ann r -> flip Roll' r
+                                <$> f ann (repMap getAnn r))
+                          (\ann b -> flip Prim' b <$> g ann b)
+                          (\ann r -> flip Hole' r <$> h ann r)
 
 synthesize :: (forall b . Generic b
                  => ann b -> SRep phi (Rep b) -> phi b)
            -> (forall b . (Elem b prim)
                  => ann b -> b -> phi b)
-           -> SFixAnn prim ann a
-           -> SFixAnn prim phi a
-synthesize f g = runIdentity
-               . synthesizeM (\ann -> return . f ann)
-                             (\ann -> return . g ann)
+           -> (forall b . ann b -> h b -> phi b)
+           -> HolesAnn prim ann h a
+           -> HolesAnn prim phi h a
+synthesize f g h = runIdentity
+                 . synthesizeM (\ann -> return . f ann)
+                               (\ann -> return . g ann)
+                               (\ann -> return . h ann)
 
+botElim :: V1 x -> a
+botElim _ = undefined
 
 ----------------------------------
 -- Anti unification is so simple it doesn't

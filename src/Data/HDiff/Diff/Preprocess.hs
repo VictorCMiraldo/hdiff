@@ -39,7 +39,7 @@ preprocess :: forall prim at
             . (All Digestible prim)
            => SFix prim at
            -> PrepFix () prim at
-preprocess = synthesize (const onRec) (const onPrim)
+preprocess = synthesize (const onRec) (const onPrim) (const botElim)
   where
     pp :: Proxy prim
     pp = Proxy
