@@ -26,6 +26,7 @@ import Control.Monad.State
 import qualified Data.Set as S
 
 import Generics.Simplistic
+import Generics.Simplistic.Util
 
 data SZip h w f where
   Z_U1    ::                              SZip h w U1
@@ -113,3 +114,30 @@ zipperFrom f g r = case runState (go r) False of
           case y' of
             Just _  -> return Nothing -- two were found
             Nothing -> return (Just $ Z_PairL rx (repMap g y))
+
+
+-------------------
+-- Prtty
+
+zipConstructorName :: SZip h w f -> String
+zipConstructorName (Z_M1 x@SM_C _)
+  = getConstructorName x
+zipConstructorName (Z_M1 _ x)
+  = zipConstructorName x
+zipConstructorName (Z_L1 x)
+  = zipConstructorName x
+zipConstructorName (Z_R1 x)
+  = zipConstructorName x
+zipConstructorName _
+  = error "Please; use GHC's deriving mechanism. This keeps M1's at the top of the Rep"
+
+zipLeavesList :: SZip h w f -> [Exists (Sum h w)]
+zipLeavesList Z_U1 = []
+zipLeavesList (Z_M1 _ x) = zipLeavesList x
+zipLeavesList (Z_L1 x) = zipLeavesList x
+zipLeavesList (Z_R1 x) = zipLeavesList x
+zipLeavesList (Z_KH x) = [Exists (InL x)]
+zipLeavesList (Z_KT x) = [Exists (InR x)]
+zipLeavesList (Z_PairL x y) = zipLeavesList x ++ map (exMap InR) (repLeavesList y)
+zipLeavesList (Z_PairR x y) = map (exMap InR) (repLeavesList x) ++ zipLeavesList y
+

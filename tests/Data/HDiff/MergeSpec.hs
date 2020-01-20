@@ -9,6 +9,7 @@ module Data.HDiff.MergeSpec (spec) where
 
 import Data.HDiff.Base
 import Data.HDiff.Merge
+import Data.HDiff.Merge.Align
 import Data.HDiff.Diff
 import Languages.RTree
 import Languages.RTree.Diff

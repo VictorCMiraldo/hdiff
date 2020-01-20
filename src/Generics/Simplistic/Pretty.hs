@@ -8,6 +8,7 @@ import           Data.Text.Prettyprint.Doc    (Doc)
 import qualified Data.Text.Prettyprint.Doc as PP
 
 import Generics.Simplistic
+import Generics.Simplistic.Zipper
 import Generics.Simplistic.Util
 
 repPretty :: (forall x . phi x -> Doc ann)
@@ -49,3 +50,21 @@ sfixPretty = sfixAnnPretty  (const id)
 
 instance Show (SFix prim a) where
   show = show . sfixPretty 
+
+-----------------------------
+-- Zipper stuff
+
+zipperPretty :: (forall x . h   x -> Doc ann)
+             -> (forall x . phi x -> Doc ann)
+             -> SZip h phi f -> Doc ann
+zipperPretty f g x =
+  let c  = zipConstructorName x
+      xs = zipLeavesList x
+      parens = if length xs == 0 then id else PP.parens
+   in PP.group $ parens
+               $ PP.nest 1
+               $ PP.sep
+               $ (PP.pretty c:)
+               $ map (exElim (either'' f g)) xs
+
+

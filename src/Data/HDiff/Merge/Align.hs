@@ -79,6 +79,7 @@
 -- by an ins they become a chg again.
 module Data.HDiff.Merge.Align where
 
+import Data.Proxy
 import Data.Functor.Const
 import Data.Functor.Sum
 import Data.Type.Equality
@@ -92,22 +93,18 @@ import Generics.Simplistic
 import Generics.Simplistic.Util hiding (Delta)
 import Generics.Simplistic.Zipper
 
-{-
-
 import Unsafe.Coerce
+import Debug.Trace
 
-data Flip f x y = Flip (f y x)
-data Delta f x  = Delta (f x x)
-
-data Synced prim x where
-  Del :: Zipper (Synced prim) (SFix prim) x
-      -> Synced prim x
-  Ins :: Zipper (Synced prim) (SFix prim) x
-      -> Synced prim x 
-  Spn :: SRep (Synced prim) (Rep x)
-      -> Synced prim x
+data Aligned prim x where
+  Del :: Zipper (Aligned prim) (SFix prim) x
+      -> Aligned prim x
+  Ins :: Zipper (Aligned prim) (SFix prim) x
+      -> Aligned prim x 
+  Spn :: SRep (Aligned prim) (Rep x)
+      -> Aligned prim x
   Mod :: Chg prim x
-      -> Synced prim x
+      -> Aligned prim x
 
 
 type IsStiff = Const Bool
@@ -124,50 +121,53 @@ annotStiffness = synthesize go (const $ const $ Const True)
     go _ = Const . repLeaves getConst (&&) True
 
 
-sync :: Chg prim x -> Synced prim x
-sync (Chg d i) = syncAnnot (annotStiffness d) (annotStiffness i)
+alignChg :: Chg prim x -> Aligned prim x
+alignChg (Chg d i) = syncAnnot (annotStiffness d) (annotStiffness i)
+
+align :: Patch prim x -> Holes prim (Aligned prim) x
+align = holesMap alignChg
 
 -- |Given a SRep; check if all holes but one are stiff;
 -- if so, cast it to a plug.
 syncCast :: forall prim phi t
-          . SRep (HolesAnn prim IsStiff phi) (Rep t)
+          . HolesAnn prim IsStiff phi t
          -> Maybe (Zipper (HolesAnn prim IsStiff phi) (SFix prim) t)
-syncCast r = zipperFrom myCheck myCast r
+syncCast (Hole' _ _) = Nothing
+syncCast (Prim' _ _) = Nothing
+syncCast (Roll' _ r) = zipperFrom myCheck myCast r
   where
     myCheck :: HolesAnn prim IsStiff phi x
             -> Maybe (t :~: x , HolesAnn prim IsStiff phi x)
-    myCheck h
-      | getConst (getAnn h) = Nothing
-      | otherwise           = Just (_ , h)
+    myCheck (Prim' _ x) = trace ("Prim " ++ show x) Nothing
+    myCheck (Hole' _ _) = trace "B" Nothing
+    myCheck h@(Roll' ann x)
+      | getConst ann = Nothing
+      | otherwise    = Just (unsafeCoerce Refl , h)
 
     myCast :: HolesAnn prim IsStiff phi x
            -> SFix prim x
     myCast = holesMapAnn (error "supposed to be stiff; no holes!") (const U1)
 
-syncAnnot :: HolesAnn prim IsStiff MetaVar x
-          -> HolesAnn prim IsStiff MetaVar x
-          -> Synced prim x 
-syncAnnot a@(Roll' sd d) b =
-  _
+syncAnnot :: HolesAnn prim IsStiff MetaVar t
+          -> HolesAnn prim IsStiff MetaVar t
+          -> Aligned prim t 
+syncAnnot a b =
+  case syncCast a of
+    Nothing  -> case syncCast b of
+      Nothing  -> syncSpine a b
+      Just res -> Ins (zipperMap (\(Refl :*: b') -> Refl :*: syncAnnot a b') res)
+    Just res   -> Del (zipperMap (\(Refl :*: a') -> Refl :*: syncAnnot a' b) res)
 
-syncAnnotD :: HolesAnn prim IsStiff MetaVar x
-           -> HolesAnn prim IsStiff MetaVar x
-           -> Synced prim x 
-syncAnnotD a@(Roll' sd d) b =
-  _
- 
- {-
-  case (syncCast d , syncCast i) of
-    (Just dz , Just di) -> Del (zipperMap (\h -> Flip $ Ins (zipperMap (syncAnnot h) di)) dz)
-    (Nothing , Just di) -> Ins (zipperMap (syncAnnot a) di)
-    (Just dz , Nothing) -> Del (zipperMap (Flip . flip syncAnnot b) dz)
-    (Nothing , Nothing) ->
-      let ta = repDatatypeName d
-          tb = repDatatypeName i
-       in if ta == tb
-          then _
-          else Mod _
+syncSpine :: HolesAnn prim IsStiff MetaVar t
+          -> HolesAnn prim IsStiff MetaVar t
+          -> Aligned prim t 
+syncSpine (Roll' _ a) (Roll' _ b) =
+  case zipSRep a b of
+    Nothing -> Mod (Chg (Roll (repMap dropAnn a))
+                        (Roll (repMap dropAnn b)))
+    Just r  -> Spn (repMap (uncurry' syncAnnot) r)
+syncSpine a b = Mod (Chg (dropAnn a) (dropAnn b))
+   
+dropAnn :: HolesAnn prim ann phi t -> Holes prim phi t
+dropAnn = holesMapAnn id (const U1)
 
--}
-
--}

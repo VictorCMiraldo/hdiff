@@ -18,7 +18,7 @@ import Generics.Simplistic.Util
 import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
--- import qualified Data.HDiff.Merge   as D
+import qualified Data.HDiff.Merge.Align as D
 import qualified Data.HDiff.MetaVar as D
 
 
@@ -38,8 +38,22 @@ metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle)
 metavarPretty sty (Const i) 
   = sty $ spliced (pretty i)
 
-instance ShowHO phi => ShowHO (Holes prim phi) where
-  showHO = myRender . holesPretty (pretty . showHO)
+{-
+instance {-# OVERLAPING #-} (ShowHO phi)
+    => Show (Holes prim phi x) where
+  show = myRender . holesPretty (pretty . showHO)
+-}
+
+instance {-# OVERLAPPABLE #-} (ShowHO ann , ShowHO phi)
+    => Show (HolesAnn prim ann phi x) where
+  show = myRender . holesAnnPretty (pretty . showHO) addAnn
+    where
+      addAnn ann d = sep [pretty "<" , pretty (showHO ann) , pretty "|" , d , pretty ">"]
+
+instance ShowHO (Holes prim D.MetaVar) where
+  showHO = myRender . holesPretty (metavarPretty id)
+
+
 
 instance Show (Holes prim D.MetaVar x) where
   show = myRender . holesPretty (metavarPretty id)
@@ -56,7 +70,7 @@ mydullgreen = colorDull Green
 chgPretty :: D.Chg prim x
           -> Doc AnsiStyle
 chgPretty (D.Chg d i)
-  = group $ sep [group (chgD d) , group (chgI i) ]
+  = group $ braces $ sep [group (chgD d) , group (chgI i) ]
  where
    chgD = chg (annotate myred)   (pretty "{-") (pretty "-}")
    chgI = chg (annotate mygreen) (pretty "{+") (pretty "+}")
@@ -91,3 +105,34 @@ instance Show (D.PatchC prim x) where
                InL c -> confPretty c
                InR c -> chgPretty c
 -}
+
+asrD :: Doc AnsiStyle -> Doc AnsiStyle
+asrD d = annotate myred $ group
+       $ sep [pretty "[-" , d , pretty "-]"]
+
+asrI :: Doc AnsiStyle -> Doc AnsiStyle
+asrI d = annotate mygreen $ group
+       $ sep [pretty "[+" , d , pretty "+]"]
+
+alignedPretty :: D.Aligned prim x -> Doc AnsiStyle
+alignedPretty (D.Del x)
+  = (zipperPretty
+         (\(_ :*: r) -> alignedPretty r)
+         (asrD . holesPretty botElim)
+         x)
+alignedPretty (D.Ins x)
+  = (zipperPretty
+         (\(_ :*: r) -> alignedPretty r)
+         (asrI . holesPretty botElim)
+         x)
+alignedPretty (D.Spn x)
+  = repPretty alignedPretty x
+alignedPretty (D.Mod c)
+  = chgPretty c
+  
+alignedPretty' :: D.Aligned prim x -> Doc AnsiStyle
+alignedPretty' a = vsep [pretty "[[[[[" , alignedPretty a , pretty "]]]]]"]
+
+
+instance Show (Holes prim (D.Aligned prim) x) where
+  show = myRender . holesPretty alignedPretty'
