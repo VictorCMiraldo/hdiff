@@ -369,6 +369,22 @@ a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
 o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 
+------------------------
+-- Example 21
+
+leaves = map (flip (:>:) [])
+
+a21 , o21 , b21 , r21 :: RTree
+
+a21 = "x" :>: leaves ["A" , "N1" , "B" , "C" , "D" , "N2" , "E"]
+o21 = "x" :>: leaves ["A" , "B" , "C", "D" , "E"]
+b21 = "x" :>: leaves ["B" , "C" , "D'" , "E"]
+
+r21 = "x" :>: leaves ["N1" , "B" , "C" , "D'" , "N2" , "E"]
+
+t21 :: TestCase
+t21 = ((a21 , o21 , b21) , const $ Just r21)
+
 dset = [ [ a1, o1, b1 ]
        , [ a2, o2, b2 ]
        , [ a3, o3, b3 ]
@@ -382,6 +398,7 @@ dset = [ [ a1, o1, b1 ]
        , [ a17, o17, b17 ]
        , [ a18, o18, b18 ]
        , [ a19, o19, b19 ]
+       , [ a21, o21, b21 ]
        ]
 
 failset = [ [ a10, o10, b10 ]
@@ -468,6 +485,9 @@ ob19 = myHdiffRTree o19 b19
 
 oa20 = myHdiffRTree o20 a20
 ob20 = myHdiffRTree o20 b20
+
+oa21 = myHdiffRTree o21 a21
+ob21 = myHdiffRTree o21 b21
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)

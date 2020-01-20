@@ -180,7 +180,7 @@ phase1 :: Patch prim at
        -> Patch prim at
        -> MergeM prim (Sum (Conflict prim) (Phase2 prim) at)
 phase1 ca cb = do
-  r <- runExceptT $ discover ca cb
+  r <- runExceptT $ trace ("phase1:\n" ++ show ca ++ "\n" ++ show cb) (discover ca cb)
   return $ case r of
     Left err -> InL (Conflict err ca' cb')
     Right p2 -> InR p2
