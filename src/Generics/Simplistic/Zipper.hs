@@ -32,26 +32,37 @@ import Generics.Simplistic.Util
 import Debug.Trace
 
 data SZip ty w f where
-  Z_L1    ::                SZip h w f -> SZip h w (f :+: g)
-  Z_R1    ::                SZip h w g -> SZip h w (f :+: g)
-  Z_PairL :: SZip h w f  -> SRep   w g -> SZip h w (f :*: g)
-  Z_PairR :: SRep   w f  -> SZip h w g -> SZip h w (f :*: g)
-  Z_M1    :: SMeta i t   -> SZip h w f -> SZip h w (M1 i t f)
-  Z_KH    :: a :~: ty    -> SZip h w (K1 i a)
-deriving instance (forall a. Show (w a) , forall a . Show (h a))
-   => Show (SZip h w f)
+  Z_L1    ::                SZip ty w f -> SZip ty w (f :+: g)
+  Z_R1    ::                SZip ty w g -> SZip ty w (f :+: g)
+  Z_PairL :: SZip ty w f -> SRep    w g -> SZip ty w (f :*: g)
+  Z_PairR :: SRep   w f  -> SZip ty w g -> SZip ty w (f :*: g)
+  Z_M1    :: SMeta i t   -> SZip ty w f -> SZip ty w (M1 i t f)
+  Z_KH     :: a :~: ty   -> SZip ty w (K1 i a)
+deriving instance (forall a. Show (w a)) => Show (SZip h w f)
 
-data Zipper fam prim ann phi t where
-  Zipper :: (CompoundCnstr fam prim t)
-         => { zipper :: SZip t (HolesAnn fam prim ann phi) (Rep t)
-            , plug   :: HolesAnn fam prim ann phi t
+zipperMap :: (forall x . h x -> g x)
+          -> SZip ty h f -> SZip ty g f
+zipperMap f (Z_L1 x) = Z_L1 (zipperMap f x)
+zipperMap f (Z_R1 x) = Z_R1 (zipperMap f x)
+zipperMap f (Z_M1 c x) = Z_M1 c (zipperMap f x)
+zipperMap f (Z_PairL x y) = Z_PairL (zipperMap f x) (repMap f y)
+zipperMap f (Z_PairR x y) = Z_PairR (repMap f x) (zipperMap f y)
+zipperMap f (Z_KH x) = Z_KH x
+
+data Zipper f g t where
+  Zipper :: { zipper :: SZip t f (Rep t)
+            , plug   :: g t
             }
-         -> Zipper fam prim ann phi t
+         -> Zipper f g t
+
+type Zipper' fam prim ann phi
+  = Zipper (HolesAnn fam prim ann phi)
+           (HolesAnn fam prim ann phi)
 
 zippers :: forall fam prim ann phi t
          . (HasDecEq fam)
         => HolesAnn fam prim ann phi t
-        -> [Zipper fam prim ann phi t] 
+        -> [Zipper' fam prim ann phi t] 
 zippers (Prim' _ _) = []
 zippers (Hole' _ _) = []
 zippers (Roll' _ r) = map (uncurry Zipper) (go r)
@@ -71,11 +82,12 @@ zippers (Roll' _ r) = map (uncurry Zipper) (go r)
     go (S_M1 c x) = first (Z_M1 c) <$> go x
     go (x :**: y) = (first (flip Z_PairL y) <$> go x)
                  ++ (first (Z_PairR x)      <$> go y)
-    go (S_K1 x@(Roll' _ _)) =
+    go (S_K1 x) = _
+    {-
       case sameTy pf (Proxy :: Proxy t) (pa x) of
         Just Refl -> return $ (Z_KH Refl , x)
         Nothing   -> []
-    go (S_K1 _) = []
+    -}
       
       
 

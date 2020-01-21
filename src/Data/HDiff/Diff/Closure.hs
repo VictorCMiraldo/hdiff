@@ -18,37 +18,37 @@ import Data.HDiff.MetaVar
 import Generics.Simplistic
 import Generics.Simplistic.Util
 
-data ChgVars prim x
+data ChgVars fam prim x
   = ChgVars { decls :: S.Set Int
             , uses  :: S.Set Int
-            , body  :: Chg prim x
+            , body  :: Chg fam prim x
             }
 
-isClosed :: ChgVars prim x -> Bool
+isClosed :: ChgVars fam prim x -> Bool
 isClosed (ChgVars d u _) = d == u
 
-chgVarsDistr :: Holes prim (ChgVars prim) at
-             -> ChgVars prim at
+chgVarsDistr :: Holes fam prim (ChgVars fam prim) at
+             -> ChgVars fam prim at
 chgVarsDistr h =
   let (hD , ds) = runWriter $ holesMapM (\(ChgVars d _ c) -> tell d >> return (chgDel c)) h
       (hI , us) = runWriter $ holesMapM (\(ChgVars _ u c) -> tell u >> return (chgIns c)) h
    in ChgVars ds us (Chg (holesJoin hD) (holesJoin hI))
 
-close :: Holes prim (Chg prim) at
-      -> Maybe (Holes prim (Chg prim) at)
+close :: Holes fam prim (Chg fam prim) at
+      -> Maybe (Holes fam prim (Chg fam prim) at)
 close h = case closure (holesMap getVars h) of
             InL _ -> Nothing
             InR b -> Just (holesMap body b)
   where
-    getVars :: Chg prim x -> ChgVars prim x
+    getVars :: Chg fam prim x -> ChgVars fam prim x
     getVars c@(Chg d i) =
       let varsD = S.fromList . map (exElim metavarGet) $ holesHolesList d
           varsI = S.fromList . map (exElim metavarGet) $ holesHolesList i
        in ChgVars varsD varsI c
 
 
-closure :: Holes prim (ChgVars prim) at
-        -> Sum (ChgVars prim) (Holes prim (ChgVars prim)) at 
+closure :: Holes fam prim (ChgVars fam prim) at
+        -> Sum (ChgVars fam prim) (Holes fam prim (ChgVars fam prim)) at 
 closure (Prim x)  = InR $ Prim x
 closure (Hole cv)
   | isClosed cv = InR $ Hole cv

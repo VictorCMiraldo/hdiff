@@ -37,7 +37,7 @@ import           Data.HDiff.MetaVar
 --  every subtree, as long as they are taller than
 --  minHeight. This trie keeps track of the arity, so
 --  we can later annotate the trees that can be propper shares.
-buildArityTrie :: DiffOptions -> PrepFix a prim ix -> T.Trie Int
+buildArityTrie :: DiffOptions -> PrepFix a fam prim ix -> T.Trie Int
 buildArityTrie opts df = go df T.empty
   where
     ins :: Digest -> T.Trie Int -> T.Trie Int
@@ -45,7 +45,7 @@ buildArityTrie opts df = go df T.empty
 
     minHeight = doMinHeight opts
     
-    go :: PrepFix a prim ix -> T.Trie Int -> T.Trie Int
+    go :: PrepFix a fam prim ix -> T.Trie Int -> T.Trie Int
     go (PrimAnn (Const prep) _) t
       -- We only populat the sharing map if opaques are supposed
       -- to be handled as recursive trees
@@ -58,7 +58,7 @@ buildArityTrie opts df = go df T.empty
       | treeHeight prep <= minHeight = t
       | otherwise = ins (treeDigest prep) (goR p t)
 
-    goR :: SRep (PrepFix a prim) ix -> T.Trie Int -> T.Trie Int
+    goR :: SRep (PrepFix a fam prim) ix -> T.Trie Int -> T.Trie Int
     goR S_U1 t = t
     goR (S_L1 x) t = goR x t
     goR (S_R1 x) t = goR x t
@@ -76,8 +76,8 @@ buildArityTrie opts df = go df T.empty
 --  to be associated with a tree and the tree's arity.
 --
 buildSharingTrie :: DiffOptions
-                 -> PrepFix a prim ix
-                 -> PrepFix a prim ix
+                 -> PrepFix a fam prim ix
+                 -> PrepFix a fam prim ix
                  -> (Int , IsSharedMap)
 buildSharingTrie opts x y
   = T.mapAccum (\i ar -> (i+1 , MAA i ar) ) 0
@@ -89,20 +89,20 @@ buildSharingTrie opts x y
 --  This is somehow analogous to a @zipWith@. Moreover, however,
 --  we also copy the opaque values present in the spine by issuing
 --  /"copy"/ changes
-extractSpine :: forall prim phi at
+extractSpine :: forall fam prim phi at
               . DiffOpaques
              -> (forall ix . phi ix -> MetaVar ix)
              -> Int
-             -> Holes prim phi at
-             -> Holes prim phi at
-             -> Holes prim (Chg prim) at
+             -> Holes fam prim phi at
+             -> Holes fam prim phi at
+             -> Holes fam prim (Chg fam prim) at
 extractSpine dopq meta maxI dx dy
   = holesMap (uncurry' Chg)
   $ issueOpqCopiesSpine
   $ lcp dx dy
  where
-   issueOpqCopiesSpine :: Holes prim (Holes2 prim phi) at
-                       -> Holes prim (Holes2 prim (MetaVar)) at
+   issueOpqCopiesSpine :: Holes fam prim (Holes2 fam prim phi) at
+                       -> Holes fam prim (Holes2 fam prim (MetaVar)) at
    issueOpqCopiesSpine
      = flip evalState maxI
      . holesRefineM (\(x :*: y) -> return $ Hole $ holesMap meta x
@@ -111,13 +111,13 @@ extractSpine dopq meta maxI dx dy
                          then doCopy
                          else noCopy)
 
-   noCopy :: (PrimCnstr b prim)
+   noCopy :: (PrimCnstr fam prim b)
           => b
-          -> State Int (Holes prim (Holes2 prim (MetaVar)) b)
+          -> State Int (Holes fam prim (Holes2 fam prim (MetaVar)) b)
    noCopy kik = return (Prim kik)
                         
    doCopy :: (Elem b prim)
-          => b -> State Int (Holes prim (Holes2 prim (MetaVar)) b)
+          => b -> State Int (Holes fam prim (Holes2 fam prim (MetaVar)) b)
    doCopy _ = do
      i <- get
      put (i+1)
@@ -134,12 +134,12 @@ extractSpine dopq meta maxI dx dy
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
-diffOpts' :: forall prim at
+diffOpts' :: forall fam prim at
            . (All Digestible prim)
           => DiffOptions
-          -> SFix prim at
-          -> SFix prim at
-          -> (Int , Delta (Holes prim MetaVar) at)
+          -> SFix fam prim at
+          -> SFix fam prim at
+          -> (Int , Delta (Holes fam prim MetaVar) at)
 diffOpts' opts x y
   = let dx      = preprocess x
         dy      = preprocess y
@@ -150,7 +150,7 @@ diffOpts' opts x y
      in (i , delins)
  where
    mkCanShare :: forall a ix
-               . PrepFix a prim ix
+               . PrepFix a fam prim ix
               -> Bool
    mkCanShare (PrimAnn _ _)
      = doOpaqueHandling opts == DO_AsIs
@@ -162,19 +162,19 @@ diffOpts' opts x y
 -- an actual patch.
 diffOpts :: (All Digestible prim)
          => DiffOptions
-         -> SFix prim ix
-         -> SFix prim ix
-         -> Patch prim ix
+         -> SFix fam prim ix
+         -> SFix fam prim ix
+         -> Patch fam prim ix
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts x y
      in case close $ extractSpine (doOpaqueHandling opts) id i del ins of
           Nothing -> error "invariant broke: has open variables"
           Just r  -> r
 
-diff :: forall prim ix
+diff :: forall fam prim ix
       . (All Digestible prim)
      => MinHeight
-     -> SFix prim ix
-     -> SFix prim ix
-     -> Patch prim ix
+     -> SFix fam prim ix
+     -> SFix fam prim ix
+     -> Patch fam prim ix
 diff h = diffOpts (diffOptionsDefault { doMinHeight = h})

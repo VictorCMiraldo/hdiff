@@ -20,13 +20,13 @@ import Data.HDiff.MetaVar
 
 -- | Usefull synonym for carrying around two
 -- contexts.
-type Holes2 prim phi
-  = (Holes prim phi :*: Holes prim phi)
+type Holes2 fam prim phi
+  = (Holes fam prim phi :*: Holes fam prim phi)
 
 -- |Alpha-equality for 'Holes2' with metavariables
 -- inside.
-holes2Eq :: Holes2 prim (MetaVar) at
-         -> Holes2 prim (MetaVar) at
+holes2Eq :: Holes2 fam prim (MetaVar) at
+         -> Holes2 fam prim (MetaVar) at
          -> Bool
 holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
  where
@@ -42,8 +42,8 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
    cast f b = (const (Const ())) <$> f b
 
    reg :: (Bool -> Cont Bool (Const () at))
-       -> Holes prim (MetaVar) at
-       -> Holes prim (MetaVar) at
+       -> Holes fam prim (MetaVar) at
+       -> Holes fam prim (MetaVar) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
    reg _ (Hole m1) (Hole m2) 
      = modify (M.insert (metavarGet m1) (metavarGet m2))
@@ -52,8 +52,8 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
      = lift $ exit False
 
    chk :: (Bool -> Cont Bool (Const () at))
-       -> Holes prim (MetaVar) at
-       -> Holes prim (MetaVar) at
+       -> Holes fam prim (MetaVar) at
+       -> Holes fam prim (MetaVar) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
    chk exit (Hole m1) (Hole m2) 
      = do st <- get
@@ -71,61 +71,61 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
 
 -- | Changes are pairs of context; one deletion
 -- and one insertion.
-data Chg prim at = Chg
-  { chgDel :: Holes prim MetaVar at
-  , chgIns :: Holes prim MetaVar at
+data Chg fam prim at = Chg
+  { chgDel :: Holes fam prim MetaVar at
+  , chgIns :: Holes fam prim MetaVar at
   }
 
 -- | Translates from a change to an indexed product.
-unChg :: Chg prim at
-      -> Holes2 prim (MetaVar) at
+unChg :: Chg fam prim at
+      -> Holes2 fam prim (MetaVar) at
 unChg (Chg d i) = d :*: i
 
 -- |Alpha equality for changes
-changeEq :: Chg prim at -> Chg prim at -> Bool
+changeEq :: Chg fam prim at -> Chg fam prim at -> Bool
 changeEq c1 c2 = holes2Eq (unChg c1) (unChg c2)
 
 -- |A /copy/ is a change with the form @x |-> x@
-cpy :: Chg prim at -> Bool
+cpy :: Chg fam prim at -> Bool
 cpy (Chg (Hole v) (Hole u)) = metavarGet v == metavarGet u
 cpy _                         = False
 
 -- |Returns whether or not a change is a permutation
-perm :: Chg prim at -> Bool
+perm :: Chg fam prim at -> Bool
 perm (Chg (Hole _) (Hole _)) = True
 perm _                         = False
 
-instance EqHO (Chg prim) where
+instance EqHO (Chg fam prim) where
   eqHO = changeEq
 
 -- |A 'Domain' is just a deletion context. Type-synonym helps us
 -- identify what's what on the algorithms below.
-type Domain prim = Holes prim MetaVar 
+type Domain fam prim = Holes fam prim MetaVar 
 
 -- * Patches
 --
 -- $patchintro
 
-type Patch prim
-  = Holes prim (Chg prim)
+type Patch fam prim
+  = Holes fam prim (Chg fam prim)
 
 -- |Distributes the change change over the patch.
-chgDistr :: Patch prim at -> Chg prim at
+chgDistr :: Patch fam prim at -> Chg fam prim at
 chgDistr p = Chg (holesJoin $ holesMap chgDel p)
                  (holesJoin $ holesMap chgIns p)
 
-chgPatch :: Chg prim at -> Patch prim at
+chgPatch :: Chg fam prim at -> Patch fam prim at
 chgPatch c = holesMap (uncurry' Chg) $ lcp (chgDel c) (chgIns c) 
 
 -- |Alpha equality for patches
-patchEq :: Patch prim at -> Patch prim at -> Bool
+patchEq :: Patch fam prim at -> Patch fam prim at -> Bool
 patchEq p1 p2 = changeEq (chgDistr p1) (chgDistr p2)        
         
 -- |How many times a variable occurs
 type Arity = Int
 
 -- |The multiset of variables used by a patch.
-patchVars :: Patch prim at -> M.Map Int Arity
+patchVars :: Patch fam prim at -> M.Map Int Arity
 patchVars = flip execState M.empty . holesMapM go
   where
     register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
@@ -134,33 +134,33 @@ patchVars = flip execState M.empty . holesMapM go
     go r@(Chg d i)
       = holesMapM register d >> holesMapM register i >> return r
 
-patchMaxVar :: Patch prim at -> Maybe Int
+patchMaxVar :: Patch fam prim at -> Maybe Int
 patchMaxVar = fmap fst . M.lookupMax . patchVars
 
 -- |Returns a patch that is guaranteed to have
 -- distinci variable names from the first argument.
-withFreshNamesFrom :: Patch prim at
-                   -> Patch prim at
-                   -> Patch prim at
+withFreshNamesFrom :: Patch fam prim at
+                   -> Patch fam prim at
+                   -> Patch fam prim at
 withFreshNamesFrom p q =
   case patchMaxVar q of
     -- q has no variables!
     Nothing -> p
     Just v  -> holesMap (changeAdd (v + 1)) p
   where
-    changeAdd :: Int -> Chg prim at -> Chg prim at
+    changeAdd :: Int -> Chg fam prim at -> Chg fam prim at
     changeAdd n (Chg del ins)
       = Chg (holesMap (metavarAdd n) del)
             (holesMap (metavarAdd n) ins)
       
 -- | The deletion context of a patch
-domain :: Patch prim at -> Domain prim at
+domain :: Patch fam prim at -> Domain fam prim at
 domain = chgDel . chgDistr
 
 -- | Counts how many constructors are inserted and deleted.
-cost :: Patch prim at -> Int
+cost :: Patch fam prim at -> Int
 cost = sum . map (exElim chgCost) . holesHolesList 
   where
-    chgCost :: Chg prim at -> Int
+    chgCost :: Chg fam prim at -> Int
     chgCost (Chg d i) = holesSize d + holesSize i
 

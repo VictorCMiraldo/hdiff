@@ -30,15 +30,15 @@ data PrepData a = PrepData
 
 -- |A 'PrepFix' is a prepared fixpoint. In our case, it is
 -- just a 'HolesAnn' with the prepared data inside of it.
-type PrepFix a prim
-  = SFixAnn prim (Const (PrepData a))
+type PrepFix a fam prim
+  = SFixAnn fam prim (Const (PrepData a))
 
 -- |Here we receive an expression with holes an annotate
 -- it with hashes and height information at every node.
-preprocess :: forall prim at
+preprocess :: forall fam prim at
             . (All Digestible prim)
-           => SFix prim at
-           -> PrepFix () prim at
+           => SFix fam prim at
+           -> PrepFix () fam prim at
 preprocess = synthesize (const onRec) (const onPrim) (const botElim)
   where
     pp :: Proxy prim
