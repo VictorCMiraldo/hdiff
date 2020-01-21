@@ -22,6 +22,7 @@ import Data.Type.Equality
 import GHC.Generics
 import Data.Functor.Sum
 import Control.Monad.State
+import Control.Arrow (first)
 
 import qualified Data.Set as S
 
@@ -30,16 +31,55 @@ import Generics.Simplistic.Util
 
 import Debug.Trace
 
-data SZip h w f where
-  Z_U1    ::                              SZip h w U1
+data SZip ty w f where
   Z_L1    ::                SZip h w f -> SZip h w (f :+: g)
   Z_R1    ::                SZip h w g -> SZip h w (f :+: g)
   Z_PairL :: SZip h w f  -> SRep   w g -> SZip h w (f :*: g)
   Z_PairR :: SRep   w f  -> SZip h w g -> SZip h w (f :*: g)
   Z_M1    :: SMeta i t   -> SZip h w f -> SZip h w (M1 i t f)
-  Z_KH    :: h a         -> SZip h w (K1 i a)
-  Z_KT    :: w a         -> SZip h w (K1 i a)
-deriving instance (forall a. Show (w a) , forall a . Show (h a)) => Show (SZip h w f)
+  Z_KH    :: a :~: ty    -> SZip h w (K1 i a)
+deriving instance (forall a. Show (w a) , forall a . Show (h a))
+   => Show (SZip h w f)
+
+data Zipper fam prim ann phi t where
+  Zipper :: (CompoundCnstr fam prim t)
+         => { zipper :: SZip t (HolesAnn fam prim ann phi) (Rep t)
+            , plug   :: HolesAnn fam prim ann phi t
+            }
+         -> Zipper fam prim ann phi t
+
+zippers :: forall fam prim ann phi t
+         . (HasDecEq fam)
+        => HolesAnn fam prim ann phi t
+        -> [Zipper fam prim ann phi t] 
+zippers (Prim' _ _) = []
+zippers (Hole' _ _) = []
+zippers (Roll' _ r) = map (uncurry Zipper) (go r)
+  where
+    pf :: Proxy fam
+    pf = Proxy
+
+    pa :: HolesAnn fam prim ann phi a -> Proxy a
+    pa _ = Proxy
+
+    go :: SRep (HolesAnn fam prim ann phi) f
+       -> [(SZip t (HolesAnn fam prim ann phi) f
+          , HolesAnn fam prim ann phi t)]
+    go S_U1       = []
+    go (S_L1 x)   = first Z_L1 <$> go x
+    go (S_R1 x)   = first Z_R1 <$> go x
+    go (S_M1 c x) = first (Z_M1 c) <$> go x
+    go (x :**: y) = (first (flip Z_PairL y) <$> go x)
+                 ++ (first (Z_PairR x)      <$> go y)
+    go (S_K1 x@(Roll' _ _)) =
+      case sameTy pf (Proxy :: Proxy t) (pa x) of
+        Just Refl -> return $ (Z_KH Refl , x)
+        Nothing   -> []
+    go (S_K1 _) = []
+      
+      
+
+{-
 
 
 zipperMap :: (forall x . h x -> g x)
@@ -139,3 +179,5 @@ zipLeavesList (Z_KT x) = [Exists (InR x)]
 zipLeavesList (Z_PairL x y) = zipLeavesList x ++ map (exMap InR) (repLeavesList y)
 zipLeavesList (Z_PairR x y) = map (exMap InR) (repLeavesList x) ++ zipLeavesList y
 
+
+-}
