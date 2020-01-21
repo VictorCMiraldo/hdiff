@@ -490,6 +490,10 @@ ob20 = myHdiffRTree o20 b20
 oa21 = myHdiffRTree o21 a21
 ob21 = myHdiffRTree o21 b21
 
+ta = hdiffRTreeHM DM_NoNested 1 ("x" :>: ["a" :>: [] , "b" :>: [] , "k" :>: []])
+                  ("x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: [] , "u" :>: []])
+
+
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3

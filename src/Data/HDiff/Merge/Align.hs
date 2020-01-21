@@ -104,17 +104,19 @@ import Unsafe.Coerce
 import Debug.Trace
 
 data Aligned prim x where
-  Del :: SZip (Aligned prim) (SFix prim) (Rep x)
+  Del :: Zipper (SFix prim) (Aligned prim) x
       -> Aligned prim x
-  Ins :: SZip (Aligned prim) (SFix prim) (Rep x)
+  Ins :: Zipper (SFix prim) (Aligned prim) x
       -> Aligned prim x 
   Spn :: SRep (Aligned prim) (Rep x)
       -> Aligned prim x
   Mod :: Chg prim x
       -> Aligned prim x
 
-
 type IsStiff = Const Bool
+
+isStiff :: HolesAnn prim IsStiff h x -> Bool
+isStiff = getConst . getAnn
 
 -- | Annotates something with whether or not
 -- it contains holes; we call a value of type
@@ -145,45 +147,49 @@ getAnn' f (Roll' ann _) = "R: " ++ f ann
 -- if so, cast it to a plug.
 syncCast :: forall prim phi t
           . HolesAnn prim IsStiff phi t
-         -> Maybe (SZip (HolesAnn prim IsStiff phi) (SFix prim) (Rep t))
-syncCast (Hole' _ _) = Nothing
-syncCast (Prim' _ _) = Nothing
-syncCast (Roll' _ r) =
-  let anns = map (exElim (getAnn' (show . getConst))) $ repLeavesList r
-   in trace (show anns) $ zipperFrom myCheck myCast r
-  where
-    myCheck :: HolesAnn prim IsStiff phi x
-            -> Maybe ({- t :~: x , -} HolesAnn prim IsStiff phi x)
-    myCheck (Prim' _ x) = Nothing
-    myCheck (Hole' _ _) = Nothing
-    myCheck h@(Roll' ann x)
-      | getConst ann = Nothing
-      | repDatatypeName r == repDatatypeName x = Just ({- unsafeCoerce Refl , -} h)
-      | otherwise = Nothing
-
+         -> Maybe (Zipper (SFix prim) (HolesAnn prim IsStiff phi) t)
+syncCast r =
+  let zs = zippers r
+   in case filter butOneStiff zs of
+        [Zipper z x] -> Just $ Zipper (zipperMap myCast z) x
+        _            -> Nothing
+ where
+    butOneStiff :: Zipper' prim IsStiff phi t -> Bool
+    butOneStiff (Zipper z x)
+      = not (isStiff x) && all (maybe True (exElim isStiff)) (zipLeavesList z)
+   
     myCast :: HolesAnn prim IsStiff phi x
            -> SFix prim x
     myCast = holesMapAnn (error "supposed to be stiff; no holes!") (const U1)
 
-syncAnnot :: HolesAnn prim IsStiff MetaVar t
-          -> HolesAnn prim IsStiff MetaVar t
-          -> Aligned prim t 
-syncAnnot a b = -- trace ("trying ins of: " ++ show b) $
-  case syncCast a of
-    Nothing  -> case syncCast b of
-      Nothing  -> syncSpine a b
-      Just res -> Ins (zipperMap (\b' -> syncAnnot (unsafeCoerce a) b') res)
-    Just res   -> Del (zipperMap (\a' -> syncAnnot a' (unsafeCoerce b)) res)
+type A prim = forall t . HolesAnn prim IsStiff MetaVar t
+            -> HolesAnn prim IsStiff MetaVar t
+            -> Aligned prim t 
 
-syncSpine :: HolesAnn prim IsStiff MetaVar t
-          -> HolesAnn prim IsStiff MetaVar t
-          -> Aligned prim t 
-syncSpine (Roll' _ a) (Roll' _ b) =
-  case zipSRep a b of
-    Nothing -> Mod (Chg (Roll (repMap dropAnn a))
-                        (Roll (repMap dropAnn b)))
-    Just r  -> Spn (repMap (uncurry' syncAnnot) r)
-syncSpine a b = Mod (Chg (dropAnn a) (dropAnn b))
+syncAnnot :: A prim
+syncAnnot a b = syncAnnotD (syncSpine syncAnnot) a b
+
+syncAnnotD :: A prim -> A prim
+syncAnnotD f a b = 
+  case syncCast a of
+    Nothing           -> syncAnnotI f a b
+    Just (Zipper z r) -> Del (Zipper z (syncAnnotD f r b))
+
+syncAnnotI :: A prim -> A prim 
+syncAnnotI f a b = 
+  case syncCast b of
+    Nothing           -> f a b
+    Just (Zipper z r) -> Ins (Zipper z (syncAnnotI f a r))
+
+syncSpine :: A prim -> A prim 
+syncSpine f a@(Roll' _ sa) b@(Roll' _ sb) =
+  case zipSRep sa sb of
+    Nothing -> syncAnnotD syncMod a b
+    Just r  -> Spn (repMap (uncurry' f) r)
+syncSpine _ a b = syncAnnotD syncMod a b
+
+syncMod :: A prim
+syncMod a b = Mod (Chg (dropAnn a) (dropAnn b))
    
 dropAnn :: HolesAnn prim ann phi t -> Holes prim phi t
 dropAnn = holesMapAnn id (const U1)
@@ -201,15 +207,9 @@ asrI d = annotate mygreen $ group
 
 alignedPretty :: Aligned prim x -> Doc AnsiStyle
 alignedPretty (Del x)
-  = (zipperPretty
-         (\(r) -> alignedPretty r)
-         (asrD . holesPretty (const mempty))
-         x)
+  = asrD (zipperPretty sfixPretty alignedPretty x)
 alignedPretty (Ins x)
-  = (zipperPretty
-         (\(r) -> alignedPretty r)
-         (asrI . holesPretty (const mempty))
-         x)
+  = asrI (zipperPretty sfixPretty alignedPretty x)
 alignedPretty (Spn x)
   = repPretty alignedPretty x
 alignedPretty (Mod c)
@@ -221,3 +221,4 @@ alignedPretty' a = vsep [pretty "[[[[[" , alignedPretty a , pretty "]]]]]"]
 
 instance Show (Holes prim (Aligned prim) x) where
   show = myRender . holesPretty alignedPretty'
+
