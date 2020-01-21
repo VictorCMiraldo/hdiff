@@ -18,7 +18,6 @@ import Generics.Simplistic.Util
 import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
-import qualified Data.HDiff.Merge.Align as D
 import qualified Data.HDiff.MetaVar as D
 
 
@@ -106,33 +105,3 @@ instance Show (D.PatchC prim x) where
                InR c -> chgPretty c
 -}
 
-asrD :: Doc AnsiStyle -> Doc AnsiStyle
-asrD d = annotate myred $ group
-       $ sep [pretty "[-" , d , pretty "-]"]
-
-asrI :: Doc AnsiStyle -> Doc AnsiStyle
-asrI d = annotate mygreen $ group
-       $ sep [pretty "[+" , d , pretty "+]"]
-
-alignedPretty :: D.Aligned prim x -> Doc AnsiStyle
-alignedPretty (D.Del x)
-  = (zipperPretty
-         (\(_ :*: r) -> alignedPretty r)
-         (asrD . holesPretty botElim)
-         x)
-alignedPretty (D.Ins x)
-  = (zipperPretty
-         (\(_ :*: r) -> alignedPretty r)
-         (asrI . holesPretty botElim)
-         x)
-alignedPretty (D.Spn x)
-  = repPretty alignedPretty x
-alignedPretty (D.Mod c)
-  = chgPretty c
-  
-alignedPretty' :: D.Aligned prim x -> Doc AnsiStyle
-alignedPretty' a = vsep [pretty "[[[[[" , alignedPretty a , pretty "]]]]]"]
-
-
-instance Show (Holes prim (D.Aligned prim) x) where
-  show = myRender . holesPretty alignedPretty'

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE GADTs               #-}
@@ -88,6 +90,11 @@ import Control.Monad.State
 import Data.HDiff.Base
 import Data.HDiff.MetaVar
 
+import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc.Render.Terminal
+import Data.HDiff.Show
+import Generics.Simplistic.Pretty
+
 import GHC.Generics
 import Generics.Simplistic
 import Generics.Simplistic.Util hiding (Delta)
@@ -97,9 +104,9 @@ import Unsafe.Coerce
 import Debug.Trace
 
 data Aligned prim x where
-  Del :: Zipper (Aligned prim) (SFix prim) x
+  Del :: SZip (Aligned prim) (SFix prim) (Rep x)
       -> Aligned prim x
-  Ins :: Zipper (Aligned prim) (SFix prim) x
+  Ins :: SZip (Aligned prim) (SFix prim) (Rep x)
       -> Aligned prim x 
   Spn :: SRep (Aligned prim) (Rep x)
       -> Aligned prim x
@@ -127,22 +134,32 @@ alignChg (Chg d i) = syncAnnot (annotStiffness d) (annotStiffness i)
 align :: Patch prim x -> Holes prim (Aligned prim) x
 align = holesMap alignChg
 
+getAnn' :: (forall x . phi x -> String)
+        -> HolesAnn prim phi h a
+        -> String
+getAnn' f (Hole' ann _) = "H: " ++ f ann
+getAnn' f (Prim' ann _) = "P: " ++ f ann
+getAnn' f (Roll' ann _) = "R: " ++ f ann
+
 -- |Given a SRep; check if all holes but one are stiff;
 -- if so, cast it to a plug.
 syncCast :: forall prim phi t
           . HolesAnn prim IsStiff phi t
-         -> Maybe (Zipper (HolesAnn prim IsStiff phi) (SFix prim) t)
+         -> Maybe (SZip (HolesAnn prim IsStiff phi) (SFix prim) (Rep t))
 syncCast (Hole' _ _) = Nothing
 syncCast (Prim' _ _) = Nothing
-syncCast (Roll' _ r) = zipperFrom myCheck myCast r
+syncCast (Roll' _ r) =
+  let anns = map (exElim (getAnn' (show . getConst))) $ repLeavesList r
+   in trace (show anns) $ zipperFrom myCheck myCast r
   where
     myCheck :: HolesAnn prim IsStiff phi x
-            -> Maybe (t :~: x , HolesAnn prim IsStiff phi x)
-    myCheck (Prim' _ x) = trace ("Prim " ++ show x) Nothing
-    myCheck (Hole' _ _) = trace "B" Nothing
+            -> Maybe ({- t :~: x , -} HolesAnn prim IsStiff phi x)
+    myCheck (Prim' _ x) = Nothing
+    myCheck (Hole' _ _) = Nothing
     myCheck h@(Roll' ann x)
       | getConst ann = Nothing
-      | otherwise    = Just (unsafeCoerce Refl , h)
+      | repDatatypeName r == repDatatypeName x = Just ({- unsafeCoerce Refl , -} h)
+      | otherwise = Nothing
 
     myCast :: HolesAnn prim IsStiff phi x
            -> SFix prim x
@@ -151,12 +168,12 @@ syncCast (Roll' _ r) = zipperFrom myCheck myCast r
 syncAnnot :: HolesAnn prim IsStiff MetaVar t
           -> HolesAnn prim IsStiff MetaVar t
           -> Aligned prim t 
-syncAnnot a b =
+syncAnnot a b = -- trace ("trying ins of: " ++ show b) $
   case syncCast a of
     Nothing  -> case syncCast b of
       Nothing  -> syncSpine a b
-      Just res -> Ins (zipperMap (\(Refl :*: b') -> Refl :*: syncAnnot a b') res)
-    Just res   -> Del (zipperMap (\(Refl :*: a') -> Refl :*: syncAnnot a' b) res)
+      Just res -> Ins (zipperMap (\b' -> syncAnnot (unsafeCoerce a) b') res)
+    Just res   -> Del (zipperMap (\a' -> syncAnnot a' (unsafeCoerce b)) res)
 
 syncSpine :: HolesAnn prim IsStiff MetaVar t
           -> HolesAnn prim IsStiff MetaVar t
@@ -171,3 +188,36 @@ syncSpine a b = Mod (Chg (dropAnn a) (dropAnn b))
 dropAnn :: HolesAnn prim ann phi t -> Holes prim phi t
 dropAnn = holesMapAnn id (const U1)
 
+---------------------
+--------------------
+
+asrD :: Doc AnsiStyle -> Doc AnsiStyle
+asrD d = annotate myred $ group
+       $ sep [pretty "[-" , d , pretty "-]"]
+
+asrI :: Doc AnsiStyle -> Doc AnsiStyle
+asrI d = annotate mygreen $ group
+       $ sep [pretty "[+" , d , pretty "+]"]
+
+alignedPretty :: Aligned prim x -> Doc AnsiStyle
+alignedPretty (Del x)
+  = (zipperPretty
+         (\(r) -> alignedPretty r)
+         (asrD . holesPretty (const mempty))
+         x)
+alignedPretty (Ins x)
+  = (zipperPretty
+         (\(r) -> alignedPretty r)
+         (asrI . holesPretty (const mempty))
+         x)
+alignedPretty (Spn x)
+  = repPretty alignedPretty x
+alignedPretty (Mod c)
+  = chgPretty c
+  
+alignedPretty' :: Aligned prim x -> Doc AnsiStyle
+alignedPretty' a = vsep [pretty "[[[[[" , alignedPretty a , pretty "]]]]]"]
+
+
+instance Show (Holes prim (Aligned prim) x) where
+  show = myRender . holesPretty alignedPretty'

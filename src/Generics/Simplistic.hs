@@ -403,7 +403,7 @@ synthesize f g h = runIdentity
                                (\ann -> return . h ann)
 
 botElim :: V1 x -> a
-botElim _ = undefined
+botElim _ = error "botElim"
 
 ----------------------------------
 -- Anti unification is so simple it doesn't

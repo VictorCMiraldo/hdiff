@@ -28,6 +28,8 @@ import qualified Data.Set as S
 import Generics.Simplistic
 import Generics.Simplistic.Util
 
+import Debug.Trace
+
 data SZip h w f where
   Z_U1    ::                              SZip h w U1
   Z_L1    ::                SZip h w f -> SZip h w (f :+: g)
@@ -83,37 +85,33 @@ zipperFrom f g r = case runState (go r) False of
             Nothing -> return (Just $ Z_PairL rx (repMap g y))
 -}
 
-type Zipper h w x = SZip (((:~:) x) :*: h) w (Rep x)
-
 zipperFrom :: forall phi h psi t
-            . (forall x . phi x -> Maybe (t :~: x , h x))
+            . (forall x . phi x -> Maybe (h x))
            -> (forall x . phi x -> psi x)
-           -> SRep phi (Rep t)
-           -> Maybe (Zipper h psi t)
-zipperFrom f g r = case runState (go r) False of
-                     (Just res , True) -> Just res
+           -> SRep phi t
+           -> Maybe (SZip h psi t)
+zipperFrom f g r = case runStateT (go r) False of
+                     Just (res , True) -> Just res
                      _                 -> Nothing
   where
-    go :: SRep phi g -> State Bool (Maybe (SZip (((:~:) t) :*: h) psi g))
-    go  S_U1      = return (Just Z_U1)
-    go (S_L1 x)   = fmap Z_L1     <$> go x
-    go (S_R1 x)   = fmap Z_R1     <$> go x
-    go (S_M1 c x) = fmap (Z_M1 c) <$> go x
+    go :: SRep phi g -> StateT Bool Maybe (SZip h psi g)
+    go  S_U1      = return Z_U1
+    go (S_L1 x)   = Z_L1   <$> go x
+    go (S_R1 x)   = Z_R1   <$> go x
+    go (S_M1 c x) = Z_M1 c <$> go x
     go (S_K1 x) = case f x of
-        Nothing -> return (Just $ Z_KT $ g x)
-        Just (prf , x') -> do
-          rdy <- get
-          if rdy then return Nothing -- we already found sthing
-                 else put True >> return (Just $ Z_KH (prf :*: x'))
+        Nothing -> return (Z_KT $ g x)
+        Just x' -> do
+          found <- get
+          if found then lift Nothing -- we already found sthing
+                   else (put True) >> return (Z_KH x')
     go (x :**: y) = do
       x' <- go x
-      case x' of
-        Nothing -> fmap (Z_PairR (repMap g x)) <$> go y
-        Just rx -> do
-          y' <- go y
-          case y' of
-            Just _  -> return Nothing -- two were found
-            Nothing -> return (Just $ Z_PairL rx (repMap g y))
+      xfound <- get
+      y' <- go y
+      if xfound
+      then return (Z_PairL x' (repMap g y))
+      else return (Z_PairR (repMap g x) y')
 
 
 -------------------
