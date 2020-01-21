@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE UndecidableSuperClasses  #-}
@@ -447,3 +448,40 @@ class HasDecEq fam where
       go Here       Here      = Just Refl
       go (There rr) (There y) = go rr y
       go _          _         = Nothing
+
+--------------------------------
+
+{- Example -}
+
+data RTree = String :>: [RTree]
+  deriving (Eq , Show)
+
+height :: RTree -> Int
+height (_ :>: []) = 0
+height (_ :>: ns) = 1 + maximum (map height ns)
+
+-- Workflow: use
+--   getTypesInvolved [ ''String ] [t| RTree |]
+-- Then inspect the result,
+--   :i TypesInvolved
+-- get the list of types; then use emacs macros!
+
+type RTreePrims = '[ String ]
+type RTreeFam   = '[ RTree , [RTree] ]
+
+deriving instance Generic RTree
+instance Deep RTreeFam RTreePrims RTree 
+instance Deep RTreeFam RTreePrims [ RTree ]
+instance HasDecEq RTreeFam where
+
+test = sameTy (Proxy :: Proxy RTreeFam)
+              (Proxy :: Proxy RTree)
+              (Proxy :: Proxy RTree)
+              
+
+dfromRTree :: RTree -> SFix RTreeFam RTreePrims RTree
+dfromRTree = dfrom
+
+dtoRTree :: SFix RTreeFam RTreePrims RTree -> RTree
+dtoRTree = dto
+
