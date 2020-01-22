@@ -73,6 +73,7 @@ substLkup sigma var =
     -- In case we found something, it must be of the same
     -- type as what we got because we only insert
     -- well-typed things.
+    -- TODO: Use our sameTy method to remove the unsafeCoerce
     Just (Exists t) -> Just $ unsafeCoerce t
 
 -- |Applies a substitution to a term; Variables not in the
