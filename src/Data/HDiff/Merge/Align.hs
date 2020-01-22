@@ -217,16 +217,16 @@ asrI d = annotate mygreen $ group
 
 alignedPretty :: Aligned fam prim x -> Doc AnsiStyle
 alignedPretty (Del x)
-  = asrD (zipperPretty sfixPretty alignedPretty x)
+  = zipperPretty sfixPretty alignedPretty asrD x
 alignedPretty (Ins x)
-  = asrI (zipperPretty sfixPretty alignedPretty x)
+  = zipperPretty sfixPretty alignedPretty asrI x
 alignedPretty (Spn x)
   = repPretty alignedPretty x
 alignedPretty (Mod c)
   = chgPretty c
 
 alignedPretty' :: Aligned fam prim x -> Doc AnsiStyle
-alignedPretty' a = vsep [pretty "[[[[[" , alignedPretty a , pretty "]]]]]"]
+alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
 
 
 instance Show (Holes fam prim (Aligned fam prim) x) where

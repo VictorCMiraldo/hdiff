@@ -386,6 +386,22 @@ r21 = "x" :>: leaves ["N1" , "B" , "C" , "D'" , "N2" , "E"]
 t21 :: TestCase
 t21 = ((a21 , o21 , b21) , const $ Just r21)
 
+------------------------
+-- Example 22
+
+a22 , o22 , b22 , r22 :: RTree
+
+a22 = "x" :>: leaves ["A" , "N1" , "C" , "B" , "D" , "N2" , "E"]
+o22 = "x" :>: leaves ["A" , "B" , "C", "D" , "E"]
+b22 = "x" :>: leaves ["B" , "C" , "D'" , "E"]
+
+r22 = "x" :>: leaves ["N1" , "B" , "C" , "D'" , "N2" , "E"]
+
+t22 :: TestCase
+t22 = ((a22 , o22 , b22) , const $ Just r22)
+
+----------------------
+
 dset = [ [ a1, o1, b1 ]
        , [ a2, o2, b2 ]
        , [ a3, o3, b3 ]
@@ -400,6 +416,7 @@ dset = [ [ a1, o1, b1 ]
        , [ a18, o18, b18 ]
        , [ a19, o19, b19 ]
        , [ a21, o21, b21 ]
+       , [ a22, o22, b22 ]
        ]
 
 failset = [ [ a10, o10, b10 ]
@@ -489,6 +506,9 @@ ob20 = myHdiffRTree o20 b20
 
 oa21 = myHdiffRTree o21 a21
 ob21 = myHdiffRTree o21 b21
+
+oa22 = myHdiffRTree o22 a22
+ob22 = myHdiffRTree o22 b22
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
