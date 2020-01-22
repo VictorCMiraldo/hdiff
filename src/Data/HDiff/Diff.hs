@@ -116,7 +116,7 @@ extractSpine dopq meta maxI dx dy
           -> State Int (Holes prim (Holes2 prim (MetaVar)) b)
    noCopy kik = return (Prim kik)
                         
-   doCopy :: (Elem b prim)
+   doCopy :: (PrimCnstr b prim)
           => b -> State Int (Holes prim (Holes2 prim (MetaVar)) b)
    doCopy _ = do
      i <- get
