@@ -451,7 +451,7 @@ class HasDecEq fam where
 
 --------------------------------
 
-{- Example -}
+{- Example 
 
 data RTree = String :>: [RTree]
   deriving (Eq , Show)
@@ -485,3 +485,4 @@ dfromRTree = dfrom
 dtoRTree :: SFix RTreeFam RTreePrims RTree -> RTree
 dtoRTree = dto
 
+-}

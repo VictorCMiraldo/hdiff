@@ -29,7 +29,7 @@ extractHoles :: All Digestible prim
              -> CanShare fam prim
              -> IsSharedMap
              -> Delta (PrepFix a fam prim) at
-             -> Delta (Holes fam prim MetaVar) at
+             -> Delta (Holes fam prim (MetaVar fam prim)) at
 extractHoles DM_NoNested h tr sd
   = extractNoNested h tr sd
 extractHoles DM_ProperShare h tr (src :*: dst)
@@ -43,7 +43,7 @@ extractProperShare :: (All Digestible prim)
                    => CanShare fam prim
                    -> IsSharedMap
                    -> PrepFix a fam prim at
-                   -> Holes fam prim MetaVar at
+                   -> Holes fam prim (MetaVar fam prim) at
 extractProperShare h tr a = properShare h tr (tagProperShare tr a)
 
 tagProperShare :: forall a fam prim at
@@ -73,7 +73,7 @@ properShare :: forall fam prim at
              . CanShare fam prim 
             -> IsSharedMap
             -> PrepFix (Int , Bool) fam prim at
-            -> Holes fam prim MetaVar at
+            -> Holes fam prim (MetaVar fam prim) at
 properShare _ _ (PrimAnn _ k) = Prim k
 properShare h tr pr@(SFixAnn ann _)
   = let prep  = getConst ann
@@ -82,14 +82,14 @@ properShare h tr pr@(SFixAnn ann _)
         then properShare' pr
         else case T.lookup (toW64s $ treeDigest prep) tr of
                Nothing -> properShare' pr
-               Just i  -> Hole (Const $ getMetavar i) 
+               Just i  -> Hole (MV_Comp $ getMetavar i) 
   where
     -- TODO: Abstract the properShare', noNested' and patience'
     -- into a single function, remove 'CanShare' from these specific functions
     -- and make the life of whoever is making an extraction strategy
     -- simpler.
     properShare' :: PrepFix (Int , Bool) fam prim at
-                 -> Holes fam prim MetaVar at
+                 -> Holes fam prim (MetaVar fam prim) at
     properShare' (SFixAnn _ d) = Roll (repMap (properShare h tr) d) -- HPeel' c (mapNP (properShare h tr) d)
 
 -- ** Patience
@@ -97,25 +97,25 @@ properShare h tr pr@(SFixAnn ann _)
 extractPatience :: CanShare fam prim 
                 -> IsSharedMap
                 -> PrepFix a fam prim at
-                -> Holes fam prim MetaVar at
+                -> Holes fam prim (MetaVar fam prim) at
 extractPatience h tr a = patience h tr a
 
 patience :: forall fam prim at a
           . CanShare fam prim
          -> IsSharedMap
          -> PrepFix a fam prim at
-         -> Holes fam prim MetaVar at
+         -> Holes fam prim (MetaVar fam prim) at
 patience _ _ (PrimAnn _ k) = Prim k
 patience h tr pr@(SFixAnn ann _)
   = if not (h pr)
     then patience' pr
     else case T.lookup (toW64s $ treeDigest $ getConst ann) tr of
            Nothing -> patience' pr
-           Just i | getArity i == 2 -> Hole (Const $ getMetavar i)
+           Just i | getArity i == 2 -> Hole (MV_Comp $ getMetavar i)
                   | otherwise       -> patience' pr
   where
     patience' :: PrepFix a fam prim at
-              -> Holes fam prim MetaVar at
+              -> Holes fam prim (MetaVar fam prim) at
     patience' (PrimAnn _ k) = Prim k
     patience' (SFixAnn _ d) = Roll (repMap (patience h tr) d) 
 
@@ -125,7 +125,7 @@ patience h tr pr@(SFixAnn ann _)
 extractNoNested :: CanShare fam prim 
                 -> IsSharedMap
                 -> Delta (PrepFix a fam prim) at
-                -> Delta (Holes fam prim MetaVar) at
+                -> Delta (Holes fam prim (MetaVar fam prim)) at
 extractNoNested h tr (src :*: dst)
   = let del'  = noNested h tr src
         ins'  = noNested h tr dst
@@ -141,9 +141,11 @@ extractNoNested h tr (src :*: dst)
 
     refineHole :: S.Set Int
                -> (Const Int :*: PrepFix a fam prim) ix
-               -> Holes fam prim MetaVar ix
+               -> Holes fam prim (MetaVar fam prim) ix
     refineHole s (Const i :*: f)
-      | i `S.member` s = Hole (Const i)
+      | i `S.member` s = case f of
+                           (SFixAnn _ _) -> Hole (MV_Comp i)
+                           (PrimAnn _ _) -> Hole (MV_Prim i)
       | otherwise      = holesMapAnn (error "imp: void") (const U1) f 
 
 noNested :: forall fam prim at a

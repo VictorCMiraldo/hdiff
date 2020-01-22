@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE PolyKinds             #-}
@@ -12,26 +13,40 @@
 module Data.HDiff.MetaVar where
 
 import Data.Function (on)
-import Data.Functor.Const
 --------------------------------------
+import Generics.Simplistic
 import Generics.Simplistic.Util
 --------------------------------------
 
-type MetaVar = Const Int
+-- |I'm making MetaVar back into a NA-like type
+-- because I want to get more information when
+-- aligning edits before merging; thats really the only reason.
+data MetaVar fam prim at where
+  MV_Prim :: (PrimCnstr fam prim at)
+          => Int -> MetaVar fam prim at
+  MV_Comp :: (CompoundCnstr fam prim at)
+          => Int -> MetaVar fam prim at
+deriving instance Eq  (MetaVar fam prim at)
+deriving instance Ord (MetaVar fam prim at)
+          
+metavarGet :: MetaVar fam prim at -> Int
+metavarGet (MV_Prim i) = i
+metavarGet (MV_Comp i) = i
 
-metavarGet :: MetaVar at -> Int
-metavarGet = getConst
+metavarSet :: Int -> MetaVar fam prim at -> MetaVar fam prim at
+metavarSet x (MV_Prim _) = MV_Prim x
+metavarSet x (MV_Comp _) = MV_Comp x
 
-metavarSet :: Int -> MetaVar at -> MetaVar at
-metavarSet x (Const _) = Const x
+metavarAdd :: Int -> MetaVar fam prim at -> MetaVar fam prim at
+metavarAdd n v = metavarSet (n + metavarGet v) v 
 
-metavarAdd :: Int -> MetaVar at -> MetaVar at
-metavarAdd n (Const i) = Const (n + i)
+instance EqHO (MetaVar fam prim) where
+  eqHO = (==)
 
-instance Eq (Exists MetaVar) where
+instance Eq (Exists (MetaVar fam prim)) where
   (==) = (==) `on` (exElim metavarGet)
 
-instance Ord (Exists MetaVar) where
+instance Ord (Exists (MetaVar fam prim)) where
   compare = compare `on` (exElim metavarGet)
 
 {-

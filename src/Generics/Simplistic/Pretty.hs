@@ -54,10 +54,9 @@ instance Show (SFix fam prim a) where
 -----------------------------
 -- Zipper stuff
 
-zipperPretty :: (forall x . h   x -> Doc ann)
-             -> (forall x . phi x -> Doc ann)
+szipPretty :: (forall x . phi x -> Doc ann)
              -> SZip h phi f -> Doc ann
-zipperPretty f g x =
+szipPretty f x =
   let c  = zipConstructorName x
       xs = zipLeavesList x
       parens = if length xs == 0 then id else PP.parens
@@ -65,6 +64,15 @@ zipperPretty f g x =
                $ PP.nest 1
                $ PP.sep
                $ (PP.pretty c:)
-               $ map (exElim (either'' f g)) xs
+               $ map (maybe doHole (exElim f)) xs
+  where
+    doHole :: Doc ann
+    doHole = PP.pretty "[#]"
 
+zipperPretty :: (forall x . f x -> Doc ann)
+             -> (forall x . g x -> Doc ann)
+             -> Zipper f g t -> Doc ann
+zipperPretty pf pg (Zipper z x)
+  = PP.group $ PP.sep [szipPretty pf z
+                     , PP.group (PP.sep [PP.pretty "# =" , pg x])]
 

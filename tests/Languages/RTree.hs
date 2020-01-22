@@ -44,15 +44,17 @@ height (_ :>: ns) = 1 + maximum (map height ns)
 -- get the list of types; then use emacs macros!
 
 type RTreePrims = '[ String ]
+type RTreeFam   = '[ RTree , [RTree] ]
 
 deriving instance Generic RTree
-instance Deep RTreePrims RTree 
-instance Deep RTreePrims [ RTree ]
+instance Deep RTreeFam RTreePrims RTree 
+instance Deep RTreeFam RTreePrims [ RTree ]
+instance HasDecEq RTreeFam where
 
-dfromRTree :: RTree -> SFix RTreePrims RTree
+dfromRTree :: RTree -> SFix RTreeFam RTreePrims RTree
 dfromRTree = dfrom
 
-dtoRTree :: SFix RTreePrims RTree -> RTree
+dtoRTree :: SFix RTreeFam RTreePrims RTree -> RTree
 dtoRTree = dto
 
 

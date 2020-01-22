@@ -33,9 +33,9 @@ spliced :: Doc ann -> Doc ann
 spliced d = pretty "#" <> d
 
 metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle)
-              -> D.MetaVar ix -> Doc AnsiStyle
-metavarPretty sty (Const i) 
-  = sty $ spliced (pretty i)
+              -> D.MetaVar fam prim ix -> Doc AnsiStyle
+metavarPretty sty v
+  = sty $ spliced (pretty (D.metavarGet v))
 
 {-
 instance {-# OVERLAPING #-} (ShowHO phi)
@@ -44,17 +44,17 @@ instance {-# OVERLAPING #-} (ShowHO phi)
 -}
 
 instance {-# OVERLAPPABLE #-} (ShowHO ann , ShowHO phi)
-    => Show (HolesAnn prim ann phi x) where
+    => Show (HolesAnn fam prim ann phi x) where
   show = myRender . holesAnnPretty (pretty . showHO) addAnn
     where
       addAnn ann d = sep [pretty "<" , pretty (showHO ann) , pretty "|" , d , pretty ">"]
 
-instance ShowHO (Holes prim D.MetaVar) where
+instance ShowHO (D.HolesMV fam prim) where
   showHO = myRender . holesPretty (metavarPretty id)
 
 
 
-instance Show (Holes prim D.MetaVar x) where
+instance Show (D.HolesMV fam prim x) where
   show = myRender . holesPretty (metavarPretty id)
 
 -- when using emacs, the output of the repl is in red;
@@ -66,7 +66,7 @@ mygreen     = colorDull Green
 mydullred   = colorDull Yellow
 mydullgreen = colorDull Green
 
-chgPretty :: D.Chg prim x
+chgPretty :: D.Chg fam prim x
           -> Doc AnsiStyle
 chgPretty (D.Chg d i)
   = group $ braces $ sep [group (chgD d) , group (chgI i) ]
@@ -90,10 +90,10 @@ confPretty (D.Conflict _ c d)
          , pretty "<<<<<<< !!}"]
 -}
 
-instance Show (D.Chg prim x) where
+instance Show (D.Chg fam prim x) where
   show = myRender . chgPretty
 
-instance Show (D.Patch prim x) where
+instance Show (D.Patch fam prim x) where
   show = myRender . holesPretty chgPretty
 
 {-

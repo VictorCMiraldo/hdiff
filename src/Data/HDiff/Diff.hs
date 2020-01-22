@@ -91,7 +91,7 @@ buildSharingTrie opts x y
 --  /"copy"/ changes
 extractSpine :: forall fam prim phi at
               . DiffOpaques
-             -> (forall ix . phi ix -> MetaVar ix)
+             -> (forall ix . phi ix -> MetaVar fam prim ix)
              -> Int
              -> Holes fam prim phi at
              -> Holes fam prim phi at
@@ -102,7 +102,7 @@ extractSpine dopq meta maxI dx dy
   $ lcp dx dy
  where
    issueOpqCopiesSpine :: Holes fam prim (Holes2 fam prim phi) at
-                       -> Holes fam prim (Holes2 fam prim (MetaVar)) at
+                       -> Holes fam prim (Holes2 fam prim (MetaVar fam prim)) at
    issueOpqCopiesSpine
      = flip evalState maxI
      . holesRefineM (\(x :*: y) -> return $ Hole $ holesMap meta x
@@ -113,15 +113,15 @@ extractSpine dopq meta maxI dx dy
 
    noCopy :: (PrimCnstr fam prim b)
           => b
-          -> State Int (Holes fam prim (Holes2 fam prim (MetaVar)) b)
+          -> State Int (Holes fam prim (Holes2 fam prim (MetaVar fam prim)) b)
    noCopy kik = return (Prim kik)
                         
-   doCopy :: (Elem b prim)
-          => b -> State Int (Holes fam prim (Holes2 fam prim (MetaVar)) b)
+   doCopy :: (PrimCnstr fam prim b)
+          => b -> State Int (Holes fam prim (Holes2 fam prim (MetaVar fam prim)) b)
    doCopy _ = do
      i <- get
      put (i+1)
-     return $ Hole (Hole (Const i) :*: Hole (Const i))
+     return $ Hole (Hole (MV_Prim i) :*: Hole (MV_Prim i))
 
 
 -- |Diffs two generic merkelized structures.
@@ -139,7 +139,7 @@ diffOpts' :: forall fam prim at
           => DiffOptions
           -> SFix fam prim at
           -> SFix fam prim at
-          -> (Int , Delta (Holes fam prim MetaVar) at)
+          -> (Int , Delta (Holes fam prim (MetaVar fam prim)) at)
 diffOpts' opts x y
   = let dx      = preprocess x
         dy      = preprocess y

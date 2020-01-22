@@ -31,19 +31,20 @@ import           Data.HDiff.Show
 trace :: x -> a -> a
 trace _ = id
 
+
 -- |This is specific to merging; which is why we left it here.
 -- When instantiatting a deletion context against a patch,
 -- we do /not/ fail when the deletion context requires something
 -- but the patch is a permutation.
-instM :: forall prim at  
-       . Holes prim MetaVar at
-      -> Patch prim at
-      -> ExceptT String (MergeM prim) ()
+instM :: forall fam prim at  
+       . Holes fam prim (MetaVar fam prim) at
+      -> Patch fam prim at
+      -> ExceptT String (MergeM fam prim) ()
 instM p = void . holesMapM (\h -> uncurry' go h >> return h) . lcp p
   where
-    go :: Holes prim MetaVar ix
-       -> Patch prim ix
-       -> ExceptT String (MergeM prim) ()
+    go :: Holes fam prim (MetaVar fam prim) ix
+       -> Patch fam prim ix
+       -> ExceptT String (MergeM fam prim) ()
     go (Hole v) x = do
       iota <- get
       case instAdd iota v x of
@@ -54,38 +55,38 @@ instM p = void . holesMapM (\h -> uncurry' go h >> return h) . lcp p
     go _ _ = throwError $ "Symbol Clash"
 
 
-type MergeState prim = Inst (Patch prim)
+type MergeState fam prim = Inst (Patch fam prim)
 
-mergeState0 :: MergeState prim
+mergeState0 :: MergeState fam prim
 mergeState0 = M.empty
 
-type MergeM prim = State (MergeState prim)
+type MergeM fam prim = State (MergeState fam prim)
 
-data Conflict :: [ * ] -> * -> * where
-  FailedContr :: [Exists MetaVar]
-              -> Conflict prim at
+data Conflict :: [*] -> [*] -> * -> * where
+  FailedContr :: [Exists (MetaVar fam prim)]
+              -> Conflict fam prim at
   
   Conflict :: String
-           -> Chg prim at
-           -> Chg prim at
-           -> Conflict prim at
+           -> Chg fam prim at
+           -> Chg fam prim at
+           -> Conflict fam prim at
 
-data Phase2 :: [ * ] -> * -> * where
+data Phase2 :: [*] -> [*] -> * -> * where
   -- |A instantiation needs to be done after we completed the information
   --  discovery phase.
-  P2Instantiate :: Chg prim at
-                -> Phase2 prim at
+  P2Instantiate :: Chg fam prim at
+                -> Phase2 fam prim at
   
   -- |Sometimes we must decide whether we are looking into the same change or not.
-  P2TestEq      :: Chg prim at
-                -> Chg prim at
-                -> Phase2 prim at
+  P2TestEq      :: Chg fam prim at
+                -> Chg fam prim at
+                -> Phase2 fam prim at
 
 type C ki fam codes at = (EqHO ki , TestEquality ki)
 
-merge :: Patch prim at
-      -> Patch prim at
-      -> Holes prim (Sum (Conflict prim) (Chg prim)) at
+merge :: Patch fam prim at
+      -> Patch fam prim at
+      -> Holes fam prim (Sum (Conflict fam prim) (Chg fam prim)) at
 merge oa ob =
   let oab          = lcp oa ob
       (aux , inst) = runState (holesMapM (uncurry' phase1) oab) M.empty
@@ -94,37 +95,37 @@ merge oa ob =
         Right di -> holesMap (phase2' di) aux
 
 -- |A 'PatchC' is a patch with potential conflicts inside
-type PatchC prim at
-  = Holes prim (Sum (Conflict prim) (Chg prim)) at
+type PatchC fam prim at
+  = Holes fam prim (Sum (Conflict fam prim) (Chg fam prim)) at
 
-noConflicts :: PatchC prim ix -> Maybe (Patch prim ix)
+noConflicts :: PatchC fam prim ix -> Maybe (Patch fam prim ix)
 noConflicts = holesMapM rmvInL
   where
     rmvInL (InL _) = Nothing
     rmvInL (InR x) = Just x
 
-getConflicts :: PatchC prim ix -> [Exists (Conflict prim)]
+getConflicts :: PatchC fam prim ix -> [Exists (Conflict fam prim)]
 getConflicts = foldr act [] . holesHolesList
   where
-    act :: Exists (Sum (Conflict prim) (Chg prim))
-        -> [Exists (Conflict prim)]
-        -> [Exists (Conflict prim)]
+    act :: Exists (Sum (Conflict fam prim) (Chg fam prim))
+        -> [Exists (Conflict fam prim)]
+        -> [Exists (Conflict fam prim)]
     act (Exists (InR _)) = id
     act (Exists (InL c)) = (Exists c :)
 
-diff3 :: forall prim ix
-       . Patch prim ix
-      -> Patch prim ix
-      -> PatchC prim ix
+diff3 :: forall fam prim ix
+       . Patch fam prim ix
+      -> Patch fam prim ix
+      -> PatchC fam prim ix
 diff3 oa ob = merge oa (ob `withFreshNamesFrom` oa)
 
-type Subst2 prim = ( Subst prim MetaVar
-                       , Subst prim MetaVar)
+type Subst2 fam prim = ( Subst fam prim (MetaVar fam prim)
+                       , Subst fam prim (MetaVar fam prim))
 
-makeDelInsMaps :: forall prim
-                . MergeState prim
-               -> Either [Exists MetaVar]
-                         (Subst2 prim)
+makeDelInsMaps :: forall fam prim
+                . MergeState fam prim
+               -> Either [Exists (MetaVar fam prim)]
+                         (Subst2 fam prim)
 makeDelInsMaps iota =
   let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iota
       si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iota
@@ -134,41 +135,41 @@ makeDelInsMaps iota =
     
     return (d , i)
  where
-   toSubst :: [(Int , Exists (Holes prim MetaVar))]
-           -> Subst prim MetaVar
+   toSubst :: [(Int , Exists (Holes fam prim (MetaVar fam prim)))]
+           -> Subst fam prim (MetaVar fam prim)
    toSubst = M.fromList
            . map (\(i , Exists h) -> (Exists (mkVar i h) , Exists h))
 
-   mkVar :: Int -> Holes prim MetaVar at -> MetaVar at
-   mkVar vx (Prim _) = Const vx
+   mkVar :: Int -> Holes fam prim (MetaVar fam prim) at -> MetaVar fam prim at
+   mkVar vx (Prim _) = MV_Prim vx
    mkVar vx (Hole v) = metavarSet vx v
-   mkVar vx (Roll _) = Const vx
+   mkVar vx (Roll _) = MV_Comp vx
         
-phase2' :: Subst2 prim
-        -> Sum (Conflict prim) (Phase2 prim) at
-        -> Sum (Conflict prim) (Chg prim) at
+phase2' :: Subst2 fam prim
+        -> Sum (Conflict fam prim) (Phase2 fam prim) at
+        -> Sum (Conflict fam prim) (Chg fam prim) at
 phase2' _  (InL c) = InL c
 phase2' di (InR x) = phase2 di x
 
 
-phase2 :: Subst2 prim
-       -> Phase2 prim at
-       -> Sum (Conflict prim) (Chg prim) at
+phase2 :: Subst2 fam prim
+       -> Phase2 fam prim at
+       -> Sum (Conflict fam prim) (Chg fam prim) at
 phase2 di (P2Instantiate chg) = InR $ chgrefine di chg
 phase2 di (P2TestEq ca cb)    = chgeq di ca cb
 
-chgrefine :: Subst2 prim
-          -> Chg prim at
-          -> Chg prim at
+chgrefine :: Subst2 fam prim
+          -> Chg fam prim at
+          -> Chg fam prim at
 chgrefine (d , i) (Chg del ins) =
   let del' = substApply d del
       ins' = substApply i ins
    in Chg del' ins'
 
-chgeq :: Subst2 prim
-      -> Chg prim at
-      -> Chg prim at
-      -> Sum (Conflict prim) (Chg prim) at
+chgeq :: Subst2 fam prim
+      -> Chg fam prim at
+      -> Chg fam prim at
+      -> Sum (Conflict fam prim) (Chg fam prim) at
 chgeq di ca cb = 
   let ca' = chgrefine di ca
       cb' = chgrefine di cb
@@ -177,9 +178,9 @@ chgeq di ca cb =
      else InL (Conflict "not-eq" ca' cb')
 
 
-phase1 :: Patch prim at
-       -> Patch prim at
-       -> MergeM prim (Sum (Conflict prim) (Phase2 prim) at)
+phase1 :: Patch fam prim at
+       -> Patch fam prim at
+       -> MergeM fam prim (Sum (Conflict fam prim) (Phase2 fam prim) at)
 phase1 ca cb = do
   r <- runExceptT $ trace ("phase1:\n" ++ show ca ++ "\n" ++ show cb) (discover ca cb)
   return $ case r of
@@ -190,25 +191,25 @@ phase1 ca cb = do
    cb' = chgDistr cb
 
 
-discover :: Patch prim at
-         -> Patch prim at
-         -> ExceptT String (MergeM prim) (Phase2 prim at)
+discover :: Patch fam prim at
+         -> Patch fam prim at
+         -> ExceptT String (MergeM fam prim) (Phase2 fam prim at)
 discover (Hole ca) (Hole cb) = recChgChg ca cb
 discover ca        (Hole cb) = recApp    cb ca
 discover (Hole ca) cb        = recApp    ca cb
 discover _          _        = throwError "Not a span"
           
-recChgChg :: Chg prim at
-          -> Chg prim at
-          -> ExceptT String (MergeM prim) (Phase2 prim at)
+recChgChg :: Chg fam prim at
+          -> Chg fam prim at
+          -> ExceptT String (MergeM fam prim) (Phase2 fam prim at)
 recChgChg ca cb
   | perm ca   = recApp ca (Hole cb)
   | perm cb   = recApp cb (Hole ca)
   | otherwise = return $ P2TestEq ca cb
 
-recApp :: Chg prim at
-       -> Patch prim at
-       -> ExceptT String (MergeM prim) (Phase2 prim at)
+recApp :: Chg fam prim at
+       -> Patch fam prim at
+       -> ExceptT String (MergeM fam prim) (Phase2 fam prim at)
 recApp (Chg del ins) chg = do
   instM del chg
   return $ P2Instantiate (Chg del ins)

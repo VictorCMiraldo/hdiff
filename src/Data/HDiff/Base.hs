@@ -23,10 +23,12 @@ import Data.HDiff.MetaVar
 type Holes2 fam prim phi
   = (Holes fam prim phi :*: Holes fam prim phi)
 
+type HolesMV fam prim = Holes fam prim (MetaVar fam prim)
+
 -- |Alpha-equality for 'Holes2' with metavariables
 -- inside.
-holes2Eq :: Holes2 fam prim (MetaVar) at
-         -> Holes2 fam prim (MetaVar) at
+holes2Eq :: Holes2 fam prim (MetaVar fam prim) at
+         -> Holes2 fam prim (MetaVar fam prim) at
          -> Bool
 holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
  where
@@ -42,8 +44,8 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
    cast f b = (const (Const ())) <$> f b
 
    reg :: (Bool -> Cont Bool (Const () at))
-       -> Holes fam prim (MetaVar) at
-       -> Holes fam prim (MetaVar) at
+       -> Holes fam prim (MetaVar fam prim) at
+       -> Holes fam prim (MetaVar fam prim) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
    reg _ (Hole m1) (Hole m2) 
      = modify (M.insert (metavarGet m1) (metavarGet m2))
@@ -52,8 +54,8 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
      = lift $ exit False
 
    chk :: (Bool -> Cont Bool (Const () at))
-       -> Holes fam prim (MetaVar) at
-       -> Holes fam prim (MetaVar) at
+       -> Holes fam prim (MetaVar fam prim) at
+       -> Holes fam prim (MetaVar fam prim) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
    chk exit (Hole m1) (Hole m2) 
      = do st <- get
@@ -72,13 +74,13 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
 -- | Changes are pairs of context; one deletion
 -- and one insertion.
 data Chg fam prim at = Chg
-  { chgDel :: Holes fam prim MetaVar at
-  , chgIns :: Holes fam prim MetaVar at
+  { chgDel :: HolesMV fam prim at
+  , chgIns :: HolesMV fam prim at
   }
 
 -- | Translates from a change to an indexed product.
 unChg :: Chg fam prim at
-      -> Holes2 fam prim (MetaVar) at
+      -> Holes2 fam prim (MetaVar fam prim) at
 unChg (Chg d i) = d :*: i
 
 -- |Alpha equality for changes
@@ -100,7 +102,7 @@ instance EqHO (Chg fam prim) where
 
 -- |A 'Domain' is just a deletion context. Type-synonym helps us
 -- identify what's what on the algorithms below.
-type Domain fam prim = Holes fam prim MetaVar 
+type Domain fam prim = HolesMV fam prim
 
 -- * Patches
 --

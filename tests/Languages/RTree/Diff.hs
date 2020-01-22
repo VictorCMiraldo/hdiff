@@ -26,7 +26,7 @@ import Data.HDiff.Diff.Preprocess
 import Generics.Simplistic
 import Generics.Simplistic.Digest
 
-type PatchRTree = Patch RTreePrims RTree
+type PatchRTree = Patch RTreeFam RTreePrims RTree
 
 
 hdiffRTreeH :: Int -> RTree -> RTree -> PatchRTree
@@ -55,7 +55,7 @@ applyRTree p x = maybe (Left "applyRTree")
                        (Right . dtoRTree)
                $ patchApply p (dfromRTree x)
 
-applyRTreeC :: Chg RTreePrims RTree -> RTree -> Either String RTree
+applyRTreeC :: Chg RTreeFam RTreePrims RTree -> RTree -> Either String RTree
 applyRTreeC p x = applyRTree (Hole p) x
 
 applyRTree' :: PatchRTree -> RTree -> Maybe RTree
