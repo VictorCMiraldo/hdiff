@@ -222,6 +222,8 @@ makeDelInsMaps iota =
 mrgChg :: Chg fam prim x -> Chg fam prim x
        -> MergeM fam prim (Phase2 fam prim x)
 mrgChg (Chg dp ip) (Chg dq iq) = do
+  -- TODO; this was the core issue before; what guarantees I don't have it
+  -- now? I need to look into this.
   discover (holesMap (uncurry' Chg) $ lcp dp ip)
            (holesMap (uncurry' Chg) $ lcp dq iq)
   
