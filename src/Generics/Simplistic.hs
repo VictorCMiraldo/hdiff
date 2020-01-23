@@ -44,6 +44,7 @@ data SMeta i t where
   SM_C :: Constructor c => SMeta C c
   SM_S :: Selector    s => SMeta S s
 deriving instance Show (SMeta i t)
+deriving instance Eq   (SMeta i t)
 
 -- Dirty trick to access the dictionaries I need
 data SMetaI d f x = SMetaI
@@ -69,6 +70,7 @@ data SRep w f where
   S_K1   ::              w a      -> SRep w (K1 i a)
   S_M1   :: SMeta i t -> SRep w f -> SRep w (M1 i t f)
 deriving instance (forall a. Show (w a)) => Show (SRep w f)
+deriving instance (forall a. Eq   (w a)) => Eq   (SRep w f)
 
 repDatatypeName :: SRep w f -> String
 repDatatypeName (S_M1 x@SM_D _)
@@ -361,6 +363,9 @@ instance EqHO h => EqHO (Holes fam prim h) where
 
 instance EqHO V1 where
   eqHO _ _ = True
+
+instance EqHO h => Eq (Holes fam prim h t) where
+   (==) = eqHO
 
 -- Converting values to deep representations is easy and follows
 -- almost the usual convention; one top level class

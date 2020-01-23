@@ -11,6 +11,7 @@ import Data.HDiff.Base
 import Data.HDiff.Merge
 import Data.HDiff.Merge.Align
 import Data.HDiff.Diff
+import Data.HDiff.Show
 import Languages.RTree
 import Languages.RTree.Diff
 
@@ -395,7 +396,7 @@ a22 = "x" :>: leaves ["A" , "N1" , "C" , "B" , "D" , "N2" , "E"]
 o22 = "x" :>: leaves ["A" , "B" , "C", "D" , "E"]
 b22 = "x" :>: leaves ["B" , "C" , "D'" , "E"]
 
-r22 = "x" :>: leaves ["N1" , "B" , "C" , "D'" , "N2" , "E"]
+r22 = "x" :>: leaves ["N1" , "C" , "B" , "D'" , "N2" , "E"]
 
 t22 :: TestCase
 t22 = ((a22 , o22 , b22) , const $ Just r22)
@@ -536,6 +537,8 @@ unitTests = [  ("1"   , t1 )
             ,  ("17"  , t17)
             ,  ("18"  , t18)
             ,  ("19"  , t19)
+            ,  ("21"  , t21)
+            ,  ("22"  , t22)
             ]
 
 flipMergeArgs :: (String , TestCase) -> (String , TestCase)

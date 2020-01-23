@@ -19,6 +19,8 @@ import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
 import qualified Data.HDiff.MetaVar as D
+import qualified Data.HDiff.Merge   as D
+import qualified Data.HDiff.Merge.Align as D
 
 
 myRender :: Doc AnsiStyle -> String
@@ -77,18 +79,16 @@ chgPretty (D.Chg d i)
    chg f o c h
      = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
 
-{-
-confPretty :: D.Conflict prim x
+confPretty :: D.Conflict fam prim x
            -> Doc AnsiStyle
 confPretty (D.FailedContr vars)
   = group (pretty "{!!" <+> sep (map (pretty . exElim D.metavarGet) vars) <+> pretty "!!}")
-confPretty (D.Conflict _ c d)
-  = vcat [ pretty "{!! >>>>>>>"
-         , chgPretty c
+confPretty (D.Conflict lbl c d)
+  = vcat [ pretty "{!! >>>>>>>" <+> pretty lbl <+> pretty "<<<<<<<"
+         , alignedPretty c
          , pretty "==========="
-         , chgPretty d
-         , pretty "<<<<<<< !!}"]
--}
+         , alignedPretty d
+         , pretty ">>>>>>>" <+> pretty lbl <+> pretty "<<<<<<< !!}"]
 
 instance Show (D.Chg fam prim x) where
   show = myRender . chgPretty
@@ -96,12 +96,33 @@ instance Show (D.Chg fam prim x) where
 instance Show (D.Patch fam prim x) where
   show = myRender . holesPretty chgPretty
 
-{-
-instance Show (D.PatchC prim x) where
+instance Show (D.PatchC fam prim x) where
   show = myRender . holesPretty go
     where
       go x = case x of
                InL c -> confPretty c
                InR c -> chgPretty c
--}
 
+asrD :: Doc AnsiStyle -> Doc AnsiStyle
+asrD d = annotate myred $ group
+       $ sep [pretty "[-" , d , pretty "-]"]
+
+asrI :: Doc AnsiStyle -> Doc AnsiStyle
+asrI d = annotate mygreen $ group
+       $ sep [pretty "[+" , d , pretty "+]"]
+
+alignedPretty :: D.Aligned fam prim x -> Doc AnsiStyle
+alignedPretty (D.Del x)
+  = zipperPretty sfixPretty alignedPretty asrD x
+alignedPretty (D.Ins x)
+  = zipperPretty sfixPretty alignedPretty asrI x
+alignedPretty (D.Spn x)
+  = repPretty alignedPretty x
+alignedPretty (D.Mod c)
+  = chgPretty c
+
+alignedPretty' :: D.Aligned fam prim x -> Doc AnsiStyle
+alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
+
+instance Show (Holes fam prim (D.Aligned fam prim) x) where
+  show = myRender . holesPretty alignedPretty'

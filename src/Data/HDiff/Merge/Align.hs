@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -87,13 +88,14 @@ import Data.Functor.Sum
 import Data.Type.Equality
 import Data.Coerce
 import Control.Monad.State
+import Control.Monad.Identity
+import qualified Data.Map as M
 
 import Data.HDiff.Base
 import Data.HDiff.MetaVar
 
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Terminal
-import Data.HDiff.Show
 import Generics.Simplistic.Pretty
 
 import GHC.Generics
@@ -103,17 +105,62 @@ import Generics.Simplistic.Zipper
 
 import Unsafe.Coerce
 
-data Aligned fam prim x where
-  Del :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned fam prim)  x
-      -> Aligned fam prim x
-  Ins :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned fam prim) x
-      -> Aligned fam prim x 
+data Aligned' fam prim f x where
+  Del :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned' fam prim f)  x
+      -> Aligned' fam prim f x
+  Ins :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned' fam prim f) x
+      -> Aligned' fam prim f x 
   Spn :: (CompoundCnstr fam prim x)
-      => SRep (Aligned fam prim) (Rep x)
-      -> Aligned fam prim x
-  Mod :: Chg fam prim x
-      -> Aligned fam prim x
+      => SRep (Aligned' fam prim f) (Rep x)
+      -> Aligned' fam prim f x
+  Mod :: f x
+      -> Aligned' fam prim f x
 
+type Aligned fam prim = Aligned' fam prim (Chg fam prim)
+
+alignedMapM :: (Monad m)
+            => (forall x . f x -> m (g x))
+            -> Aligned' prim fam f ty
+            -> m (Aligned' prim fam g ty)
+alignedMapM f (Del (Zipper z h)) = (Del . Zipper z) <$> alignedMapM f h
+alignedMapM f (Ins (Zipper z h)) = (Ins . Zipper z) <$> alignedMapM f h
+alignedMapM f (Spn spn) = Spn <$> repMapM (alignedMapM f) spn
+alignedMapM f (Mod x)   = Mod <$> f x
+
+alignedMap :: (forall x . f x -> g x)
+           -> Aligned' prim fam f ty
+           -> Aligned' prim fam g ty
+alignedMap f = runIdentity . alignedMapM (return . f)
+
+-- |The multiset of variables used by a aligned.
+alignedVars :: Aligned fam prim at -> M.Map Int Arity
+alignedVars = flip execState M.empty . alignedMapM go
+  where
+    register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
+                 >> return mvar
+
+    go r@(Chg d i)
+      = holesMapM register d >> holesMapM register i >> return r
+
+alignedMaxVar :: Aligned fam prim at -> Maybe Int
+alignedMaxVar = fmap fst . M.lookupMax . alignedVars
+
+-- |Returns a aligned that is guaranteed to have
+-- distinci variable names from the first argument.
+withFreshNamesFrom' :: Aligned fam prim at
+                    -> Aligned fam prim at
+                    -> Aligned fam prim at
+withFreshNamesFrom' p q =
+  case alignedMaxVar q of
+    -- q has no variables!
+    Nothing -> p
+    Just v  -> alignedMap (changeAdd (v + 1)) p
+  where
+    changeAdd :: Int -> Chg fam prim at -> Chg fam prim at
+    changeAdd n (Chg del ins)
+      = Chg (holesMap (metavarAdd n) del)
+            (holesMap (metavarAdd n) ins)
+      
 ----------------------------------------------
 -- It is easy to disalign back into a change
 
@@ -210,7 +257,17 @@ syncAnnotD :: A fam prim -> A fam prim
 syncAnnotD f a b = 
   case syncCast a of
     Nothing           -> syncAnnotI f a b
-    Just (Zipper z r) -> Del (Zipper z (syncAnnotD f r b))
+    Just (Zipper za ra) ->
+      case syncCast b of
+        Nothing -> Del (Zipper za (syncAnnotD f ra b))
+        Just (Zipper zb rb) ->
+          -- have we found compatible zippers? if so, rather do a spine.
+          case zipSZip za zb of
+             Nothing  -> Del (Zipper za (Ins (Zipper zb (syncAnnotD f ra rb))))
+             Just res -> Spn $ plug (zipperMap mkMod res) (syncAnnotD f ra rb)
+  where
+    mkMod :: (SFix fam prim :*: SFix fam prim) t -> Aligned fam prim t
+    mkMod (d :*: i) = Mod (Chg (unsafeCoerce d) (unsafeCoerce i))
 
 syncAnnotI :: A fam prim -> A fam prim 
 syncAnnotI f a b = 
@@ -234,27 +291,3 @@ dropAnn = holesMapAnn id (const U1)
 --------------------
 --------------------
 
-asrD :: Doc AnsiStyle -> Doc AnsiStyle
-asrD d = annotate myred $ group
-       $ sep [pretty "[-" , d , pretty "-]"]
-
-asrI :: Doc AnsiStyle -> Doc AnsiStyle
-asrI d = annotate mygreen $ group
-       $ sep [pretty "[+" , d , pretty "+]"]
-
-alignedPretty :: Aligned fam prim x -> Doc AnsiStyle
-alignedPretty (Del x)
-  = zipperPretty sfixPretty alignedPretty asrD x
-alignedPretty (Ins x)
-  = zipperPretty sfixPretty alignedPretty asrI x
-alignedPretty (Spn x)
-  = repPretty alignedPretty x
-alignedPretty (Mod c)
-  = chgPretty c
-
-alignedPretty' :: Aligned fam prim x -> Doc AnsiStyle
-alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
-
-
-instance Show (Holes fam prim (Aligned fam prim) x) where
-  show = myRender . holesPretty alignedPretty'

@@ -126,6 +126,9 @@ patchEq p1 p2 = changeEq (chgDistr p1) (chgDistr p2)
 -- |How many times a variable occurs
 type Arity = Int
 
+-- TODO: Since patches are now scoped; we should
+-- be making these things change-wise
+
 -- |The multiset of variables used by a patch.
 patchVars :: Patch fam prim at -> M.Map Int Arity
 patchVars = flip execState M.empty . holesMapM go
