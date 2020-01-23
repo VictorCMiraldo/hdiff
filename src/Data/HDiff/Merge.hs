@@ -22,15 +22,88 @@ import           Data.Type.Equality
 import           Generics.Simplistic
 import           Generics.Simplistic.Util
 import           Generics.Simplistic.Unify
+import           Generics.Simplistic.Zipper
 ----------------------------------------
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 import           Data.HDiff.Instantiate
+import           Data.HDiff.Merge.Align
 import           Data.HDiff.Show
 
 trace :: x -> a -> a
 trace _ = id
 
+data Conflict :: [*] -> [*] -> * -> * where
+  FailedContr :: [Exists (MetaVar fam prim)]
+              -> Conflict fam prim at
+  
+  Conflict :: String
+           -> Aligned fam prim at
+           -> Aligned fam prim at
+           -> Conflict fam prim at
+
+-- |A 'PatchC' is a patch with potential conflicts inside
+type PatchC fam prim at
+  = Holes fam prim (Sum (Conflict fam prim) (Chg fam prim)) at
+
+diff3 :: forall fam prim ix
+       . (HasDecEq fam)
+      => Patch fam prim ix
+      -> Patch fam prim ix
+      -> PatchC fam prim ix
+-- Since patches are well-scoped (again! yay! lol)
+-- we can map over the anti-unif for efficiency purposes.
+diff3 oa ob =
+  let oa' = align oa
+      ob' = align ob
+   in holesMap (uncurry' mergeAl . delta alignDistr) $ lcp oa' ob'
+ where
+   delta f (x :*: y) = (f x :*: f y)
+
+mergeAl :: Aligned fam prim x -> Aligned fam prim x
+        -> Sum (Conflict fam prim) (Chg fam prim) x
+mergeAl p q = case runExcept (evalStateT (mrg p q) mrgSt0) of
+                Left err -> _
+                Right r  -> _
+
+-- Merging alignments might require merging changes; which
+-- in turn requier a state.
+
+type MergeState fam prim = Inst (Patch fam prim)
+type MergeM     fam prim = StateT (MergeState fam prim) (Except String)
+
+mrgSt0 :: MergeState fam prim
+mrgSt0 = M.empty
+
+mrg :: Aligned fam prim x -> Aligned fam prim x
+    -> MergeM fam prim (Aligned fam prim x)
+-- Insertions are preserved as long as they are not
+-- simultaneous
+mrg (Ins _) (Ins _)           = throwError "ins-ins"
+mrg (Ins (Zipper zip p)) q    = Ins . Zipper zip <$> mrg p q
+mrg p (Ins (Zipper zip q))    = Ins . Zipper zip <$> mrg p q
+
+-- Deletions need to be checked for compatibility
+mrg (Del p@(Zipper zip _)) q  = compat p q
+                            >>= fmap (Del . Zipper zip) . uncurry mrg
+mrg p (Del q@(Zipper zip _))  = compat q p
+                            >>= fmap (Del . Zipper zip) . uncurry mrg . swap
+  where swap (x , y) = (y , x)
+
+-- Spines and Changes
+
+-- |Checks that a deletion is compatible with an alignment; if so, returns
+-- an adapted alignment;
+compat :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned fam prim) x
+       -> Aligned fam prim x
+       -> MergeM fam prim (Aligned fam prim x , Aligned fam prim x)
+compat (Zipper zip h) (Del (Zipper zip' h')) = _ 
+compat (Zipper zip h) (Spn rep) = _ 
+
+
+
+
+{-
 
 -- |This is specific to merging; which is why we left it here.
 -- When instantiatting a deletion context against a patch,
@@ -214,3 +287,5 @@ recApp (Chg del ins) chg = do
   instM del chg
   return $ P2Instantiate (Chg del ins)
  
+
+-}

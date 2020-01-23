@@ -42,22 +42,32 @@ deriving instance (forall a. Show (w a)) => Show (SZip h w f)
 
 zipperMap :: (forall x . h x -> g x)
           -> SZip ty h f -> SZip ty g f
-zipperMap f (Z_L1 x) = Z_L1 (zipperMap f x)
-zipperMap f (Z_R1 x) = Z_R1 (zipperMap f x)
-zipperMap f (Z_M1 c x) = Z_M1 c (zipperMap f x)
+zipperMap f (Z_L1 x)      = Z_L1 (zipperMap f x)
+zipperMap f (Z_R1 x)      = Z_R1 (zipperMap f x)
+zipperMap f (Z_M1 c x)    = Z_M1 c (zipperMap f x)
 zipperMap f (Z_PairL x y) = Z_PairL (zipperMap f x) (repMap f y)
 zipperMap f (Z_PairR x y) = Z_PairR (repMap f x) (zipperMap f y)
-zipperMap f (Z_KH x) = Z_KH x
+zipperMap _ (Z_KH x)      = Z_KH x
 
-data Zipper f g t where
-  Zipper :: { zipper :: SZip t f (Rep t)
-            , plug   :: g t
+data Zipper c f g t where
+  Zipper :: c
+         => { zipper :: SZip t f (Rep t)
+            , sel    :: g t
             }
-         -> Zipper f g t
+         -> Zipper c f g t
 
-type Zipper' fam prim ann phi
-  = Zipper (HolesAnn fam prim ann phi)
+plug :: SZip ty phi f -> phi ty -> SRep phi f
+plug (Z_KH Refl)   k = S_K1 k
+plug (Z_L1 x)      k = S_L1 $ plug x k
+plug (Z_R1 x)      k = S_R1 $ plug x k
+plug (Z_M1 c x)    k = S_M1 c $ plug x k
+plug (Z_PairL x y) k = (plug x k) :**: y
+plug (Z_PairR x y) k = x :**: (plug y k)
+
+type Zipper' fam prim ann phi t
+  = Zipper (CompoundCnstr fam prim t)
            (HolesAnn fam prim ann phi)
+           (HolesAnn fam prim ann phi) t
 
 zippers :: forall fam prim ann phi t
          . (HasDecEq fam)

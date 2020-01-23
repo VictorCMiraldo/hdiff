@@ -72,7 +72,7 @@ szipPretty f x =
 zipperPretty :: (forall x . f x -> Doc ann)
              -> (forall x . g x -> Doc ann)
              -> (Doc ann -> Doc ann)
-             -> Zipper f g t -> Doc ann
+             -> Zipper c f g t -> Doc ann
 zipperPretty pf pg pz (Zipper z x)
   = PP.group $ PP.sep [pz (szipPretty pf z)
                      , PP.group (PP.sep [PP.pretty "# =" , pg x])]

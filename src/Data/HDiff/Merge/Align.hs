@@ -85,6 +85,7 @@ import Data.Proxy
 import Data.Functor.Const
 import Data.Functor.Sum
 import Data.Type.Equality
+import Data.Coerce
 import Control.Monad.State
 
 import Data.HDiff.Base
@@ -101,18 +102,43 @@ import Generics.Simplistic.Util hiding (Delta)
 import Generics.Simplistic.Zipper
 
 import Unsafe.Coerce
-import Debug.Trace
 
 data Aligned fam prim x where
-  Del :: Zipper (SFix fam prim) (Aligned fam prim)  x
+  Del :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned fam prim)  x
       -> Aligned fam prim x
-  Ins :: Zipper (SFix fam prim) (Aligned fam prim) x
+  Ins :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned fam prim) x
       -> Aligned fam prim x 
-  Spn :: SRep (Aligned fam prim) (Rep x)
+  Spn :: (CompoundCnstr fam prim x)
+      => SRep (Aligned fam prim) (Rep x)
       -> Aligned fam prim x
   Mod :: Chg fam prim x
       -> Aligned fam prim x
 
+----------------------------------------------
+-- It is easy to disalign back into a change
+
+sfixCast :: SFix fam prim x -> Holes fam prim phi x
+sfixCast = unsafeCoerce -- TODO: check and test
+
+disalign :: Aligned fam prim x -> Chg fam prim x
+disalign (Del (Zipper del rest)) =
+  let aux  = disalign rest
+      del' = zipperMap sfixCast del
+   in aux { chgDel = Roll (plug del' $ chgDel aux) }
+disalign (Ins (Zipper ins rest)) =
+  let aux  = disalign rest
+      ins' = zipperMap sfixCast ins
+   in aux { chgIns = Roll (plug ins' $ chgIns aux) }
+disalign (Spn rep) = chgDistr $ Roll (repMap (Hole . disalign) rep)
+disalign (Mod chg) = chg
+
+alignDistr :: Holes fam prim (Aligned fam prim) x
+           -> Aligned fam prim x
+alignDistr (Hole a) = a
+alignDistr (Prim a) = Mod (Chg (Prim a) (Prim a))
+alignDistr (Roll a) = Spn (repMap alignDistr a)
+
+----------------------------------
 
 type IsStiff = Const Bool
 
@@ -149,7 +175,8 @@ getAnn' f (Roll' ann _) = "R: " ++ f ann
 syncCast :: forall fam prim t
           . (HasDecEq fam)
          => HolesAnn fam prim IsStiff (MetaVar fam prim) t
-         -> Maybe (Zipper (SFix fam prim)
+         -> Maybe (Zipper (CompoundCnstr fam prim t)
+                          (SFix fam prim)
                           (HolesAnn fam prim IsStiff (MetaVar fam prim)) t)
 syncCast r =
   let zs = zippers sameTy' r
@@ -204,7 +231,7 @@ syncMod a b = Mod (Chg (dropAnn a) (dropAnn b))
 dropAnn :: HolesAnn fam prim ann phi t -> Holes fam prim phi t
 dropAnn = holesMapAnn id (const U1)
 
----------------------
+--------------------
 --------------------
 
 asrD :: Doc AnsiStyle -> Doc AnsiStyle
