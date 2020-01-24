@@ -26,8 +26,8 @@ import Control.Monad.State
 import Control.Monad.Cont
 import qualified Data.Map as M
 
-context_alpha_eq :: Holes prim MetaVar at
-                 -> Holes prim MetaVar at
+context_alpha_eq :: Holes fam prim (MetaVar fam prim) at
+                 -> Holes fam prim (MetaVar fam prim) at
                  -> Bool
 context_alpha_eq x y = aux
   where
@@ -42,8 +42,8 @@ context_alpha_eq x y = aux
     cast f b = (const (Const ())) <$> f b
 
     check :: (Cont Bool (Const () at))
-          -> Holes prim MetaVar at
-          -> Holes prim MetaVar at
+          -> Holes fam prim (MetaVar fam prim) at
+          -> Holes fam prim (MetaVar fam prim) at
           -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
     check exitF (Hole vx) (Hole vy) = do
       m <- get

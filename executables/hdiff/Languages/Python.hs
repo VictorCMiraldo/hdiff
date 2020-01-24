@@ -19,6 +19,7 @@ import Language.Python.Version3.Parser
 
 type PyPrim = '[ String , Int , Integer , Double , Bool ]
 
+deriving instance Generic SrcSpan
 deriving instance Generic (Module ())
 deriving instance Generic (Statement ())
 deriving instance Generic (ImportRelative ())
@@ -44,8 +45,8 @@ deriving instance Generic (CompIf ())
 deriving instance Generic (Decorator ())
 deriving instance Generic (Handler ())
 deriving instance Generic (ExceptClause ())
-
 instance Deep PyFam PyPrim ()
+instance Deep PyFam PyPrim SrcSpan
 instance Deep PyFam PyPrim [String]
 instance Deep PyFam PyPrim (Module ())
 instance Deep PyFam PyPrim (Statement ())
@@ -98,60 +99,8 @@ instance Deep PyFam PyPrim ((Expr (), Maybe (Expr ())))
 instance Deep PyFam PyPrim (Maybe (Expr (), Maybe (Expr (), Maybe (Expr ()))))
 instance Deep PyFam PyPrim ((Expr (), Maybe (Expr (), Maybe (Expr ()))))
 
-{-
-instance Deep PyFam PyPrim (Module a)
-instance Deep PyFam PyPrim (Statement a)
-instance Deep PyFam PyPrim ([ImportItem a])
-instance Deep PyFam PyPrim (ImportRelative a)
-instance Deep PyFam PyPrim (FromItems a)
-instance Deep PyFam PyPrim (Expr a)
-instance Deep PyFam PyPrim (Suite a)
-instance Deep PyFam PyPrim ([Expr a])
-instance Deep PyFam PyPrim (Ident a)
-instance Deep PyFam PyPrim ([Parameter a])
-instance Deep PyFam PyPrim (Maybe (Expr a))
-instance Deep PyFam PyPrim ([Argument a])
-instance Deep PyFam PyPrim ([(Expr a, Suite a)])
-instance Deep PyFam PyPrim (AssignOp a)
-instance Deep PyFam PyPrim ([Decorator a])
-instance Deep PyFam PyPrim ([Handler a])
-instance Deep PyFam PyPrim (RaiseExpr a)
-instance Deep PyFam PyPrim ([(Expr a, Maybe (Expr a))])
-instance Deep PyFam PyPrim (Maybe (Expr a, Maybe (Expr a)))
-instance Deep PyFam PyPrim (ImportItem a)
-instance Deep PyFam PyPrim (DottedName a)
-instance Deep PyFam PyPrim (Maybe (Ident a))
-instance Deep PyFam PyPrim (Maybe (DottedName a))
-instance Deep PyFam PyPrim ([FromItem a])
-instance Deep PyFam PyPrim (FromItem a)
-instance Deep PyFam PyPrim ([Slice a])
-instance Deep PyFam PyPrim (Op a)
-instance Deep PyFam PyPrim (Maybe (YieldArg a))
-instance Deep PyFam PyPrim (Comprehension a)
-instance Deep PyFam PyPrim ([DictKeyDatumList a])
-instance Deep PyFam PyPrim (Argument a)
-instance Deep PyFam PyPrim (Slice a)
-instance Deep PyFam PyPrim (Maybe (Maybe (Expr a)))
-instance Deep PyFam PyPrim (Parameter a)
-instance Deep PyFam PyPrim (ParamTuple a)
-instance Deep PyFam PyPrim ([ParamTuple a])
-instance Deep PyFam PyPrim (YieldArg a)
-instance Deep PyFam PyPrim (ComprehensionExpr a)
-instance Deep PyFam PyPrim (CompFor a)
-instance Deep PyFam PyPrim (DictKeyDatumList a)
-instance Deep PyFam PyPrim (Maybe (CompIter a))
-instance Deep PyFam PyPrim (CompIter a)
-instance Deep PyFam PyPrim (CompIf a)
-instance Deep PyFam PyPrim ((Expr a , Suite a))
-instance Deep PyFam PyPrim (Decorator a)
-instance Deep PyFam PyPrim (Handler a)
-instance Deep PyFam PyPrim (ExceptClause a)
-instance Deep PyFam PyPrim ((Expr a, Maybe (Expr a)))
-instance Deep PyFam PyPrim (Maybe (Expr a, Maybe (Expr a, Maybe (Expr a))))
-instance Deep PyFam PyPrim ((Expr a, Maybe (Expr a, Maybe (Expr a))))
--}
 
-type PyFam = '[ () , [String] ,  
+type PyFam = '[ () , [String] , SrcSpan,
      Module ()
   ,  Statement ()
   ,  [ImportItem ()]
@@ -202,7 +151,108 @@ type PyFam = '[ () , [String] ,
   ,  (Expr (), Maybe (Expr ()))
   ,  Maybe (Expr (), Maybe (Expr (), Maybe (Expr ())))
   ,  (Expr (), Maybe (Expr (), Maybe (Expr ())))
+  ] 
+
+instance HasDecEq PyFam where
+
+parseFile :: String -> ExceptT String IO (Module SrcSpan)
+parseFile file = do
+  res <- lift $ readFile file
+  case parseModule res file of
+    Left e  -> throwError (show e) 
+    Right r -> return (fst r)
+
+-- Forgets source location information
+dfromPy' :: Module SrcSpan -> SFix PyFam PyPrim (Module ())
+dfromPy' = dfrom . fmap (const ())
+
+
 {-
+
+
+dfromPy :: Module SrcSpan -> SFix PyFam PyPrim (Module SrcSpan)
+dfromPy = dfrom
+
+SrcLocations only makes things worse; no need to pay off
+compilation time.
+
+deriving instance Generic (Module SrcSpan)
+deriving instance Generic (Statement SrcSpan)
+deriving instance Generic (ImportRelative SrcSpan)
+deriving instance Generic (FromItems SrcSpan)
+deriving instance Generic (Expr SrcSpan)
+deriving instance Generic (Ident SrcSpan)
+deriving instance Generic (AssignOp SrcSpan)
+deriving instance Generic (RaiseExpr SrcSpan)
+deriving instance Generic (ImportItem SrcSpan)
+deriving instance Generic (FromItem SrcSpan)
+deriving instance Generic (Op SrcSpan)
+deriving instance Generic (Comprehension SrcSpan)
+deriving instance Generic (Argument SrcSpan)
+deriving instance Generic (Slice SrcSpan)
+deriving instance Generic (Parameter SrcSpan)
+deriving instance Generic (ParamTuple SrcSpan)
+deriving instance Generic (YieldArg SrcSpan)
+deriving instance Generic (ComprehensionExpr SrcSpan)
+deriving instance Generic (CompFor SrcSpan)
+deriving instance Generic (DictKeyDatumList SrcSpan)
+deriving instance Generic (CompIter SrcSpan)
+deriving instance Generic (CompIf SrcSpan)
+deriving instance Generic (Decorator SrcSpan)
+deriving instance Generic (Handler SrcSpan)
+deriving instance Generic (ExceptClause SrcSpan)
+instance Deep PyFam PyPrim (Module SrcSpan)
+instance Deep PyFam PyPrim (Statement SrcSpan)
+instance Deep PyFam PyPrim ([ImportItem SrcSpan])
+instance Deep PyFam PyPrim (ImportRelative SrcSpan)
+instance Deep PyFam PyPrim (FromItems SrcSpan)
+instance Deep PyFam PyPrim (Expr SrcSpan)
+instance Deep PyFam PyPrim (Suite SrcSpan)
+instance Deep PyFam PyPrim ([Expr SrcSpan])
+instance Deep PyFam PyPrim (Ident SrcSpan)
+instance Deep PyFam PyPrim ([Parameter SrcSpan])
+instance Deep PyFam PyPrim (Maybe (Expr SrcSpan))
+instance Deep PyFam PyPrim ([Argument SrcSpan])
+instance Deep PyFam PyPrim ([(Expr SrcSpan, Suite SrcSpan)])
+instance Deep PyFam PyPrim (AssignOp SrcSpan)
+instance Deep PyFam PyPrim ([Decorator SrcSpan])
+instance Deep PyFam PyPrim ([Handler SrcSpan])
+instance Deep PyFam PyPrim (RaiseExpr SrcSpan)
+instance Deep PyFam PyPrim ([(Expr SrcSpan, Maybe (Expr SrcSpan))])
+instance Deep PyFam PyPrim (Maybe (Expr SrcSpan, Maybe (Expr SrcSpan)))
+instance Deep PyFam PyPrim (ImportItem SrcSpan)
+instance Deep PyFam PyPrim (DottedName SrcSpan)
+instance Deep PyFam PyPrim (Maybe (Ident SrcSpan))
+instance Deep PyFam PyPrim (Maybe (DottedName SrcSpan))
+instance Deep PyFam PyPrim ([FromItem SrcSpan])
+instance Deep PyFam PyPrim (FromItem SrcSpan)
+instance Deep PyFam PyPrim ([Slice SrcSpan])
+instance Deep PyFam PyPrim (Op SrcSpan)
+instance Deep PyFam PyPrim (Maybe (YieldArg SrcSpan))
+instance Deep PyFam PyPrim (Comprehension SrcSpan)
+instance Deep PyFam PyPrim ([DictKeyDatumList SrcSpan])
+instance Deep PyFam PyPrim (Argument SrcSpan)
+instance Deep PyFam PyPrim (Slice SrcSpan)
+instance Deep PyFam PyPrim (Maybe (Maybe (Expr SrcSpan)))
+instance Deep PyFam PyPrim (Parameter SrcSpan)
+instance Deep PyFam PyPrim (ParamTuple SrcSpan)
+instance Deep PyFam PyPrim ([ParamTuple SrcSpan])
+instance Deep PyFam PyPrim (YieldArg SrcSpan)
+instance Deep PyFam PyPrim (ComprehensionExpr SrcSpan)
+instance Deep PyFam PyPrim (CompFor SrcSpan)
+instance Deep PyFam PyPrim (DictKeyDatumList SrcSpan)
+instance Deep PyFam PyPrim (Maybe (CompIter SrcSpan))
+instance Deep PyFam PyPrim (CompIter SrcSpan)
+instance Deep PyFam PyPrim (CompIf SrcSpan)
+instance Deep PyFam PyPrim ((Expr SrcSpan , Suite SrcSpan))
+instance Deep PyFam PyPrim (Decorator SrcSpan)
+instance Deep PyFam PyPrim (Handler SrcSpan)
+instance Deep PyFam PyPrim (ExceptClause SrcSpan)
+instance Deep PyFam PyPrim ((Expr SrcSpan, Maybe (Expr SrcSpan)))
+instance Deep PyFam PyPrim (Maybe (Expr SrcSpan, Maybe (Expr SrcSpan, Maybe (Expr SrcSpan))))
+instance Deep PyFam PyPrim ((Expr SrcSpan, Maybe (Expr SrcSpan, Maybe (Expr SrcSpan))))
+
+
   ,  Module SrcSpan
   ,  Statement SrcSpan
   ,  [ImportItem SrcSpan]
@@ -253,21 +303,7 @@ type PyFam = '[ () , [String] ,
   ,  (Expr SrcSpan, Maybe (Expr SrcSpan))
   ,  Maybe (Expr SrcSpan, Maybe (Expr SrcSpan, Maybe (Expr SrcSpan)))
   ,  (Expr SrcSpan, Maybe (Expr SrcSpan, Maybe (Expr SrcSpan)))
+
+
 -}
-  ] 
 
-instance HasDecEq PyFam where
-
-parseFile :: String -> ExceptT String IO (Module SrcSpan)
-parseFile file = do
-  res <- lift $ readFile file
-  case parseModule res file of
-    Left e  -> throwError (show e) 
-    Right r -> return (fst r)
-
--- dfromPy :: Module SrcSpan -> SFix PyFam PyPrim (Module SrcSpan)
--- dfromPy = dfrom
-
--- Forgets source location information
-dfromPy' :: Module SrcSpan -> SFix PyFam PyPrim (Module ())
-dfromPy' = dfrom . fmap (const ())

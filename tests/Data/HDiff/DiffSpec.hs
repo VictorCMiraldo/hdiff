@@ -18,11 +18,11 @@ diff_wellscoped_changes mode = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = hdiffRTreeHM mode 1 t1 t2
       in go $ chgDistr patch
   where
-    go :: Chg prim ix -> Property
+    go :: Chg fam prim ix -> Property
     go (Chg del ins)
       = let vd = holesHolesSet del
             vi = holesHolesSet ins
-         in vd === vi
+         in property $ vd == vi
 
 apply_correctness :: DiffMode -> Property
 apply_correctness mode = forAll genSimilarTrees' $ \(t1 , t2)

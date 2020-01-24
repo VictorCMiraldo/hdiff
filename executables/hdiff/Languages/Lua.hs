@@ -23,31 +23,63 @@ import Control.Monad.Except
 import Generics.Simplistic
 
 type LuaPrim = '[ Text , Bool ]
-instance Deep LuaPrim Block
-instance Deep LuaPrim (Maybe Block)
-instance Deep LuaPrim [Stat]
-instance Deep LuaPrim Stat
-instance Deep LuaPrim [(Exp , Block)]
-instance Deep LuaPrim (Exp , Block)
-instance Deep LuaPrim Exp
-instance Deep LuaPrim (Maybe Exp)
-instance Deep LuaPrim [TableField]
-instance Deep LuaPrim TableField
-instance Deep LuaPrim Name
-instance Deep LuaPrim NumberType
-instance Deep LuaPrim FunBody
-instance Deep LuaPrim [Name]
-instance Deep LuaPrim PrefixExp
-instance Deep LuaPrim Var
-instance Deep LuaPrim FunCall
-instance Deep LuaPrim FunArg
-instance Deep LuaPrim FunName
-instance Deep LuaPrim (Maybe Name)
-instance Deep LuaPrim [Exp]
-instance Deep LuaPrim (Maybe [Exp])
-instance Deep LuaPrim Binop
-instance Deep LuaPrim Unop
-instance Deep LuaPrim [Var]
+
+instance Deep LuaFam LuaPrim Block
+instance Deep LuaFam LuaPrim (Maybe Block)
+instance Deep LuaFam LuaPrim [Stat]
+instance Deep LuaFam LuaPrim Stat
+instance Deep LuaFam LuaPrim [(Exp , Block)]
+instance Deep LuaFam LuaPrim (Exp , Block)
+instance Deep LuaFam LuaPrim Exp
+instance Deep LuaFam LuaPrim (Maybe Exp)
+instance Deep LuaFam LuaPrim [TableField]
+instance Deep LuaFam LuaPrim TableField
+instance Deep LuaFam LuaPrim Name
+instance Deep LuaFam LuaPrim NumberType
+instance Deep LuaFam LuaPrim FunBody
+instance Deep LuaFam LuaPrim [Name]
+instance Deep LuaFam LuaPrim PrefixExp
+instance Deep LuaFam LuaPrim Var
+instance Deep LuaFam LuaPrim FunCall
+instance Deep LuaFam LuaPrim FunArg
+instance Deep LuaFam LuaPrim FunName
+instance Deep LuaFam LuaPrim (Maybe Name)
+instance Deep LuaFam LuaPrim [Exp]
+instance Deep LuaFam LuaPrim (Maybe [Exp])
+instance Deep LuaFam LuaPrim Binop
+instance Deep LuaFam LuaPrim Unop
+instance Deep LuaFam LuaPrim [Var]
+
+instance HasDecEq LuaFam where
+
+type LuaFam = 
+  [ Block
+  , (Maybe Block)
+  , [Stat]
+  , Stat
+  , [(Exp , Block)]
+  , (Exp , Block)
+  , Exp
+  , (Maybe Exp)
+  , [TableField]
+  , TableField
+  , Name
+  , NumberType
+  , FunBody
+  , [Name]
+  , PrefixExp
+  , Var
+  , FunCall
+  , FunArg
+  , FunName
+  , (Maybe Name)
+  , [Exp]
+  , (Maybe [Exp])
+  , Binop
+  , Unop
+  , [Var]
+  ]
+
 
 parseFile :: String -> ExceptT String IO Block
 parseFile file = do
@@ -56,5 +88,5 @@ parseFile file = do
     Left e  -> throwError (show e) 
     Right r -> return r
 
-dfromLua :: Block -> SFix LuaPrim Block
+dfromLua :: Block -> SFix LuaFam LuaPrim Block
 dfromLua = dfrom

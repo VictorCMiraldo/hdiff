@@ -69,6 +69,8 @@ data Stmt = Seq [Stmt]
 
 type WhilePrims = '[ Integer , Bool , String ]
 
+type WhileFam = '[Stmt , [Stmt] , AExpr , BExpr , ABinOp , RBinOp , BBinOp ]
+
 deriving instance Generic Stmt
 deriving instance Generic AExpr
 deriving instance Generic BExpr
@@ -76,18 +78,20 @@ deriving instance Generic ABinOp
 deriving instance Generic BBinOp
 deriving instance Generic RBinOp
 
-instance Deep WhilePrims Stmt
-instance Deep WhilePrims [Stmt]
-instance Deep WhilePrims AExpr
-instance Deep WhilePrims BExpr
-instance Deep WhilePrims ABinOp
-instance Deep WhilePrims BBinOp
-instance Deep WhilePrims RBinOp
+instance Deep WhileFam WhilePrims Stmt
+instance Deep WhileFam WhilePrims [Stmt]
+instance Deep WhileFam WhilePrims AExpr
+instance Deep WhileFam WhilePrims BExpr
+instance Deep WhileFam WhilePrims ABinOp
+instance Deep WhileFam WhilePrims BBinOp
+instance Deep WhileFam WhilePrims RBinOp
 
-dfromWhile :: Stmt -> SFix WhilePrims Stmt
+instance HasDecEq WhileFam where
+
+dfromWhile :: Stmt -> SFix WhileFam WhilePrims Stmt
 dfromWhile = dfrom
 
-dtoWhile   :: SFix WhilePrims Stmt -> Stmt
+dtoWhile   :: SFix WhileFam WhilePrims Stmt -> Stmt
 dtoWhile   = dto
 
 -- ** Parser definition

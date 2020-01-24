@@ -38,14 +38,16 @@ data Line = Line String
   deriving Generic
 
 type LinesPrims = '[ String ]
-instance Deep LinesPrims Line
-instance Deep LinesPrims [Line]
-instance Deep LinesPrims Stmt
+type LinesFam   = '[Stmt , Line , [Line]]
+instance Deep LinesFam LinesPrims Line
+instance Deep LinesFam LinesPrims [Line]
+instance Deep LinesFam LinesPrims Stmt
+instance HasDecEq LinesFam where
 
-dfromLines :: Stmt -> SFix LinesPrims Stmt
+dfromLines :: Stmt -> SFix LinesFam LinesPrims Stmt
 dfromLines = dfrom
 
-dtoLines   :: SFix LinesPrims Stmt -> Stmt
+dtoLines   :: SFix LinesFam LinesPrims Stmt -> Stmt
 dtoLines   = dto
 
 parseFile :: String -> ExceptT String IO Stmt

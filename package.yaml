@@ -26,7 +26,7 @@ dependencies:
 
 library:
   source-dirs: src/
-  ghc-options: -Wall
+  ghc-options: -O2 -Wall
 
 tests:
   spec: 
@@ -72,6 +72,6 @@ executables:
       - deepseq
       - hdiff
     cpp-options: -DREAL_LANGUAGES 
-    ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
+    ghc-options: -O2 -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 
 

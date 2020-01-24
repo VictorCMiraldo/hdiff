@@ -38,18 +38,30 @@ deriving instance Generic Term
 deriving instance Generic Sep
 deriving instance Generic Tag
 
-instance Deep CljPrims Expr
-instance Deep CljPrims FormTy
-instance Deep CljPrims CollTy
-instance Deep CljPrims SepExprList
-instance Deep CljPrims Term
-instance Deep CljPrims Sep
-instance Deep CljPrims Tag
+instance Deep CljFam CljPrims Expr
+instance Deep CljFam CljPrims FormTy
+instance Deep CljFam CljPrims CollTy
+instance Deep CljFam CljPrims SepExprList
+instance Deep CljFam CljPrims Term
+instance Deep CljFam CljPrims Sep
+instance Deep CljFam CljPrims Tag
 
-dfromClj :: Expr -> SFix CljPrims Expr
+instance HasDecEq CljFam where
+
+type CljFam = 
+  [ Expr
+  , FormTy
+  , CollTy
+  , SepExprList
+  , Term
+  , Sep
+  , Tag
+  ]
+
+dfromClj :: Expr -> SFix CljFam CljPrims Expr
 dfromClj = dfrom
 
-dtoClj   :: SFix CljPrims Expr -> Expr
+dtoClj   :: SFix CljFam CljPrims Expr -> Expr
 dtoClj   = dto
 
 parseFile :: String -> ExceptT String IO Expr

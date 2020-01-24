@@ -57,21 +57,21 @@ mainParsers
     ,LangParser "sh"       (fmap Sh.dfromSh       . Sh.parseFile)
 
     -- The *-loc parsers maintian source location informaton
-    ,LangParser "py-loc"   (fmap Py.dfromPy       . Py.parseFile)
-    ,LangParser "js-loc"   (fmap JS.dfromJS       . JS.parseFile)
+    -- ,LangParser "py-loc"   (fmap Py.dfromPy       . Py.parseFile)
+    -- ,LangParser "js-loc"   (fmap JS.dfromJS       . JS.parseFile)
 #endif
     ,LangParser "dyck-loc" (fmap Dyck.dfromDyck   . Dyck.parseFile)
     ]
 
-type LangCnstr prims ix
-  = (All Digestible prims)
+type LangCnstr fam prims ix
+  = (HasDecEq fam, All Digestible prims)
     
 data LangParser :: * where
-  LangParser :: (LangCnstr prims ix)
+  LangParser :: (LangCnstr fam prims ix)
              -- |Language extension
              => String
              -- |Parser that
-             -> (FilePath -> ExceptT String IO (SFix prims ix))
+             -> (FilePath -> ExceptT String IO (SFix fam prims ix))
              -> LangParser
 
 parserExtension :: LangParser -> String
@@ -98,10 +98,10 @@ vecMapM f (VS x xs) = VS <$> f x <*> vecMapM f xs
 -- the except monad.
 withParsedEl :: LangParser
              -> VectorOf FilePath ('S n)
-             -> (forall prim ix
-                 . (LangCnstr prim ix) 
-                => (FilePath -> IO (SFix prim ix)) 
-                -> VectorOf (SFix prim ix) ('S n)
+             -> (forall fam prim ix
+                 . (LangCnstr fam prim ix) 
+                => (FilePath -> IO (SFix fam prim ix)) 
+                -> VectorOf (SFix fam prim ix) ('S n)
                 -> IO res)
              -> ExceptT String IO res
 withParsedEl (LangParser _ parser) vec f
@@ -125,10 +125,10 @@ parserSelect sel ps xs = maybe (throwError "No available parser") return
 withParsedElSel :: Maybe String
                 -> [LangParser]
                 -> VectorOf FilePath ('S n)
-                -> (forall prim ix
-                    . (LangCnstr prim ix)
-                   => (FilePath -> IO (SFix prim ix))
-                   -> VectorOf (SFix prim ix) ('S n)
+                -> (forall fam prim ix
+                    . (LangCnstr fam prim ix)
+                   => (FilePath -> IO (SFix fam prim ix))
+                   -> VectorOf (SFix fam prim ix) ('S n)
                    -> IO res)
                 -> ExceptT String IO res
 withParsedElSel sel parsers fs f = do
@@ -138,10 +138,10 @@ withParsedElSel sel parsers fs f = do
 withParsed1 :: Maybe String
             -> [LangParser]
             -> FilePath
-            -> (forall prim ix
-                 . (LangCnstr prim ix)
-                => (FilePath -> IO (SFix prim ix))
-                -> SFix prim ix
+            -> (forall fam prim ix
+                 . (LangCnstr fam prim ix)
+                => (FilePath -> IO (SFix fam prim ix))
+                -> SFix fam prim ix
                 -> IO res)
             -> IO res
 withParsed1 sel parsers file f
@@ -152,11 +152,11 @@ withParsed1 sel parsers file f
 withParsed2 :: Maybe String
             -> [LangParser]
             -> FilePath -> FilePath
-            -> (forall prim ix
-                 . (LangCnstr prim ix)
-                => (FilePath -> IO (SFix prim ix))
-                -> SFix prim ix
-                -> SFix prim ix
+            -> (forall fam prim ix
+                 . (LangCnstr fam prim ix)
+                => (FilePath -> IO (SFix fam prim ix))
+                -> SFix fam prim ix
+                -> SFix fam prim ix
                 -> IO res)
             -> IO res
 withParsed2 sel parsers fa fb f
@@ -167,12 +167,12 @@ withParsed2 sel parsers fa fb f
 withParsed3 :: Maybe String
             -> [LangParser]
             -> FilePath -> FilePath -> FilePath
-            -> (forall prim ix
-                 . (LangCnstr prim ix)
-                => (FilePath -> IO (SFix prim ix))
-                -> SFix prim ix
-                -> SFix prim ix
-                -> SFix prim ix
+            -> (forall fam prim ix
+                 . (LangCnstr fam prim ix)
+                => (FilePath -> IO (SFix fam prim ix))
+                -> SFix fam prim ix
+                -> SFix fam prim ix
+                -> SFix fam prim ix
                 -> IO res)
             -> IO res
 withParsed3 sel parsers fa fb fc f

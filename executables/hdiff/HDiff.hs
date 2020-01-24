@@ -32,6 +32,7 @@ import Generics.Simplistic.Util
 import           Data.Type.Equality
 
 import qualified Data.HDiff.Base         as D
+import qualified Data.HDiff.MetaVar      as D
 import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
 import qualified Data.HDiff.Merge        as D
@@ -40,7 +41,11 @@ import           Data.HDiff.Show
 import           Languages.Interface
 import           HDiff.Options
 
-instance NFData (D.Chg prim x) where
+instance NFData (D.MetaVar fam prim x) where
+  rnf (D.MV_Prim i) = rnf i
+  rnf (D.MV_Comp i) = rnf i
+
+instance NFData (D.Chg fam prim x) where
   rnf (D.Chg d i) = rnf d `seq` rnf i
   
 time :: (NFData a) => IO a -> IO (Double, a)
@@ -74,12 +79,12 @@ mainAST v sel opts = withParsed1 sel mainParsers (optFileA opts)
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
-tryApply :: (LangCnstr prim ix)
+tryApply :: (LangCnstr fam prim ix)
          => Verbosity
-         -> D.Patch prim ix
-         -> SFix prim ix
-         -> Maybe (SFix prim ix)
-         -> IO (Maybe (SFix prim ix))
+         -> D.Patch fam prim ix
+         -> SFix fam prim ix
+         -> Maybe (SFix fam prim ix)
+         -> IO (Maybe (SFix fam prim ix))
 tryApply v patch fa fb
   = case D.patchApply patch fa of
       Nothing -> hPutStrLn stderr "!! apply failed"
@@ -88,16 +93,16 @@ tryApply v patch fa fb
               >> exitWith (ExitFailure 2)
       Just b' -> return $ maybe (Just b') (testEq b') fb
  where
-   testEq :: SFix prim ix -> SFix prim ix -> Maybe (SFix prim ix)
+   testEq :: SFix fam prim ix -> SFix fam prim ix -> Maybe (SFix fam prim ix)
    testEq x y = if eqHO x y then Just x else Nothing
 
 -- |Runs our diff algorithm with particular options parsed
 -- from the CLI options.
-diffWithOpts :: (LangCnstr prim ix) 
+diffWithOpts :: (LangCnstr fam prim ix) 
              => Options
-             -> SFix prim ix
-             -> SFix prim ix
-             -> IO (D.Patch prim ix)
+             -> SFix fam prim ix
+             -> SFix fam prim ix
+             -> IO (D.Patch fam prim ix)
 diffWithOpts opts fa fb = do
   let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) 
   return (D.diffOpts localopts fa fb)

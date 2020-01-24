@@ -67,12 +67,16 @@ parseDyckLex = try (Lexeme <$> many space <*> parseDyckAtom <*> parseDyck)
 
 type DyckPrim = '[ String ]
 
-instance Deep DyckPrim (Dyck WS)
-instance Deep DyckPrim (DyckAtom WS)
-instance Deep DyckPrim Sep
-instance Deep DyckPrim ()
-instance Deep DyckPrim (Dyck ())
-instance Deep DyckPrim (DyckAtom ())
+type DyckFam = '[Dyck WS , DyckAtom WS , Sep , () , Dyck () , DyckAtom ()]
+
+instance Deep DyckFam DyckPrim (Dyck WS)
+instance Deep DyckFam DyckPrim (DyckAtom WS)
+instance Deep DyckFam DyckPrim Sep
+instance Deep DyckFam DyckPrim ()
+instance Deep DyckFam DyckPrim (Dyck ())
+instance Deep DyckFam DyckPrim (DyckAtom ())
+
+instance HasDecEq DyckFam where
 
 parseFile :: String -> ExceptT String IO (Dyck WS)
 parseFile file = do
@@ -81,10 +85,10 @@ parseFile file = do
     Left e  -> throwError (show e) 
     Right r -> return r
 
-dfromDyck :: Dyck WS -> SFix DyckPrim (Dyck WS)
+dfromDyck :: Dyck WS -> SFix DyckFam DyckPrim (Dyck WS)
 dfromDyck = dfrom
 
 -- Forgets whitespace information
-dfromDyck' :: Dyck WS -> SFix DyckPrim (Dyck ())
+dfromDyck' :: Dyck WS -> SFix DyckFam DyckPrim (Dyck ())
 dfromDyck' = dfrom . fmap (const ())
 

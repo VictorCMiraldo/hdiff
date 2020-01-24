@@ -40,35 +40,63 @@ deriving instance (Generic a) => Generic (CaseClause a)
 deriving instance (Generic a) => Generic (VarDecl a)
 deriving instance (Generic a) => Generic (CatchClause a)
 
-instance Deep JSPrim Loc
-instance Deep JSPrim ()
-instance (Deep JSPrim a) => Deep JSPrim (JavaScript a)
-instance (Deep JSPrim a) => Deep JSPrim [Statement a]
-instance (Deep JSPrim a) => Deep JSPrim (Statement a)
-instance (Deep JSPrim a) => Deep JSPrim (Expression a)
-instance (Deep JSPrim a) => Deep JSPrim [CaseClause a]
-instance (Deep JSPrim a) => Deep JSPrim (Maybe (Id a))
-instance (Deep JSPrim a) => Deep JSPrim (Id a)
-instance (Deep JSPrim a) => Deep JSPrim (ForInInit a)
-instance (Deep JSPrim a) => Deep JSPrim (ForInit a)
-instance (Deep JSPrim a) => Deep JSPrim (Maybe (Expression a))
-instance (Deep JSPrim a) => Deep JSPrim (Maybe (CatchClause a))
-instance (Deep JSPrim a) => Deep JSPrim (Maybe (Statement a))
-instance (Deep JSPrim a) => Deep JSPrim [VarDecl a]
-instance (Deep JSPrim a) => Deep JSPrim [Id a]
-instance (Deep JSPrim a) => Deep JSPrim [Expression a]
-instance (Deep JSPrim a) => Deep JSPrim [(Prop a, Expression a)]
-instance Deep JSPrim PrefixOp
-instance Deep JSPrim UnaryAssignOp
-instance (Deep JSPrim a) => Deep JSPrim (LValue a)
-instance Deep JSPrim InfixOp
-instance Deep JSPrim AssignOp
-instance (Deep JSPrim a) => Deep JSPrim (Prop a, Expression a)
-instance (Deep JSPrim a) => Deep JSPrim (Prop a)
-instance (Deep JSPrim a) => Deep JSPrim (CaseClause a)
-instance (Deep JSPrim a) => Deep JSPrim (VarDecl a)
-instance (Deep JSPrim a) => Deep JSPrim (CatchClause a)
+instance Deep JSFam JSPrim ()
+instance Deep JSFam JSPrim InfixOp
+instance Deep JSFam JSPrim AssignOp
+instance Deep JSFam JSPrim PrefixOp
+instance Deep JSFam JSPrim UnaryAssignOp
 
+instance Deep JSFam JSPrim (JavaScript ())
+instance Deep JSFam JSPrim [Statement ()]
+instance Deep JSFam JSPrim (Statement ())
+instance Deep JSFam JSPrim (Expression ())
+instance Deep JSFam JSPrim [CaseClause ()]
+instance Deep JSFam JSPrim (Maybe (Id ()))
+instance Deep JSFam JSPrim (Id ())
+instance Deep JSFam JSPrim (ForInInit ())
+instance Deep JSFam JSPrim (ForInit ())
+instance Deep JSFam JSPrim (Maybe (Expression ()))
+instance Deep JSFam JSPrim (Maybe (CatchClause ()))
+instance Deep JSFam JSPrim (Maybe (Statement ()))
+instance Deep JSFam JSPrim [VarDecl ()]
+instance Deep JSFam JSPrim [Id ()]
+instance Deep JSFam JSPrim [Expression ()]
+instance Deep JSFam JSPrim [(Prop (), Expression ())]
+instance Deep JSFam JSPrim (LValue ())
+instance Deep JSFam JSPrim (Prop (), Expression ())
+instance Deep JSFam JSPrim (Prop ())
+instance Deep JSFam JSPrim (CaseClause ())
+instance Deep JSFam JSPrim (VarDecl ())
+instance Deep JSFam JSPrim (CatchClause ())
+
+
+type JSFam =
+  [ () , InfixOp , AssignOp , PrefixOp , UnaryAssignOp
+  , (JavaScript ())
+  , [Statement ()]
+  , (Statement ())
+  , (Expression ())
+  , [CaseClause ()]
+  , (Maybe (Id ()))
+  , (Id ())
+  , (ForInInit ())
+  , (ForInit ())
+  , (Maybe (Expression ()))
+  , (Maybe (CatchClause ()))
+  , (Maybe (Statement ()))
+  , [VarDecl ()]
+  , [Id ()]
+  , [Expression ()]
+  , [(Prop (), Expression ())]
+  , (LValue ())
+  , (Prop (), Expression ())
+  , (Prop ())
+  , (CaseClause ())
+  , (VarDecl ())
+  , (CatchClause ())
+  ]
+
+instance HasDecEq JSFam where
 
 parseFile :: String -> ExceptT String IO (JavaScript Loc)
 parseFile file = do
@@ -81,8 +109,62 @@ parseFile file = do
    mkLoc sp = Loc (sourceName sp) (sourceLine sp) (sourceColumn sp)
 
 -- Drops location information
-dfromJS' :: JavaScript Loc -> SFix JSPrim (JavaScript ())
+dfromJS' :: JavaScript Loc -> SFix JSFam JSPrim (JavaScript ())
 dfromJS' = dfrom . fmap (const ())
 
-dfromJS :: JavaScript Loc -> SFix JSPrim (JavaScript Loc)
+
+{-
+
+dfromJS :: JavaScript Loc -> SFix JSFam JSPrim (JavaScript Loc)
 dfromJS = dfrom
+
+instance Deep JSFam JSPrim Loc
+
+instance Deep JSFam JSPrim (JavaScript Loc)
+instance Deep JSFam JSPrim [Statement Loc]
+instance Deep JSFam JSPrim (Statement Loc)
+instance Deep JSFam JSPrim (Expression Loc)
+instance Deep JSFam JSPrim [CaseClause Loc]
+instance Deep JSFam JSPrim (Maybe (Id Loc))
+instance Deep JSFam JSPrim (Id Loc)
+instance Deep JSFam JSPrim (ForInInit Loc)
+instance Deep JSFam JSPrim (ForInit Loc)
+instance Deep JSFam JSPrim (Maybe (Expression Loc))
+instance Deep JSFam JSPrim (Maybe (CatchClause Loc))
+instance Deep JSFam JSPrim (Maybe (Statement Loc))
+instance Deep JSFam JSPrim [VarDecl Loc]
+instance Deep JSFam JSPrim [Id Loc]
+instance Deep JSFam JSPrim [Expression Loc]
+instance Deep JSFam JSPrim [(Prop Loc, Expression Loc)]
+instance Deep JSFam JSPrim (LValue Loc)
+instance Deep JSFam JSPrim (Prop Loc, Expression Loc)
+instance Deep JSFam JSPrim (Prop Loc)
+instance Deep JSFam JSPrim (CaseClause Loc)
+instance Deep JSFam JSPrim (VarDecl Loc)
+instance Deep JSFam JSPrim (CatchClause Loc)
+
+
+  , (JavaScript Loc)
+  , [Statement Loc]
+  , (Statement Loc)
+  , (Expression Loc)
+  , [CaseClause Loc]
+  , (Maybe (Id Loc))
+  , (Id Loc)
+  , (ForInInit Loc)
+  , (ForInit Loc)
+  , (Maybe (Expression Loc))
+  , (Maybe (CatchClause Loc))
+  , (Maybe (Statement Loc))
+  , [VarDecl Loc]
+  , [Id Loc]
+  , [Expression Loc]
+  , [(Prop Loc, Expression Loc)]
+  , (LValue Loc)
+  , (Prop Loc, Expression Loc)
+  , (Prop Loc)
+  , (CaseClause Loc)
+  , (VarDecl Loc)
+  , (CatchClause Loc)
+
+-}

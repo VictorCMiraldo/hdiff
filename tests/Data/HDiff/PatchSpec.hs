@@ -8,6 +8,7 @@ import Data.Functor.Const
 
 import Data.HDiff.Diff
 import Data.HDiff.Base
+import Data.HDiff.MetaVar
 import Data.HDiff.Compose
 import Languages.RTree
 import Languages.RTree.Diff
@@ -26,8 +27,8 @@ copy_composes mode = forAll genSimilarTrees' $ \(t1 , t2)
          mcpy  = Hole changeCopy :: PatchRTree
       in composes patch mcpy .&&. composes mcpy patch
  where
-   changeCopy :: Chg RTreePrims RTree
-   changeCopy = Chg (Hole $ Const 0) (Hole $ Const 0)
+   changeCopy :: Chg RTreeFam RTreePrims RTree
+   changeCopy = Chg (Hole $ MV_Comp 0) (Hole $ MV_Comp 0)
 
 composes_correct :: DiffMode -> Property
 composes_correct mode = forAll (choose (0 , 2) >>= genSimilarTreesN 3)

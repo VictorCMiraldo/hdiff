@@ -10,16 +10,16 @@ import Generics.Simplistic.Unify
 import Data.HDiff.MetaVar
 import Data.HDiff.Base
 
-type ThinningErr prim = UnifyErr prim MetaVar
+type ThinningErr fam prim = UnifyErr fam prim (MetaVar fam prim)
 
-thin :: Patch  prim at
-     -> Domain prim at
-     -> Except (ThinningErr prim) (Patch prim at)
+thin :: Patch  fam prim at
+     -> Domain fam prim at
+     -> Except (ThinningErr fam prim) (Patch fam prim at)
 thin p d = chgPatch <$> chgThin (chgDistr p) d
 
-chgThin :: Chg  prim at
-        -> Domain prim at
-        -> Except (ThinningErr prim) (Chg prim at)
+chgThin :: Chg  fam prim at
+        -> Domain fam prim at
+        -> Except (ThinningErr fam prim) (Chg fam prim at)
 chgThin (Chg del ins) dom = do
   sigma <- unify del dom
   return $ Chg (substApply sigma del) (substApply sigma ins)
