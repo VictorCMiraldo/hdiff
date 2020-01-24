@@ -31,8 +31,12 @@ import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 import           Data.HDiff.Instantiate
 import           Data.HDiff.Merge.Align
-import           Data.HDiff.Show
 
+
+import           Generics.Simplistic.Pretty
+import           Data.HDiff.Show
+import           Data.Text.Prettyprint.Doc hiding (align)
+import           Data.Text.Prettyprint.Doc.Render.Terminal
 import Debug.Trace
 --trace :: x -> a -> a
 --trace _ = id
@@ -88,11 +92,15 @@ mergeAl p q = case runExcept (evalStateT (mrg p q) mrgSt0) of
 -- Merging alignments might require merging changes; which
 -- in turn requier a state.
 
-type MergeState fam prim = Inst (Patch fam prim)
+data MergeState fam prim = MergeState
+  { iota :: Inst (Patch fam prim)
+  , eqs  :: Subst fam prim (MetaVar fam prim)
+  }
+  
 type MergeM     fam prim = StateT (MergeState fam prim) (Except String)
 
 mrgSt0 :: MergeState fam prim
-mrgSt0 = M.empty
+mrgSt0 = MergeState M.empty substEmpty
 
 mrg :: Aligned fam prim x -> Aligned fam prim x
     -> MergeM fam prim (Aligned fam prim x)
@@ -100,7 +108,7 @@ mrg p q = do
   phase1 <- mrg0 p q
   inst <- get
   case makeDelInsMaps inst of
-    Left vs  -> throwError "failed-contr"
+    Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
     Right di -> alignedMapM (phase2 di) phase1
 
   
@@ -208,12 +216,12 @@ makeDelInsMaps :: forall fam prim
                 . MergeState fam prim
                -> Either [Exists (MetaVar fam prim)]
                          (Subst2 fam prim)
-makeDelInsMaps iota =
-  let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iota
-      si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iota
+makeDelInsMaps (MergeState iot eqvs) =
+  let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iot
+      si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iot
    in do
-    d <- minimize (toSubst sd)
-    i <- minimize (toSubst si)
+    d <- minimize (toSubst $ sd)
+    i <- minimize (toSubst $ si)
     return (d , i)
  where
    toSubst :: [(Int , Exists (Holes fam prim (MetaVar fam prim)))]
@@ -230,9 +238,24 @@ isPerm :: Chg fam prim x -> Bool
 isPerm (Chg (Hole _) (Hole _)) = True
 isPerm _ = False
 
+instance ShowHO (MetaVar fam prim) where
+  showHO = ('#':) . show . metavarGet
+
 mrgChgChg :: Chg fam prim x -> Chg fam prim x
           -> MergeM fam prim (Phase2 fam prim x)
-mrgChgChg p@(Chg dp ip) q@(Chg dq iq)
+-- Changes must have unifiable domains
+mrgChgChg p q =
+  case runExcept (unify (chgDel p) (chgDel q)) of
+    Left err -> throwError "chg-unif"
+    Right r  -> trace ("r = " ++ show (M.toList r))
+              $ modify (\s -> s { eqs = M.union (eqs s) r})
+             >> mrgChgChg' p q
+  
+
+
+mrgChgChg' :: Chg fam prim x -> Chg fam prim x
+           -> MergeM fam prim (Phase2 fam prim x)
+mrgChgChg' p q 
  | isPerm p = mrgChgPrm p q
  | isPerm q = mrgChgPrm q p
  | otherwise =
@@ -294,55 +317,25 @@ instM p q = do
        -> WriterT [Exists (HolesMV fam prim :*: Chg fam prim)]
                   (MergeM fam prim) ()
     go (Hole v) x = do
-      iota <- get
-      case instAdd iota v x of
-        Just iota' -> put iota'
+      i <- gets iota
+      case instAdd i v x of
+        Just iota' -> modify (\st -> st { iota = iota' })
         Nothing    -> throwError "contr"
     go p (Hole d) = tell [Exists $ p :*: d]
     go _ _ = throwError "symb"
 
 
-{-
-
--- |This is specific to merging; which is why we left it here.
--- When instantiatting a deletion context against a patch,
--- we do /not/ fail when the deletion context requires something
--- but the patch is a permutation.
-instM :: forall fam prim at  
-       . Holes fam prim (MetaVar fam prim) at
-      -> Patch fam prim at
-      -> MergeM fam prim ()
-instM p = void . holesMapM (\h -> uncurry' go h >> return h) . lcp p
-  where
-    go :: Holes fam prim (MetaVar fam prim) ix
-       -> Patch fam prim ix
-       -> MergeM fam prim ()
-    go (Hole v) x = do
-      iota <- get
-      case instAdd iota v x of
-        Just iota' -> put iota'
-        Nothing    -> throwError $ "Failed contraction: " ++ show (metavarGet v)
-    go _ (Hole (Chg (Hole _) (Hole _))) = return ()
-    go _ (Hole _)                       = throwError $ "Conflict"
-    go _ _ = throwError $ "Symbol Clash"
-
--}
-
-
-{-
-  trace ("\nchg-chg\np = " ++ show p ++ "\nq = " ++ show q) $ do
-  -- TODO; this was the core issue before; what guarantees I don't have it
-  -- now? I need to look into this.
-  discover (holesMap (uncurry' Chg) $ lcp dp ip)
-           (holesMap (uncurry' Chg) $ lcp dq iq)
-  
--}
-
 phase2 :: Subst2 fam prim
        -> Phase2 fam prim at
        -> MergeM fam prim (Chg fam prim at)
-phase2 di (P2Instantiate chg) = return $ chgrefine di chg
-phase2 di (P2TestEq ca cb)    = chgeq di ca cb
+phase2 di (P2Instantiate chg) = eqvs (chgrefine di chg)
+phase2 di (P2TestEq ca cb)    = chgeq di ca cb >>= eqvs
+
+eqvs :: Chg fam prim at
+     -> MergeM fam prim (Chg fam prim at)
+eqvs (Chg d i) = do
+  es <- gets eqs
+  return (Chg (substApply es d) (substApply es i))
 
 chgrefine :: Subst2 fam prim
           -> Chg fam prim at
@@ -363,88 +356,25 @@ chgeq di ca cb =
      then return ca'
      else throwError "not-eq"
 
+------------
+-- Pretty -- 
 
 
-{-
+instance Show (PatchC fam prim x) where
+  show = myRender . holesPretty go
+    where
+      go x = case x of
+               InL c -> confPretty c
+               InR c -> chgPretty c
 
+confPretty :: Conflict fam prim x
+           -> Doc AnsiStyle
+confPretty (FailedContr vars)
+  = group (pretty "{!!" <+> sep (map (pretty . exElim metavarGet) vars) <+> pretty "!!}")
+confPretty (Conflict lbl c d)
+  = vcat [ pretty "{!! >>>>>>>" <+> pretty lbl <+> pretty "<<<<<<<"
+         , alignedPretty c
+         , pretty "==========="
+         , alignedPretty d
+         , pretty ">>>>>>>" <+> pretty lbl <+> pretty "<<<<<<< !!}"]
 
-type MergeState fam prim = Inst (Patch fam prim)
-
-mergeState0 :: MergeState fam prim
-mergeState0 = M.empty
-
-type MergeM fam prim = State (MergeState fam prim)
-
-data Conflict :: [*] -> [*] -> * -> * where
-  FailedContr :: [Exists (MetaVar fam prim)]
-              -> Conflict fam prim at
-  
-  Conflict :: String
-           -> Chg fam prim at
-           -> Chg fam prim at
-           -> Conflict fam prim at
-
-
-type C ki fam codes at = (EqHO ki , TestEquality ki)
-
-merge :: Patch fam prim at
-      -> Patch fam prim at
-      -> Holes fam prim (Sum (Conflict fam prim) (Chg fam prim)) at
-merge oa ob =
-  let oab          = lcp oa ob
-      (aux , inst) = runState (holesMapM (uncurry' phase1) oab) M.empty
-   in case makeDelInsMaps inst of
-        Left  vs -> Hole (InL $ FailedContr vs)
-        Right di -> holesMap (phase2' di) aux
-
--- |A 'PatchC' is a patch with potential conflicts inside
-type PatchC fam prim at
-  = Holes fam prim (Sum (Conflict fam prim) (Chg fam prim)) at
-
-diff3 :: forall fam prim ix
-       . Patch fam prim ix
-      -> Patch fam prim ix
-      -> PatchC fam prim ix
-diff3 oa ob = merge oa (ob `withFreshNamesFrom` oa)
-
-        
-phase2' :: Subst2 fam prim
-        -> Sum (Conflict fam prim) (Phase2 fam prim) at
-        -> Sum (Conflict fam prim) (Chg fam prim) at
-phase2' _  (InL c) = InL c
-phase2' di (InR x) = phase2 di x
-
-
-phase2 :: Subst2 fam prim
-       -> Phase2 fam prim at
-       -> Sum (Conflict fam prim) (Chg fam prim) at
-phase2 di (P2Instantiate chg) = InR $ chgrefine di chg
-phase2 di (P2TestEq ca cb)    = chgeq di ca cb
--}
-
-{-
-
-discover :: Patch fam prim at
-         -> Patch fam prim at
-         -> MergeM fam prim (Phase2 fam prim at)
-discover (Hole ca) (Hole cb) = recChgChg ca cb
-discover ca        (Hole cb) = recApp    cb ca
-discover (Hole ca) cb        = recApp    ca cb
-discover _          _        = throwError "Not a span"
-          
-recChgChg :: Chg fam prim at
-          -> Chg fam prim at
-          -> MergeM fam prim (Phase2 fam prim at)
-recChgChg ca cb
-  | isCpy ca  = recApp ca (Hole cb)
-  | isCpy cb  = recApp cb (Hole ca)
-  | otherwise = return $ P2TestEq ca cb
-
-recApp :: Chg fam prim at
-       -> Patch fam prim at
-       -> MergeM fam prim (Phase2 fam prim at)
-recApp (Chg del ins) chg = do
-  instM del chg
-  return $ P2Instantiate (Chg del ins)
-
--}

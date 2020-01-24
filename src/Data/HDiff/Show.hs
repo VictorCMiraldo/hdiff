@@ -109,7 +109,6 @@ alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
 instance Show (D.Aligned fam prim x) where
   show = myRender . alignedPretty'
 
-
 instance Show (Holes fam prim (D.Aligned fam prim) x) where
   show = myRender . holesPretty alignedPretty'
 

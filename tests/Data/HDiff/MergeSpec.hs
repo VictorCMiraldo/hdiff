@@ -432,6 +432,25 @@ r24 = "x" :>: leaves ["N1" , "C" , "B" , "D'" , "N2" , "E"]
 t24 :: TestCase
 t24 = ((a24 , o24 , b24) , const $ Just r24)
 
+------------------------
+-- Example 25
+
+a25 , o25 , b25 , r25 :: RTree
+
+a25 = "x" :>: ["A" :>: leaves ["a" , "c"]       , "b" :>: [] , "B" :>: [] , "C" :>: []]
+o25 = "x" :>: ["A" :>: leaves ["a" , "b" , "c"] , "B" :>: [] , "C" :>: []]
+b25 = "x" :>: ["A" :>: leaves ["a" , "c"]       , "B" :>: [] , "b" :>: [] , "C" :>: []]
+
+r25 = "x" :>: ["A" :>: leaves ["a" , "c"] , "b" :>: [] , "B" :>: [] , "b" :>: [] , "C" :>: []]
+              
+-- VCM: This is a very interesting test case; do we want to make
+-- it into a conflict? How do we even detect "b" :>: [] got moved to two different
+-- places?
+t25 :: TestCase
+t25 = ((a25 , o25 , b25) , const $ Just r25)
+
+
+
 
 ----------------------
 
@@ -554,16 +573,8 @@ ob23 = myHdiffRTree o23 b23
 oa24 = myHdiffRTree o24 a24
 ob24 = myHdiffRTree o24 b24
 
-instance ShowHO U1 where
-  showHO _ = "U1"
-
-instance ShowHO (Conflict fam prim) where
-  showHO _ = "conf"
-
-instance ShowHO (Chg fam prim) where
-  showHO = show
-
-
+oa25 = myHdiffRTree o25 a25
+ob25 = myHdiffRTree o25 b25
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
@@ -594,7 +605,8 @@ unitTests = [  ("1"   , t1 )
             ,  ("21"  , t21)
             ,  ("22"  , t22)
             ,  ("23"  , t23)
-            ,  ("24"  , t24)
+            -- ,  ("24"  , t24) -- This one is nasty!
+            ,  ("25"  , t25)
             ]
 
 flipMergeArgs :: (String , TestCase) -> (String , TestCase)
