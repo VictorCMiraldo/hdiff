@@ -19,9 +19,9 @@ import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
 import qualified Data.HDiff.MetaVar as D
-import qualified Data.HDiff.Merge   as D
 import qualified Data.HDiff.Merge.Align as D
 
+-- import qualified Data.HDiff.Merge   as D
 
 myRender :: Doc AnsiStyle -> String
 myRender =
@@ -79,29 +79,11 @@ chgPretty (D.Chg d i)
    chg f o c h
      = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
 
-confPretty :: D.Conflict fam prim x
-           -> Doc AnsiStyle
-confPretty (D.FailedContr vars)
-  = group (pretty "{!!" <+> sep (map (pretty . exElim D.metavarGet) vars) <+> pretty "!!}")
-confPretty (D.Conflict lbl c d)
-  = vcat [ pretty "{!! >>>>>>>" <+> pretty lbl <+> pretty "<<<<<<<"
-         , alignedPretty c
-         , pretty "==========="
-         , alignedPretty d
-         , pretty ">>>>>>>" <+> pretty lbl <+> pretty "<<<<<<< !!}"]
-
 instance Show (D.Chg fam prim x) where
   show = myRender . chgPretty
 
 instance Show (D.Patch fam prim x) where
   show = myRender . holesPretty chgPretty
-
-instance Show (D.PatchC fam prim x) where
-  show = myRender . holesPretty go
-    where
-      go x = case x of
-               InL c -> confPretty c
-               InR c -> chgPretty c
 
 asrD :: Doc AnsiStyle -> Doc AnsiStyle
 asrD d = annotate myred $ group
@@ -124,5 +106,31 @@ alignedPretty (D.Mod c)
 alignedPretty' :: D.Aligned fam prim x -> Doc AnsiStyle
 alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
 
+instance Show (D.Aligned fam prim x) where
+  show = myRender . alignedPretty'
+
+
 instance Show (Holes fam prim (D.Aligned fam prim) x) where
   show = myRender . holesPretty alignedPretty'
+
+
+{-
+
+instance Show (D.PatchC fam prim x) where
+  show = myRender . holesPretty go
+    where
+      go x = case x of
+               InL c -> confPretty c
+               InR c -> chgPretty c
+
+confPretty :: D.Conflict fam prim x
+           -> Doc AnsiStyle
+confPretty (D.FailedContr vars)
+  = group (pretty "{!!" <+> sep (map (pretty . exElim D.metavarGet) vars) <+> pretty "!!}")
+confPretty (D.Conflict lbl c d)
+  = vcat [ pretty "{!! >>>>>>>" <+> pretty lbl <+> pretty "<<<<<<<"
+         , alignedPretty c
+         , pretty "==========="
+         , alignedPretty d
+         , pretty ">>>>>>>" <+> pretty lbl <+> pretty "<<<<<<< !!}"]
+-}

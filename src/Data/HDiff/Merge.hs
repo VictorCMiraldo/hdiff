@@ -15,6 +15,7 @@ module Data.HDiff.Merge where
 import           Control.Monad.Cont
 import           Control.Monad.State
 import           Control.Monad.Except
+import           Control.Monad.Writer hiding (Sum)
 import           Data.Functor.Const
 import qualified Data.Map as M
 import           Data.Type.Equality
@@ -30,9 +31,11 @@ import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 import           Data.HDiff.Instantiate
 import           Data.HDiff.Merge.Align
+import           Data.HDiff.Show
 
-trace :: x -> a -> a
-trace _ = id
+import Debug.Trace
+--trace :: x -> a -> a
+--trace _ = id
 
 data Conflict :: [*] -> [*] -> * -> * where
   FailedContr :: [Exists (MetaVar fam prim)]
@@ -71,7 +74,7 @@ diff3 :: forall fam prim ix
 -- we can map over the anti-unif for efficiency purposes.
 diff3 oa ob =
   let oa' = align oa
-      ob' = align ob
+      ob' = align (ob `withFreshNamesFrom` oa)
    in holesMap (uncurry' mergeAl . delta alignDistr) $ lcp oa' ob'
  where
    delta f (x :*: y) = (f x :*: f y)
@@ -94,13 +97,11 @@ mrgSt0 = M.empty
 mrg :: Aligned fam prim x -> Aligned fam prim x
     -> MergeM fam prim (Aligned fam prim x)
 mrg p q = do
-  phase1 <- mrg0 p qFresh
+  phase1 <- mrg0 p q
   inst <- get
   case makeDelInsMaps inst of
     Left vs  -> throwError "failed-contr"
     Right di -> alignedMapM (phase2 di) phase1
- where
-    qFresh = q `withFreshNamesFrom'` p
 
   
 {-
@@ -122,20 +123,26 @@ mrg0 (Ins (Zipper zip p)) q    = Ins . Zipper zip <$> mrg0 p q
 mrg0 p (Ins (Zipper zip q))    = Ins . Zipper zip <$> mrg0 p q
 
 -- Deletions need to be checked for compatibility
-mrg0 (Del p@(Zipper zip _)) q  = compat p q
+mrg0 (Del p@(Zipper zip _)) q = compat p q
                             >>= fmap (Del . Zipper zip) . uncurry mrg0
-mrg0 p (Del q@(Zipper zip _))  = compat q p
+mrg0 p (Del q@(Zipper zip _)) = compat q p
                             >>= fmap (Del . Zipper zip) . uncurry mrg0 . swap
   where swap (x , y) = (y , x)
 
--- Modifications sould be instantiated, if possible.
-mrg0 (Mod p) q = Mod <$> mrgChg p (disalign q)
-mrg0 p (Mod q) = Mod <$> mrgChg (disalign p) q
+-- Spines mean that on one hand a constructor was copied; but the mod
+-- indicates this constructor changed. Hence, we hace to try applying
+-- the change to the spine at hand.
+mrg0 (Mod p) (Spn q) = Mod <$>  mrgChgSpn p q
+mrg0 (Spn p) (Mod q) = Mod <$>  mrgChgSpn q p
 
--- This is the last case.
+-- When we have two spines it is easy, just pointwise merge their
+-- recursive positions
 mrg0 (Spn p) (Spn q) = case zipSRep p q of
                         Nothing -> throwError "spn-spn"
                         Just r  -> Spn <$> repMapM (uncurry' mrg0) r
+
+-- Modifications sould be instantiated, if possible.
+mrg0 (Mod p) (Mod q) = Mod <$> mrgChgChg p q
 
 
 
@@ -219,14 +226,117 @@ makeDelInsMaps iota =
    mkVar vx (Hole v) = metavarSet vx v
    mkVar vx (Roll _) = MV_Comp vx
 
-mrgChg :: Chg fam prim x -> Chg fam prim x
-       -> MergeM fam prim (Phase2 fam prim x)
-mrgChg (Chg dp ip) (Chg dq iq) = do
+isPerm :: Chg fam prim x -> Bool
+isPerm (Chg (Hole _) (Hole _)) = True
+isPerm _ = False
+
+mrgChgChg :: Chg fam prim x -> Chg fam prim x
+          -> MergeM fam prim (Phase2 fam prim x)
+mrgChgChg p@(Chg dp ip) q@(Chg dq iq)
+ | isPerm p = mrgChgPrm p q
+ | isPerm q = mrgChgPrm q p
+ | otherwise =
+   trace (unlines
+         ["chg-chg"
+         ,"chg = " ++ show p
+         ,"chg = " ++ show q
+         , ""
+         ])
+   $ do return (P2TestEq p q)
+
+
+mrgChgPrm :: Chg fam prim x -> Chg fam prim x
+          -> MergeM fam prim (Phase2 fam prim x)
+mrgChgPrm perm@(Chg dp ip) q = 
+ trace (unlines
+       ["chg-perm"
+       ,"perm = " ++ show perm
+       ,"chg  = " ++ show q
+       , ""
+       ])
+ $ do
+  exs <- instM dp (Hole q)
+  return $ P2Instantiate perm
+   
+mrgChgSpn :: (CompoundCnstr fam prim x)
+          => Chg fam prim x -> SRep (Aligned fam prim) (Rep x)
+          -> MergeM fam prim (Phase2 fam prim x)
+mrgChgSpn p@(Chg dp ip) spn =
+ trace (unlines
+       ["chg-spn"
+       ,"chg = " ++ show p
+       ,"spn = " ++ show spn
+       , ""
+       ])
+ $ do
+  exs <- instM dp (chgPatch $ disalign $ Spn spn)
+  -- Now, we look into exs; where we have places where dp required
+  -- some structure, but spn had a change. In case this change's domain
+  -- is compatible, we are happy.
+  flip mapM_ exs $ \(Exists (v :*: chg)) -> do
+    case chg of
+      Chg (Hole vd) (Hole vi)
+        | metavarGet vd == metavarGet vi -> return ()
+        | otherwise                      -> trace "ip" $ throwError "inst-perm"
+      _ -> trace "ic" $ throwError "inst-chg"
+  return (P2Instantiate p)
+
+instM :: forall fam prim at  
+       . HolesMV fam prim at
+      -> Patch fam prim at
+      -> MergeM fam prim [Exists (HolesMV fam prim :*: Chg fam prim)]
+instM p q = do
+  (_ , exs) <- runWriterT (holesMapM (\h -> uncurry' go h >> return h) $ lcp p q)
+  return exs
+  where
+    go :: HolesMV fam prim ix
+       -> Patch fam prim ix
+       -> WriterT [Exists (HolesMV fam prim :*: Chg fam prim)]
+                  (MergeM fam prim) ()
+    go (Hole v) x = do
+      iota <- get
+      case instAdd iota v x of
+        Just iota' -> put iota'
+        Nothing    -> throwError "contr"
+    go p (Hole d) = tell [Exists $ p :*: d]
+    go _ _ = throwError "symb"
+
+
+{-
+
+-- |This is specific to merging; which is why we left it here.
+-- When instantiatting a deletion context against a patch,
+-- we do /not/ fail when the deletion context requires something
+-- but the patch is a permutation.
+instM :: forall fam prim at  
+       . Holes fam prim (MetaVar fam prim) at
+      -> Patch fam prim at
+      -> MergeM fam prim ()
+instM p = void . holesMapM (\h -> uncurry' go h >> return h) . lcp p
+  where
+    go :: Holes fam prim (MetaVar fam prim) ix
+       -> Patch fam prim ix
+       -> MergeM fam prim ()
+    go (Hole v) x = do
+      iota <- get
+      case instAdd iota v x of
+        Just iota' -> put iota'
+        Nothing    -> throwError $ "Failed contraction: " ++ show (metavarGet v)
+    go _ (Hole (Chg (Hole _) (Hole _))) = return ()
+    go _ (Hole _)                       = throwError $ "Conflict"
+    go _ _ = throwError $ "Symbol Clash"
+
+-}
+
+
+{-
+  trace ("\nchg-chg\np = " ++ show p ++ "\nq = " ++ show q) $ do
   -- TODO; this was the core issue before; what guarantees I don't have it
   -- now? I need to look into this.
   discover (holesMap (uncurry' Chg) $ lcp dp ip)
            (holesMap (uncurry' Chg) $ lcp dq iq)
   
+-}
 
 phase2 :: Subst2 fam prim
        -> Phase2 fam prim at
@@ -312,6 +422,8 @@ phase2 di (P2Instantiate chg) = InR $ chgrefine di chg
 phase2 di (P2TestEq ca cb)    = chgeq di ca cb
 -}
 
+{-
+
 discover :: Patch fam prim at
          -> Patch fam prim at
          -> MergeM fam prim (Phase2 fam prim at)
@@ -324,8 +436,8 @@ recChgChg :: Chg fam prim at
           -> Chg fam prim at
           -> MergeM fam prim (Phase2 fam prim at)
 recChgChg ca cb
-  | perm ca   = recApp ca (Hole cb)
-  | perm cb   = recApp cb (Hole ca)
+  | isCpy ca  = recApp ca (Hole cb)
+  | isCpy cb  = recApp cb (Hole ca)
   | otherwise = return $ P2TestEq ca cb
 
 recApp :: Chg fam prim at
@@ -334,26 +446,5 @@ recApp :: Chg fam prim at
 recApp (Chg del ins) chg = do
   instM del chg
   return $ P2Instantiate (Chg del ins)
- 
--- |This is specific to merging; which is why we left it here.
--- When instantiatting a deletion context against a patch,
--- we do /not/ fail when the deletion context requires something
--- but the patch is a permutation.
-instM :: forall fam prim at  
-       . Holes fam prim (MetaVar fam prim) at
-      -> Patch fam prim at
-      -> MergeM fam prim ()
-instM p = void . holesMapM (\h -> uncurry' go h >> return h) . lcp p
-  where
-    go :: Holes fam prim (MetaVar fam prim) ix
-       -> Patch fam prim ix
-       -> MergeM fam prim ()
-    go (Hole v) x = do
-      iota <- get
-      case instAdd iota v x of
-        Just iota' -> put iota'
-        Nothing    -> throwError $ "Failed contraction: " ++ show (metavarGet v)
-    go _ (Hole (Chg (Hole _) (Hole _))) = return ()
-    go _ (Hole _)                       = throwError $ "Conflict"
-    go _ _ = throwError $ "Symbol Clash"
 
+-}

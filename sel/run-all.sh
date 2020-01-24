@@ -1,6 +1,7 @@
 #! /bin/bash
 
 for d in $(ls); do
+  if [[ ! -d "$d" ]]; then continue; fi
   cd $d
   hdiff merge --test-merge M.* A.* O.* B.* >> /dev/null 2>&1
   res=$?
