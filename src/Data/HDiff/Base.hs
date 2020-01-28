@@ -129,7 +129,6 @@ type Arity = Int
 -- TODO: Since patches are now scoped; we should
 -- be making these things change-wise
 
-{-
 -- |The multiset of variables used by a patch.
 patchVars :: Patch fam prim at -> M.Map Int Arity
 patchVars = flip execState M.empty . holesMapM go
@@ -139,7 +138,6 @@ patchVars = flip execState M.empty . holesMapM go
     
     go r@(Chg d i)
       = holesMapM register d >> holesMapM register i >> return r
--}
 
 -- |The multiset of variables used by a patch.
 chgVars :: Chg fam prim at -> M.Map Int Arity
@@ -151,7 +149,8 @@ chgVars (Chg d i) = flip execState M.empty
     register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
                  >> return mvar
 
-
+patchMaxVar :: Patch fam prim at -> Maybe Int
+patchMaxVar = fmap fst . M.lookupMax . patchVars
 
 chgMaxVar :: Chg fam prim at -> Maybe Int
 chgMaxVar = fmap fst . M.lookupMax . chgVars
@@ -159,10 +158,10 @@ chgMaxVar = fmap fst . M.lookupMax . chgVars
 -- |Returns a patch that is guaranteed to have
 -- distinci variable names from the first argument.
 withFreshNamesFrom :: Chg fam prim at
-                   -> Chg fam prim at
+                   -> Patch fam prim at'
                    -> Chg fam prim at
 withFreshNamesFrom p q =
-  case chgMaxVar q of
+  case patchMaxVar q of
     -- q has no variables!
     Nothing -> p
     Just v  -> changeAdd (v + 1) p

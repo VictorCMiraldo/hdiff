@@ -79,11 +79,17 @@ diff3 :: forall fam prim ix
 diff3 oa ob
  = holesMap (uncurry' mergeAl . prepare) $ lcp oa ob
  where
+   maxV = (+1) $ maybe 0 id $ patchMaxVar oa
+   
+   fixNames :: Chg fam prim x -> Chg fam prim x
+   fixNames (Chg d i) = Chg (holesMap (metavarAdd maxV) d)
+                            (holesMap (metavarAdd maxV) i)
+   
    prepare :: (Patch   fam prim :*: Patch   fam prim) x
            -> (Aligned fam prim :*: Aligned fam prim) x
    prepare (p :*: q) =
      let cp = chgDistr p
-         cq = chgDistr q `withFreshNamesFrom` cp
+         cq = fixNames (chgDistr q)
       in (alignChg cp :*: alignChg cq)
 
 mergeAl :: Aligned fam prim x -> Aligned fam prim x
