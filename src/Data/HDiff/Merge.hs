@@ -37,9 +37,9 @@ import           Generics.Simplistic.Pretty
 import           Data.HDiff.Show
 import           Data.Text.Prettyprint.Doc hiding (align)
 import           Data.Text.Prettyprint.Doc.Render.Terminal
-import Debug.Trace
---trace :: x -> a -> a
---trace _ = id
+-- import Debug.Trace
+trace :: x -> a -> a
+trace _ = id
 
 data Conflict :: [*] -> [*] -> * -> * where
   FailedContr :: [Exists (MetaVar fam prim)]

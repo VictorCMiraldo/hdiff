@@ -171,7 +171,6 @@ withFreshNamesFrom p q =
       = Chg (holesMap (metavarAdd n) del)
             (holesMap (metavarAdd n) ins)
       
-{-
 -- | The deletion context of a patch
 domain :: Patch fam prim at -> Domain fam prim at
 domain = chgDel . chgDistr
@@ -183,5 +182,4 @@ cost = sum . map (exElim chgCost) . holesHolesList
   where
     chgCost :: Chg fam prim at -> Int
     chgCost (Chg d i) = holesSize d + holesSize i
--}
 
