@@ -76,12 +76,15 @@ diff3 :: forall fam prim ix
       -> PatchC fam prim ix
 -- Since patches are well-scoped (again! yay! lol)
 -- we can map over the anti-unif for efficiency purposes.
-diff3 oa ob =
-  let oa' = align oa
-      ob' = align (ob `withFreshNamesFrom` oa)
-   in holesMap (uncurry' mergeAl . delta alignDistr) $ lcp oa' ob'
+diff3 oa ob
+ = holesMap (uncurry' mergeAl . prepare) $ lcp oa ob
  where
-   delta f (x :*: y) = (f x :*: f y)
+   prepare :: (Patch   fam prim :*: Patch   fam prim) x
+           -> (Aligned fam prim :*: Aligned fam prim) x
+   prepare (p :*: q) =
+     let cp = chgDistr p
+         cq = chgDistr q `withFreshNamesFrom` cp
+      in (alignChg cp :*: alignChg cq)
 
 mergeAl :: Aligned fam prim x -> Aligned fam prim x
         -> Sum (Conflict fam prim) (Chg fam prim) x

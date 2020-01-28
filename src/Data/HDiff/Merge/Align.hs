@@ -113,8 +113,10 @@ data Aligned' fam prim f x where
   Spn :: (CompoundCnstr fam prim x)
       => SRep (Aligned' fam prim f) (Rep x)
       -> Aligned' fam prim f x
-  Mod :: f x
-      -> Aligned' fam prim f x
+
+  Cpy :: MetaVar fam prim x                       -> Aligned' fam prim f x
+  Prm :: MetaVar fam prim x -> MetaVar fam prim x -> Aligned' fam prim f x
+  Mod :: f x                                      -> Aligned' fam prim f x
 
 type Aligned fam prim = Aligned' fam prim (Chg fam prim)
 
@@ -125,12 +127,18 @@ alignedMapM :: (Monad m)
 alignedMapM f (Del (Zipper z h)) = (Del . Zipper z) <$> alignedMapM f h
 alignedMapM f (Ins (Zipper z h)) = (Ins . Zipper z) <$> alignedMapM f h
 alignedMapM f (Spn spn) = Spn <$> repMapM (alignedMapM f) spn
+alignedMapM _ (Cpy x)   = return $ Cpy x
+alignedMapM _ (Prm x y) = return $ Prm x y
 alignedMapM f (Mod x)   = Mod <$> f x
 
 alignedMap :: (forall x . f x -> g x)
            -> Aligned' prim fam f ty
            -> Aligned' prim fam g ty
 alignedMap f = runIdentity . alignedMapM (return . f)
+
+{-
+
+-- TODO: Do this on the change level!
 
 -- |The multiset of variables used by a aligned.
 alignedVars :: Aligned fam prim at -> M.Map Int Arity
@@ -160,6 +168,7 @@ withFreshNamesFrom' p q =
     changeAdd n (Chg del ins)
       = Chg (holesMap (metavarAdd n) del)
             (holesMap (metavarAdd n) ins)
+-}
       
 ----------------------------------------------
 -- It is easy to disalign back into a change

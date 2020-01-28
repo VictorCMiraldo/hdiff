@@ -129,6 +129,7 @@ type Arity = Int
 -- TODO: Since patches are now scoped; we should
 -- be making these things change-wise
 
+{-
 -- |The multiset of variables used by a patch.
 patchVars :: Patch fam prim at -> M.Map Int Arity
 patchVars = flip execState M.empty . holesMapM go
@@ -138,34 +139,50 @@ patchVars = flip execState M.empty . holesMapM go
     
     go r@(Chg d i)
       = holesMapM register d >> holesMapM register i >> return r
+-}
 
-patchMaxVar :: Patch fam prim at -> Maybe Int
-patchMaxVar = fmap fst . M.lookupMax . patchVars
+-- |The multiset of variables used by a patch.
+chgVars :: Chg fam prim at -> M.Map Int Arity
+chgVars (Chg d i) = flip execState M.empty
+                  $  holesMapM register d
+                  >> holesMapM register i
+                  >> return ()
+  where
+    register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
+                 >> return mvar
+
+
+
+chgMaxVar :: Chg fam prim at -> Maybe Int
+chgMaxVar = fmap fst . M.lookupMax . chgVars
 
 -- |Returns a patch that is guaranteed to have
 -- distinci variable names from the first argument.
-withFreshNamesFrom :: Patch fam prim at
-                   -> Patch fam prim at
-                   -> Patch fam prim at
+withFreshNamesFrom :: Chg fam prim at
+                   -> Chg fam prim at
+                   -> Chg fam prim at
 withFreshNamesFrom p q =
-  case patchMaxVar q of
+  case chgMaxVar q of
     -- q has no variables!
     Nothing -> p
-    Just v  -> holesMap (changeAdd (v + 1)) p
+    Just v  -> changeAdd (v + 1) p
   where
     changeAdd :: Int -> Chg fam prim at -> Chg fam prim at
     changeAdd n (Chg del ins)
       = Chg (holesMap (metavarAdd n) del)
             (holesMap (metavarAdd n) ins)
       
+{-
 -- | The deletion context of a patch
 domain :: Patch fam prim at -> Domain fam prim at
 domain = chgDel . chgDistr
 
+-- TODO: we can do better y alignging the monster
 -- | Counts how many constructors are inserted and deleted.
 cost :: Patch fam prim at -> Int
 cost = sum . map (exElim chgCost) . holesHolesList 
   where
     chgCost :: Chg fam prim at -> Int
     chgCost (Chg d i) = holesSize d + holesSize i
+-}
 
