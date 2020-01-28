@@ -38,7 +38,7 @@ data SZip ty w f where
   Z_PairR :: SRep   w f  -> SZip ty w g -> SZip ty w (f :*: g)
   Z_M1    :: SMeta i t   -> SZip ty w f -> SZip ty w (M1 i t f)
   Z_KH    :: a :~: ty    -> SZip ty w (K1 i a)
-  Z_KT    :: w a -> SZip ty w (Rep a) -> SZip ty w (K1 i a)
+  Z_KT    :: SZip ty w (Rep a) -> SZip ty w (K1 i a)
 deriving instance (forall a. Show (w a)) => Show (SZip h w f)
 deriving instance (forall a. Eq (w a)) => Eq   (SZip h w f)
 
@@ -49,15 +49,15 @@ zipperMap f (Z_R1 x)      = Z_R1 (zipperMap f x)
 zipperMap f (Z_M1 c x)    = Z_M1 c (zipperMap f x)
 zipperMap f (Z_PairL x y) = Z_PairL (zipperMap f x) (repMap f y)
 zipperMap f (Z_PairR x y) = Z_PairR (repMap f x) (zipperMap f y)
-zipperMap f (Z_KT v x)    = Z_KT (f v) (zipperMap f x)
+zipperMap f (Z_KT x)      = Z_KT (zipperMap f x)
 zipperMap _ (Z_KH x)      = Z_KH x
 
 inr1 :: (x :*: y) t -> (Sum z x :*: y) t
 inr1 (x :*: y) = (InR x :*: y)
 
-zipperRepZip :: SZip ty h f -> SRep w f -> Maybe (SRep ((Sum ((:~:) ty) h) :*: w) f)
+zipperRepZip :: SZip ty h f -> SFix w f -> Maybe (SRep ((Sum ((:~:) ty) h) :*: w) f)
 zipperRepZip (Z_KH Refl)   (S_K1 y)   = return $ S_K1 (InL Refl :*: y)
-zipperRepZip (Z_KT v x)    (S_K1 y)   = (S_K1 . _) <$> zipperRepZip x y
+zipperRepZip (Z_KT x)      (S_K1 y)   = (S_K1 . _) <$> zipperRepZip x y
 zipperRepZip (Z_L1 x)      (S_L1 y)   = S_L1 <$> zipperRepZip x y
 zipperRepZip (Z_R1 x)      (S_R1 y)   = S_R1 <$> zipperRepZip x y
 zipperRepZip (Z_M1 c x)    (S_M1 _ y) = S_M1 c <$> zipperRepZip x y
