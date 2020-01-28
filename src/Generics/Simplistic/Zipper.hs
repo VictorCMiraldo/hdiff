@@ -37,7 +37,8 @@ data SZip ty w f where
   Z_PairL :: SZip ty w f -> SRep    w g -> SZip ty w (f :*: g)
   Z_PairR :: SRep   w f  -> SZip ty w g -> SZip ty w (f :*: g)
   Z_M1    :: SMeta i t   -> SZip ty w f -> SZip ty w (M1 i t f)
-  Z_KH     :: a :~: ty   -> SZip ty w (K1 i a)
+  Z_KH    :: a :~: ty    -> SZip ty w (K1 i a)
+  Z_KT    :: w a -> SZip ty w (Rep a) -> SZip ty w (K1 i a)
 deriving instance (forall a. Show (w a)) => Show (SZip h w f)
 deriving instance (forall a. Eq (w a)) => Eq   (SZip h w f)
 
@@ -48,6 +49,7 @@ zipperMap f (Z_R1 x)      = Z_R1 (zipperMap f x)
 zipperMap f (Z_M1 c x)    = Z_M1 c (zipperMap f x)
 zipperMap f (Z_PairL x y) = Z_PairL (zipperMap f x) (repMap f y)
 zipperMap f (Z_PairR x y) = Z_PairR (repMap f x) (zipperMap f y)
+zipperMap f (Z_KT v x)    = Z_KT (f v) (zipperMap f x)
 zipperMap _ (Z_KH x)      = Z_KH x
 
 inr1 :: (x :*: y) t -> (Sum z x :*: y) t
@@ -55,6 +57,7 @@ inr1 (x :*: y) = (InR x :*: y)
 
 zipperRepZip :: SZip ty h f -> SRep w f -> Maybe (SRep ((Sum ((:~:) ty) h) :*: w) f)
 zipperRepZip (Z_KH Refl)   (S_K1 y)   = return $ S_K1 (InL Refl :*: y)
+zipperRepZip (Z_KT v x)    (S_K1 y)   = (S_K1 . _) <$> zipperRepZip x y
 zipperRepZip (Z_L1 x)      (S_L1 y)   = S_L1 <$> zipperRepZip x y
 zipperRepZip (Z_R1 x)      (S_R1 y)   = S_R1 <$> zipperRepZip x y
 zipperRepZip (Z_M1 c x)    (S_M1 _ y) = S_M1 c <$> zipperRepZip x y
@@ -76,12 +79,12 @@ zipSZip (Z_PairR x y) (Z_PairR w z)
 zipSZip _ _ = Nothing
 
 
-data Zipper c f g t where
+data Zipper c f g t x where
   Zipper :: c
-         => { zipper :: SZip t f (Rep t)
-            , sel    :: g t
+         => { zipper :: SZip x f (Rep t)
+            , sel    :: g x
             }
-         -> Zipper c f g t
+         -> Zipper c f g t x
 
 plug :: SZip ty phi f -> phi ty -> SRep phi f
 plug (Z_KH Refl)   k = S_K1 k
@@ -91,16 +94,16 @@ plug (Z_M1 c x)    k = S_M1 c $ plug x k
 plug (Z_PairL x y) k = (plug x k) :**: y
 plug (Z_PairR x y) k = x :**: (plug y k)
 
-type Zipper' fam prim ann phi t
+type Zipper' fam prim ann phi t x
   = Zipper (CompoundCnstr fam prim t)
            (HolesAnn fam prim ann phi)
-           (HolesAnn fam prim ann phi) t
+           (HolesAnn fam prim ann phi) t x
 
-zippers :: forall fam prim ann phi t
-         . (HasDecEq fam)
-        => (forall a . (Elem t fam) => phi a -> Maybe (a :~: t)) 
+zippers :: forall fam prim ann phi t x
+         . (Elem x fam , HasDecEq fam)
+        => (forall a . (Elem x fam) => phi a -> Maybe (a :~: x)) 
         -> HolesAnn fam prim ann phi t
-        -> [Zipper' fam prim ann phi t] 
+        -> [Zipper' fam prim ann phi t x] 
 zippers _   (Prim' _ _) = []
 zippers _   (Hole' _ _) = []
 zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
@@ -108,12 +111,15 @@ zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
     pf :: Proxy fam
     pf = Proxy
 
+    px :: Proxy x
+    px = Proxy
+
     pa :: HolesAnn fam prim ann phi a -> Proxy a
     pa _ = Proxy
 
     go :: SRep (HolesAnn fam prim ann phi) f
-       -> [(SZip t (HolesAnn fam prim ann phi) f
-          , HolesAnn fam prim ann phi t)]
+       -> [(SZip x (HolesAnn fam prim ann phi) f
+          , HolesAnn fam prim ann phi x)]
     go S_U1       = []
     go (S_L1 x)   = first Z_L1 <$> go x
     go (S_R1 x)   = first Z_R1 <$> go x
@@ -121,7 +127,7 @@ zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
     go (x :**: y) = (first (flip Z_PairL y) <$> go x)
                  ++ (first (Z_PairR x)      <$> go y)
     go (S_K1 x@(Roll' _ _)) =
-      case sameTy pf (Proxy :: Proxy t) (pa x) of
+      case sameTy pf px (pa x) of
         Just Refl -> return $ (Z_KH Refl , x)
         Nothing   -> []
     go (S_K1 x@(Hole' _ xh)) = 
