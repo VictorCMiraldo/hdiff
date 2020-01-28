@@ -76,21 +76,12 @@ diff3 :: forall fam prim ix
       -> PatchC fam prim ix
 -- Since patches are well-scoped (again! yay! lol)
 -- we can map over the anti-unif for efficiency purposes.
-diff3 oa ob
- = holesMap (uncurry' mergeAl . prepare) $ lcp oa ob
+diff3 oa ob =
+  let oa' = align oa
+      ob' = align (ob `withFreshNamesFrom` oa)
+   in holesMap (uncurry' mergeAl . delta alignDistr) $ lcp oa' ob'
  where
-   maxV = (+1) $ maybe 0 id $ patchMaxVar oa
-   
-   fixNames :: Chg fam prim x -> Chg fam prim x
-   fixNames (Chg d i) = Chg (holesMap (metavarAdd maxV) d)
-                            (holesMap (metavarAdd maxV) i)
-   
-   prepare :: (Patch   fam prim :*: Patch   fam prim) x
-           -> (Aligned fam prim :*: Aligned fam prim) x
-   prepare (p :*: q) =
-     let cp = chgDistr p
-         cq = fixNames (chgDistr q)
-      in (alignChg cp :*: alignChg cq)
+   delta f (x :*: y) = (f x :*: f y)
 
 mergeAl :: Aligned fam prim x -> Aligned fam prim x
         -> Sum (Conflict fam prim) (Chg fam prim) x
@@ -132,9 +123,20 @@ mrg p q = do
 
 mrg0 :: Aligned fam prim x -> Aligned fam prim x
     -> MergeM fam prim (Aligned' fam prim (Phase2 fam prim) x)
+-- Copies are the easiest case
+mrg0 (Cpy x) q = Mod <$> mrgCpy x (disalign q)
+mrg0 p (Cpy x) = Mod <$> mrgCpy x (disalign p)
+
+-- Permutations are almost as simple as copies
+mrg0 (Prm x y) (Prm x' y') = Mod <$> mrgPrmPrm x y x' y'
+mrg0 (Prm x y) q = Mod <$> mrgPrm x y (disalign q)
+mrg0 p (Prm x y) = Mod <$> mrgPrm x y (disalign p)
+
 -- Insertions are preserved as long as they are not
--- simultaneous
-mrg0 (Ins _) (Ins _)           = throwError "ins-ins"
+-- simultaneous.
+mrg0 (Ins (Zipper zip p)) (Ins (Zipper zip' q))
+  | zip == zip' = Ins . Zipper zip <$> mrg0 p q
+  | otherwise   = throwError "ins-ins"
 
 mrg0 (Ins (Zipper zip p)) q    = Ins . Zipper zip <$> mrg0 p q
 mrg0 p (Ins (Zipper zip q))    = Ins . Zipper zip <$> mrg0 p q
@@ -177,9 +179,11 @@ compat :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned fam prim) x
 compat (Zipper zip h) (Del (Zipper zip' h'))
   | zip == zip' = return (h , h')
   | otherwise   = throwError "del-del"
-compat (Zipper zip h) (Mod chg)
-  | isCpy chg = return (h , Mod chg) 
-  | otherwise = throwError "del-mod"
+-- Here we know chg is incompatibile; If it did not touch any
+-- of the recursive places fixed by 'zip' it would have been
+-- recognized as a deletion; if can't be a copy or a pemrutation
+-- because it is not flagged as such (and we handled those above!)
+compat (Zipper zip h) (Mod chg) = throwError "del-mod"
 compat (Zipper zip h) (Spn rep) =
   case zipperRepZip zip rep of
     Nothing -> throwError "del-spn-1"
@@ -198,7 +202,7 @@ compat (Zipper zip h) (Spn rep) =
    isCpyL1 (Exists (_ :*: a)) = isCpyA a
 
    isCpyA :: Aligned fam prim x -> Bool
-   isCpyA (Mod c) = isCpy c -- TODO: what if c is a contraction or duplication?
+   isCpyA (Cpy _) = True
    isCpyA (Spn r) = all (exElim isCpyA) (repLeavesList r)
    isCpyA _       = False
 
@@ -220,6 +224,38 @@ data Phase2 :: [*] -> [*] -> * -> * where
 
 type Subst2 fam prim = ( Subst fam prim (MetaVar fam prim)
                        , Subst fam prim (MetaVar fam prim))
+
+mrgCpy :: MetaVar fam prim at -> Chg fam prim at
+       -> MergeM fam prim (Phase2 fam prim at)
+mrgCpy x chg = do
+  i <- gets iota
+  case instAdd i x (Hole chg) of
+    Nothing -> error "inv-failure; cpy"
+    Just i' -> modify (\s -> s { iota = i' })
+            >> return (P2Instantiate (Chg (Hole x) (Hole x)))
+
+mrgPrmPrm :: MetaVar fam prim x
+          -> MetaVar fam prim x
+          -> MetaVar fam prim x
+          -> MetaVar fam prim x
+          -> MergeM fam prim (Phase2 fam prim x)
+mrgPrmPrm x y x' y' = do
+  es  <- gets eqs
+  let es' = substInsert (substInsert es x (Hole x'))
+                        y (Hole y')
+  return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
+
+mrgPrm :: MetaVar fam prim x
+       -> MetaVar fam prim x
+       -> Chg fam prim x
+       -> MergeM fam prim (Phase2 fam prim x)
+mrgPrm x y c = do
+  i <- gets iota
+  case instAdd i x (Hole c) of
+    Nothing -> error "inv-failure; inst"
+    Just i' -> modify (\s -> s { iota = i' })
+            >> return (P2Instantiate (Chg (Hole x) (Hole y)))
+
 
 makeDelInsMaps :: forall fam prim
                 . MergeState fam prim
@@ -243,9 +279,9 @@ makeDelInsMaps (MergeState iot eqvs) =
    mkVar vx (Hole v) = metavarSet vx v
    mkVar vx (Roll _) = MV_Comp vx
 
-isPerm :: Chg fam prim x -> Bool
-isPerm (Chg (Hole _) (Hole _)) = True
-isPerm _ = False
+isDup :: Chg fam prim x -> Bool
+isDup (Chg (Hole _) (Hole _)) = True
+isDup _ = False
 
 instance ShowHO (MetaVar fam prim) where
   showHO = ('#':) . show . metavarGet
@@ -253,20 +289,9 @@ instance ShowHO (MetaVar fam prim) where
 mrgChgChg :: Chg fam prim x -> Chg fam prim x
           -> MergeM fam prim (Phase2 fam prim x)
 -- Changes must have unifiable domains
-mrgChgChg p q =
-  case runExcept (unify (chgDel p) (chgDel q)) of
-    Left err -> throwError "chg-unif"
-    Right r  -> trace ("r = " ++ show (M.toList r))
-              $ modify (\s -> s { eqs = M.union (eqs s) r})
-             >> mrgChgChg' p q
-  
-
-
-mrgChgChg' :: Chg fam prim x -> Chg fam prim x
-           -> MergeM fam prim (Phase2 fam prim x)
-mrgChgChg' p q 
- | isPerm p = mrgChgPrm p q
- | isPerm q = mrgChgPrm q p
+mrgChgChg p q
+ | isDup p = mrgChgDup p q
+ | isDup q = mrgChgDup q p
  | otherwise =
    trace (unlines
          ["chg-chg"
@@ -274,22 +299,27 @@ mrgChgChg' p q
          ,"chg = " ++ show q
          , ""
          ])
-   $ do return (P2TestEq p q)
+   $ case runExcept (unify (chgDel p) (chgDel q)) of
+      Left err -> throwError "chg-unif"
+      Right r  -> trace ("r = " ++ show (M.toList r))
+                $ modify (\s -> s { eqs = M.union (eqs s) r})
+               >> return (P2TestEq p q)
 
-
-mrgChgPrm :: Chg fam prim x -> Chg fam prim x
+mrgChgDup :: Chg fam prim x -> Chg fam prim x
           -> MergeM fam prim (Phase2 fam prim x)
-mrgChgPrm perm@(Chg dp ip) q = 
+mrgChgDup dup@(Chg (Hole v) _) q = 
  trace (unlines
-       ["chg-perm"
-       ,"perm = " ++ show perm
-       ,"chg  = " ++ show q
+       ["chg-dup"
+       ,"dup = " ++ show dup
+       ,"chg = " ++ show q
        , ""
        ])
- $ do
-  exs <- instM dp (Hole q)
-  return $ P2Instantiate perm
-   
+ $ do i <- gets iota
+      case instAdd i v (Hole q) of
+        Nothing -> throwError "chg-dup"
+        Just i' -> modify (\s -> s { iota = i' })
+                >> return (P2Instantiate dup)
+
 mrgChgSpn :: (CompoundCnstr fam prim x)
           => Chg fam prim x -> SRep (Aligned fam prim) (Rep x)
           -> MergeM fam prim (Phase2 fam prim x)
@@ -300,7 +330,43 @@ mrgChgSpn p@(Chg dp ip) spn =
        ,"spn = " ++ show spn
        , ""
        ])
- $ do
+ $ instM dp (Spn spn) >> return (P2Instantiate p)
+
+instM :: forall fam prim at  
+       . HolesMV fam prim at
+      -> Aligned fam prim at
+      -> MergeM fam prim ()
+-- instantiating over a copy is fine; 
+instM _ (Cpy _)    = return ()
+
+instM (Hole v) a = do
+  i <- gets iota
+  case instAdd i v (Hole $ disalign a) of
+    Nothing -> throwError "contr"
+    Just i' -> modify (\st -> st { iota = i' })
+
+instM _ (Mod _) = throwError "inst-mod"
+
+-- instantiating over a permutation if we are not immediatly
+-- matching is tricky. I will be conservative and
+-- raise a conflit. I suspect we can do better though.
+-- For example; register that the deletion of x must be d
+-- and return whatever we found about the insertion of y at this very
+-- place; but this is difficult.
+instM d (Prm _ _) = throwError "inst-perm"
+
+instM x@(Prim _) d
+  | x == chgDel (disalign d) = return ()
+  | otherwise                = throwError "symbol-clash"
+
+instM (Roll r) (Ins _) = throwError "chg-ins"
+instM (Roll r) (Del _) = throwError "chg-del"
+instM (Roll r) (Spn s) =
+  case zipSRep r s of
+    Nothing  -> throwError "constr-clash"
+    Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
+
+{-
   exs <- instM dp (chgPatch $ disalign $ Spn spn)
   -- Now, we look into exs; where we have places where dp required
   -- some structure, but spn had a change. In case this change's domain
@@ -332,6 +398,7 @@ instM p q = do
         Nothing    -> throwError "contr"
     go p (Hole d) = tell [Exists $ p :*: d]
     go _ _ = throwError "symb"
+-}
 
 
 phase2 :: Subst2 fam prim

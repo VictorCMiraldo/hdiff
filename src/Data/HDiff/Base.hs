@@ -157,14 +157,14 @@ chgMaxVar = fmap fst . M.lookupMax . chgVars
 
 -- |Returns a patch that is guaranteed to have
 -- distinci variable names from the first argument.
-withFreshNamesFrom :: Chg fam prim at
+withFreshNamesFrom :: Patch fam prim at
                    -> Patch fam prim at'
-                   -> Chg fam prim at
+                   -> Patch fam prim at
 withFreshNamesFrom p q =
   case patchMaxVar q of
     -- q has no variables!
     Nothing -> p
-    Just v  -> changeAdd (v + 1) p
+    Just v  -> holesMap (changeAdd (v + 1)) p
   where
     changeAdd :: Int -> Chg fam prim at -> Chg fam prim at
     changeAdd n (Chg del ins)

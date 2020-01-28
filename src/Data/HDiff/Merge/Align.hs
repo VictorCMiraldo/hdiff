@@ -186,6 +186,8 @@ disalign (Ins (Zipper ins rest)) =
       ins' = zipperMap sfixCast ins
    in aux { chgIns = Roll (plug ins' $ chgIns aux) }
 disalign (Spn rep) = chgDistr $ Roll (repMap (Hole . disalign) rep)
+disalign (Cpy x)   = Chg (Hole x) (Hole x)
+disalign (Prm x y) = Chg (Hole x) (Hole y)
 disalign (Mod chg) = chg
 
 alignDistr :: Holes fam prim (Aligned fam prim) x
@@ -214,7 +216,9 @@ annotStiffness = synthesize go (const $ const $ Const True)
 
 
 alignChg :: (HasDecEq fam) => Chg fam prim x -> Aligned fam prim x
-alignChg (Chg d i) = syncAnnot (annotStiffness d) (annotStiffness i)
+alignChg c@(Chg d i) = syncAnnot vars (annotStiffness d) (annotStiffness i)
+  where
+    vars = chgVars c
 
 align :: (HasDecEq fam) => Patch fam prim x -> Holes fam prim (Aligned fam prim) x
 align = holesMap alignChg
@@ -259,8 +263,8 @@ type A fam prim = forall t . (HasDecEq fam)
                 -> HolesAnn fam prim IsStiff (MetaVar fam prim) t
                 -> Aligned fam prim t 
 
-syncAnnot :: A fam prim
-syncAnnot a b = syncAnnotD (syncSpine syncAnnot) a b
+syncAnnot :: M.Map Int Arity -> A fam prim
+syncAnnot vars a b = syncAnnotD (syncSpine vars (syncAnnot vars)) a b
 
 syncAnnotD :: A fam prim -> A fam prim
 syncAnnotD f a b = 
@@ -284,15 +288,27 @@ syncAnnotI f a b =
     Nothing           -> f a b
     Just (Zipper z r) -> Ins (Zipper z (syncAnnotI f a r))
 
-syncSpine :: A fam prim -> A fam prim 
-syncSpine f a@(Roll' _ sa) b@(Roll' _ sb) =
+syncSpine :: M.Map Int Arity -> A fam prim -> A fam prim 
+syncSpine vars f a@(Roll' _ sa) b@(Roll' _ sb) =
   case zipSRep sa sb of
-    Nothing -> syncAnnotD syncMod a b
+    Nothing -> syncAnnotD (syncMod vars) a b
     Just r  -> Spn (repMap (uncurry' f) r)
-syncSpine _ a b = syncAnnotD syncMod a b
+syncSpine vars _ a b = syncAnnotD (syncMod vars) a b
 
-syncMod :: A fam prim
-syncMod a b = Mod (Chg (dropAnn a) (dropAnn b))
+syncMod :: M.Map Int Arity -> A fam prim
+syncMod vars a b = 
+  let a' = dropAnn a
+      b' = dropAnn b
+   in case (a' , b') of
+        (Hole v , Hole u)
+          -> let arV = M.lookup (metavarGet v) vars
+                 arU = M.lookup (metavarGet u) vars
+              in if all (== Just 2) [arV , arU]
+                 then if metavarGet u == metavarGet v
+                      then Cpy v
+                      else Prm v u
+                 else Mod (Chg a' b')
+        _ -> Mod (Chg a' b')
    
 dropAnn :: HolesAnn fam prim ann phi t -> Holes fam prim phi t
 dropAnn = holesMapAnn id (const U1)

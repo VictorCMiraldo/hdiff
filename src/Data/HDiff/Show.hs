@@ -100,6 +100,11 @@ alignedPretty (D.Ins x)
   = zipperPretty sfixPretty alignedPretty asrI x
 alignedPretty (D.Spn x)
   = repPretty alignedPretty x
+alignedPretty (D.Cpy x)
+  = group (pretty "[Cpy" <+> metavarPretty id x <+> pretty "]")
+alignedPretty (D.Prm x y)
+  = group (pretty "[Prm" <+> metavarPretty id x <+> pretty "<=>"
+                         <+> metavarPretty id y <+> pretty "]")
 alignedPretty (D.Mod c)
   = chgPretty c
 
