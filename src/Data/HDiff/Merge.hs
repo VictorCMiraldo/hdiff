@@ -407,11 +407,10 @@ phase2 di (P2Instantiate chg) =
     return (chgrefine di chg)
 phase2 di (P2Instantiate' chg i) =
   trace ("p2-inst-and-chk:\n  i = " ++ show i ++ "\n  c = " ++ show chg) $
-    let chg' = chgrefine di chg
-     in do es <- gets eqs
-           case getCommonVars (substApply es (chgIns chg)) (substApply es i) of
-              [] -> return chg'
-              xs -> throwError ("mov-mov " ++ show xs)
+    do es <- gets eqs
+       case getCommonVars (substApply es (chgIns chg)) (substApply es i) of
+           [] -> return $ chgrefine di chg
+           xs -> throwError ("mov-mov " ++ show xs)
  where
    getCommonVars :: HolesMV fam prim at -> HolesMV fam prim at -> [Int]
    getCommonVars x y =
