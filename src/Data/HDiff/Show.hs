@@ -117,6 +117,8 @@ instance Show (D.Aligned fam prim x) where
 instance Show (Holes fam prim (D.Aligned fam prim) x) where
   show = myRender . holesPretty alignedPretty'
 
+instance Show (D.MetaVar fam prim x) where
+  show = ('#':) . show . D.metavarGet
 
 {-
 

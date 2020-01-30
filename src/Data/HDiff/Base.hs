@@ -58,6 +58,8 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
        -> Holes fam prim (MetaVar fam prim) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
    chk exit (Hole m1) (Hole m2) 
+     | metavarGet m1 == metavarGet m2 = return (Const ())
+     | otherwise
      = do st <- get
           case M.lookup (metavarGet m1) st of
             Nothing -> lift $ exit False
@@ -138,6 +140,14 @@ patchVars = flip execState M.empty . holesMapM go
     
     go r@(Chg d i)
       = holesMapM register d >> holesMapM register i >> return r
+
+-- |The multiset of variables used by a context.
+holesVars :: HolesMV fam prim at -> M.Map Int Arity
+holesVars c = flip execState M.empty
+            $ holesMapM register c >> return ()
+  where
+    register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
+                 >> return mvar
 
 -- |The multiset of variables used by a patch.
 chgVars :: Chg fam prim at -> M.Map Int Arity

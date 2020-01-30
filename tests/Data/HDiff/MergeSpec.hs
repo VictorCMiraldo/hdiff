@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
+{-# LANGUAGE CPP              #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
@@ -11,11 +12,13 @@ import Data.HDiff.Base
 import Data.HDiff.Merge
 import Data.HDiff.Merge.Align
 import Data.HDiff.Diff
+import Data.HDiff.MetaVar
 import Data.HDiff.Show
 import Languages.RTree
 import Languages.RTree.Diff
 
 import GHC.Generics
+import Generics.Simplistic
 import Generics.Simplistic.Util
 
 import qualified Data.Set as S
@@ -445,9 +448,13 @@ r25 = "x" :>: ["A" :>: leaves ["a" , "c"] , "b" :>: [] , "B" :>: [] , "b" :>: []
               
 -- VCM: This is a very interesting test case; do we want to make
 -- it into a conflict? How do we even detect "b" :>: [] got moved to two different
--- places?
+-- places? 
+-- VCM: I'm making it into a conflict; We effectively have the
+--      same piece of information moved to two different places;
+--      duplicating the information is not desired; I can craft scenarios where
+--      this can result in a serious bug.
 t25 :: TestCase
-t25 = ((a25 , o25 , b25) , const $ Just r25)
+t25 = ((a25 , o25 , b25) , const $ Nothing)
 
 
 
@@ -605,7 +612,7 @@ unitTests = [  ("1"   , t1 )
             ,  ("21"  , t21)
             ,  ("22"  , t22)
             ,  ("23"  , t23)
-            -- ,  ("24"  , t24) -- This one is nasty!
+            ,  ("24"  , t24) 
             ,  ("25"  , t25)
             ]
 
@@ -619,50 +626,3 @@ spec = do
     describe ("merge: manual examples (" ++ show m ++ ")") $ do
       mapM_ (uncurry $ testMerge m) unitTests
 
-{-
-    describe ("merge: conflict or ok (" ++ show m ++ ")") $ do
-      it "contains no apply fail or merge differs" $ property $
-        forAll gen3Trees $ \(a , o , b)
-          -> case doMerge m a o b of
-               MergeOk _    -> True
-               HasConflicts -> True
-               _            -> False
--}
-
-      {-
-      mustMerge m "01" a1 o1 b1
-      mustMerge m "02" a2 o2 b2
-      mustMerge m "03" a3 o3 b3
-      mustMerge m "04" a4 o4 b4
-      if m == DM_Patience
-        then expectMerge m HasConflicts "05" a5 o5 b5
-        else mustMerge m "05" a5 o5 b5
-      if m == DM_Patience
-        then expectMerge m HasConflicts "06" a6 o6 b6
-        else mustMerge m "06" a6 o6 b6
-      mustMerge m "07" a7 o7 b7
-      mustMerge m "08" a8 o8 b8
-      mustMerge m "09" a9 o9 b9
-
-      expectMerge m HasConflicts "10" a10 o10 b10
-      expectMerge m HasConflicts "11" a11 o11 b11
-      expectMerge m HasConflicts "12" a12 o12 b12
-
-      mustMerge m "13" a13 o13 b13
-
-      expectMerge m HasConflicts "14" a14 o14 b14
-      expectMerge m HasConflicts "15" a15 o15 b15
-      expectMerge m HasConflicts "16" a16 o16 b16
-      if m == DM_Patience
-        then mustMerge m "17" a17 o17 b17
-        else expectMerge m HasConflicts "17" a17 o17 b17
-
-      mustMerge m "18" a18 o18 b18
-      mustMerge m "19" a19 o19 b19
-      xexpectMerge MergeOk "What to do with self-contained ins-ins?" "20" a20 o20 b20
-
-    describe ("merge: conflict or ok (" ++ show m ++ ")") $ do
-      it "contains no apply fail or merge differs" $ property $
-        forAll gen3Trees $ \(a , o , b)
-          -> doMerge m a o b `elem` [MergeOk , HasConflicts]
--}

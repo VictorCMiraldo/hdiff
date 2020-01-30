@@ -1,4 +1,4 @@
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE FlexibleContexts      #-}
@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE CPP                   #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Data.HDiff.Merge where
 
@@ -19,7 +20,7 @@ import           Control.Monad.Writer hiding (Sum)
 import           Data.Functor.Const
 import qualified Data.Map as M
 import           Data.Type.Equality
-import           Data.List (partition)
+import           Data.List (partition, foldl')
 ----------------------------------------
 import           GHC.Generics
 import           Generics.Simplistic
@@ -37,9 +38,23 @@ import           Generics.Simplistic.Pretty
 import           Data.HDiff.Show
 import           Data.Text.Prettyprint.Doc hiding (align)
 import           Data.Text.Prettyprint.Doc.Render.Terminal
--- import Debug.Trace
+
+import Unsafe.Coerce 
+
+-- #define DEBUG_MERGE
+#ifdef DEBUG_MERGE
+import Debug.Trace
+#else
 trace :: x -> a -> a
 trace _ = id
+#endif
+
+mkDbgString :: String -> String -> String -> String -> String
+mkDbgString ca cb stra strb =
+  unlines [ca ++ "-" ++ cb
+          ,"  " ++ ca ++ " = " ++ stra
+          ,"  " ++ cb ++ " = " ++ strb
+          , ""]
 
 data Conflict :: [*] -> [*] -> * -> * where
   FailedContr :: [Exists (MetaVar fam prim)]
@@ -101,6 +116,14 @@ type MergeM     fam prim = StateT (MergeState fam prim) (Except String)
 
 mrgSt0 :: MergeState fam prim
 mrgSt0 = MergeState M.empty substEmpty
+
+onEqvs :: (Subst fam prim (MetaVar fam prim) -> Subst fam prim (MetaVar fam prim))
+       -> MergeM fam prim ()
+onEqvs f = do
+  e <- gets eqs
+  let es' = f e
+  trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
+  
 
 mrg :: Aligned fam prim x -> Aligned fam prim x
     -> MergeM fam prim (Aligned fam prim x)
@@ -216,6 +239,10 @@ data Phase2 :: [*] -> [*] -> * -> * where
   --  discovery phase.
   P2Instantiate :: Chg fam prim at
                 -> Phase2 fam prim at
+
+  P2Instantiate' :: Chg fam prim at
+                 -> HolesMV fam prim at
+                 -> Phase2 fam prim at
   
   -- |Sometimes we must decide whether we are looking into the same change or not.
   P2TestEq      :: Chg fam prim at
@@ -227,34 +254,36 @@ type Subst2 fam prim = ( Subst fam prim (MetaVar fam prim)
 
 mrgCpy :: MetaVar fam prim at -> Chg fam prim at
        -> MergeM fam prim (Phase2 fam prim at)
-mrgCpy x chg = do
-  i <- gets iota
-  case instAdd i x (Hole chg) of
-    Nothing -> error "inv-failure; cpy"
-    Just i' -> modify (\s -> s { iota = i' })
-            >> return (P2Instantiate (Chg (Hole x) (Hole x)))
+mrgCpy x chg =
+  trace (mkDbgString "cpy" "prm" (show x) (show chg))
+   $ do i <- gets iota
+        case instAdd i x (Hole chg) of
+          Nothing -> error "inv-failure; cpy"
+          Just i' -> modify (\s -> s { iota = i' })
+                  >> return (P2Instantiate (Chg (Hole x) (Hole x)))
 
 mrgPrmPrm :: MetaVar fam prim x
           -> MetaVar fam prim x
           -> MetaVar fam prim x
           -> MetaVar fam prim x
           -> MergeM fam prim (Phase2 fam prim x)
-mrgPrmPrm x y x' y' = do
-  es  <- gets eqs
-  let es' = substInsert (substInsert es x (Hole x'))
-                        y (Hole y')
-  return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
+mrgPrmPrm x y x' y' =
+  trace (mkDbgString "prm" "prm" (show x ++ " |-> " ++ show y) (show x' ++ " |-> " ++ show y'))
+   $ do let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
+        onEqvs ins
+        return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
 
 mrgPrm :: MetaVar fam prim x
        -> MetaVar fam prim x
        -> Chg fam prim x
        -> MergeM fam prim (Phase2 fam prim x)
-mrgPrm x y c = do
-  i <- gets iota
-  case instAdd i x (Hole c) of
-    Nothing -> error "inv-failure; inst"
-    Just i' -> modify (\s -> s { iota = i' })
-            >> return (P2Instantiate (Chg (Hole x) (Hole y)))
+mrgPrm x y c = 
+  trace (mkDbgString "prm" "chg" (show x ++ " |-> " ++ show y) (show c))
+    $ do i <- gets iota
+         case instAdd i x (Hole c) of
+           Nothing -> error "inv-failure; inst"
+           Just i' -> modify (\s -> s { iota = i' })
+                   >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
 
 
 makeDelInsMaps :: forall fam prim
@@ -265,9 +294,10 @@ makeDelInsMaps (MergeState iot eqvs) =
   let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iot
       si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iot
    in do
-    d <- minimize (toSubst $ sd)
-    i <- minimize (toSubst $ si)
-    return (d , i)
+    d <- minimize (addEqvs (toSubst sd))
+    i <- minimize (addEqvs (toSubst si))
+    trace (diStr (d , i))
+      return (d , i)
  where
    toSubst :: [(Int , Exists (Holes fam prim (MetaVar fam prim)))]
            -> Subst fam prim (MetaVar fam prim)
@@ -278,6 +308,24 @@ makeDelInsMaps (MergeState iot eqvs) =
    mkVar vx (Prim _) = MV_Prim vx
    mkVar vx (Hole v) = metavarSet vx v
    mkVar vx (Roll _) = MV_Comp vx
+
+   diStr :: Subst2 fam prim -> String
+   diStr (d , i) = unlines $
+     [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
+     [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
+
+   -- TODO: moev this to unification; call it substToList.
+   eqvsL = [ Exists (u :*: unsafeCoerce v) | (Exists u , Exists (Hole v)) <- M.toList eqvs]
+
+   -- We only insert the equivalences when we don't yet have data about these
+   -- variables in whatever map we are complementing
+   addEqvs :: Subst fam prim (MetaVar fam prim)
+           -> Subst fam prim (MetaVar fam prim)
+   addEqvs s = let go k = foldl' k s eqvsL
+                in go $ \s' (Exists (v :*: u)) 
+                        -> if or (map (`M.member` s') [ Exists v , Exists u ])
+                           then s'
+                           else substInsert s' v (Hole u)
 
 isDup :: Chg fam prim x -> Bool
 isDup (Chg (Hole _) (Hole _)) = True
@@ -293,44 +341,28 @@ mrgChgChg p q
  | isDup p = mrgChgDup p q
  | isDup q = mrgChgDup q p
  | otherwise =
-   trace (unlines
-         ["chg-chg"
-         ,"chg = " ++ show p
-         ,"chg = " ++ show q
-         , ""
-         ])
+   trace (mkDbgString "chg" "chg" (show p) (show q)) 
    $ case runExcept (unify (chgDel p) (chgDel q)) of
       Left err -> throwError "chg-unif"
-      Right r  -> trace ("r = " ++ show (M.toList r))
-                $ modify (\s -> s { eqs = M.union (eqs s) r})
+      Right r  -> onEqvs (M.union r)
                >> return (P2TestEq p q)
 
 mrgChgDup :: Chg fam prim x -> Chg fam prim x
           -> MergeM fam prim (Phase2 fam prim x)
 mrgChgDup dup@(Chg (Hole v) _) q = 
- trace (unlines
-       ["chg-dup"
-       ,"dup = " ++ show dup
-       ,"chg = " ++ show q
-       , ""
-       ])
- $ do i <- gets iota
-      case instAdd i v (Hole q) of
-        Nothing -> throwError "chg-dup"
-        Just i' -> modify (\s -> s { iota = i' })
-                >> return (P2Instantiate dup)
+ trace (mkDbgString "chg" "dup" (show q) (show dup))
+  $ do i <- gets iota
+       case instAdd i v (Hole q) of
+         Nothing -> throwError "chg-dup"
+         Just i' -> modify (\s -> s { iota = i' })
+                 >> return (P2Instantiate dup)
 
 mrgChgSpn :: (CompoundCnstr fam prim x)
           => Chg fam prim x -> SRep (Aligned fam prim) (Rep x)
           -> MergeM fam prim (Phase2 fam prim x)
 mrgChgSpn p@(Chg dp ip) spn =
- trace (unlines
-       ["chg-spn"
-       ,"chg = " ++ show p
-       ,"spn = " ++ show spn
-       , ""
-       ])
- $ instM dp (Spn spn) >> return (P2Instantiate p)
+ trace (mkDbgString "chg" "spn" (show p) (show spn))
+   $ instM dp (Spn spn) >> return (P2Instantiate' p (chgIns $ disalign $ Spn spn))
 
 instM :: forall fam prim at  
        . HolesMV fam prim at
@@ -366,52 +398,26 @@ instM (Roll r) (Spn s) =
     Nothing  -> throwError "constr-clash"
     Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
 
-{-
-  exs <- instM dp (chgPatch $ disalign $ Spn spn)
-  -- Now, we look into exs; where we have places where dp required
-  -- some structure, but spn had a change. In case this change's domain
-  -- is compatible, we are happy.
-  flip mapM_ exs $ \(Exists (v :*: chg)) -> do
-    case chg of
-      Chg (Hole vd) (Hole vi)
-        | metavarGet vd == metavarGet vi -> return ()
-        | otherwise                      -> trace "ip" $ throwError "inst-perm"
-      _ -> trace "ic" $ throwError "inst-chg"
-  return (P2Instantiate p)
-
-instM :: forall fam prim at  
-       . HolesMV fam prim at
-      -> Patch fam prim at
-      -> MergeM fam prim [Exists (HolesMV fam prim :*: Chg fam prim)]
-instM p q = do
-  (_ , exs) <- runWriterT (holesMapM (\h -> uncurry' go h >> return h) $ lcp p q)
-  return exs
-  where
-    go :: HolesMV fam prim ix
-       -> Patch fam prim ix
-       -> WriterT [Exists (HolesMV fam prim :*: Chg fam prim)]
-                  (MergeM fam prim) ()
-    go (Hole v) x = do
-      i <- gets iota
-      case instAdd i v x of
-        Just iota' -> modify (\st -> st { iota = iota' })
-        Nothing    -> throwError "contr"
-    go p (Hole d) = tell [Exists $ p :*: d]
-    go _ _ = throwError "symb"
--}
-
-
 phase2 :: Subst2 fam prim
        -> Phase2 fam prim at
        -> MergeM fam prim (Chg fam prim at)
-phase2 di (P2Instantiate chg) = eqvs (chgrefine di chg)
-phase2 di (P2TestEq ca cb)    = chgeq di ca cb >>= eqvs
-
-eqvs :: Chg fam prim at
-     -> MergeM fam prim (Chg fam prim at)
-eqvs (Chg d i) = do
-  es <- gets eqs
-  return (Chg (substApply es d) (substApply es i))
+phase2 di (P2TestEq ca cb) = chgeq di ca cb
+phase2 di (P2Instantiate chg) =
+  trace ("p2-inst:\n  " ++ show chg) $
+    return (chgrefine di chg)
+phase2 di (P2Instantiate' chg i) =
+  trace ("p2-inst-and-chk:\n  i = " ++ show i ++ "\n  c = " ++ show chg) $
+    let chg' = chgrefine di chg
+     in do es <- gets eqs
+           if hasCommonVars (substApply es (chgIns chg)) (substApply es i)
+           then throwError "mov-mov"
+           else return chg'
+ where
+   hasCommonVars :: HolesMV fam prim at -> HolesMV fam prim at -> Bool
+   hasCommonVars x y =
+     let vx = holesVars x
+         vy = holesVars y
+      in not (M.null (M.intersection vx vy))
 
 chgrefine :: Subst2 fam prim
           -> Chg fam prim at
@@ -428,7 +434,9 @@ chgeq :: Subst2 fam prim
 chgeq di ca cb = 
   let ca' = chgrefine di ca
       cb' = chgrefine di cb
-  in if changeEq ca' cb'
+      r   = changeEq ca' cb'
+  in trace ("p2-eq?:\n  ca = " ++ show ca' ++ "\n  cb = " ++ show cb' ++ "\n [" ++ show r ++ "]") $
+     if r
      then return ca'
      else throwError "not-eq"
 

@@ -51,6 +51,11 @@ composes_assoc mode = forAll (choose (0 , 2) >>= genSimilarTreesN 4)
         Nothing          -> counterexample "Not composable" False
         Just (ad0 , ad1) -> property $ patchEq ad0 ad1
 
+equality :: DiffMode -> Property
+equality mode = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = hdiffRTreeHM mode 1 t1 t2
+         p'    = patch `withFreshNamesFrom` patch
+      in property (patchEq patch patch && patchEq patch p')
 
 {-
   NOT TRUE!!!!
@@ -67,9 +72,12 @@ composes_non_reflexive = forAll (genSimilarTrees' `suchThat` uncurry (/=))
 diffModeSpec :: DiffMode -> Spec
 diffModeSpec mode = do
   describe "composes" $ do
-    it "has copy as left and right id" $ property (copy_composes mode)
-    it "is correct"                    $ property (composes_correct mode)
-    it "is associative"                $ property (composes_assoc mode)
+    it "has copy as left and right id"  $ property (copy_composes mode)
+    it "is correct"                     $ property (composes_correct mode)
+    it "is associative"                 $ property (composes_assoc mode)
+
+  describe "equality" $ do
+    it "is equal to itself or a rename" $ property (equality mode)
 
 spec :: Spec
 spec = do

@@ -100,7 +100,6 @@ substInsert :: (Ord (Exists phi))
             -> Subst fam prim phi
 substInsert sigma v x = M.insert (Exists v) (Exists x) sigma
 
-
 -- |Unification is done in a monad.
 type UnifyM fam prim phi
   = StateT (Subst fam prim phi) (Except (UnifyErr fam prim phi))
