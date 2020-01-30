@@ -226,7 +226,8 @@ annotStiffness = synthesize go (const $ const $ Const True)
 
 
 alignChg :: (HasDecEq fam) => Chg fam prim x -> Aligned fam prim x
-alignChg c@(Chg d i) = syncAnnot vars (annotStiffness d) (annotStiffness i)
+alignChg c@(Chg d i) = -- rmFauxPerms $
+                       syncAnnot vars (annotStiffness d) (annotStiffness i)
   where
     vars = chgVars c
 
@@ -323,6 +324,43 @@ syncMod vars a b =
 dropAnn :: HolesAnn fam prim ann phi t -> Holes fam prim phi t
 dropAnn = holesMapAnn id (const U1)
 
+--------------------
+--------------------
+-- We need to fix 'fake' permuations; though.
+
+getPermMap :: Aligned' fam prim f x -> M.Map Int Int 
+getPermMap (Del (Zipper _ h)) = getPermMap h
+getPermMap (Ins (Zipper _ h)) = getPermMap h
+getPermMap (Spn s) = M.unions (map (exElim getPermMap) (repLeavesList s))
+getPermMap (Mod _) = M.empty
+getPermMap (Cpy _) = M.empty
+getPermMap (Prm x y) = M.singleton (metavarGet x) (metavarGet y)
+
+permutesWith :: M.Map Int Int -> Int -> Int -> Bool
+permutesWith m x y =
+  case (,) <$> M.lookup x m <*> M.lookup y m of
+    Just (y' , x') -> x' == x && y' == y
+    Nothing -> False
+
+-- On example 26 in MergeSpec we have a 'fakeperm' case.
+-- pretty nasty. Thank you real world for bringing it
+-- tp may attention!
+rmFauxPerms :: Aligned fam prim x -> Aligned fam prim x
+rmFauxPerms a = go a
+  where
+    permMap = getPermMap a
+
+    go :: Aligned fam prim x -> Aligned fam prim x
+    go (Del (Zipper z h)) = Del (Zipper z $ go h)
+    go (Ins (Zipper z h)) = Ins (Zipper z $ go h)
+    go (Spn s)            = Spn (repMap go s)
+    go (Cpy x)   = Cpy x
+    go (Mod x)   = Mod x
+    go (Prm x y)
+      | permutesWith permMap (metavarGet x) (metavarGet y) = Prm x y
+      | otherwise = Mod (Chg (Hole x) (Hole y))
+     
+      
 --------------------
 --------------------
 

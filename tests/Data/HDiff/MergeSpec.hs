@@ -456,6 +456,20 @@ r25 = "x" :>: ["A" :>: leaves ["a" , "c"] , "b" :>: [] , "B" :>: [] , "b" :>: []
 t25 :: TestCase
 t25 = ((a25 , o25 , b25) , const $ Nothing)
 
+-----------------------------
+-- Example 26
+
+a26 , o26 , b26 , r26 :: RTree
+
+a26 = "x" :>: ["C" :>: ["c" :>: []] , "D" :>: [] , "A" :>: [] , "B" :>: []]
+o26 = "x" :>: ["A" :>: [] , "B" :>: [] , "C" :>: ["c" :>: []], "D" :>: []]
+b26 = "x" :>: ["C'" :>: ["c" :>: []] , "A" :>: [] , "B" :>: [] , "D" :>: [] , "E" :>: [] ]
+
+r26 = "x" :>: ["C'" :>: ["c" :>: []] , "D" :>: [] , "A" :>: [] , "B" :>: [] , "E" :>: [] ]
+
+t26 :: TestCase
+t26 = ((a26 , o26 , b26) , const $ Just r26)
+
 
 
 
@@ -583,6 +597,9 @@ ob24 = myHdiffRTree o24 b24
 oa25 = myHdiffRTree o25 a25
 ob25 = myHdiffRTree o25 b25
 
+oa26 = myHdiffRTree o26 a26
+ob26 = myHdiffRTree o26 b26
+
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3
@@ -614,6 +631,7 @@ unitTests = [  ("1"   , t1 )
             ,  ("23"  , t23)
             ,  ("24"  , t24) 
             ,  ("25"  , t25)
+            ,  ("26"  , t26)
             ]
 
 flipMergeArgs :: (String , TestCase) -> (String , TestCase)
