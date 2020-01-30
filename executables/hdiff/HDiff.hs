@@ -130,6 +130,7 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
     let omc = D.diff3 patchOA patchOB
     case D.noConflicts omc of
       Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
+              >> when (v == VeryLoud) (hPutStrLn stdout $ show omc)
               >> return (ExitFailure 1)
       Just om -> do
         when (v == Loud) (hPutStrLn stdout $ show om)
