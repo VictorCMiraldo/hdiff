@@ -1,3 +1,4 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -89,6 +90,7 @@ import Data.Type.Equality
 import Data.Coerce
 import Control.Monad.State
 import Control.Monad.Identity
+import Control.DeepSeq
 import qualified Data.Map as M
 
 import Data.HDiff.Base
@@ -117,6 +119,14 @@ data Aligned' fam prim f x where
   Cpy :: MetaVar fam prim x                       -> Aligned' fam prim f x
   Prm :: MetaVar fam prim x -> MetaVar fam prim x -> Aligned' fam prim f x
   Mod :: f x                                      -> Aligned' fam prim f x
+
+instance (forall x . NFData (f x)) => NFData (Aligned' fam prim f a) where
+  rnf (Del (Zipper z h)) = map (maybe () (exElim rnf)) (zipLeavesList z) `seq` rnf h
+  rnf (Ins (Zipper z h)) = map (maybe () (exElim rnf)) (zipLeavesList z) `seq` rnf h
+  rnf (Spn spn) = map (exElim rnf) (repLeavesList spn) `seq` ()
+  rnf (Cpy _) = ()
+  rnf (Prm _ _) = ()
+  rnf (Mod f) = rnf f
 
 type Aligned fam prim = Aligned' fam prim (Chg fam prim)
 
