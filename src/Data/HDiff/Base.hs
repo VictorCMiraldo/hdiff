@@ -185,11 +185,10 @@ withFreshNamesFrom p q =
 domain :: Patch fam prim at -> Domain fam prim at
 domain = chgDel . chgDistr
 
--- TODO: we can do better y alignging the monster
 -- | Counts how many constructors are inserted and deleted.
-cost :: Patch fam prim at -> Int
-cost = sum . map (exElim chgCost) . holesHolesList 
-  where
-    chgCost :: Chg fam prim at -> Int
-    chgCost (Chg d i) = holesSize d + holesSize i
+patchCost :: Patch fam prim at -> Int
+patchCost = sum . map (exElim chgCost) . holesHolesList 
+
+chgCost :: Chg fam prim at -> Int
+chgCost (Chg d i) = holesSize d + holesSize i
 

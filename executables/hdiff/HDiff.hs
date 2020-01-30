@@ -36,6 +36,7 @@ import qualified Data.HDiff.MetaVar      as D
 import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
 import qualified Data.HDiff.Merge        as D
+import qualified Data.HDiff.Merge.Align  as D
 import           Data.HDiff.Show
 
 import           Languages.Interface
@@ -110,7 +111,7 @@ diffWithOpts opts fa fb = do
 mainDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts)
   $ \_ fa fb -> do
-    (secs , patch) <- time (diffWithOpts opts fa fb)
+    (secs , patch) <- time (D.align <$> diffWithOpts opts fa fb)
     unless (v == Quiet || withStats opts)
       $ hPutStrLn stdout (show patch)
     when (testApply opts) $ void (tryApply v patch fa (Just fb))
@@ -118,7 +119,7 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
       putStrLn . unwords $
         [ "time(s):" ++ show secs
         , "n+m:" ++ show (holesSize fa + holesSize fb)
-        , "cost:" ++ show (D.cost patch)
+        , "cost:" ++ show (D.patchAlign patch)
         ]
     return ExitSuccess
 

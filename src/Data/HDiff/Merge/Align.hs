@@ -316,3 +316,19 @@ dropAnn = holesMapAnn id (const U1)
 --------------------
 --------------------
 
+alignCost :: Aligned fam prim t -> Int
+alignCost (Del (Zipper z h)) =
+  let ls = zipLeavesList z
+   in 1 + sum (map (maybe 0 (exElim holesSize)) ls) + alignCost h
+alignCost (Ins (Zipper z h)) =
+  let ls = zipLeavesList z
+   in 1 + sum (map (maybe 0 (exElim holesSize)) ls) + alignCost h
+alignCost (Spn spn) =
+  let ls = repLeavesList spn
+   in sum (map (exElim alignCost) ls)
+alignCost (Prm _ _) = 0
+alignCost (Cpy _)   = 0
+alignCost (Mod chg) = chgCost chg
+
+patchAlignCost :: Holes fam prim (Aligned fam prim) x -> Int
+patchAlignCost = sum . map (exElim alignCost) . holesHolesList 
