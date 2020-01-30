@@ -409,15 +409,15 @@ phase2 di (P2Instantiate' chg i) =
   trace ("p2-inst-and-chk:\n  i = " ++ show i ++ "\n  c = " ++ show chg) $
     let chg' = chgrefine di chg
      in do es <- gets eqs
-           if hasCommonVars (substApply es (chgIns chg)) (substApply es i)
-           then throwError "mov-mov"
-           else return chg'
+           case getCommonVars (substApply es (chgIns chg)) (substApply es i) of
+              [] -> return chg'
+              xs -> throwError ("mov-mov " ++ show xs)
  where
-   hasCommonVars :: HolesMV fam prim at -> HolesMV fam prim at -> Bool
-   hasCommonVars x y =
+   getCommonVars :: HolesMV fam prim at -> HolesMV fam prim at -> [Int]
+   getCommonVars x y =
      let vx = holesVars x
          vy = holesVars y
-      in not (M.null (M.intersection vx vy))
+      in M.keys (M.intersection vx vy)
 
 chgrefine :: Subst2 fam prim
           -> Chg fam prim at
