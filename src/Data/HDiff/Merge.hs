@@ -269,7 +269,8 @@ mrgPrmPrm :: MetaVar fam prim x
           -> MergeM fam prim (Phase2 fam prim x)
 mrgPrmPrm x y x' y' =
   trace (mkDbgString "prm" "prm" (show x ++ " |-> " ++ show y) (show x' ++ " |-> " ++ show y'))
-   $ do let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
+   $ do -- let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
+        let ins oldEs = substInsert oldEs x (Hole x') 
         onEqvs ins
         return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
 
