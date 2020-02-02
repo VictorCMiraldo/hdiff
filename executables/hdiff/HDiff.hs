@@ -114,12 +114,12 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
     (secs , patch) <- time (D.align <$> diffWithOpts opts fa fb)
     unless (v == Quiet || withStats opts)
       $ hPutStrLn stdout (show patch)
-    when (testApply opts) $ void (tryApply v patch fa (Just fb))
+    when (testApply opts) $ putStrLn "--test-apply currently deprecated" -- void (tryApply v patch fa (Just fb))
     when (withStats opts) $ 
       putStrLn . unwords $
         [ "time(s):" ++ show secs
         , "n+m:" ++ show (holesSize fa + holesSize fb)
-        , "cost:" ++ show (D.patchAlign patch)
+        , "cost:" ++ show (D.patchAlignCost patch)
         ]
     return ExitSuccess
 

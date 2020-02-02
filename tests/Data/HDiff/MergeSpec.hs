@@ -465,12 +465,28 @@ a26 = "x" :>: ["C" :>: ["c" :>: []] , "D" :>: [] , "A" :>: [] , "B" :>: []]
 o26 = "x" :>: ["A" :>: [] , "B" :>: [] , "C" :>: ["c" :>: []], "D" :>: []]
 b26 = "x" :>: ["C'" :>: ["c" :>: []] , "A" :>: [] , "B" :>: [] , "D" :>: [] , "E" :>: [] ]
 
+-- Although we would like to have a result like r26 below; it is a conflict.
+-- The second element of the list changed in two different ways. From one
+-- hand, it was copied from the fourth; on the other, it was copied
+-- from the first! We can't reconcile this automatically and.
 r26 = "x" :>: ["C'" :>: ["c" :>: []] , "D" :>: [] , "A" :>: [] , "B" :>: [] , "E" :>: [] ]
 
 t26 :: TestCase
-t26 = ((a26 , o26 , b26) , const $ Just r26)
+t26 = ((a26 , o26 , b26) , const $ Nothing)
 
+-----------------------------
+-- Example 27
 
+a27 , o27 , b27 , r27 :: RTree
+
+a27 = "x" :>: ["C" :>: [] , "B" :>: [] , "A" :>: []]
+o27 = "x" :>: ["A" :>: [] , "B" :>: [] , "C" :>: []]
+b27 = "x" :>: ["A'" :>: [] , "B'" :>: [] , "C'" :>: []]
+
+r27 = "x" :>: ["C'" :>: [] , "B'" :>: [] , "A'" :>: []]
+
+t27 :: TestCase
+t27 = ((a27 , o27 , b27) , const $ Just r27)
 
 
 ----------------------
@@ -600,6 +616,10 @@ ob25 = myHdiffRTree o25 b25
 oa26 = myHdiffRTree o26 a26
 ob26 = myHdiffRTree o26 b26
 
+oa27 = myHdiffRTree o27 a27
+ob27 = myHdiffRTree o27 b27
+
+
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3
@@ -632,6 +652,7 @@ unitTests = [  ("1"   , t1 )
             ,  ("24"  , t24) 
             ,  ("25"  , t25)
             ,  ("26"  , t26)
+            ,  ("27"  , t27)
             ]
 
 flipMergeArgs :: (String , TestCase) -> (String , TestCase)
