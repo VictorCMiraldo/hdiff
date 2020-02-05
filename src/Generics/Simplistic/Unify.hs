@@ -179,9 +179,23 @@ unifyM x y = do
 minimize :: forall fam prim phi . (Ord (Exists phi))
          => Subst fam prim phi -- ^
          -> Either [Exists phi] (Subst fam prim phi)
-minimize sigma = whileM sigma [] $ \s _
-  -> M.fromList <$> (mapM (secondF (exMapM go)) (M.toList s))
+minimize sigma =
+  let sigma' = M.foldrWithKey' insIfNotSimpleEq M.empty sigma
+   in whileM sigma' [] $ \s _
+    -> M.fromList <$> (mapM (secondF (exMapM (go sigma'))) (M.toList s))
   where
+    -- Still only works for 2-cycles; we need to break all cycles from
+    -- sigma while minimizing!
+    insIfNotSimpleEq :: Exists phi -> Exists (Holes fam prim phi)
+                     -> Subst fam prim phi -> Subst fam prim phi
+    insIfNotSimpleEq k v@(Exists (Hole v')) curr =
+      case M.lookup (Exists v') curr of
+        Just (Exists (Hole k'))
+          | k == Exists k' -> curr
+        _                  -> M.insert k v curr
+    insIfNotSimpleEq k v curr = M.insert k v curr
+    
+    
     secondF :: (Functor m) => (a -> m b) -> (x , a) -> m (x , b)
     secondF f (x , a) = (x,) <$> f a
 
@@ -190,13 +204,14 @@ minimize sigma = whileM sigma [] $ \s _
     -- We use the writer monad solely to let us know whether some variables have
     -- been substituted in this current term. After one iteration
     -- of the map where no variable is further refined, we are done.
-    go :: Holes fam prim phi at
+    go :: Subst fam prim phi
+       -> Holes fam prim phi at
        -> Writer [Exists phi] (Holes fam prim phi at)
-    go = holesRefineVarsM $ \var -> do
-           case substLkup sigma var of
-             Nothing -> return (Hole var)
-             Just r  -> tell [Exists var]
-                     >> return r
+    go ss = holesRefineVarsM $ \var -> do
+           case substLkup ss var of
+             Nothing       -> return (Hole var)
+             Just r        -> tell [Exists var]
+                           >> return r
 
     -- | Just like nub; but works on a sorted list
     mnub :: (Ord a) => [a] -> [a]

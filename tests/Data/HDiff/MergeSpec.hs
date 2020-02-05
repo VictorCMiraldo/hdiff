@@ -19,6 +19,7 @@ import Languages.RTree.Diff
 
 import GHC.Generics
 import Generics.Simplistic
+import Generics.Simplistic.Unify
 import Generics.Simplistic.Util
 
 import qualified Data.Set as S
@@ -619,6 +620,18 @@ ob26 = myHdiffRTree o26 b26
 oa27 = myHdiffRTree o27 a27
 ob27 = myHdiffRTree o27 b27
 
+---- looped subst:
+
+-- This is unminimizable
+s :: Subst RTreeFam RTreePrims (MetaVar RTreeFam RTreePrims)
+s = let s0 = substEmpty
+        s1 = substInsert s0 (var 0) (Hole (var 1))
+        s2 = substInsert s1 (var 1) (Hole (var 2))
+        s3 = substInsert s2 (var 2) (Hole (var 0))
+     in s3
+  where
+    var :: Int -> MetaVar RTreeFam RTreePrims RTree
+    var x = MV_Comp x
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)

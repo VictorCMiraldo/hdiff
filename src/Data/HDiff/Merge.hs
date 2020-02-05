@@ -41,7 +41,7 @@ import           Data.Text.Prettyprint.Doc.Render.Terminal
 
 import Unsafe.Coerce 
 
-#define DEBUG_MERGE
+-- #define DEBUG_MERGE
 #ifdef DEBUG_MERGE
 import Debug.Trace
 #else
@@ -294,9 +294,9 @@ makeDelInsMaps :: forall fam prim
 makeDelInsMaps (MergeState iot eqvs) =
   let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iot
       si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iot
-   in do
-    d <- minimize (addEqvs (toSubst sd))
-    i <- minimize (addEqvs (toSubst si))
+   in trace (oneStr "eqvs" eqvs) $ do
+    d <- trace (oneStr "sd" $ toSubst sd) (minimize (addEqvs (toSubst sd)))
+    i <- trace (oneStr "si" $ toSubst si) (minimize (addEqvs (toSubst si)))
     trace (diStr (d , i))
       return (d , i)
  where
@@ -314,6 +314,10 @@ makeDelInsMaps (MergeState iot eqvs) =
    diStr (d , i) = unlines $
      [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
      [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
+
+   oneStr :: String -> Subst fam prim (MetaVar fam prim) -> String
+   oneStr lbl d = unlines $
+     [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
 
    -- TODO: moev this to unification; call it substToList.
    eqvsL = [ Exists (u :*: unsafeCoerce v) | (Exists u , Exists (Hole v)) <- M.toList eqvs]
