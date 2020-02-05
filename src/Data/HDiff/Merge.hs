@@ -41,7 +41,7 @@ import           Data.Text.Prettyprint.Doc.Render.Terminal
 
 import Unsafe.Coerce 
 
-#define DEBUG_MERGE
+-- #define DEBUG_MERGE
 #ifdef DEBUG_MERGE
 import Debug.Trace
 #else
@@ -84,6 +84,7 @@ getConflicts = foldr act [] . holesHolesList
     act (Exists (InR _)) = id
     act (Exists (InL c)) = (Exists c :)
 
+{-
 diff3 :: forall fam prim ix
        . (HasDecEq fam)
       => Patch fam prim ix
@@ -97,6 +98,20 @@ diff3 oa ob =
    in holesMap (uncurry' mergeAl . delta alignDistr) $ lcp oa' ob'
  where
    delta f (x :*: y) = (f x :*: f y)
+-}
+diff3 :: forall fam prim ix
+       . (HasDecEq fam)
+      => Patch fam prim ix
+      -> Patch fam prim ix
+      -> PatchC fam prim ix
+diff3 oa ob' =
+  let ob = ob' `withFreshNamesFrom` oa
+      ca = alignChg $ chgDistr oa
+      cb = alignChg $ chgDistr ob
+   in Hole $ mergeAl ca cb
+       
+  
+
 
 mergeAl :: Aligned fam prim x -> Aligned fam prim x
         -> Sum (Conflict fam prim) (Chg fam prim) x

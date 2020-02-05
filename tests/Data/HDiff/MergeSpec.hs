@@ -619,6 +619,10 @@ ob26 = myHdiffRTree o26 b26
 oa27 = myHdiffRTree o27 a27
 ob27 = myHdiffRTree o27 b27
 
+w :: PatchRTree -> Aligned RTreeFam RTreePrims RTree
+w = alignChg . chgDistr 
+
+
 
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
