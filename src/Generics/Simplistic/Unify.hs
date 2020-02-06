@@ -22,6 +22,7 @@ import qualified Data.Map as M
 import           Control.Monad.Except
 import           Control.Monad.State
 import           Control.Monad.Writer
+import           Control.Monad.Cont
 import           Unsafe.Coerce
 
 import Generics.Simplistic
@@ -166,6 +167,7 @@ unifyM x y = do
         Just q' -> unless (eqHO q' q)
                  $ void $ getEquivs q q'
           
+
 -- |The minimization step performs the /occurs check/ and removes
 --  unecessary steps. For example;
 --
@@ -180,21 +182,16 @@ minimize :: forall fam prim phi . (Ord (Exists phi))
          => Subst fam prim phi -- ^
          -> Either [Exists phi] (Subst fam prim phi)
 minimize sigma =
-  let sigma' = M.foldrWithKey' insIfNotSimpleEq M.empty sigma
+  let sigma' = breakCycles inj proj $ removeIds proj sigma
    in whileM sigma' [] $ \s _
     -> M.fromList <$> (mapM (secondF (exMapM (go sigma'))) (M.toList s))
   where
-    -- Still only works for 2-cycles; we need to break all cycles from
-    -- sigma while minimizing!
-    insIfNotSimpleEq :: Exists phi -> Exists (Holes fam prim phi)
-                     -> Subst fam prim phi -> Subst fam prim phi
-    insIfNotSimpleEq k v@(Exists (Hole v')) curr =
-      case M.lookup (Exists v') curr of
-        Just (Exists (Hole k'))
-          | k == Exists k' -> curr
-        _                  -> M.insert k v curr
-    insIfNotSimpleEq k v curr = M.insert k v curr
-    
+    inj :: Exists phi -> Exists (Holes fam prim phi)
+    inj = exMap Hole
+
+    proj :: Exists (Holes fam prim phi) -> Maybe (Exists phi)
+    proj (Exists (Hole phi)) = Just $ Exists phi
+    proj _                   = Nothing
     
     secondF :: (Functor m) => (a -> m b) -> (x , a) -> m (x , b)
     secondF f (x , a) = (x,) <$> f a
@@ -233,3 +230,50 @@ minimize sigma =
       else if (mnub (sort xs') == mnub (sort xs))
            then Left xs'
            else whileM x' xs' f
+
+-- |Removes the keys that project to themselves according to
+-- the provided projection.
+--
+-- > removeIds id $ M.fromList [(0,0), (1,2) , (3,4)]
+-- >   = M.fromList [(1,2),(3,4)]
+--
+removeIds :: forall a b
+           . (Ord a) => (b -> Maybe a) -> M.Map a b -> M.Map a b
+removeIds proj = M.filterWithKey (\a b -> not $ Just a == proj b)
+
+
+-- |Will make sure there are no cycles in the map as per the
+-- provided function. For example,
+--
+-- > breakCycles id Just $ M.fromList [(0,1) , (1,2) , (2,0)]
+-- >  = M.fromList [(1,0),(2,0)]
+--
+-- Usefull when the maps represent some equivalence; the function essentially
+-- collapses the equivalence class.
+breakCycles :: forall a b
+             . (Ord a) => (a -> b) -> (b -> Maybe a) -> M.Map a b -> M.Map a b
+breakCycles inj proj m0
+  = let (flattenedCycles , m') = runState (dropCycles m0) M.empty
+     in M.union flattenedCycles m'
+  where
+    dropCycles :: M.Map a b -> State (M.Map a b) (M.Map a b)
+    dropCycles m = case findCycle m of
+                     Nothing        -> return m
+                     Just (a , cyc) -> do
+                       modify (M.union cyc)
+                       dropCycles (M.delete a (m M.\\ cyc))
+
+    cycleFor :: a -> M.Map a b -> Maybe (M.Map a b)
+    cycleFor a0 m = M.lookup a0 m >>= proj >>= go M.empty
+      where
+        go :: M.Map a b -> a -> Maybe (M.Map a b)
+        go aux a'
+          | a' == a0 || a' `M.member` aux = return aux
+          | otherwise = M.lookup a' m >>= proj >>= go (M.insert a' (inj a0) aux) 
+
+    findCycle :: M.Map a b -> Maybe (a , M.Map a b)
+    findCycle m = (`runCont` id) $ callCC $
+      \exit -> (>> return Nothing) . flip mapM_ (M.keys m) $
+        \a -> case cycleFor a m of
+                Nothing -> return ()
+                Just r  -> exit $ Just (a , r)
