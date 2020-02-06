@@ -64,7 +64,7 @@ main :: IO ()
 main = Exc.catch mainBody handler
   where
     handler :: Exc.ErrorCall -> IO ()
-    handler err = hPutStrLn ("Error call: " ++ show err)
+    handler err = hPutStrLn stderr ("Error call: " ++ show err)
                >> exitWith (ExitFailure 42)
 
 mainBody :: IO ()
