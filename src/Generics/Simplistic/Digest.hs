@@ -18,16 +18,16 @@ import qualified Data.ByteString.Char8  as BS8
 import qualified Data.ByteArray         as BA
 
 import qualified Crypto.Hash            as Hash
-import qualified Crypto.Hash.Algorithms as Hash (Blake2s_256)
+import qualified Crypto.Hash.Algorithms as Hash (Blake2b_256)
 
 import Generics.Simplistic
 import Generics.Simplistic.Util
 
 -- * Digest Capabilities
 
--- |Our digests come from Blake2s_256 
+-- |Our digests come from Blake2b_256 
 newtype Digest
-  = Digest { getDigest :: Hash.Digest Hash.Blake2s_256 }
+  = Digest { getDigest :: Hash.Digest Hash.Blake2b_256 }
   deriving (Eq , Show)
 
 -- |Unpacks a digest into a list of Word64.
