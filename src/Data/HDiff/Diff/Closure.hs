@@ -12,6 +12,7 @@ import Data.Functor.Sum
 import qualified Data.Map as M
 import Control.Monad.Writer hiding (Sum)
 
+import Data.Monoid hiding (Sum)
 import Data.HDiff.Base
 import Data.HDiff.MetaVar
 
@@ -30,11 +31,17 @@ isClosed :: M.Map Int Arity
          -> Bool
 isClosed global ds us = M.unionWith (+) ds us `M.isSubmapOf` global
 
+newtype MM = MM (M.Map Int Arity)
+instance Semigroup MM where
+  MM x <> MM y = MM (M.unionWith (+) x y)
+instance Monoid MM where
+  mempty = MM M.empty
+
 chgVarsDistr :: Holes fam prim (ChgVars fam prim) at
              -> ChgVars fam prim at
 chgVarsDistr h =
-  let (hD , ds) = runWriter $ holesMapM (\(ChgVars d _ c) -> tell d >> return (chgDel c)) h
-      (hI , us) = runWriter $ holesMapM (\(ChgVars _ u c) -> tell u >> return (chgIns c)) h
+  let (hD , MM ds) = runWriter $ holesMapM (\(ChgVars d _ c) -> tell (MM d) >> return (chgDel c)) h
+      (hI , MM us) = runWriter $ holesMapM (\(ChgVars _ u c) -> tell (MM u) >> return (chgIns c)) h
    in ChgVars ds us (Chg (holesJoin hD) (holesJoin hI))
 
 close :: Holes fam prim (Chg fam prim) at
