@@ -105,7 +105,7 @@ diffWithOpts :: (LangCnstr fam prim ix)
              -> SFix fam prim ix
              -> IO (D.Patch fam prim ix)
 diffWithOpts opts fa fb = do
-  let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) 
+  let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) (skipClosures opts)
   return (D.diffOpts localopts fa fb)
 
 mainDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode

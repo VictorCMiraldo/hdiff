@@ -37,6 +37,7 @@ data Options
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
             , opqHandling  :: D.DiffOpaques
+            , skipClosures :: Bool
             , withStats    :: Bool
             }
   | Merge   { optFileA     :: FilePath
@@ -46,6 +47,7 @@ data Options
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
             , opqHandling  :: D.DiffOpaques
+            , skipClosures :: Bool
             }
   deriving (Eq , Show)
 
@@ -82,6 +84,13 @@ diffmodeOpt = option (readmOneOf [("proper"  , D.DM_ProperShare)
       ["Controls how context extraction works. Check 'Data.HDiff.Diff.Types'"
       , "and 'Data.HDiff.Diff.Modes' document this."
       ]
+
+skipClosuresOpt :: Parser Bool
+skipClosuresOpt = not <$> switch ( long "skip-closures"
+                 <> help (unwords ["Does not isolate changes into well-scoped parts;"
+                                  ,"consequently no spine is available and the patch"
+                                  ,"will consist in a single change"
+                                  ])
       
 
 opqhandlingOpt :: Parser D.DiffOpaques
@@ -112,6 +121,7 @@ diffOpts =
        <*> minheightOpt
        <*> diffmodeOpt
        <*> opqhandlingOpt
+       <*> skipClosuresOpt 
        <*> switch ( long "with-stats"
                  <> help "Produces statistics; suppresses the output of the patch")
                  
@@ -135,6 +145,8 @@ mergeOpts =
         <*> minheightOpt
         <*> diffmodeOpt
         <*> opqhandlingOpt
+        <*> skipClosuresOpt 
+
 
 parseOptions :: Parser Options
 parseOptions = hsubparser
@@ -186,9 +198,9 @@ versionOpts :: Parser (a -> a)
 versionOpts = infoOption vERSION_STR (long "version")
 
 optionMode :: Options -> OptionMode
-optionMode (AST _)                  = OptAST
-optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
-optionMode (Diff _ _ _ _ _ _ _)     = OptDiff
+optionMode (AST _)                    = OptAST
+optionMode (Merge _ _ _ _ _ _ _ _)    = OptMerge
+optionMode (Diff _ _ _ _ _ _ _ _)     = OptDiff
 
 
 hdiffOpts :: ParserInfo (Verbosity , SelectedFileParser , Options)

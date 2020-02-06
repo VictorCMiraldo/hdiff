@@ -134,16 +134,6 @@ mrg p q = do
     Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
     Right di -> alignedMapM (phase2 di) phase1
 
-  
-{-
-  let oab          = lcp oa ob
-      (aux , inst) = runState (holesMapM (uncurry' phase1) oab) M.empty
-   in case makeDelInsMaps inst of
-        Left  vs -> Hole (InL $ FailedContr vs)
-        Right di -> holesMap (phase2' di) aux
--}
-
-
 mrg0 :: Aligned fam prim x -> Aligned fam prim x
     -> MergeM fam prim (Aligned' fam prim (Phase2 fam prim) x)
 -- Copies are the easiest case

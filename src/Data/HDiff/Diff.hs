@@ -167,9 +167,11 @@ diffOpts :: (All Digestible prim)
          -> Patch fam prim ix
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts x y
-     in case close $ extractSpine (doOpaqueHandling opts) id i del ins of
-          Nothing -> error "invariant broke: has open variables"
-          Just r  -> r
+     in if doGlobalChgs opts
+        then Hole (Chg del ins)
+        else case close $ extractSpine (doOpaqueHandling opts) id i del ins of
+                Nothing -> error "invariant broke: has open variables"
+                Just r  -> r
 
 diff :: forall fam prim ix
       . (All Digestible prim)

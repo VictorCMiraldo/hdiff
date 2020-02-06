@@ -47,12 +47,16 @@ data DiffMode
 data DiffOptions = DiffOptions
   -- ^ Minimum height of trees considered for sharing
   { doMinHeight      :: Int
+  -- ^ How do we share opaque values
   , doOpaqueHandling :: DiffOpaques
+  -- ^ Context extraction mode
   , doMode           :: DiffMode
+  -- ^ Should we skip change minimization and closures?
+  , doGlobalChgs     :: Bool
   } deriving (Eq , Show)
 
 diffOptionsDefault :: DiffOptions
-diffOptionsDefault = DiffOptions 1 DO_OnSpine DM_NoNested
+diffOptionsDefault = DiffOptions 1 DO_OnSpine DM_NoNested False
 
 -- |The data structure that captures which subtrees are shared
 --  between source and destination. Besides providing an efficient
