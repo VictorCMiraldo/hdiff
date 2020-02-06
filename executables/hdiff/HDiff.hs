@@ -23,6 +23,7 @@ import System.IO
 import System.Exit
 import Control.Monad
 import Control.DeepSeq
+import qualified Control.Exception as Exc
 import System.CPUTime
 import Options.Applicative
 
@@ -60,7 +61,14 @@ time act = do
     return (t, res)
 
 main :: IO ()
-main = execParser hdiffOpts >>= \(verb , pars, opts)
+main = Exc.catch mainBody handler
+  where
+    handler :: Exc.ErrorCall -> IO ()
+    handler err = hPutStrLn ("Error call: " ++ show err)
+               >> exitWith (ExitFailure 42)
+
+mainBody :: IO ()
+mainBody = execParser hdiffOpts >>= \(verb , pars, opts)
     -> case optionMode opts of
          OptAST     -> mainAST     verb pars opts
          OptDiff    -> mainDiff    verb pars opts
