@@ -86,7 +86,7 @@ diffmodeOpt = option (readmOneOf [("proper"  , D.DM_ProperShare)
       ]
 
 skipClosuresOpt :: Parser Bool
-skipClosuresOpt = not <$> switch ( long "skip-closures"
+skipClosuresOpt = switch ( long "skip-closures"
                  <> help (unwords ["Does not isolate changes into well-scoped parts;"
                                   ,"consequently no spine is available and the patch"
                                   ,"will consist in a single change"
