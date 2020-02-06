@@ -225,14 +225,19 @@ annotStiffness = synthesize go (const $ const $ Const True)
     go _ = Const . repLeaves getConst (&&) True
 
 
-alignChg :: (HasDecEq fam) => Chg fam prim x -> Aligned fam prim x
-alignChg c@(Chg d i) = -- rmFauxPerms $
-                       syncAnnot vars (annotStiffness d) (annotStiffness i)
-  where
-    vars = chgVars c
+-- alignChg :: (HasDecEq fam) => Chg fam prim x -> Aligned fam prim x
+-- alignChg c = alignChg' (chgVars c) c
 
 align :: (HasDecEq fam) => Patch fam prim x -> Holes fam prim (Aligned fam prim) x
-align = holesMap alignChg
+align p = holesMap (alignChg' vars) p
+  where
+    vars = patchVars p
+
+    alignChg' :: (HasDecEq fam)
+              => M.Map Int Arity -> Chg fam prim x -> Aligned fam prim x
+    alignChg' vars c@(Chg d i) = -- rmFauxPerms
+      syncAnnot vars (annotStiffness d) (annotStiffness i)
+
 
 getAnn' :: (forall x . phi x -> String)
         -> HolesAnn fam prim phi h a
