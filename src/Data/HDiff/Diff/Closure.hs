@@ -19,6 +19,8 @@ import Data.HDiff.MetaVar
 import Generics.Simplistic
 import Generics.Simplistic.Util
 
+import Debug.Trace
+
 data ChgVars fam prim x
   = ChgVars { decls :: M.Map Int Arity
             , uses  :: M.Map Int Arity
@@ -46,10 +48,15 @@ chgVarsDistr h =
 
 close :: Holes fam prim (Chg fam prim) at
       -> Maybe (Holes fam prim (Chg fam prim) at)
-close h = case closure (patchVars h) (holesMap getVars h) of
-            InL _ -> Nothing
+close h = case closure global (holesMap getVars h) of
+            InL (ChgVars d u _)
+                  -> trace (unlines [f "global" global , "----" , f "d" d , f "u" u]) Nothing
             InR b -> Just (holesMap body b)
   where
+    global = patchVars h
+
+    f lbl m = unlines $ [ lbl ++ " " ++ show k ++ ": " ++ show v | (k , v) <- M.toList m]
+    
     getVars :: Chg fam prim x -> ChgVars fam prim x
     getVars c@(Chg d i) =
       let varsD = holesVars d
