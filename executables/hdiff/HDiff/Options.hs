@@ -90,7 +90,7 @@ skipClosuresOpt = not <$> switch ( long "skip-closures"
                  <> help (unwords ["Does not isolate changes into well-scoped parts;"
                                   ,"consequently no spine is available and the patch"
                                   ,"will consist in a single change"
-                                  ])
+                                  ]))
       
 
 opqhandlingOpt :: Parser D.DiffOpaques
