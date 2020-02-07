@@ -26,6 +26,7 @@ while [[ "$#" -gt 0 ]]; do
     -h|--height) height=$1; shift;;
     -m|--mode)   mode=$1; shift;;
     -p|--parser) parser=$1; shift;;
+    -k|--konsts) opq=$1; shift;;
     -s|--stdiff) stdiff=true;;
     *) echo "Unknown experiment argument: $arg"; exit 1 ;;
   esac
@@ -41,7 +42,7 @@ function doMerge() {
     res=$?
   else
     hdr="$prefix $height $mode"
-    timeout "${timeout}" hdiff -p $parser merge -d $mode -m $height --test-merge "$fm" "$fa" "$fo" "$fb"
+    timeout "${timeout}" hdiff -p $parser merge -d $mode -m $height -k $opq --test-merge "$fm" "$fa" "$fo" "$fb"
     res=$?
   fi
   case $res in
