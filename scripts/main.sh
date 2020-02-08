@@ -65,7 +65,7 @@ runMerge() {
   wait
 }
 
-runHDiff () {
+runDiff () {
   local path=$dataset/$1
   local parser=$2
   local exp=diff.sh
@@ -91,12 +91,12 @@ meta "Let the experiments begin"
 
 #Runs hdiff on the supported languages
 for lang in lua clj sh java js py; do
-  runHMerge "conflicts-$lang" "$lang"
+  runMerge "conflicts-$lang" "$lang"
 done
 
 # Get timings for stdiff and hdiff
 for lang in java lua clj; do
-  runHDiff "conflicts-$lang" "$lang"
+  runDiff "conflicts-$lang" "$lang"
 done
 wait
 
