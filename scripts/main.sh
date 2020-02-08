@@ -27,7 +27,7 @@ meta () {
 ## The merge experiment will
 ## run all variants of the merge algo over a single
 ## language.
-runMerge() {
+runMergeLoc() {
   local path=$dataset/$1
   local parser=$2
   local exp=merge.sh
@@ -45,10 +45,14 @@ runMerge() {
       done
     done
   done
+}
 
-  ## It is sensible to wait here; we have just launched 18
-  ## jobs. Thanks jizo!
-  wait
+runMergeGlob() {
+  local path=$dataset/$1
+  local parser=$2
+  local exp=merge.sh
+  local name=${exp%%.*}
+  local log="results/$name-$parser"
 
   for hh in 1 3 9; do
     for mm in nonest proper patience; do
@@ -61,8 +65,6 @@ runMerge() {
       done
     done
   done
-
-  wait
 }
 
 runDiff () {
@@ -91,7 +93,10 @@ meta "Let the experiments begin"
 
 #Runs hdiff on the supported languages
 for lang in lua clj sh java js py; do
-  runMerge "conflicts-$lang" "$lang"
+  runMergeLoc  "conflicts-$lang" "$lang"
+  wait
+  runMergeGlob "conflicts-$lang" "$lang"
+  wait
 done
 
 # Get timings for stdiff and hdiff
