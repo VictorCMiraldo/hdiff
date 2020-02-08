@@ -34,7 +34,7 @@ runMergeLoc() {
   local name=${exp%%.*}
   local log="results/$name-$parser"
 
-  for hh in 1 3 9; do
+  for hh in 1 6; do
     for mm in nonest proper patience; do
       for kk in spine never always; do
         meta "Launching hdiff $parser $name $hh $mm $kk local"
@@ -54,7 +54,7 @@ runMergeGlob() {
   local name=${exp%%.*}
   local log="results/$name-$parser"
 
-  for hh in 1 3 9; do
+  for hh in 1 6; do
     for mm in nonest proper patience; do
       for kk in spine never always; do
         meta "Launching hdiff $parser $name $hh $mm $kk global"
@@ -78,13 +78,13 @@ runDiff () {
       meta "Launching hdiff $parser $name $hh $mm $kk local"
       echo "Launching hdiff $parser $name $hh $mm $kk local"
        ./scripts/run-experiment.sh $dry \
-          -l "$log.$hh.$mm.$kk.loc.log" -m 16 "$path" $exp \
+          -l "$log.1.$mm.never.loc.log" -m 16 "$path" $exp \
           -d $mm -o never -p $parser 2> /dev/null &
 
       meta "Launching hdiff $parser $name $hh $mm $kk global"
       echo "Launching hdiff $parser $name $hh $mm $kk global"
       ./scripts/run-experiment.sh $dry \
-         -l "$log.$hh.$mm.$kk.loc.log" -m 16 "$path" $exp \
+         -l "$log.1.$mm.never.loc.log" -m 16 "$path" $exp \
          -d $mm -o never -p $parser --skip-closures 2> /dev/null &
   done
 } 
