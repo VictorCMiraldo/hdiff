@@ -14,40 +14,41 @@ fi
 #######################
 ## Actual experiment ##
 
-
 height=1
 mode="nonest"
+opq="spine"
+skipclosures=""
 parser=""
-stdiff=false
 while [[ "$#" -gt 0 ]]; do
   arg=$1;
   shift;
   case $arg in
-    -h|--height) height=$1; shift;;
-    -m|--mode)   mode=$1; shift;;
-    -p|--parser) parser=$1; shift;;
-    -s|--stdiff) stdiff=true;;
+    -m|--min-height)   height=$1; shift;;
+    -d|--diff-mode)    mode=$1; shift;;
+    -p|--parser)       parser=$1; shift;;
+    -o|--opq-handling) opq=$1; shift;;
+    --skip-closures)     skipclosures="--skip-closures";;
     *) echo "Unknown experiment argument: $arg"; exit 1 ;;
   esac
 done
 
+
 timeout="30s"
 function doDiff() {
-  local a=$1
-  local b=$2
   local hdr=""
-  if $stdiff; then
-    hdr="$prefix _ stdiff"
-    str=$(timeout "${timeout}" stdiff -p $parser diff --with-stats "$1" "$2")
-    res=$?
+  hdr="$prefix $height $mode $opq"
+  if [[ ! -z "$skipclosures" ]]; then 
+    hdr="$hdr global"
   else
-    hdr="$prefix $height $mode"
-    str=$(timeout "${timeout}" hdiff -p $parser diff --with-stats "$1" "$2")
-    res=$?
+    hdr="$hdr local"
   fi
+  str=$(timeout "${timeout}" hdiff -p $parser \
+    diff -d $mode -m $height -k $opq $skipclosures --with-stats \
+    "$1" "$2")
+  res=$?
   case $res in
     0)   output "$hdr $str"          ;;
-    124) output "$hdr _ _ _ timeout" ;;
+    124) output "$hdr timeout"       ;;
     *)   output "$hdr unknown($res)" ;;
   esac
 }

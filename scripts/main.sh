@@ -17,8 +17,6 @@ if [[ -d "results" ]]; then
   exit 1
 fi
 mkdir results
-mkdir results/h
-mkdir results/st
 
 dry="--dry"
 
@@ -26,94 +24,79 @@ meta () {
   echo "$(date) | $1" >> results/meta
 }
 
-runHDiff() {
+## The merge experiment will
+## run all variants of the merge algo over a single
+## language.
+runMerge() {
   local path=$dataset/$1
   local parser=$2
-  local exp=$3
+  local exp=merge.sh
   local name=${exp%%.*}
-  local log="results/h/$name-$parser"
+  local log="results/$name-$parser"
 
-  meta "Running hdiff $name $parser"
-
-  # hdiff
   for hh in 1 3 9; do
     for mm in nonest proper patience; do
-      echo "Launching hdiff $parser $name $hh $mm"
-       ./scripts/run-experiment.sh $dry -l "$log.$hh.$mm.log" -m 16 "$path" $exp \
-          -h $hh -m $mm -p $parser 2> /dev/null &
+      for kk in spine never always; do
+        meta "Launching hdiff $parser $name $hh $mm $kk local"
+        echo "Launching hdiff $parser $name $hh $mm $kk local"
+         ./scripts/run-experiment.sh $dry \
+            -l "$log.$hh.$mm.$kk.loc.log" -m 16 "$path" $exp \
+            -m $hh -d $mm -o $kk -p $parser 2> /dev/null &
+      done
     done
   done
+
+  ## It is sensible to wait here; we have just launched 18
+  ## jobs. Thanks jizo!
+  wait
+
+  for hh in 1 3 9; do
+    for mm in nonest proper patience; do
+      for kk in spine never always; do
+        meta "Launching hdiff $parser $name $hh $mm $kk global"
+        echo "Launching hdiff $parser $name $hh $mm $kk global"
+         ./scripts/run-experiment.sh $dry \
+            -l "$log.$hh.$mm.$kk.glob.log" -m 16 "$path" $exp \
+            -m $hh -d $mm -o $kk -p $parser --skip-closures 2> /dev/null &
+      done
+    done
+  done
+
+  wait
 }
 
-runSTDiff() {
+runHDiff () {
   local path=$dataset/$1
   local parser=$2
-  local exp=$3
+  local exp=diff.sh
   local name=${exp%%.*}
-  local log="results/st/$name-$parser"
+  local log="results/$name-$parser"
 
-  meta "Running stdiff $name $parser"
+  for mm in nonest proper patience; do
+      meta "Launching hdiff $parser $name $hh $mm $kk local"
+      echo "Launching hdiff $parser $name $hh $mm $kk local"
+       ./scripts/run-experiment.sh $dry \
+          -l "$log.$hh.$mm.$kk.loc.log" -m 16 "$path" $exp \
+          -d $mm -o never -p $parser 2> /dev/null &
 
-  # stdiff
-  echo "Launching stdiff $parser $name"
-  ./scripts/run-experiment.sh $dry -l "$log.log" -m 16 "$path" $exp \
-    --stdiff -p $parser 2> /dev/null &
-}
-
-runSTMerge () {
-  runSTDiff $1 $2 merge.sh
-}
-
-runHMerge () {
-  runHDiff $1 $2 merge.sh
-}
-
-timeSTDiff () {
-  runSTDiff $1 $2 diff.sh
-}
-
-timeHDiff () {
-  runHDiff $1 $2 diff.sh
-}
+      meta "Launching hdiff $parser $name $hh $mm $kk global"
+      echo "Launching hdiff $parser $name $hh $mm $kk global"
+      ./scripts/run-experiment.sh $dry \
+         -l "$log.$hh.$mm.$kk.loc.log" -m 16 "$path" $exp \
+         -d $mm -o never -p $parser --skip-closures 2> /dev/null &
+  done
+} 
 
 meta "Let the experiments begin"
 
-#Runs stdiff on the supported languages
-for lang in lua clj sh; do
-  runSTMerge "conflicts-$lang" "$lang"
-done
-wait
-
 #Runs hdiff on the supported languages
-for lang in lua clj sh java; do
+for lang in lua clj sh java js py; do
   runHMerge "conflicts-$lang" "$lang"
-  wait
-done
-
-#Runs js and py with and without location information
-for lang in js py; do
-  runHMerge "conflicts-$lang" "$lang"
-  runHMerge "conflicts-$lang" "$lang-loc"
-  wait
-done
-
-#Runs all experiments with the dyck parser
-for lang in lua clj sh js py; do
-  runSTMerge "conflicts-$lang" "dyck"
-  runSTMerge "conflicts-$lang" "dyck-loc"
-done
-wait
-
-for lang in lua clj sh js py; do
-  runHMerge "conflicts-$lang" "dyck"
-  runHMerge "conflicts-$lang" "dyck-loc"
-  wait
 done
 
 # Get timings for stdiff and hdiff
-for lang in lua clj sh; do
-  timeSTDiff "conflicts-$lang" "$lang"
-  timeHDiff  "conflicts-$lang" "$lang"
+for lang in java lua clj; do
+  runHDiff "conflicts-$lang" "$lang"
 done
 wait
 
