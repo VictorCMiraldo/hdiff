@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Generics.Simplistic.Zipper where
 
@@ -28,6 +29,8 @@ import qualified Data.Set as S
 
 import Generics.Simplistic
 import Generics.Simplistic.Util
+
+import Type.Reflection
 
 import Debug.Trace
 
@@ -96,8 +99,13 @@ type Zipper' fam prim ann phi t
            (HolesAnn fam prim ann phi)
            (HolesAnn fam prim ann phi) t
 
+sameTy2 :: (Typeable x , Typeable y) => x -> y -> Maybe (x :~: y)
+sameTy2 x y = case eqTypeRep (typeOf x) (typeOf y) of
+                Just HRefl -> Just Refl
+                Nothing    -> Nothing
+
 zippers :: forall fam prim ann phi t
-         . (HasDecEq fam)
+         . (HasDecEq fam , Typeable t)
         => (forall a . (Elem t fam) => phi a -> Maybe (a :~: t)) 
         -> HolesAnn fam prim ann phi t
         -> [Zipper' fam prim ann phi t] 
@@ -121,7 +129,7 @@ zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
     go (x :**: y) = (first (flip Z_PairL y) <$> go x)
                  ++ (first (Z_PairR x)      <$> go y)
     go (S_K1 x@(Roll' _ _)) =
-      case sameTy pf (Proxy :: Proxy t) (pa x) of
+      case sameTy2 (Proxy :: Proxy t) (pa x) of
         Just Refl -> return $ (Z_KH Refl , x)
         Nothing   -> []
     go (S_K1 x@(Hole' _ xh)) = 

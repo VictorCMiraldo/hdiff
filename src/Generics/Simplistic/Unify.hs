@@ -105,6 +105,9 @@ substInsert sigma v x = M.insert (Exists v) (Exists x) sigma
 type UnifyM fam prim phi
   = StateT (Subst fam prim phi) (Except (UnifyErr fam prim phi))
 
+-- this is called constraint based unification and people generally impose an order
+-- variables to avoid cycles; thanks alejandro!
+
 -- |Attempts to unify two 'Holes'
 unify :: ( Ord (Exists phi) , EqHO phi)
       => Holes fam prim phi at -- ^

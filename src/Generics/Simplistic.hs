@@ -33,6 +33,7 @@ import qualified Data.Set as S
 
 import Generics.Simplistic.Util 
 
+import Type.Reflection
 
 
 ---------------------
@@ -144,7 +145,7 @@ type PrimCnstr fam prim b
   = (Elem b prim , NotElem b fam , Show b , Eq b)
 
 type CompoundCnstr fam prim a
-  = (Elem a fam , NotElem a prim , Generic a)
+  = (Elem a fam , NotElem a prim , Generic a , Typeable a)
 
 -- |The cofree comonad and free monad on the same type;
 -- this allows us to use the same recursion operator
