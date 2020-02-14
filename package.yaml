@@ -11,8 +11,6 @@ category:    Other
 
 dependencies:
   - base >= 4.9 && < 5
-  - generics-mrsop >= 2.3.1
-  - generics-mrsop-gdiff >= 0.0.2
   - bytestring
   - cryptonite
   - containers
@@ -23,10 +21,12 @@ dependencies:
   - QuickCheck
   - hspec
   - memory
+  - template-haskell
+  - deepseq
 
 library:
   source-dirs: src/
-  ghc-options: -Wall
+  ghc-options: -O2 -Wall
 
 tests:
   spec: 
@@ -37,16 +37,40 @@ tests:
       - hdiff
 
 executables:
+  #  Here's the STDiff executable we need to run the tests
+  #  with stdiff
+  # 
+  # stdiff:
+  #   source-dirs:
+  #     - executables/stdiff
+  #   main: STDiff.hs
+  #   dependencies:
+  #     - generics-mrsop
+  #     - generics-mrsop-gdiff
+  #     - parsec
+  #     - gitrev
+  #     - optparse-applicative
+  #     - language-lua
+  #     - time
+  #   cpp-options: -DWITH_LUA -DWITH_CLOJURE
+  #   ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
+
   hdiff:
     source-dirs:
-      - executables
+      - executables/hdiff
     main: HDiff.hs
     dependencies:
       - parsec
       - gitrev
       - optparse-applicative
       - language-lua
+      - language-java
+      - language-ecmascript
+      - language-bash
+      - language-python
+      - time
+      - deepseq
       - hdiff
-    ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
+    ghc-options: -O2 -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 
 

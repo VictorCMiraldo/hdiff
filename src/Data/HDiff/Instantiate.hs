@@ -16,10 +16,10 @@ module Data.HDiff.Instantiate where
 import qualified Data.Map as M
 import           Unsafe.Coerce
 ----------------------------------------
-import           Generics.MRSOP.Util
+import           Generics.Simplistic
+import           Generics.Simplistic.Util
 ----------------------------------------
 import           Data.HDiff.MetaVar
-import           Generics.MRSOP.Holes
 
 
 
@@ -28,7 +28,7 @@ type Inst phi = M.Map Int (Exists phi)
 -- |Attempts to insert a new point into an instantiation.
 instAdd :: (EqHO phi)
         => Inst phi
-        -> MetaVarIK ki at
+        -> MetaVar kappa fam at
         -> phi at
         -> Maybe (Inst phi)
 instAdd iota v x
@@ -38,15 +38,15 @@ instAdd iota v x
                           then return iota
                           else Nothing
 
-instLkup :: Inst phi -> MetaVarIK ki at -> Maybe (phi at)
+instLkup :: Inst phi -> MetaVar kappa fam at -> Maybe (phi at)
 instLkup iota v = exElim unsafeCoerce <$> M.lookup (metavarGet v) iota
 
-instApply :: forall ki codes phi at
+instApply :: forall kappa fam phi at
            . Inst phi
-          -> (forall ix . MetaVarIK ki ix -> phi ix) -- ^ injection for undef. vars
-          -> Holes ki codes (MetaVarIK ki) at
-          -> Holes ki codes phi at
+          -> (forall ix . MetaVar kappa fam ix -> phi ix) -- ^ injection for undef. vars
+          -> Holes kappa fam (MetaVar kappa fam) at
+          -> Holes kappa fam phi at
 instApply iota inj = holesMap go 
   where
-    go :: MetaVarIK ki iy -> phi iy
+    go :: MetaVar kappa fam iy -> phi iy
     go v = maybe (inj v) id . instLkup iota $ v

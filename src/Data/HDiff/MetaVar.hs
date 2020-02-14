@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE PolyKinds             #-}
@@ -5,20 +6,50 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-orphans       #-}
 -- |Exports a bunch of functionality for handling metavariables
 --  both over recursive positions only, with 'MetaVarI' and over
 --  recursive positions and constants, 'MetaVarIK'.
 module Data.HDiff.MetaVar where
 
 import Data.Function (on)
-import Data.Functor.Const
-import Data.Type.Equality
 --------------------------------------
-import Generics.MRSOP.Util
-import Generics.MRSOP.Base
+import Generics.Simplistic
+import Generics.Simplistic.Util
 --------------------------------------
-import Generics.MRSOP.HDiff.Digest
 
+-- |I'm making MetaVar back into a NA-like type
+-- because I want to get more information when
+-- aligning edits before merging; thats really the only reason.
+data MetaVar fam prim at where
+  MV_Prim :: (PrimCnstr fam prim at)
+          => Int -> MetaVar fam prim at
+  MV_Comp :: (CompoundCnstr fam prim at)
+          => Int -> MetaVar fam prim at
+deriving instance Eq  (MetaVar fam prim at)
+deriving instance Ord (MetaVar fam prim at)
+          
+metavarGet :: MetaVar fam prim at -> Int
+metavarGet (MV_Prim i) = i
+metavarGet (MV_Comp i) = i
+
+metavarSet :: Int -> MetaVar fam prim at -> MetaVar fam prim at
+metavarSet x (MV_Prim _) = MV_Prim x
+metavarSet x (MV_Comp _) = MV_Comp x
+
+metavarAdd :: Int -> MetaVar fam prim at -> MetaVar fam prim at
+metavarAdd n v = metavarSet (n + metavarGet v) v 
+
+instance EqHO (MetaVar fam prim) where
+  eqHO = (==)
+
+instance Eq (Exists (MetaVar fam prim)) where
+  (==) = (==) `on` (exElim metavarGet)
+
+instance Ord (Exists (MetaVar fam prim)) where
+  compare = compare `on` (exElim metavarGet)
+
+{-
 -- |Given a functor from @Nat@ to @*@, lift it to work over @Atom@
 --  by forcing the atom to be an 'I'.
 data ForceI :: (Nat -> *) -> Atom kon -> * where
@@ -109,3 +140,4 @@ instance Eq (Exists (MetaVarIK ki)) where
 instance Ord (Exists (MetaVarIK ki)) where
   compare = compare `on` metavarIK2Int
 
+-}

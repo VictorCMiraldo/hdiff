@@ -6,14 +6,15 @@ module Data.HDiff.PatchSpec (spec) where
 
 import Data.Functor.Const
 
-import Generics.MRSOP.Base
-import Generics.MRSOP.Holes
-
 import Data.HDiff.Diff
 import Data.HDiff.Base
+import Data.HDiff.MetaVar
 import Data.HDiff.Compose
 import Languages.RTree
 import Languages.RTree.Diff
+
+import GHC.Generics
+import Generics.Simplistic
 
 import Test.QuickCheck
 import Test.Hspec hiding (after)
@@ -23,10 +24,11 @@ import Test.Hspec hiding (after)
 copy_composes :: DiffMode -> Property
 copy_composes mode = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = hdiffRTreeHM mode 1 t1 t2
-         mcpy  = Hole' (changeCopy (NA_I (Const 0))) :: PatchRTree
+         mcpy  = Hole changeCopy :: PatchRTree
       in composes patch mcpy .&&. composes mcpy patch
  where
-   changeCopy v = Chg (Hole' v) (Hole' v)
+   changeCopy :: Chg RTreePrims RTreeFam RTree
+   changeCopy = Chg (Hole $ MV_Comp 0) (Hole $ MV_Comp 0)
 
 composes_correct :: DiffMode -> Property
 composes_correct mode = forAll (choose (0 , 2) >>= genSimilarTreesN 3)
@@ -49,6 +51,11 @@ composes_assoc mode = forAll (choose (0 , 2) >>= genSimilarTreesN 4)
         Nothing          -> counterexample "Not composable" False
         Just (ad0 , ad1) -> property $ patchEq ad0 ad1
 
+equality :: DiffMode -> Property
+equality mode = forAll genSimilarTrees' $ \(t1 , t2)
+  -> let patch = hdiffRTreeHM mode 1 t1 t2
+         p'    = patch `withFreshNamesFrom` patch
+      in property (patchEq patch patch && patchEq patch p')
 
 {-
   NOT TRUE!!!!
@@ -65,9 +72,12 @@ composes_non_reflexive = forAll (genSimilarTrees' `suchThat` uncurry (/=))
 diffModeSpec :: DiffMode -> Spec
 diffModeSpec mode = do
   describe "composes" $ do
-    it "has copy as left and right id" $ property (copy_composes mode)
-    it "is correct"                    $ property (composes_correct mode)
-    it "is associative"                $ property (composes_assoc mode)
+    it "has copy as left and right id"  $ property (copy_composes mode)
+    it "is correct"                     $ property (composes_correct mode)
+    it "is associative"                 $ property (composes_assoc mode)
+
+  describe "equality" $ do
+    it "is equal to itself or a rename" $ property (equality mode)
 
 spec :: Spec
 spec = do

@@ -2,18 +2,25 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE GADTs            #-}
+{-# LANGUAGE CPP              #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 module Data.HDiff.MergeSpec (spec) where
 
-import Generics.MRSOP.Base
-
 import Data.HDiff.Base
 import Data.HDiff.Merge
+import Data.HDiff.Merge.Align
 import Data.HDiff.Diff
+import Data.HDiff.MetaVar
+import Data.HDiff.Show
 import Languages.RTree
 import Languages.RTree.Diff
+
+import GHC.Generics
+import Generics.Simplistic
+import Generics.Simplistic.Unify
+import Generics.Simplistic.Util
 
 import qualified Data.Set as S
 
@@ -371,6 +378,120 @@ a20 = "x" :>: ["a" :>: [] , "c" :>: [] , "d" :>: [] , "b" :>: []]
 o20 = "x" :>: ["a" :>: [] , "b" :>: []]
 b20 = "x" :>: ["a" :>: [] , "c" :>: [] , "b" :>: []]
 
+------------------------
+-- Example 21
+
+leaves = map (flip (:>:) [])
+
+a21 , o21 , b21 , r21 :: RTree
+
+a21 = "x" :>: leaves ["A" , "N1" , "B" , "C" , "D" , "N2" , "E"]
+o21 = "x" :>: leaves ["A" , "B" , "C", "D" , "E"]
+b21 = "x" :>: leaves ["B" , "C" , "D'" , "E"]
+
+r21 = "x" :>: leaves ["N1" , "B" , "C" , "D'" , "N2" , "E"]
+
+t21 :: TestCase
+t21 = ((a21 , o21 , b21) , const $ Just r21)
+
+------------------------
+-- Example 22
+
+a22 , o22 , b22 , r22 :: RTree
+
+a22 = "x" :>: leaves ["A" , "N1" , "C" , "B" , "D" , "N2" , "E"]
+o22 = "x" :>: leaves ["A" , "B" , "C", "D" , "E"]
+b22 = "x" :>: leaves ["B" , "C" , "D'" , "E"]
+
+r22 = "x" :>: leaves ["N1" , "C" , "B" , "D'" , "N2" , "E"]
+
+t22 :: TestCase
+t22 = ((a22 , o22 , b22) , const $ Just r22)
+
+
+----------------------
+-- Example 23
+
+a23 , o23 , b23 :: RTree
+
+a23 = "x" :>: [ "N1" :>: [] , "A" :>: [] , "D" :>: ["DN" :>: []] , "C" :>: [ "CN" :>: []]
+              , "N2" :>: [] , "B" :>: [] , "E" :>: [] ]
+o23 = "x" :>: [ "A" :>: [] , "B" :>: [] , "C" :>: [ "CN" :>: [] ] , "D" :>: [ "DN" :>: [] ] , "E" :>: []]
+b23 = "x" :>: [ "A" :>: [] , "CD" :>: [ "DN" :>: [] , "CN" :>: []] , "B" :>: [] , "E" :>: []]
+                
+t23 :: TestCase
+t23 = ((a23 , o23 , b23) , const Nothing)
+
+------------------------
+-- Example 24
+
+a24 , o24 , b24 , r24 :: RTree
+
+a24 = "x" :>: leaves ["A" , "N1" , "C" , "B" , "D" , "N2" , "E"]
+o24 = "x" :>: leaves ["A" , "B" , "C", "D" , "E"]
+b24 = "x" :>: leaves ["C" , "B" , "D'" , "E"]
+
+r24 = "x" :>: leaves ["N1" , "C" , "B" , "D'" , "N2" , "E"]
+
+t24 :: TestCase
+t24 = ((a24 , o24 , b24) , const $ Just r24)
+
+------------------------
+-- Example 25
+
+a25 , o25 , b25 , r25 :: RTree
+
+a25 = "x" :>: ["A" :>: leaves ["a" , "c"]       , "b" :>: [] , "B" :>: [] , "C" :>: []]
+o25 = "x" :>: ["A" :>: leaves ["a" , "b" , "c"] , "B" :>: [] , "C" :>: []]
+b25 = "x" :>: ["A" :>: leaves ["a" , "c"]       , "B" :>: [] , "b" :>: [] , "C" :>: []]
+
+r25 = "x" :>: ["A" :>: leaves ["a" , "c"] , "b" :>: [] , "B" :>: [] , "b" :>: [] , "C" :>: []]
+              
+-- VCM: This is a very interesting test case; do we want to make
+-- it into a conflict? How do we even detect "b" :>: [] got moved to two different
+-- places? 
+-- VCM: I'm making it into a conflict; We effectively have the
+--      same piece of information moved to two different places;
+--      duplicating the information is not desired; I can craft scenarios where
+--      this can result in a serious bug.
+t25 :: TestCase
+t25 = ((a25 , o25 , b25) , const $ Nothing)
+
+-----------------------------
+-- Example 26
+
+a26 , o26 , b26 , r26 :: RTree
+
+a26 = "x" :>: ["C" :>: ["c" :>: []] , "D" :>: [] , "A" :>: [] , "B" :>: []]
+o26 = "x" :>: ["A" :>: [] , "B" :>: [] , "C" :>: ["c" :>: []], "D" :>: []]
+b26 = "x" :>: ["C'" :>: ["c" :>: []] , "A" :>: [] , "B" :>: [] , "D" :>: [] , "E" :>: [] ]
+
+-- Although we would like to have a result like r26 below; it is a conflict.
+-- The second element of the list changed in two different ways. From one
+-- hand, it was copied from the fourth; on the other, it was copied
+-- from the first! We can't reconcile this automatically and.
+r26 = "x" :>: ["C'" :>: ["c" :>: []] , "D" :>: [] , "A" :>: [] , "B" :>: [] , "E" :>: [] ]
+
+t26 :: TestCase
+t26 = ((a26 , o26 , b26) , const $ Nothing)
+
+-----------------------------
+-- Example 27
+
+a27 , o27 , b27 , r27 :: RTree
+
+a27 = "x" :>: ["C" :>: [] , "B" :>: [] , "A" :>: []]
+o27 = "x" :>: ["A" :>: [] , "B" :>: [] , "C" :>: []]
+b27 = "x" :>: ["A'" :>: [] , "B'" :>: [] , "C'" :>: []]
+
+r27 = "x" :>: ["C'" :>: [] , "B'" :>: [] , "A'" :>: []]
+
+t27 :: TestCase
+t27 = ((a27 , o27 , b27) , const $ Just r27)
+
+
+----------------------
+
 dset = [ [ a1, o1, b1 ]
        , [ a2, o2, b2 ]
        , [ a3, o3, b3 ]
@@ -384,6 +505,9 @@ dset = [ [ a1, o1, b1 ]
        , [ a17, o17, b17 ]
        , [ a18, o18, b18 ]
        , [ a19, o19, b19 ]
+       , [ a21, o21, b21 ]
+       , [ a22, o22, b22 ]
+       , [ a24, o24, b24 ]
        ]
 
 failset = [ [ a10, o10, b10 ]
@@ -394,6 +518,7 @@ failset = [ [ a10, o10, b10 ]
           , [ a15, o15, b15 ]
           , [ a16, o16, b16 ]
           , [ a20, o20, b20 ]
+          , [ a23, o23, b23 ]
           ]
 
 
@@ -435,6 +560,9 @@ ob1 = myHdiffRTree o1 b1
 oa2 = myHdiffRTree o2 a2
 ob2 = myHdiffRTree o2 b2
 
+oa3 = myHdiffRTree o3 a3
+ob3 = myHdiffRTree o3 b3
+
 oa7 = myHdiffRTree o7 a7
 ob7 = myHdiffRTree o7 b7
 
@@ -471,6 +599,29 @@ ob19 = myHdiffRTree o19 b19
 oa20 = myHdiffRTree o20 a20
 ob20 = myHdiffRTree o20 b20
 
+oa21 = myHdiffRTree o21 a21
+ob21 = myHdiffRTree o21 b21
+
+oa22 = myHdiffRTree o22 a22
+ob22 = myHdiffRTree o22 b22
+
+oa23 = myHdiffRTree o23 a23
+ob23 = myHdiffRTree o23 b23
+
+oa24 = myHdiffRTree o24 a24
+ob24 = myHdiffRTree o24 b24
+
+oa25 = myHdiffRTree o25 a25
+ob25 = myHdiffRTree o25 b25
+
+oa26 = myHdiffRTree o26 a26
+ob26 = myHdiffRTree o26 b26
+
+oa27 = myHdiffRTree o27 a27
+ob27 = myHdiffRTree o27 b27
+
+---- looped subst:
+
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3
@@ -497,6 +648,13 @@ unitTests = [  ("1"   , t1 )
             ,  ("17"  , t17)
             ,  ("18"  , t18)
             ,  ("19"  , t19)
+            ,  ("21"  , t21)
+            ,  ("22"  , t22)
+            ,  ("23"  , t23)
+            ,  ("24"  , t24) 
+            ,  ("25"  , t25)
+            ,  ("26"  , t26)
+            ,  ("27"  , t27)
             ]
 
 flipMergeArgs :: (String , TestCase) -> (String , TestCase)
@@ -509,48 +667,3 @@ spec = do
     describe ("merge: manual examples (" ++ show m ++ ")") $ do
       mapM_ (uncurry $ testMerge m) unitTests
 
-    describe ("merge: conflict or ok (" ++ show m ++ ")") $ do
-      it "contains no apply fail or merge differs" $ property $
-        forAll gen3Trees $ \(a , o , b)
-          -> case doMerge m a o b of
-               MergeOk _    -> True
-               HasConflicts -> True
-               _            -> False
-
-      {-
-      mustMerge m "01" a1 o1 b1
-      mustMerge m "02" a2 o2 b2
-      mustMerge m "03" a3 o3 b3
-      mustMerge m "04" a4 o4 b4
-      if m == DM_Patience
-        then expectMerge m HasConflicts "05" a5 o5 b5
-        else mustMerge m "05" a5 o5 b5
-      if m == DM_Patience
-        then expectMerge m HasConflicts "06" a6 o6 b6
-        else mustMerge m "06" a6 o6 b6
-      mustMerge m "07" a7 o7 b7
-      mustMerge m "08" a8 o8 b8
-      mustMerge m "09" a9 o9 b9
-
-      expectMerge m HasConflicts "10" a10 o10 b10
-      expectMerge m HasConflicts "11" a11 o11 b11
-      expectMerge m HasConflicts "12" a12 o12 b12
-
-      mustMerge m "13" a13 o13 b13
-
-      expectMerge m HasConflicts "14" a14 o14 b14
-      expectMerge m HasConflicts "15" a15 o15 b15
-      expectMerge m HasConflicts "16" a16 o16 b16
-      if m == DM_Patience
-        then mustMerge m "17" a17 o17 b17
-        else expectMerge m HasConflicts "17" a17 o17 b17
-
-      mustMerge m "18" a18 o18 b18
-      mustMerge m "19" a19 o19 b19
-      xexpectMerge MergeOk "What to do with self-contained ins-ins?" "20" a20 o20 b20
-
-    describe ("merge: conflict or ok (" ++ show m ++ ")") $ do
-      it "contains no apply fail or merge differs" $ property $
-        forAll gen3Trees $ \(a , o , b)
-          -> doMerge m a o b `elem` [MergeOk , HasConflicts]
--}

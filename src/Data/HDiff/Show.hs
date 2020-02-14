@@ -7,32 +7,57 @@
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Data.HDiff.Show where
 
-import           System.IO
-import           Data.Proxy
+import           Data.Functor.Sum
 import           Data.Functor.Const
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Terminal
-import qualified Data.Text.Prettyprint.Doc.Render.Text as Text
 import qualified Data.Text as T
 
-import Generics.MRSOP.Base hiding (Infix)
-import Generics.MRSOP.Holes
-import Generics.MRSOP.HDiff.Holes
-import Generics.MRSOP.HDiff.Renderer
+import Generics.Simplistic
+import Generics.Simplistic.Util
+import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
-import qualified Data.HDiff.Merge   as D
 import qualified Data.HDiff.MetaVar as D
+import qualified Data.HDiff.Diff.Align as D
+
+-- import qualified Data.HDiff.Merge   as D
+
+myRender :: Doc AnsiStyle -> String
+myRender =
+  let maxWidth = 80
+      pgdim = LayoutOptions (AvailablePerLine maxWidth 1)
+      lyout = layoutSmart pgdim
+   in T.unpack . renderStrict . lyout
 
 -- |Given a label and a doc, @spliced l d = "[" ++ l ++ "|" ++ d ++ "|]"@
-spliced :: Doc ann -> Doc ann -> Doc ann
-spliced lbl d = brackets (lbl <> surround d (pretty "| ") (pretty " |")) 
+spliced :: Doc ann -> Doc ann
+spliced d = pretty "#" <> d
 
-metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle) -> D.MetaVarIK ki ix -> Doc AnsiStyle
-metavarPretty sty (NA_I (Const i)) 
-  = sty $ spliced (pretty "I") (pretty i)
-metavarPretty sty (NA_K (D.Annotate i _)) 
-  = sty $ spliced (pretty "K") (pretty i)
+metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle)
+              -> D.MetaVar kappa fam ix -> Doc AnsiStyle
+metavarPretty sty v
+  = sty $ spliced (pretty (D.metavarGet v))
+
+{-
+instance {-# OVERLAPING #-} (ShowHO phi)
+    => Show (Holes kappa phi x) where
+  show = myRender . holesPretty (pretty . showHO)
+-}
+
+instance {-# OVERLAPPABLE #-} (ShowHO ann , ShowHO phi)
+    => Show (HolesAnn kappa fam ann phi x) where
+  show = myRender . holesAnnPretty (pretty . showHO) addAnn
+    where
+      addAnn ann d = sep [pretty "<" , pretty (showHO ann) , pretty "|" , d , pretty ">"]
+
+instance ShowHO (D.HolesMV kappa fam) where
+  showHO = myRender . holesPretty (metavarPretty id)
+
+
+
+instance Show (D.HolesMV kappa fam x) where
+  show = myRender . holesPretty (metavarPretty id)
 
 -- when using emacs, the output of the repl is in red;
 -- hence, life is easier when we show a different color isntead.
@@ -43,124 +68,75 @@ mygreen     = colorDull Green
 mydullred   = colorDull Yellow
 mydullgreen = colorDull Green
 
+chgPretty :: D.Chg kappa fam x
+          -> Doc AnsiStyle
+chgPretty (D.Chg d i)
+  = group $ braces $ sep [group (chgD d) , group (chgI i) ]
+ where
+   chgD = chg (annotate myred)   (pretty "{-") (pretty "-}")
+   chgI = chg (annotate mygreen) (pretty "{+") (pretty "+}")
+   
+   chg f o c h
+     = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
+
+instance Show (D.Chg kappa fam x) where
+  show = myRender . chgPretty
+
+instance Show (D.Patch kappa fam x) where
+  show = myRender . holesPretty chgPretty
+
+asrD :: Doc AnsiStyle -> Doc AnsiStyle
+asrD d = annotate myred $ group
+       $ sep [pretty "[-" , d , pretty "-]"]
+
+asrI :: Doc AnsiStyle -> Doc AnsiStyle
+asrI d = annotate mygreen $ group
+       $ sep [pretty "[+" , d , pretty "+]"]
+
+alignedPretty :: D.Aligned kappa fam x -> Doc AnsiStyle
+alignedPretty (D.Del x)
+  = zipperPretty sfixPretty alignedPretty asrD x
+alignedPretty (D.Ins x)
+  = zipperPretty sfixPretty alignedPretty asrI x
+alignedPretty (D.Spn x)
+  = repPretty alignedPretty x
+alignedPretty (D.Cpy x)
+  = group (pretty "[Cpy" <+> metavarPretty id x <+> pretty "]")
+alignedPretty (D.Prm x y)
+  = group (pretty "[Prm" <+> metavarPretty id x <+> pretty "<=>"
+                         <+> metavarPretty id y <+> pretty "]")
+alignedPretty (D.Mod c)
+  = chgPretty c
+
+alignedPretty' :: D.Aligned kappa fam x -> Doc AnsiStyle
+alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
+
+instance Show (D.Aligned kappa fam x) where
+  show = myRender . alignedPretty'
+
+instance Show (Holes kappa fam (D.Aligned kappa fam) x) where
+  show = myRender . holesPretty alignedPretty'
+
+instance Show (D.MetaVar kappa fam x) where
+  show = ('#':) . show . D.metavarGet
+
 {-
--- |Shows a conflict in a pretty fashion  
-conflictPretty :: (HasDatatypeInfo ki fam codes)
-               => (forall k . ki k -> Doc AnsiStyle)
-               -> Sum D.MetaVar (D.Conflict ki codes) at -> Doc AnsiStyle
-conflictPretty renderK (InL v)
-  = metavarPretty v
-conflictPretty renderK (InR (D.Conflict l r))
-  = let dl = utxPretty (Proxy :: Proxy fam) metavarPretty renderK l
-        dr = utxPretty (Proxy :: Proxy fam) metavarPretty renderK r
-     in annotate (color Red)
-      $ spliced (annotate bold $ pretty "C")
-                (hsep [dl , pretty "<|>" , dr ])
+
+instance Show (D.PatchC kappa fam x) where
+  show = myRender . holesPretty go
+    where
+      go x = case x of
+               InL c -> confPretty c
+               InR c -> chgPretty c
+
+confPretty :: D.Conflict kappa fam x
+           -> Doc AnsiStyle
+confPretty (D.FailedContr vars)
+  = group (pretty "{!!" <+> sep (map (pretty . exElim D.metavarGet) vars) <+> pretty "!!}")
+confPretty (D.Conflict lbl c d)
+  = vcat [ pretty "{!! >>>>>>>" <+> pretty lbl <+> pretty "<<<<<<<"
+         , alignedPretty c
+         , pretty "==========="
+         , alignedPretty d
+         , pretty ">>>>>>>" <+> pretty lbl <+> pretty "<<<<<<< !!}"]
 -}
-
--- |Pretty prints a patch on the terminal
-showRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-             => Holes ki codes (D.Chg ki codes) v
-             -> [String]
-showRawPatch patch 
-  = doubleColumn 75
-      (holesPretty (Proxy :: Proxy fam) id prettyCChangeDel renderHO patch)
-      (holesPretty (Proxy :: Proxy fam) id prettyCChangeIns renderHO patch)
-  where
-    prettyCChangeDel :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-                    => D.Chg ki codes at
-                    -> Doc AnsiStyle
-    prettyCChangeDel (D.Chg del _)
-      = holesPretty (Proxy :: Proxy fam)
-                  (annotate myred)
-                  (metavarPretty (annotate mydullred))
-                  renderHO
-                  del
-
-    prettyCChangeIns :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-                    => D.Chg ki codes at
-                    -> Doc AnsiStyle
-    prettyCChangeIns (D.Chg _ ins)
-      = holesPretty (Proxy :: Proxy fam)
-                  (annotate mygreen)
-                  (metavarPretty (annotate mydullgreen))
-                  renderHO
-                  ins
-
-instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => Show (Holes ki codes (D.Chg ki codes) at) where
-  show = unlines . showRawPatch
-
-instance {-# OVERLAPPING #-} (HasDatatypeInfo ki fam codes , RendererHO ki , ShowHO phi)
-      => Show (Delta (Holes ki codes phi) at) where
-  show (del :*: ins)
-    = unlines $ doubleColumn 75
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) renderHO del)
-        (holesPretty (Proxy :: Proxy fam) id (pretty . showHO) renderHO ins)
-  show _ = undefined -- ghc seems to really want this to see the patterns are complete.
-
-instance (ShowHO ki , HasDatatypeInfo ki fam codes , RendererHO ki)
-      => ShowHO (D.Conflict ki codes) where
-  showHO (D.FailedContr exs)
-    = "(FailedContr " ++ unwords (map (exElim showHO) exs) ++ ")"
-  showHO (D.Conflict str x y) = unlines
-    $   [ "{ " ++ show str ++ " }"
-        , "<<<<<<<<<<<<<<<<<<<<<<"
-        , showHO x
-        , "======================"
-        , showHO y
-        , ">>>>>>>>>>>>>>>>>>>>>>"
-        ]
-
-instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => Show (D.Chg ki codes at) where
-  show = showHO
-
-instance  (HasDatatypeInfo ki fam codes , RendererHO ki)
-      => ShowHO (D.Chg ki codes) where
-  showHO (D.Chg del ins) = unlines $ doubleColumn 75
-    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullred)) renderHO  del)
-    (holesPretty (Proxy :: Proxy fam) id (metavarPretty (annotate mydullgreen)) renderHO ins)
-
-
--- |Outputs the result of 'showRawPatch' to the specified handle
-displayRawPatch :: (HasDatatypeInfo ki fam codes , RendererHO ki)
-                => Handle
-                -> Holes ki codes (D.Chg ki codes) at
-                -> IO ()
-displayRawPatch hdl = mapM_ (hPutStrLn hdl) . showRawPatch
-
--- |Displays two docs in a double column fashion
---
---  This is a hacky function. We need to render both the colored
---  and the non-colored versions to calculate
---  the width spacing correctly (see @complete@ in the where clause)
---
-doubleColumn :: Int -> Doc AnsiStyle -> Doc AnsiStyle -> [String]
-doubleColumn maxWidth da db
-  = let pgdim = LayoutOptions (AvailablePerLine maxWidth 1)
-        lyout = layoutSmart pgdim
-        -- colored versions
-        ta    = T.lines . renderStrict $ lyout da
-        tb    = T.lines . renderStrict $ lyout db
-        -- non colored versions
-        sta   = T.lines . Text.renderStrict $ lyout da
-        w     = 1 + maximum (0 : map T.length sta)
-        stb   = T.lines . Text.renderStrict $ lyout db
-        compA = if length ta >= length tb
-                then 0
-                else length tb - length ta
-        compB = if length tb >= length ta
-                then 0
-                else length ta - length tb
-        fta   = (zip ta sta) ++ replicate compA ((id &&& id) $ T.replicate w $ T.singleton ' ')
-        ftb   = (zip tb stb) ++ replicate compB ((id &&& id) $ T.empty)
-     in map (\(la , lb) -> T.unpack . T.concat
-                         $ [ complete w la
-                           , T.pack " -|+ "
-                           , fst lb
-                           ])
-              (zip fta ftb)
-  where
-    complete n (clr , nocolor)
-      = T.concat [clr , T.replicate (n - T.length nocolor) $ T.singleton ' ']

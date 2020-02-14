@@ -17,49 +17,46 @@ module Languages.RTree.Diff where
 import Data.Functor.Const
 import Data.Void
 
-import Generics.MRSOP.Base
-import Generics.MRSOP.Holes
-import Generics.MRSOP.HDiff.Digest
-
 import Languages.RTree
 import Data.HDiff.Base
 import Data.HDiff.Apply
 import Data.HDiff.Diff
 import Data.HDiff.Diff.Preprocess
 
-type PatchRTree = Patch W CodesRTree ('I 'Z)
+import Generics.Simplistic
+import Generics.Simplistic.Digest
+
+type PatchRTree = Patch RTreePrims RTreeFam RTree
 
 
 hdiffRTreeH :: Int -> RTree -> RTree -> PatchRTree
-hdiffRTreeH h a b = diff h (dfrom $ into @FamRTree a)
-                           (dfrom $ into @FamRTree b)
+hdiffRTreeH h a b = diff h (dfromRTree a) (dfromRTree b)
 
 hdiffRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
 hdiffRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
                                                     , doMinHeight = h
                                                     , doOpaqueHandling = DO_OnSpine })
-                                (dfrom $ into @FamRTree a)
-                                (dfrom $ into @FamRTree b)
+                                (dfromRTree a)
+                                (dfromRTree b)
 
+{-
 rtreeMerkle :: RTree -> Digest
 rtreeMerkle a = getDig $ preprocess (na2holes $ NA_I $ dfrom $ into @FamRTree a)
   where
     getDig :: PrepFix a ki codes (Const Void) ix -> Digest
     getDig = treeDigest . getConst . holesAnn
+-}
 
 hdiffRTree :: RTree -> RTree -> PatchRTree
-hdiffRTree a b = diff 1 (dfrom $ into @FamRTree a)
-                        (dfrom $ into @FamRTree b)
+hdiffRTree a b = hdiffRTreeH 1 a b
 
 applyRTree :: PatchRTree -> RTree -> Either String RTree
-applyRTree p x = maybe (Left "apply") (Right . unEl . dto @'Z . unFix . unNAI)
-               $ patchApply p (NA_I . dfrom . into @FamRTree $ x)
-  where
-    unNAI :: NA f g ('I ix) -> g ix
-    unNAI (NA_I r) = r
+applyRTree p x = maybe (Left "applyRTree")
+                       (Right . dtoRTree)
+               $ patchApply p (dfromRTree x)
 
-applyRTreeC :: Chg W CodesRTree ('I 'Z) -> RTree -> Either String RTree
-applyRTreeC p x = applyRTree (Hole' p) x
+applyRTreeC :: Chg RTreePrims RTreeFam RTree -> RTree -> Either String RTree
+applyRTreeC p x = applyRTree (Hole p) x
 
 applyRTree' :: PatchRTree -> RTree -> Maybe RTree
 applyRTree' p = either (const Nothing) Just . applyRTree p

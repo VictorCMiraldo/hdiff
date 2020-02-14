@@ -7,6 +7,7 @@ memlim=8
 interval=1
 verbose=false
 logfile=""
+dry=false
 
 function showUsage() {
   echo "usage: ./run-experiment.sh [options] path/to/dataset rest-of-args go-to-experiment"
@@ -45,6 +46,11 @@ function showUsage() {
   echo "    Passed to 'ulimit -v \$(( gigs * 1024 * 1024 ))'."
   echo "    Defaults to: $memlim"
   echo ""
+  echo "  -l logfile"
+  echo "    Logs to logfile"
+  echo
+  echo "  --dry"
+  echo "    Only runs on the first datapoint"
   echo ""
   echo "  Example usage:"
   echo ""
@@ -67,6 +73,8 @@ while [[ "$1" == -* ]]; do
   case $arg in
     -s|--sleep) interval=$1; shift ;;
     -m|--memlim) memlim=$1; shift ;;
+    --dry) dry=true;;
+    -l) logfile=$1; shift;;
     -h|--help) showUsage ;;
     *)         showUsage ;;
   esac
@@ -94,9 +102,8 @@ trap "exit" SIGINT SIGTERM
 # limit the memory usage
 ulimit -v $(( $memlim * 1024 * 1024 ))
 
-ver=alpha # TODO: fix $(hdiff --version)
-echo "[run-experiment; hdiff at version $ver]"
-$exp --header
+# ver=$(hdiff --version)
+# echo "[run-experiment; $ver]"
 
 for d in ${dir}/*; do
   sleep "$interval"
@@ -110,11 +117,12 @@ for d in ${dir}/*; do
   else
     ## Everything was found alright, we jump in there and
     ## run whatever experiment we want.
-    $exp --prefix "$(basename ${d})" --fa "$fa" --fb "$fb" --fo "$fo" --rest $@
+    $exp --log "$logfile" --prefix "$(basename ${d})" --fa "$fa" --fb "$fb" --fo "$fo" --fm "$fm" --rest $@
     ecode=$?
     if [[ "$ecode" -ne "0" ]]; then
       echo "!!! ${d} !!! Experiment Returned $ecode" >> run-experiment-errors.log
     fi
   fi
+  if $dry; then break; fi
 done
  

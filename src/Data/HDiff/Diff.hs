@@ -14,20 +14,19 @@ module Data.HDiff.Diff
   , module Data.HDiff.Diff.Types
   ) where
 
-import           Data.Void
 import           Data.Functor.Const
-import           Data.Functor.Sum
 
 import           Control.Monad.State
 
-import           Generics.MRSOP.Base
-import           Generics.MRSOP.Holes
-import           Generics.MRSOP.HDiff.Digest
+import           Generics.Simplistic
+import           Generics.Simplistic.Util
+import           Generics.Simplistic.Digest
 
 import qualified Data.WordTrie as T
 import           Data.HDiff.Diff.Types
 import           Data.HDiff.Diff.Modes
 import           Data.HDiff.Diff.Preprocess
+import           Data.HDiff.Diff.Closure
 import           Data.HDiff.Base
 import           Data.HDiff.MetaVar
 
@@ -38,7 +37,7 @@ import           Data.HDiff.MetaVar
 --  every subtree, as long as they are taller than
 --  minHeight. This trie keeps track of the arity, so
 --  we can later annotate the trees that can be propper shares.
-buildArityTrie :: DiffOptions -> PrepFix a ki codes phi ix -> T.Trie Int
+buildArityTrie :: DiffOptions -> PrepFix a kappa fam ix -> T.Trie Int
 buildArityTrie opts df = go df T.empty
   where
     ins :: Digest -> T.Trie Int -> T.Trie Int
@@ -46,20 +45,26 @@ buildArityTrie opts df = go df T.empty
 
     minHeight = doMinHeight opts
     
-    go :: PrepFix a ki codes phi ix -> T.Trie Int -> T.Trie Int
-    go (HOpq (Const prep) _) t
+    go :: PrepFix a kappa fam ix -> T.Trie Int -> T.Trie Int
+    go (PrimAnn (Const prep) _) t
       -- We only populat the sharing map if opaques are supposed
       -- to be handled as recursive trees
       | doOpaqueHandling opts == DO_AsIs = ins (treeDigest prep) t
       | otherwise                        = t
     -- TODO: think about holes. I'm posponing this until
     -- we actually use diffing things holes.
-    go (Hole (Const  _)    _) t = t
-    go (HPeel (Const prep) _ p) t
+    -- go (Hole' (Const  _)    _) t = t
+    go (SFixAnn (Const prep) p) t
       | treeHeight prep <= minHeight = t
-      | otherwise
-      = ins (treeDigest prep) $ getConst
-      $ cataNP (\af -> Const . go af . getConst) (Const t) p
+      | otherwise = ins (treeDigest prep) (goR p t)
+
+    goR :: SRep (PrepFix a kappa fam) ix -> T.Trie Int -> T.Trie Int
+    goR S_U1 t = t
+    goR (S_L1 x) t = goR x t
+    goR (S_R1 x) t = goR x t
+    goR (S_M1 _ x) t = goR x t
+    goR (x :**: y) t = goR y (goR x t)
+    goR (S_K1 x) t = go x t
    
 -- |Given two merkelized trees, returns the trie that indexes
 --  the subtrees that belong in both, ie,
@@ -71,8 +76,8 @@ buildArityTrie opts df = go df T.empty
 --  to be associated with a tree and the tree's arity.
 --
 buildSharingTrie :: DiffOptions
-                 -> PrepFix a ki codes phi ix
-                 -> PrepFix a ki codes phi ix
+                 -> PrepFix a kappa fam ix
+                 -> PrepFix a kappa fam ix
                  -> (Int , IsSharedMap)
 buildSharingTrie opts x y
   = T.mapAccum (\i ar -> (i+1 , MAA i ar) ) 0
@@ -84,38 +89,39 @@ buildSharingTrie opts x y
 --  This is somehow analogous to a @zipWith@. Moreover, however,
 --  we also copy the opaque values present in the spine by issuing
 --  /"copy"/ changes
-extractSpine :: forall ki codes phi at
-              . (EqHO ki)
-             => DiffOpaques
-             -> (forall ix . phi ix -> MetaVarIK ki ix)
+extractSpine :: forall kappa fam phi at
+              . DiffOpaques
+             -> (forall ix . phi ix -> MetaVar kappa fam ix)
              -> Int
-             -> Holes ki codes phi at
-             -> Holes ki codes phi at
-             -> Holes ki codes (Chg ki codes) at
+             -> Holes kappa fam phi at
+             -> Holes kappa fam phi at
+             -> Holes kappa fam (Chg kappa fam) at
 extractSpine dopq meta maxI dx dy
   = holesMap (uncurry' Chg)
   $ issueOpqCopiesSpine
-  $ holesLCP dx dy
+  $ lcp dx dy
  where
-   issueOpqCopiesSpine :: Holes ki codes (Holes2 ki codes phi) at
-                       -> Holes ki codes (Holes2 ki codes (MetaVarIK ki)) at
+   issueOpqCopiesSpine :: Holes kappa fam (Holes2 kappa fam phi) at
+                       -> Holes kappa fam (Holes2 kappa fam (MetaVar kappa fam)) at
    issueOpqCopiesSpine
      = flip evalState maxI
-     . holesRefineAnnM (\_ (x :*: y) -> return $ Hole' $ holesMap meta x
-                                                     :*: holesMap meta y)
-                       (const $ if dopq == DO_OnSpine
-                                then doCopy
-                                else noCopy)
+     . holesRefineM (\(x :*: y) -> return $ Hole $ holesMap meta x
+                                               :*: holesMap meta y)
+                    (if dopq == DO_OnSpine
+                         then doCopy
+                         else noCopy)
 
-   noCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
-   noCopy kik = return (HOpq' kik)
+   noCopy :: (PrimCnstr kappa fam b)
+          => b
+          -> State Int (Holes kappa fam (Holes2 kappa fam (MetaVar kappa fam)) b)
+   noCopy kik = return (Prim kik)
                         
-   doCopy :: ki k -> State Int (Holes ki codes (Holes2 ki codes (MetaVarIK ki)) ('K k))
-   doCopy ki = do
+   doCopy :: (PrimCnstr kappa fam b)
+          => b -> State Int (Holes kappa fam (Holes2 kappa fam (MetaVar kappa fam)) b)
+   doCopy _ = do
      i <- get
      put (i+1)
-     let ann = NA_K . Annotate i $ ki
-     return $ Hole' (Hole' ann :*: Hole' ann)
+     return $ Hole (Hole (MV_Prim i) :*: Hole (MV_Prim i))
 
 
 -- |Diffs two generic merkelized structures.
@@ -128,12 +134,12 @@ extractSpine dopq meta maxI dx dy
 --         both the source and deletion context
 --    v)   Extract the spine and compute the closure.
 --
-diffOpts' :: forall ki codes phi at
-           . (EqHO ki , DigestibleHO ki , DigestibleHO phi)
+diffOpts' :: forall kappa fam at
+           . (All Digestible kappa)
           => DiffOptions
-          -> Holes ki codes phi at
-          -> Holes ki codes phi at
-          -> (Int , Delta (Holes ki codes (Sum phi (MetaVarIK ki))) at)
+          -> SFix kappa fam at
+          -> SFix kappa fam at
+          -> (Int , Delta (Holes kappa fam (MetaVar kappa fam)) at)
 diffOpts' opts x y
   = let dx      = preprocess x
         dy      = preprocess y
@@ -144,34 +150,37 @@ diffOpts' opts x y
      in (i , delins)
  where
    mkCanShare :: forall a ix
-               . PrepFix a ki codes phi ix
+               . PrepFix a kappa fam ix
               -> Bool
-   mkCanShare (HOpq _ _)
+   mkCanShare (PrimAnn _ _)
      = doOpaqueHandling opts == DO_AsIs
    mkCanShare pr
-     = doMinHeight opts < treeHeight (getConst $ holesAnn pr)
+     = doMinHeight opts < treeHeight (getConst $ getAnn pr)
 
 -- |When running the diff for two fixpoints, we can
 -- cast the resulting deletion and insertion context into
 -- an actual patch.
-diffOpts :: (EqHO ki , DigestibleHO ki , IsNat ix)
+diffOpts :: (All Digestible kappa)
          => DiffOptions
-         -> Fix ki codes ix
-         -> Fix ki codes ix
-         -> Patch ki codes ('I ix)
+         -> SFix kappa fam ix
+         -> SFix kappa fam ix
+         -> Patch kappa fam ix
 diffOpts opts x y
-  = let (i , del :*: ins) = diffOpts' opts (na2holes $ NA_I x)
-                                           (na2holes $ NA_I y)
-     in extractSpine (doOpaqueHandling opts) cast i del ins
- where 
-   cast :: Sum (Const Void) f i -> f i
-   cast (InR fi) = fi
-   cast (InL _)  = error "impossible"
+  = let (i , del :*: ins) = diffOpts' opts x y
+     -- When doOpaqueHandling /= DO_OnSpine && doGlobalChgs == True
+     -- the extractSpine step is totally superfluous; but we won't care
+     -- too much for this level of detail here.
+     in let sp = extractSpine (doOpaqueHandling opts) id i del ins
+         in if doGlobalChgs opts 
+            then Hole (chgDistr sp)
+            else case close sp of
+                    Nothing -> error "invariant broke: has open variables"
+                    Just r  -> r
 
-diff :: forall (ki :: kon -> *) (codes :: [[[Atom kon]]]) (ix :: Nat)
-      . (EqHO ki , DigestibleHO ki , IsNat ix)
+diff :: forall kappa fam ix
+      . (All Digestible kappa)
      => MinHeight
-     -> Fix ki codes ix
-     -> Fix ki codes ix
-     -> Patch ki codes ('I ix)
+     -> SFix kappa fam ix
+     -> SFix kappa fam ix
+     -> Patch kappa fam ix
 diff h = diffOpts (diffOptionsDefault { doMinHeight = h})
