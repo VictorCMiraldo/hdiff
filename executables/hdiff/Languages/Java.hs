@@ -111,91 +111,91 @@ type JavaFam =
 
 
 
-instance Deep JavaFam JavaPrim Java.CompilationUnit
-instance Deep JavaFam JavaPrim (Maybe Java.PackageDecl)
-instance Deep JavaFam JavaPrim [Java.ImportDecl]
-instance Deep JavaFam JavaPrim [Java.TypeDecl]
-instance Deep JavaFam JavaPrim Java.PackageDecl
-instance Deep JavaFam JavaPrim Java.Name
-instance Deep JavaFam JavaPrim [Java.Ident]
-instance Deep JavaFam JavaPrim Java.Ident
-instance Deep JavaFam JavaPrim Java.ImportDecl
-instance Deep JavaFam JavaPrim Java.TypeDecl
-instance Deep JavaFam JavaPrim Java.ClassDecl
-instance Deep JavaFam JavaPrim Java.InterfaceDecl
-instance Deep JavaFam JavaPrim [Java.Modifier]
-instance Deep JavaFam JavaPrim [Java.TypeParam]
-instance Deep JavaFam JavaPrim (Maybe Java.RefType)
-instance Deep JavaFam JavaPrim Java.ClassBody
-instance Deep JavaFam JavaPrim Java.EnumBody
-instance Deep JavaFam JavaPrim Java.Modifier
-instance Deep JavaFam JavaPrim Java.Annotation
-instance Deep JavaFam JavaPrim [(Java.Ident, Java.ElementValue)]
-instance Deep JavaFam JavaPrim Java.ElementValue
-instance Deep JavaFam JavaPrim (Java.Ident, Java.ElementValue)
-instance Deep JavaFam JavaPrim Java.VarInit
-instance Deep JavaFam JavaPrim Java.ArrayInit
-instance Deep JavaFam JavaPrim Java.Literal
-instance Deep JavaFam JavaPrim (Maybe Java.Type)
-instance Deep JavaFam JavaPrim [Java.TypeArgument]
-instance Deep JavaFam JavaPrim Java.TypeDeclSpecifier
-instance Deep JavaFam JavaPrim (Maybe Java.ClassBody)
-instance Deep JavaFam JavaPrim Java.Type
-instance Deep JavaFam JavaPrim [Java.Exp]
-instance Deep JavaFam JavaPrim Java.FieldAccess
-instance Deep JavaFam JavaPrim Java.MethodInvocation
-instance Deep JavaFam JavaPrim Java.ArrayIndex
-instance Deep JavaFam JavaPrim Java.Op
-instance Deep JavaFam JavaPrim Java.Lhs
-instance Deep JavaFam JavaPrim Java.AssignOp
-instance Deep JavaFam JavaPrim Java.LambdaParams
-instance Deep JavaFam JavaPrim Java.LambdaExpression
-instance Deep JavaFam JavaPrim Java.PrimType
-instance Deep JavaFam JavaPrim Java.ClassType
-instance Deep JavaFam JavaPrim [(Java.Ident, [Java.TypeArgument])]
-instance Deep JavaFam JavaPrim (Java.Ident, [Java.TypeArgument])
-instance Deep JavaFam JavaPrim Java.TypeArgument
-instance Deep JavaFam JavaPrim (Maybe Java.WildcardBound)
-instance Deep JavaFam JavaPrim Java.WildcardBound
-instance Deep JavaFam JavaPrim Java.Diamond
-instance Deep JavaFam JavaPrim Java.Argument
-instance Deep JavaFam JavaPrim [Java.Decl]
-instance Deep JavaFam JavaPrim Java.Decl
-instance Deep JavaFam JavaPrim Java.MemberDecl
-instance Deep JavaFam JavaPrim Java.Block
-instance Deep JavaFam JavaPrim [Java.VarDecl]
-instance Deep JavaFam JavaPrim [Java.FormalParam]
-instance Deep JavaFam JavaPrim [Java.ExceptionType]
-instance Deep JavaFam JavaPrim (Maybe Java.Exp)
-instance Deep JavaFam JavaPrim Java.MethodBody
-instance Deep JavaFam JavaPrim Java.ConstructorBody
-instance Deep JavaFam JavaPrim Java.VarDecl
-instance Deep JavaFam JavaPrim Java.VarDeclId
-instance Deep JavaFam JavaPrim (Maybe Java.VarInit)
-instance Deep JavaFam JavaPrim Java.TypeParam
-instance Deep JavaFam JavaPrim Java.FormalParam
-instance Deep JavaFam JavaPrim Java.ExceptionType
-instance Deep JavaFam JavaPrim (Maybe Java.Block)
-instance Deep JavaFam JavaPrim [Java.BlockStmt]
-instance Deep JavaFam JavaPrim Java.BlockStmt
-instance Deep JavaFam JavaPrim Java.Stmt
-instance Deep JavaFam JavaPrim (Maybe Java.ForInit)
-instance Deep JavaFam JavaPrim (Maybe [Java.Exp])
-instance Deep JavaFam JavaPrim [Java.SwitchBlock]
-instance Deep JavaFam JavaPrim (Maybe Java.Ident)
-instance Deep JavaFam JavaPrim [Java.Catch]
-instance Deep JavaFam JavaPrim Java.ForInit
-instance Deep JavaFam JavaPrim Java.SwitchBlock
-instance Deep JavaFam JavaPrim Java.SwitchLabel
-instance Deep JavaFam JavaPrim Java.Catch
-instance Deep JavaFam JavaPrim (Maybe Java.ExplConstrInv)
-instance Deep JavaFam JavaPrim Java.ExplConstrInv
-instance Deep JavaFam JavaPrim Java.InterfaceKind
-instance Deep JavaFam JavaPrim Java.InterfaceBody
-instance Deep JavaFam JavaPrim [Java.MemberDecl]
-instance Deep JavaFam JavaPrim [Java.VarInit]
-instance Deep JavaFam JavaPrim [Java.EnumConstant]
-instance Deep JavaFam JavaPrim Java.EnumConstant
+instance Deep JavaPrim JavaFam Java.CompilationUnit
+instance Deep JavaPrim JavaFam (Maybe Java.PackageDecl)
+instance Deep JavaPrim JavaFam [Java.ImportDecl]
+instance Deep JavaPrim JavaFam [Java.TypeDecl]
+instance Deep JavaPrim JavaFam Java.PackageDecl
+instance Deep JavaPrim JavaFam Java.Name
+instance Deep JavaPrim JavaFam [Java.Ident]
+instance Deep JavaPrim JavaFam Java.Ident
+instance Deep JavaPrim JavaFam Java.ImportDecl
+instance Deep JavaPrim JavaFam Java.TypeDecl
+instance Deep JavaPrim JavaFam Java.ClassDecl
+instance Deep JavaPrim JavaFam Java.InterfaceDecl
+instance Deep JavaPrim JavaFam [Java.Modifier]
+instance Deep JavaPrim JavaFam [Java.TypeParam]
+instance Deep JavaPrim JavaFam (Maybe Java.RefType)
+instance Deep JavaPrim JavaFam Java.ClassBody
+instance Deep JavaPrim JavaFam Java.EnumBody
+instance Deep JavaPrim JavaFam Java.Modifier
+instance Deep JavaPrim JavaFam Java.Annotation
+instance Deep JavaPrim JavaFam [(Java.Ident, Java.ElementValue)]
+instance Deep JavaPrim JavaFam Java.ElementValue
+instance Deep JavaPrim JavaFam (Java.Ident, Java.ElementValue)
+instance Deep JavaPrim JavaFam Java.VarInit
+instance Deep JavaPrim JavaFam Java.ArrayInit
+instance Deep JavaPrim JavaFam Java.Literal
+instance Deep JavaPrim JavaFam (Maybe Java.Type)
+instance Deep JavaPrim JavaFam [Java.TypeArgument]
+instance Deep JavaPrim JavaFam Java.TypeDeclSpecifier
+instance Deep JavaPrim JavaFam (Maybe Java.ClassBody)
+instance Deep JavaPrim JavaFam Java.Type
+instance Deep JavaPrim JavaFam [Java.Exp]
+instance Deep JavaPrim JavaFam Java.FieldAccess
+instance Deep JavaPrim JavaFam Java.MethodInvocation
+instance Deep JavaPrim JavaFam Java.ArrayIndex
+instance Deep JavaPrim JavaFam Java.Op
+instance Deep JavaPrim JavaFam Java.Lhs
+instance Deep JavaPrim JavaFam Java.AssignOp
+instance Deep JavaPrim JavaFam Java.LambdaParams
+instance Deep JavaPrim JavaFam Java.LambdaExpression
+instance Deep JavaPrim JavaFam Java.PrimType
+instance Deep JavaPrim JavaFam Java.ClassType
+instance Deep JavaPrim JavaFam [(Java.Ident, [Java.TypeArgument])]
+instance Deep JavaPrim JavaFam (Java.Ident, [Java.TypeArgument])
+instance Deep JavaPrim JavaFam Java.TypeArgument
+instance Deep JavaPrim JavaFam (Maybe Java.WildcardBound)
+instance Deep JavaPrim JavaFam Java.WildcardBound
+instance Deep JavaPrim JavaFam Java.Diamond
+instance Deep JavaPrim JavaFam Java.Argument
+instance Deep JavaPrim JavaFam [Java.Decl]
+instance Deep JavaPrim JavaFam Java.Decl
+instance Deep JavaPrim JavaFam Java.MemberDecl
+instance Deep JavaPrim JavaFam Java.Block
+instance Deep JavaPrim JavaFam [Java.VarDecl]
+instance Deep JavaPrim JavaFam [Java.FormalParam]
+instance Deep JavaPrim JavaFam [Java.ExceptionType]
+instance Deep JavaPrim JavaFam (Maybe Java.Exp)
+instance Deep JavaPrim JavaFam Java.MethodBody
+instance Deep JavaPrim JavaFam Java.ConstructorBody
+instance Deep JavaPrim JavaFam Java.VarDecl
+instance Deep JavaPrim JavaFam Java.VarDeclId
+instance Deep JavaPrim JavaFam (Maybe Java.VarInit)
+instance Deep JavaPrim JavaFam Java.TypeParam
+instance Deep JavaPrim JavaFam Java.FormalParam
+instance Deep JavaPrim JavaFam Java.ExceptionType
+instance Deep JavaPrim JavaFam (Maybe Java.Block)
+instance Deep JavaPrim JavaFam [Java.BlockStmt]
+instance Deep JavaPrim JavaFam Java.BlockStmt
+instance Deep JavaPrim JavaFam Java.Stmt
+instance Deep JavaPrim JavaFam (Maybe Java.ForInit)
+instance Deep JavaPrim JavaFam (Maybe [Java.Exp])
+instance Deep JavaPrim JavaFam [Java.SwitchBlock]
+instance Deep JavaPrim JavaFam (Maybe Java.Ident)
+instance Deep JavaPrim JavaFam [Java.Catch]
+instance Deep JavaPrim JavaFam Java.ForInit
+instance Deep JavaPrim JavaFam Java.SwitchBlock
+instance Deep JavaPrim JavaFam Java.SwitchLabel
+instance Deep JavaPrim JavaFam Java.Catch
+instance Deep JavaPrim JavaFam (Maybe Java.ExplConstrInv)
+instance Deep JavaPrim JavaFam Java.ExplConstrInv
+instance Deep JavaPrim JavaFam Java.InterfaceKind
+instance Deep JavaPrim JavaFam Java.InterfaceBody
+instance Deep JavaPrim JavaFam [Java.MemberDecl]
+instance Deep JavaPrim JavaFam [Java.VarInit]
+instance Deep JavaPrim JavaFam [Java.EnumConstant]
+instance Deep JavaPrim JavaFam Java.EnumConstant
 
 instance HasDecEq JavaFam where
 
@@ -207,5 +207,5 @@ parseFile file = do
     Right r -> return r
 
 dfromJava :: Java.CompilationUnit
-          -> SFix JavaFam JavaPrim Java.CompilationUnit
+          -> SFix JavaPrim JavaFam Java.CompilationUnit
 dfromJava = dfrom

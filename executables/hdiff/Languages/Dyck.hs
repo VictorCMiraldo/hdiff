@@ -69,12 +69,12 @@ type DyckPrim = '[ String ]
 
 type DyckFam = '[Dyck WS , DyckAtom WS , Sep , () , Dyck () , DyckAtom ()]
 
-instance Deep DyckFam DyckPrim (Dyck WS)
-instance Deep DyckFam DyckPrim (DyckAtom WS)
-instance Deep DyckFam DyckPrim Sep
-instance Deep DyckFam DyckPrim ()
-instance Deep DyckFam DyckPrim (Dyck ())
-instance Deep DyckFam DyckPrim (DyckAtom ())
+instance Deep DyckPrim DyckFam (Dyck WS)
+instance Deep DyckPrim DyckFam (DyckAtom WS)
+instance Deep DyckPrim DyckFam Sep
+instance Deep DyckPrim DyckFam ()
+instance Deep DyckPrim DyckFam (Dyck ())
+instance Deep DyckPrim DyckFam (DyckAtom ())
 
 instance HasDecEq DyckFam where
 
@@ -85,10 +85,10 @@ parseFile file = do
     Left e  -> throwError (show e) 
     Right r -> return r
 
-dfromDyck :: Dyck WS -> SFix DyckFam DyckPrim (Dyck WS)
+dfromDyck :: Dyck WS -> SFix DyckPrim DyckFam (Dyck WS)
 dfromDyck = dfrom
 
 -- Forgets whitespace information
-dfromDyck' :: Dyck WS -> SFix DyckFam DyckPrim (Dyck ())
+dfromDyck' :: Dyck WS -> SFix DyckPrim DyckFam (Dyck ())
 dfromDyck' = dfrom . fmap (const ())
 

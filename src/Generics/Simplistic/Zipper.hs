@@ -91,16 +91,16 @@ plug (Z_M1 c x)    k = S_M1 c $ plug x k
 plug (Z_PairL x y) k = (plug x k) :**: y
 plug (Z_PairR x y) k = x :**: (plug y k)
 
-type Zipper' fam prim ann phi t
-  = Zipper (CompoundCnstr fam prim t)
-           (HolesAnn fam prim ann phi)
-           (HolesAnn fam prim ann phi) t
+type Zipper' kappa fam ann phi t
+  = Zipper (CompoundCnstr kappa fam t)
+           (HolesAnn kappa fam ann phi)
+           (HolesAnn kappa fam ann phi) t
 
-zippers :: forall fam prim ann phi t
+zippers :: forall kappa fam ann phi t
          . (HasDecEq fam)
         => (forall a . (Elem t fam) => phi a -> Maybe (a :~: t)) 
-        -> HolesAnn fam prim ann phi t
-        -> [Zipper' fam prim ann phi t] 
+        -> HolesAnn kappa fam ann phi t
+        -> [Zipper' kappa fam ann phi t] 
 zippers _   (Prim' _ _) = []
 zippers _   (Hole' _ _) = []
 zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
@@ -108,12 +108,12 @@ zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
     pf :: Proxy fam
     pf = Proxy
 
-    pa :: HolesAnn fam prim ann phi a -> Proxy a
+    pa :: HolesAnn kappa fam ann phi a -> Proxy a
     pa _ = Proxy
 
-    go :: SRep (HolesAnn fam prim ann phi) f
-       -> [(SZip t (HolesAnn fam prim ann phi) f
-          , HolesAnn fam prim ann phi t)]
+    go :: SRep (HolesAnn kappa fam ann phi) f
+       -> [(SZip t (HolesAnn kappa fam ann phi) f
+          , HolesAnn kappa fam ann phi t)]
     go S_U1       = []
     go (S_L1 x)   = first Z_L1 <$> go x
     go (S_R1 x)   = first Z_R1 <$> go x

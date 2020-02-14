@@ -24,31 +24,31 @@ import Generics.Simplistic
 
 type LuaPrim = '[ Text , Bool ]
 
-instance Deep LuaFam LuaPrim Block
-instance Deep LuaFam LuaPrim (Maybe Block)
-instance Deep LuaFam LuaPrim [Stat]
-instance Deep LuaFam LuaPrim Stat
-instance Deep LuaFam LuaPrim [(Exp , Block)]
-instance Deep LuaFam LuaPrim (Exp , Block)
-instance Deep LuaFam LuaPrim Exp
-instance Deep LuaFam LuaPrim (Maybe Exp)
-instance Deep LuaFam LuaPrim [TableField]
-instance Deep LuaFam LuaPrim TableField
-instance Deep LuaFam LuaPrim Name
-instance Deep LuaFam LuaPrim NumberType
-instance Deep LuaFam LuaPrim FunBody
-instance Deep LuaFam LuaPrim [Name]
-instance Deep LuaFam LuaPrim PrefixExp
-instance Deep LuaFam LuaPrim Var
-instance Deep LuaFam LuaPrim FunCall
-instance Deep LuaFam LuaPrim FunArg
-instance Deep LuaFam LuaPrim FunName
-instance Deep LuaFam LuaPrim (Maybe Name)
-instance Deep LuaFam LuaPrim [Exp]
-instance Deep LuaFam LuaPrim (Maybe [Exp])
-instance Deep LuaFam LuaPrim Binop
-instance Deep LuaFam LuaPrim Unop
-instance Deep LuaFam LuaPrim [Var]
+instance Deep LuaPrim LuaFam Block
+instance Deep LuaPrim LuaFam (Maybe Block)
+instance Deep LuaPrim LuaFam [Stat]
+instance Deep LuaPrim LuaFam Stat
+instance Deep LuaPrim LuaFam [(Exp , Block)]
+instance Deep LuaPrim LuaFam (Exp , Block)
+instance Deep LuaPrim LuaFam Exp
+instance Deep LuaPrim LuaFam (Maybe Exp)
+instance Deep LuaPrim LuaFam [TableField]
+instance Deep LuaPrim LuaFam TableField
+instance Deep LuaPrim LuaFam Name
+instance Deep LuaPrim LuaFam NumberType
+instance Deep LuaPrim LuaFam FunBody
+instance Deep LuaPrim LuaFam [Name]
+instance Deep LuaPrim LuaFam PrefixExp
+instance Deep LuaPrim LuaFam Var
+instance Deep LuaPrim LuaFam FunCall
+instance Deep LuaPrim LuaFam FunArg
+instance Deep LuaPrim LuaFam FunName
+instance Deep LuaPrim LuaFam (Maybe Name)
+instance Deep LuaPrim LuaFam [Exp]
+instance Deep LuaPrim LuaFam (Maybe [Exp])
+instance Deep LuaPrim LuaFam Binop
+instance Deep LuaPrim LuaFam Unop
+instance Deep LuaPrim LuaFam [Var]
 
 instance HasDecEq LuaFam where
 
@@ -88,5 +88,5 @@ parseFile file = do
     Left e  -> throwError (show e) 
     Right r -> return r
 
-dfromLua :: Block -> SFix LuaFam LuaPrim Block
+dfromLua :: Block -> SFix LuaPrim LuaFam Block
 dfromLua = dfrom

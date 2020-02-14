@@ -39,15 +39,15 @@ data Line = Line String
 
 type LinesPrims = '[ String ]
 type LinesFam   = '[Stmt , Line , [Line]]
-instance Deep LinesFam LinesPrims Line
-instance Deep LinesFam LinesPrims [Line]
-instance Deep LinesFam LinesPrims Stmt
+instance Deep LinesPrims LinesFam Line
+instance Deep LinesPrims LinesFam [Line]
+instance Deep LinesPrims LinesFam Stmt
 instance HasDecEq LinesFam where
 
-dfromLines :: Stmt -> SFix LinesFam LinesPrims Stmt
+dfromLines :: Stmt -> SFix LinesPrims LinesFam Stmt
 dfromLines = dfrom
 
-dtoLines   :: SFix LinesFam LinesPrims Stmt -> Stmt
+dtoLines   :: SFix LinesPrims LinesFam Stmt -> Stmt
 dtoLines   = dto
 
 parseFile :: String -> ExceptT String IO Stmt

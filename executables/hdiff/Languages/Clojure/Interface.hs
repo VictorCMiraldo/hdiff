@@ -58,10 +58,10 @@ type CljFam =
   , Tag
   ]
 
-dfromClj :: Expr -> SFix CljFam CljPrims Expr
+dfromClj :: Expr -> SFix CljPrims CljFam Expr
 dfromClj = dfrom
 
-dtoClj   :: SFix CljFam CljPrims Expr -> Expr
+dtoClj   :: SFix CljPrims CljFam Expr -> Expr
 dtoClj   = dto
 
 parseFile :: String -> ExceptT String IO Expr

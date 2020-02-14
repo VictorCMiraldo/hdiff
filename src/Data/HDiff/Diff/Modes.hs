@@ -22,14 +22,14 @@ import           Data.HDiff.Diff.Types
 import           Data.HDiff.MetaVar
 
 -- |A predicate indicating whether a tree can be shared.
-type CanShare fam prim = forall a ix . PrepFix a fam prim ix -> Bool
+type CanShare kappa fam = forall a ix . PrepFix a kappa fam ix -> Bool
 
-extractHoles :: All Digestible prim
+extractHoles :: All Digestible kappa
              => DiffMode
-             -> CanShare fam prim
+             -> CanShare kappa fam
              -> IsSharedMap
-             -> Delta (PrepFix a fam prim) at
-             -> Delta (Holes fam prim (MetaVar fam prim)) at
+             -> Delta (PrepFix a kappa fam) at
+             -> Delta (Holes kappa fam (MetaVar kappa fam)) at
 extractHoles DM_NoNested h tr sd
   = extractNoNested h tr sd
 extractHoles DM_ProperShare h tr (src :*: dst)
@@ -39,23 +39,23 @@ extractHoles DM_Patience h tr (src :*: dst)
  
 -- ** Proper Shares
 
-extractProperShare :: (All Digestible prim)
-                   => CanShare fam prim
+extractProperShare :: (All Digestible kappa)
+                   => CanShare kappa fam
                    -> IsSharedMap
-                   -> PrepFix a fam prim at
-                   -> Holes fam prim (MetaVar fam prim) at
+                   -> PrepFix a kappa fam at
+                   -> Holes kappa fam (MetaVar kappa fam) at
 extractProperShare h tr a = properShare h tr (tagProperShare tr a)
 
-tagProperShare :: forall a fam prim at
-                . (All Digestible prim)
+tagProperShare :: forall a kappa fam at
+                . (All Digestible kappa)
                => IsSharedMap
-               -> PrepFix a fam prim at
-               -> PrepFix (Int , Bool) fam prim at
+               -> PrepFix a kappa fam at
+               -> PrepFix (Int , Bool) kappa fam at
 tagProperShare ism = synthesize onRec onPrim (const botElim)
   where
     myar :: PrepData x -> Int
     myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest 
-    onPrim :: (Elem b prim)
+    onPrim :: (Elem b kappa)
            => Const (PrepData a) b
            -> b
            -> Const (PrepData (Int , Bool)) b
@@ -69,11 +69,11 @@ tagProperShare ism = synthesize onRec onPrim (const botElim)
             myar' = myar pd
          in Const $ pd { treeParm = (max maxar myar' , myar' >= maxar) }
 
-properShare :: forall fam prim at
-             . CanShare fam prim 
+properShare :: forall kappa fam at
+             . CanShare kappa fam 
             -> IsSharedMap
-            -> PrepFix (Int , Bool) fam prim at
-            -> Holes fam prim (MetaVar fam prim) at
+            -> PrepFix (Int , Bool) kappa fam at
+            -> Holes kappa fam (MetaVar kappa fam) at
 properShare _ _ (PrimAnn _ k) = Prim k
 properShare h tr pr@(SFixAnn ann _)
   = let prep  = getConst ann
@@ -88,23 +88,23 @@ properShare h tr pr@(SFixAnn ann _)
     -- into a single function, remove 'CanShare' from these specific functions
     -- and make the life of whoever is making an extraction strategy
     -- simpler.
-    properShare' :: PrepFix (Int , Bool) fam prim at
-                 -> Holes fam prim (MetaVar fam prim) at
+    properShare' :: PrepFix (Int , Bool) kappa fam at
+                 -> Holes kappa fam (MetaVar kappa fam) at
     properShare' (SFixAnn _ d) = Roll (repMap (properShare h tr) d) -- HPeel' c (mapNP (properShare h tr) d)
 
 -- ** Patience
 
-extractPatience :: CanShare fam prim 
+extractPatience :: CanShare kappa fam 
                 -> IsSharedMap
-                -> PrepFix a fam prim at
-                -> Holes fam prim (MetaVar fam prim) at
+                -> PrepFix a kappa fam at
+                -> Holes kappa fam (MetaVar kappa fam) at
 extractPatience h tr a = patience h tr a
 
-patience :: forall fam prim at a
-          . CanShare fam prim
+patience :: forall kappa fam at a
+          . CanShare kappa fam
          -> IsSharedMap
-         -> PrepFix a fam prim at
-         -> Holes fam prim (MetaVar fam prim) at
+         -> PrepFix a kappa fam at
+         -> Holes kappa fam (MetaVar kappa fam) at
 patience _ _ (PrimAnn _ k) = Prim k
 patience h tr pr@(SFixAnn ann _)
   = if not (h pr)
@@ -114,18 +114,18 @@ patience h tr pr@(SFixAnn ann _)
            Just i | getArity i == 2 -> Hole (MV_Comp $ getMetavar i)
                   | otherwise       -> patience' pr
   where
-    patience' :: PrepFix a fam prim at
-              -> Holes fam prim (MetaVar fam prim) at
+    patience' :: PrepFix a kappa fam at
+              -> Holes kappa fam (MetaVar kappa fam) at
     patience' (PrimAnn _ k) = Prim k
     patience' (SFixAnn _ d) = Roll (repMap (patience h tr) d) 
 
 
 -- ** No Nested
 
-extractNoNested :: CanShare fam prim 
+extractNoNested :: CanShare kappa fam 
                 -> IsSharedMap
-                -> Delta (PrepFix a fam prim) at
-                -> Delta (Holes fam prim (MetaVar fam prim)) at
+                -> Delta (PrepFix a kappa fam) at
+                -> Delta (Holes kappa fam (MetaVar kappa fam)) at
 extractNoNested h tr (src :*: dst)
   = let del'  = noNested h tr src
         ins'  = noNested h tr dst
@@ -140,19 +140,19 @@ extractNoNested h tr (src :*: dst)
     getHole (Exists (Const v :*: _)) = v
 
     refineHole :: S.Set Int
-               -> (Const Int :*: PrepFix a fam prim) ix
-               -> Holes fam prim (MetaVar fam prim) ix
+               -> (Const Int :*: PrepFix a kappa fam) ix
+               -> Holes kappa fam (MetaVar kappa fam) ix
     refineHole s (Const i :*: f)
       | i `S.member` s = case f of
                            (SFixAnn _ _) -> Hole (MV_Comp i)
                            (PrimAnn _ _) -> Hole (MV_Prim i)
       | otherwise      = holesMapAnn (error "imp: void") (const U1) f 
 
-noNested :: forall fam prim at a
-          . CanShare fam prim
+noNested :: forall kappa fam at a
+          . CanShare kappa fam
          -> IsSharedMap
-         -> PrepFix a fam prim at
-         -> Holes fam prim (Const Int :*: PrepFix a fam prim) at
+         -> PrepFix a kappa fam at
+         -> Holes kappa fam (Const Int :*: PrepFix a kappa fam) at
 noNested _ _ (PrimAnn _ x) = Prim x
 noNested h tr pr@(SFixAnn ann _)
   = if not (h pr)
@@ -161,6 +161,6 @@ noNested h tr pr@(SFixAnn ann _)
            Nothing -> noNested' pr
            Just i  -> Hole (Const (getMetavar i) :*: pr)
   where
-    noNested' :: PrepFix a fam prim at
-              -> Holes fam prim (Const Int :*: PrepFix a fam prim) at
+    noNested' :: PrepFix a kappa fam at
+              -> Holes kappa fam (Const Int :*: PrepFix a kappa fam) at
     noNested' (SFixAnn _ d) = Roll (repMap (noNested h tr) d)

@@ -19,10 +19,10 @@ import Data.HDiff.MetaVar
 import Generics.Simplistic
 import Generics.Simplistic.Util
 
-data ChgVars fam prim x
+data ChgVars kappa fam x
   = ChgVars { decls :: M.Map Int Arity
             , uses  :: M.Map Int Arity
-            , body  :: Chg fam prim x
+            , body  :: Chg kappa fam x
             }
 
 isClosed :: M.Map Int Arity
@@ -37,15 +37,15 @@ instance Semigroup MM where
 instance Monoid MM where
   mempty = MM M.empty
 
-chgVarsDistr :: Holes fam prim (ChgVars fam prim) at
-             -> ChgVars fam prim at
+chgVarsDistr :: Holes kappa fam (ChgVars kappa fam) at
+             -> ChgVars kappa fam at
 chgVarsDistr h =
   let (hD , MM ds) = runWriter $ holesMapM (\(ChgVars d _ c) -> tell (MM d) >> return (chgDel c)) h
       (hI , MM us) = runWriter $ holesMapM (\(ChgVars _ u c) -> tell (MM u) >> return (chgIns c)) h
    in ChgVars ds us (Chg (holesJoin hD) (holesJoin hI))
 
-close :: Holes fam prim (Chg fam prim) at
-      -> Maybe (Holes fam prim (Chg fam prim) at)
+close :: Holes kappa fam (Chg kappa fam) at
+      -> Maybe (Holes kappa fam (Chg kappa fam) at)
 close h = case closure global (holesMap getVars h) of
             InL _ -> Nothing
             InR b -> Just (holesMap body b)
@@ -54,15 +54,15 @@ close h = case closure global (holesMap getVars h) of
 
     f lbl m = unlines $ [ lbl ++ " " ++ show k ++ ": " ++ show v | (k , v) <- M.toList m]
     
-    getVars :: Chg fam prim x -> ChgVars fam prim x
+    getVars :: Chg kappa fam x -> ChgVars kappa fam x
     getVars c@(Chg d i) =
       let varsD = holesVars d
           varsI = holesVars i
        in ChgVars varsD varsI c
 
 closure :: M.Map Int Arity
-        -> Holes fam prim (ChgVars fam prim) at
-        -> Sum (ChgVars fam prim) (Holes fam prim (ChgVars fam prim)) at 
+        -> Holes kappa fam (ChgVars kappa fam) at
+        -> Sum (ChgVars kappa fam) (Holes kappa fam (ChgVars kappa fam)) at 
 closure _  (Prim x)  = InR $ Prim x
 closure gl (Hole cv)
   | isClosed gl (decls cv) (uses cv) = InR $ Hole cv

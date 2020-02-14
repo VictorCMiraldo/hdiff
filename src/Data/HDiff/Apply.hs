@@ -10,15 +10,15 @@ import Generics.Simplistic.Unify
 ------------------------------------
 import Data.HDiff.Base
 
-patchApply :: Patch fam prim at
-           -> SFix fam prim at
-           -> Maybe (SFix fam prim at)
+patchApply :: Patch kappa fam at
+           -> SFix kappa fam at
+           -> Maybe (SFix kappa fam at)
 patchApply p = chgApply (chgDistr p) 
 
 -- TODO: holesMapAnn (error "imp") should really be a coercion
-chgApply :: Chg fam prim at
-         -> SFix fam prim at
-         -> Maybe (SFix fam prim at)
+chgApply :: Chg kappa fam at
+         -> SFix kappa fam at
+         -> Maybe (SFix kappa fam at)
 chgApply chg p = 
   case runExcept $ unify (chgDel chg) (holesMapAnn (error "imp") id p) of
     Left  _     -> Nothing

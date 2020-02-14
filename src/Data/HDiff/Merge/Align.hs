@@ -107,20 +107,20 @@ import Generics.Simplistic.Zipper
 
 import Unsafe.Coerce
 
-data Aligned' fam prim f x where
-  Del :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned' fam prim f)  x
-      -> Aligned' fam prim f x
-  Ins :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned' fam prim f) x
-      -> Aligned' fam prim f x 
-  Spn :: (CompoundCnstr fam prim x)
-      => SRep (Aligned' fam prim f) (Rep x)
-      -> Aligned' fam prim f x
+data Aligned' kappa fam f x where
+  Del :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Aligned' kappa fam f)  x
+      -> Aligned' kappa fam f x
+  Ins :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Aligned' kappa fam f) x
+      -> Aligned' kappa fam f x 
+  Spn :: (CompoundCnstr kappa fam x)
+      => SRep (Aligned' kappa fam f) (Rep x)
+      -> Aligned' kappa fam f x
 
-  Cpy :: MetaVar fam prim x                       -> Aligned' fam prim f x
-  Prm :: MetaVar fam prim x -> MetaVar fam prim x -> Aligned' fam prim f x
-  Mod :: f x                                      -> Aligned' fam prim f x
+  Cpy :: MetaVar kappa fam x                       -> Aligned' kappa fam f x
+  Prm :: MetaVar kappa fam x -> MetaVar kappa fam x -> Aligned' kappa fam f x
+  Mod :: f x                                      -> Aligned' kappa fam f x
 
-instance (forall x . NFData (f x)) => NFData (Aligned' fam prim f a) where
+instance (forall x . NFData (f x)) => NFData (Aligned' kappa fam f a) where
   rnf (Del (Zipper z h)) = map (maybe () (exElim rnf)) (zipLeavesList z) `seq` rnf h
   rnf (Ins (Zipper z h)) = map (maybe () (exElim rnf)) (zipLeavesList z) `seq` rnf h
   rnf (Spn spn) = map (exElim rnf) (repLeavesList spn) `seq` ()
@@ -128,12 +128,12 @@ instance (forall x . NFData (f x)) => NFData (Aligned' fam prim f a) where
   rnf (Prm _ _) = ()
   rnf (Mod f) = rnf f
 
-type Aligned fam prim = Aligned' fam prim (Chg fam prim)
+type Aligned kappa fam = Aligned' kappa fam (Chg kappa fam)
 
 alignedMapM :: (Monad m)
             => (forall x . f x -> m (g x))
-            -> Aligned' prim fam f ty
-            -> m (Aligned' prim fam g ty)
+            -> Aligned' kappa fam f ty
+            -> m (Aligned' kappa fam g ty)
 alignedMapM f (Del (Zipper z h)) = (Del . Zipper z) <$> alignedMapM f h
 alignedMapM f (Ins (Zipper z h)) = (Ins . Zipper z) <$> alignedMapM f h
 alignedMapM f (Spn spn) = Spn <$> repMapM (alignedMapM f) spn
@@ -142,8 +142,8 @@ alignedMapM _ (Prm x y) = return $ Prm x y
 alignedMapM f (Mod x)   = Mod <$> f x
 
 alignedMap :: (forall x . f x -> g x)
-           -> Aligned' prim fam f ty
-           -> Aligned' prim fam g ty
+           -> Aligned' kappa fam f ty
+           -> Aligned' kappa fam g ty
 alignedMap f = runIdentity . alignedMapM (return . f)
 
 {-
@@ -151,7 +151,7 @@ alignedMap f = runIdentity . alignedMapM (return . f)
 -- TODO: Do this on the change level!
 
 -- |The multiset of variables used by a aligned.
-alignedVars :: Aligned fam prim at -> M.Map Int Arity
+alignedVars :: Aligned kappa fam at -> M.Map Int Arity
 alignedVars = flip execState M.empty . alignedMapM go
   where
     register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
@@ -160,21 +160,21 @@ alignedVars = flip execState M.empty . alignedMapM go
     go r@(Chg d i)
       = holesMapM register d >> holesMapM register i >> return r
 
-alignedMaxVar :: Aligned fam prim at -> Maybe Int
+alignedMaxVar :: Aligned kappa fam at -> Maybe Int
 alignedMaxVar = fmap fst . M.lookupMax . alignedVars
 
 -- |Returns a aligned that is guaranteed to have
 -- distinci variable names from the first argument.
-withFreshNamesFrom' :: Aligned fam prim at
-                    -> Aligned fam prim at
-                    -> Aligned fam prim at
+withFreshNamesFrom' :: Aligned kappa fam at
+                    -> Aligned kappa fam at
+                    -> Aligned kappa fam at
 withFreshNamesFrom' p q =
   case alignedMaxVar q of
     -- q has no variables!
     Nothing -> p
     Just v  -> alignedMap (changeAdd (v + 1)) p
   where
-    changeAdd :: Int -> Chg fam prim at -> Chg fam prim at
+    changeAdd :: Int -> Chg kappa fam at -> Chg kappa fam at
     changeAdd n (Chg del ins)
       = Chg (holesMap (metavarAdd n) del)
             (holesMap (metavarAdd n) ins)
@@ -183,10 +183,10 @@ withFreshNamesFrom' p q =
 ----------------------------------------------
 -- It is easy to disalign back into a change
 
-sfixCast :: SFix fam prim x -> Holes fam prim phi x
+sfixCast :: SFix kappa fam x -> Holes kappa fam phi x
 sfixCast = unsafeCoerce -- TODO: check and test
 
-disalign :: Aligned fam prim x -> Chg fam prim x
+disalign :: Aligned kappa fam x -> Chg kappa fam x
 disalign (Del (Zipper del rest)) =
   let aux  = disalign rest
       del' = zipperMap sfixCast del
@@ -200,8 +200,8 @@ disalign (Cpy x)   = Chg (Hole x) (Hole x)
 disalign (Prm x y) = Chg (Hole x) (Hole y)
 disalign (Mod chg) = chg
 
-alignDistr :: Holes fam prim (Aligned fam prim) x
-           -> Aligned fam prim x
+alignDistr :: Holes kappa fam (Aligned kappa fam) x
+           -> Aligned kappa fam x
 alignDistr (Hole a) = a
 alignDistr (Prim a) = Mod (Chg (Prim a) (Prim a))
 alignDistr (Roll a) = Spn (repMap alignDistr a)
@@ -210,14 +210,14 @@ alignDistr (Roll a) = Spn (repMap alignDistr a)
 
 type IsStiff = Const Bool
 
-isStiff :: HolesAnn fam prim IsStiff h x -> Bool
+isStiff :: HolesAnn kappa fam IsStiff h x -> Bool
 isStiff = getConst . getAnn
 
 -- | Annotates something with whether or not
 -- it contains holes; we call a value of type
 -- 'HolesAnn' /stiff/ if it contains no holes.
-annotStiffness :: Holes    fam prim         h x
-               -> HolesAnn fam prim IsStiff h x
+annotStiffness :: Holes    kappa fam         h x
+               -> HolesAnn kappa fam IsStiff h x
 annotStiffness = synthesize go (const $ const $ Const True)
                                (const $ const $ Const False)
   where
@@ -225,22 +225,22 @@ annotStiffness = synthesize go (const $ const $ Const True)
     go _ = Const . repLeaves getConst (&&) True
 
 
--- alignChg :: (HasDecEq fam) => Chg fam prim x -> Aligned fam prim x
+-- alignChg :: (HasDecEq fam) => Chg kappa fam x -> Aligned kappa fam x
 -- alignChg c = alignChg' (chgVars c) c
 
-align :: (HasDecEq fam) => Patch fam prim x -> Holes fam prim (Aligned fam prim) x
+align :: (HasDecEq fam) => Patch kappa fam x -> Holes kappa fam (Aligned kappa fam) x
 align p = holesMap (alignChg' vars) p
   where
     vars = patchVars p
 
     alignChg' :: (HasDecEq fam)
-              => M.Map Int Arity -> Chg fam prim x -> Aligned fam prim x
+              => M.Map Int Arity -> Chg kappa fam x -> Aligned kappa fam x
     alignChg' vars c@(Chg d i) = -- rmFauxPerms
       syncAnnot vars (annotStiffness d) (annotStiffness i)
 
 
 getAnn' :: (forall x . phi x -> String)
-        -> HolesAnn fam prim phi h a
+        -> HolesAnn kappa fam phi h a
         -> String
 getAnn' f (Hole' ann _) = "H: " ++ f ann
 getAnn' f (Prim' ann _) = "P: " ++ f ann
@@ -248,41 +248,41 @@ getAnn' f (Roll' ann _) = "R: " ++ f ann
 
 -- |Given a SRep; check if all holes but one are stiff;
 -- if so, cast it to a plug.
-syncCast :: forall fam prim t
+syncCast :: forall kappa fam t
           . (HasDecEq fam)
-         => HolesAnn fam prim IsStiff (MetaVar fam prim) t
-         -> Maybe (Zipper (CompoundCnstr fam prim t)
-                          (SFix fam prim)
-                          (HolesAnn fam prim IsStiff (MetaVar fam prim)) t)
+         => HolesAnn kappa fam IsStiff (MetaVar kappa fam) t
+         -> Maybe (Zipper (CompoundCnstr kappa fam t)
+                          (SFix kappa fam)
+                          (HolesAnn kappa fam IsStiff (MetaVar kappa fam)) t)
 syncCast r =
   let zs = zippers sameTy' r
    in case filter butOneStiff zs of
         [Zipper z x] -> Just $ Zipper (zipperMap myCast z) x
         _            -> Nothing
  where
-    sameTy' :: (Elem t fam) => MetaVar fam prim a -> Maybe (a :~: t)
+    sameTy' :: (Elem t fam) => MetaVar kappa fam a -> Maybe (a :~: t)
     sameTy' (MV_Prim _) = Nothing
     sameTy' (MV_Comp _) = sameTy (Proxy :: Proxy fam)
                                  (Proxy :: Proxy a)
                                  (Proxy :: Proxy t)
    
-    butOneStiff :: Zipper' fam prim IsStiff (MetaVar fam prim) t -> Bool
+    butOneStiff :: Zipper' kappa fam IsStiff (MetaVar kappa fam) t -> Bool
     butOneStiff (Zipper z x)
       = not (isStiff x) && all (maybe True (exElim isStiff)) (zipLeavesList z)
    
-    myCast :: HolesAnn fam prim IsStiff (MetaVar fam prim) x
-           -> SFix fam prim x
+    myCast :: HolesAnn kappa fam IsStiff (MetaVar kappa fam) x
+           -> SFix kappa fam x
     myCast = holesMapAnn (error "supposed to be stiff; no holes!") (const U1)
 
-type A fam prim = forall t . (HasDecEq fam)
-                => HolesAnn fam prim IsStiff (MetaVar fam prim) t
-                -> HolesAnn fam prim IsStiff (MetaVar fam prim) t
-                -> Aligned fam prim t 
+type A kappa fam = forall t . (HasDecEq fam)
+                => HolesAnn kappa fam IsStiff (MetaVar kappa fam) t
+                -> HolesAnn kappa fam IsStiff (MetaVar kappa fam) t
+                -> Aligned kappa fam t 
 
-syncAnnot :: M.Map Int Arity -> A fam prim
+syncAnnot :: M.Map Int Arity -> A kappa fam
 syncAnnot vars a b = syncAnnotD (syncSpine vars (syncAnnot vars)) a b
 
-syncAnnotD :: A fam prim -> A fam prim
+syncAnnotD :: A kappa fam -> A kappa fam
 syncAnnotD f a b = 
   case syncCast a of
     Nothing           -> syncAnnotI f a b
@@ -295,23 +295,23 @@ syncAnnotD f a b =
              Nothing  -> Del (Zipper za (Ins (Zipper zb (syncAnnotD f ra rb))))
              Just res -> Spn $ plug (zipperMap mkMod res) (syncAnnotD f ra rb)
   where
-    mkMod :: (SFix fam prim :*: SFix fam prim) t -> Aligned fam prim t
+    mkMod :: (SFix kappa fam :*: SFix kappa fam) t -> Aligned kappa fam t
     mkMod (d :*: i) = Mod (Chg (unsafeCoerce d) (unsafeCoerce i))
 
-syncAnnotI :: A fam prim -> A fam prim 
+syncAnnotI :: A kappa fam -> A kappa fam 
 syncAnnotI f a b = 
   case syncCast b of
     Nothing           -> f a b
     Just (Zipper z r) -> Ins (Zipper z (syncAnnotI f a r))
 
-syncSpine :: M.Map Int Arity -> A fam prim -> A fam prim 
+syncSpine :: M.Map Int Arity -> A kappa fam -> A kappa fam 
 syncSpine vars f a@(Roll' _ sa) b@(Roll' _ sb) =
   case zipSRep sa sb of
     Nothing -> syncAnnotD (syncMod vars) a b
     Just r  -> Spn (repMap (uncurry' f) r)
 syncSpine vars _ a b = syncAnnotD (syncMod vars) a b
 
-syncMod :: M.Map Int Arity -> A fam prim
+syncMod :: M.Map Int Arity -> A kappa fam
 syncMod vars a b = 
   let a' = dropAnn a
       b' = dropAnn b
@@ -326,14 +326,15 @@ syncMod vars a b =
                  else Mod (Chg a' b')
         _ -> Mod (Chg a' b')
    
-dropAnn :: HolesAnn fam prim ann phi t -> Holes fam prim phi t
+dropAnn :: HolesAnn kappa fam ann phi t -> Holes kappa fam phi t
 dropAnn = holesMapAnn id (const U1)
 
 --------------------
 --------------------
 -- We need to fix 'fake' permuations; though.
+{-
 
-getPermMap :: Aligned' fam prim f x -> M.Map Int Int 
+getPermMap :: Aligned' kappa fam f x -> M.Map Int Int 
 getPermMap (Del (Zipper _ h)) = getPermMap h
 getPermMap (Ins (Zipper _ h)) = getPermMap h
 getPermMap (Spn s) = M.unions (map (exElim getPermMap) (repLeavesList s))
@@ -350,12 +351,12 @@ permutesWith m x y =
 -- On example 26 in MergeSpec we have a 'fakeperm' case.
 -- pretty nasty. Thank you real world for bringing it
 -- tp may attention!
-rmFauxPerms :: Aligned fam prim x -> Aligned fam prim x
+rmFauxPerms :: Aligned kappa fam x -> Aligned kappa fam x
 rmFauxPerms a = go a
   where
     permMap = getPermMap a
 
-    go :: Aligned fam prim x -> Aligned fam prim x
+    go :: Aligned kappa fam x -> Aligned kappa fam x
     go (Del (Zipper z h)) = Del (Zipper z $ go h)
     go (Ins (Zipper z h)) = Ins (Zipper z $ go h)
     go (Spn s)            = Spn (repMap go s)
@@ -366,10 +367,11 @@ rmFauxPerms a = go a
       | otherwise = Mod (Chg (Hole x) (Hole y))
      
       
+-}
 --------------------
 --------------------
 
-alignCost :: Aligned fam prim t -> Int
+alignCost :: Aligned kappa fam t -> Int
 alignCost (Del (Zipper z h)) =
   let ls = zipLeavesList z
    in 1 + sum (map (maybe 0 (exElim holesSize)) ls) + alignCost h
@@ -383,5 +385,5 @@ alignCost (Prm _ _) = 0
 alignCost (Cpy _)   = 0
 alignCost (Mod chg) = chgCost chg
 
-patchAlignCost :: Holes fam prim (Aligned fam prim) x -> Int
+patchAlignCost :: Holes kappa fam (Aligned kappa fam) x -> Int
 patchAlignCost = sum . map (exElim alignCost) . holesHolesList 

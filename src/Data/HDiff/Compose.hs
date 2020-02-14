@@ -22,24 +22,24 @@ e2m = either (const Nothing) Just . runExcept
 -- PRECONDITION: Names must be disjoint in both changes; we call thin
 --               directly, without checking this.
 --
-after :: Chg fam prim at
-      -> Chg fam prim at
-      -> Maybe (Chg fam prim at)
+after :: Chg kappa fam at
+      -> Chg kappa fam at
+      -> Maybe (Chg kappa fam at)
 after q p = do
   sigma <- e2m $ unify (chgDel q) (chgIns p)
   let rD = substApply sigma (chgDel p)
   let rI = substApply sigma (chgIns q)
   return (Chg rD rI)
 
-(.!) :: Patch fam prim at
-     -> Patch fam prim at
-     -> Maybe (Patch fam prim at)
+(.!) :: Patch kappa fam at
+     -> Patch kappa fam at
+     -> Maybe (Patch kappa fam at)
 q .! p = chgPatch <$> (chgDistr q) `after` (chgDistr p')
   where
     p' = p `withFreshNamesFrom` q
 
-composes :: Patch fam prim at
-         -> Patch fam prim at
+composes :: Patch kappa fam at
+         -> Patch kappa fam at
          -> Bool
 composes q p = maybe False (const True) (q .! p)
          

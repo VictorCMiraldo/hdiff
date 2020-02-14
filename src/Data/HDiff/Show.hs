@@ -35,28 +35,28 @@ spliced :: Doc ann -> Doc ann
 spliced d = pretty "#" <> d
 
 metavarPretty :: (Doc AnsiStyle -> Doc AnsiStyle)
-              -> D.MetaVar fam prim ix -> Doc AnsiStyle
+              -> D.MetaVar kappa fam ix -> Doc AnsiStyle
 metavarPretty sty v
   = sty $ spliced (pretty (D.metavarGet v))
 
 {-
 instance {-# OVERLAPING #-} (ShowHO phi)
-    => Show (Holes prim phi x) where
+    => Show (Holes kappa phi x) where
   show = myRender . holesPretty (pretty . showHO)
 -}
 
 instance {-# OVERLAPPABLE #-} (ShowHO ann , ShowHO phi)
-    => Show (HolesAnn fam prim ann phi x) where
+    => Show (HolesAnn kappa fam ann phi x) where
   show = myRender . holesAnnPretty (pretty . showHO) addAnn
     where
       addAnn ann d = sep [pretty "<" , pretty (showHO ann) , pretty "|" , d , pretty ">"]
 
-instance ShowHO (D.HolesMV fam prim) where
+instance ShowHO (D.HolesMV kappa fam) where
   showHO = myRender . holesPretty (metavarPretty id)
 
 
 
-instance Show (D.HolesMV fam prim x) where
+instance Show (D.HolesMV kappa fam x) where
   show = myRender . holesPretty (metavarPretty id)
 
 -- when using emacs, the output of the repl is in red;
@@ -68,7 +68,7 @@ mygreen     = colorDull Green
 mydullred   = colorDull Yellow
 mydullgreen = colorDull Green
 
-chgPretty :: D.Chg fam prim x
+chgPretty :: D.Chg kappa fam x
           -> Doc AnsiStyle
 chgPretty (D.Chg d i)
   = group $ braces $ sep [group (chgD d) , group (chgI i) ]
@@ -79,10 +79,10 @@ chgPretty (D.Chg d i)
    chg f o c h
      = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
 
-instance Show (D.Chg fam prim x) where
+instance Show (D.Chg kappa fam x) where
   show = myRender . chgPretty
 
-instance Show (D.Patch fam prim x) where
+instance Show (D.Patch kappa fam x) where
   show = myRender . holesPretty chgPretty
 
 asrD :: Doc AnsiStyle -> Doc AnsiStyle
@@ -93,7 +93,7 @@ asrI :: Doc AnsiStyle -> Doc AnsiStyle
 asrI d = annotate mygreen $ group
        $ sep [pretty "[+" , d , pretty "+]"]
 
-alignedPretty :: D.Aligned fam prim x -> Doc AnsiStyle
+alignedPretty :: D.Aligned kappa fam x -> Doc AnsiStyle
 alignedPretty (D.Del x)
   = zipperPretty sfixPretty alignedPretty asrD x
 alignedPretty (D.Ins x)
@@ -108,28 +108,28 @@ alignedPretty (D.Prm x y)
 alignedPretty (D.Mod c)
   = chgPretty c
 
-alignedPretty' :: D.Aligned fam prim x -> Doc AnsiStyle
+alignedPretty' :: D.Aligned kappa fam x -> Doc AnsiStyle
 alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
 
-instance Show (D.Aligned fam prim x) where
+instance Show (D.Aligned kappa fam x) where
   show = myRender . alignedPretty'
 
-instance Show (Holes fam prim (D.Aligned fam prim) x) where
+instance Show (Holes kappa fam (D.Aligned kappa fam) x) where
   show = myRender . holesPretty alignedPretty'
 
-instance Show (D.MetaVar fam prim x) where
+instance Show (D.MetaVar kappa fam x) where
   show = ('#':) . show . D.metavarGet
 
 {-
 
-instance Show (D.PatchC fam prim x) where
+instance Show (D.PatchC kappa fam x) where
   show = myRender . holesPretty go
     where
       go x = case x of
                InL c -> confPretty c
                InR c -> chgPretty c
 
-confPretty :: D.Conflict fam prim x
+confPretty :: D.Conflict kappa fam x
            -> Doc AnsiStyle
 confPretty (D.FailedContr vars)
   = group (pretty "{!!" <+> sep (map (pretty . exElim D.metavarGet) vars) <+> pretty "!!}")

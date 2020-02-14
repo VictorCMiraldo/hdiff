@@ -57,38 +57,38 @@ mkDbgString ca cb stra strb =
           , ""]
 
 data Conflict :: [*] -> [*] -> * -> * where
-  FailedContr :: [Exists (MetaVar fam prim)]
-              -> Conflict fam prim at
+  FailedContr :: [Exists (MetaVar kappa fam)]
+              -> Conflict kappa fam at
   
   Conflict :: String
-           -> Aligned fam prim at
-           -> Aligned fam prim at
-           -> Conflict fam prim at
+           -> Aligned kappa fam at
+           -> Aligned kappa fam at
+           -> Conflict kappa fam at
 
 -- |A 'PatchC' is a patch with potential conflicts inside
-type PatchC fam prim at
-  = Holes fam prim (Sum (Conflict fam prim) (Chg fam prim)) at
+type PatchC kappa fam at
+  = Holes kappa fam (Sum (Conflict kappa fam) (Chg kappa fam)) at
 
-noConflicts :: PatchC fam prim ix -> Maybe (Patch fam prim ix)
+noConflicts :: PatchC kappa fam ix -> Maybe (Patch kappa fam ix)
 noConflicts = holesMapM rmvInL
   where
     rmvInL (InL _) = Nothing
     rmvInL (InR x) = Just x
 
-getConflicts :: PatchC fam prim ix -> [Exists (Conflict fam prim)]
+getConflicts :: PatchC kappa fam ix -> [Exists (Conflict kappa fam)]
 getConflicts = foldr act [] . holesHolesList
   where
-    act :: Exists (Sum (Conflict fam prim) (Chg fam prim))
-        -> [Exists (Conflict fam prim)]
-        -> [Exists (Conflict fam prim)]
+    act :: Exists (Sum (Conflict kappa fam) (Chg kappa fam))
+        -> [Exists (Conflict kappa fam)]
+        -> [Exists (Conflict kappa fam)]
     act (Exists (InR _)) = id
     act (Exists (InL c)) = (Exists c :)
 
-diff3 :: forall fam prim ix
+diff3 :: forall kappa fam ix
        . (HasDecEq fam)
-      => Patch fam prim ix
-      -> Patch fam prim ix
-      -> PatchC fam prim ix
+      => Patch kappa fam ix
+      -> Patch kappa fam ix
+      -> PatchC kappa fam ix
 -- Since patches are well-scoped (again! yay! lol)
 -- we can map over the anti-unif for efficiency purposes.
 diff3 oa ob =
@@ -98,8 +98,8 @@ diff3 oa ob =
  where
    delta f (x :*: y) = (f x :*: f y)
 
-mergeAl :: Aligned fam prim x -> Aligned fam prim x
-        -> Sum (Conflict fam prim) (Chg fam prim) x
+mergeAl :: Aligned kappa fam x -> Aligned kappa fam x
+        -> Sum (Conflict kappa fam) (Chg kappa fam) x
 mergeAl p q = case runExcept (evalStateT (mrg p q) mrgSt0) of
                 Left err -> InL $ Conflict err p q
                 Right r  -> InR (disalign r)
@@ -107,26 +107,26 @@ mergeAl p q = case runExcept (evalStateT (mrg p q) mrgSt0) of
 -- Merging alignments might require merging changes; which
 -- in turn requier a state.
 
-data MergeState fam prim = MergeState
-  { iota :: Inst (Patch fam prim)
-  , eqs  :: Subst fam prim (MetaVar fam prim)
+data MergeState kappa fam = MergeState
+  { iota :: Inst (Patch kappa fam)
+  , eqs  :: Subst kappa fam (MetaVar kappa fam)
   }
   
-type MergeM     fam prim = StateT (MergeState fam prim) (Except String)
+type MergeM     kappa fam = StateT (MergeState kappa fam) (Except String)
 
-mrgSt0 :: MergeState fam prim
+mrgSt0 :: MergeState kappa fam
 mrgSt0 = MergeState M.empty substEmpty
 
-onEqvs :: (Subst fam prim (MetaVar fam prim) -> Subst fam prim (MetaVar fam prim))
-       -> MergeM fam prim ()
+onEqvs :: (Subst kappa fam (MetaVar kappa fam) -> Subst kappa fam (MetaVar kappa fam))
+       -> MergeM kappa fam ()
 onEqvs f = do
   e <- gets eqs
   let es' = f e
   trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
   
 
-mrg :: Aligned fam prim x -> Aligned fam prim x
-    -> MergeM fam prim (Aligned fam prim x)
+mrg :: Aligned kappa fam x -> Aligned kappa fam x
+    -> MergeM kappa fam (Aligned kappa fam x)
 mrg p q = do
   phase1 <- mrg0 p q
   inst <- get
@@ -134,8 +134,8 @@ mrg p q = do
     Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
     Right di -> alignedMapM (phase2 di) phase1
 
-mrg0 :: Aligned fam prim x -> Aligned fam prim x
-    -> MergeM fam prim (Aligned' fam prim (Phase2 fam prim) x)
+mrg0 :: Aligned kappa fam x -> Aligned kappa fam x
+    -> MergeM kappa fam (Aligned' kappa fam (Phase2 kappa fam) x)
 -- Copies are the easiest case
 mrg0 (Cpy x) q = Mod <$> mrgCpy x (disalign q)
 mrg0 p (Cpy x) = Mod <$> mrgCpy x (disalign p)
@@ -180,15 +180,15 @@ mrg0 (Mod p) (Mod q) = Mod <$> mrgChgChg p q
 
 -- Spines and Changes
 
-isCpy :: Chg fam prim x -> Bool
+isCpy :: Chg kappa fam x -> Bool
 isCpy (Chg (Hole v) (Hole u)) = metavarGet v == metavarGet u
 isCpy _                       = False
 
 -- |Checks that a deletion is compatible with an alignment; if so, returns
 -- an adapted alignment;
-compat :: Zipper (CompoundCnstr fam prim x) (SFix fam prim) (Aligned fam prim) x
-       -> Aligned fam prim x
-       -> MergeM fam prim (Aligned fam prim x , Aligned fam prim x)
+compat :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Aligned kappa fam) x
+       -> Aligned kappa fam x
+       -> MergeM kappa fam (Aligned kappa fam x , Aligned kappa fam x)
 compat (Zipper zip h) (Del (Zipper zip' h'))
   | zip == zip' = return (h , h')
   | otherwise   = throwError "del-del"
@@ -211,10 +211,10 @@ compat (Zipper zip h) (Spn rep) =
    isInR1 (InL _ :*: _) = True
    isInR1 _             = False
 
-   isCpyL1 :: Exists (Sum a b :*: Aligned fam prim) -> Bool
+   isCpyL1 :: Exists (Sum a b :*: Aligned kappa fam) -> Bool
    isCpyL1 (Exists (_ :*: a)) = isCpyA a
 
-   isCpyA :: Aligned fam prim x -> Bool
+   isCpyA :: Aligned kappa fam x -> Bool
    isCpyA (Cpy _) = True
    isCpyA (Spn r) = all (exElim isCpyA) (repLeavesList r)
    isCpyA _       = False
@@ -227,23 +227,23 @@ compat (Zipper zip h) (Spn rep) =
 data Phase2 :: [*] -> [*] -> * -> * where
   -- |A instantiation needs to be done after we completed the information
   --  discovery phase.
-  P2Instantiate :: Chg fam prim at
-                -> Phase2 fam prim at
+  P2Instantiate :: Chg kappa fam at
+                -> Phase2 kappa fam at
 
-  P2Instantiate' :: Chg fam prim at
-                 -> HolesMV fam prim at
-                 -> Phase2 fam prim at
+  P2Instantiate' :: Chg kappa fam at
+                 -> HolesMV kappa fam at
+                 -> Phase2 kappa fam at
   
   -- |Sometimes we must decide whether we are looking into the same change or not.
-  P2TestEq      :: Chg fam prim at
-                -> Chg fam prim at
-                -> Phase2 fam prim at
+  P2TestEq      :: Chg kappa fam at
+                -> Chg kappa fam at
+                -> Phase2 kappa fam at
 
-type Subst2 fam prim = ( Subst fam prim (MetaVar fam prim)
-                       , Subst fam prim (MetaVar fam prim))
+type Subst2 kappa fam = ( Subst kappa fam (MetaVar kappa fam)
+                       , Subst kappa fam (MetaVar kappa fam))
 
-mrgCpy :: MetaVar fam prim at -> Chg fam prim at
-       -> MergeM fam prim (Phase2 fam prim at)
+mrgCpy :: MetaVar kappa fam at -> Chg kappa fam at
+       -> MergeM kappa fam (Phase2 kappa fam at)
 mrgCpy x chg =
   trace (mkDbgString "cpy" "prm" (show x) (show chg))
    $ do i <- gets iota
@@ -252,11 +252,11 @@ mrgCpy x chg =
           Just i' -> modify (\s -> s { iota = i' })
                   >> return (P2Instantiate (Chg (Hole x) (Hole x)))
 
-mrgPrmPrm :: MetaVar fam prim x
-          -> MetaVar fam prim x
-          -> MetaVar fam prim x
-          -> MetaVar fam prim x
-          -> MergeM fam prim (Phase2 fam prim x)
+mrgPrmPrm :: MetaVar kappa fam x
+          -> MetaVar kappa fam x
+          -> MetaVar kappa fam x
+          -> MetaVar kappa fam x
+          -> MergeM kappa fam (Phase2 kappa fam x)
 mrgPrmPrm x y x' y' =
   trace (mkDbgString "prm" "prm" (show x ++ " |-> " ++ show y) (show x' ++ " |-> " ++ show y'))
    $ do -- let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
@@ -264,10 +264,10 @@ mrgPrmPrm x y x' y' =
         onEqvs ins
         return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
 
-mrgPrm :: MetaVar fam prim x
-       -> MetaVar fam prim x
-       -> Chg fam prim x
-       -> MergeM fam prim (Phase2 fam prim x)
+mrgPrm :: MetaVar kappa fam x
+       -> MetaVar kappa fam x
+       -> Chg kappa fam x
+       -> MergeM kappa fam (Phase2 kappa fam x)
 mrgPrm x y c = 
   trace (mkDbgString "prm" "chg" (show x ++ " |-> " ++ show y) (show c))
     $ do i <- gets iota
@@ -277,10 +277,10 @@ mrgPrm x y c =
                    >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
 
 
-makeDelInsMaps :: forall fam prim
-                . MergeState fam prim
-               -> Either [Exists (MetaVar fam prim)]
-                         (Subst2 fam prim)
+makeDelInsMaps :: forall kappa fam
+                . MergeState kappa fam
+               -> Either [Exists (MetaVar kappa fam)]
+                         (Subst2 kappa fam)
 makeDelInsMaps (MergeState iot eqvs) =
   let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iot
       si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iot
@@ -290,22 +290,22 @@ makeDelInsMaps (MergeState iot eqvs) =
     trace (diStr (d , i))
       return (d , i)
  where
-   toSubst :: [(Int , Exists (Holes fam prim (MetaVar fam prim)))]
-           -> Subst fam prim (MetaVar fam prim)
+   toSubst :: [(Int , Exists (Holes kappa fam (MetaVar kappa fam)))]
+           -> Subst kappa fam (MetaVar kappa fam)
    toSubst = M.fromList
            . map (\(i , Exists h) -> (Exists (mkVar i h) , Exists h))
 
-   mkVar :: Int -> Holes fam prim (MetaVar fam prim) at -> MetaVar fam prim at
+   mkVar :: Int -> Holes kappa fam (MetaVar kappa fam) at -> MetaVar kappa fam at
    mkVar vx (Prim _) = MV_Prim vx
    mkVar vx (Hole v) = metavarSet vx v
    mkVar vx (Roll _) = MV_Comp vx
 
-   diStr :: Subst2 fam prim -> String
+   diStr :: Subst2 kappa fam -> String
    diStr (d , i) = unlines $
      [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
      [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
 
-   oneStr :: String -> Subst fam prim (MetaVar fam prim) -> String
+   oneStr :: String -> Subst kappa fam (MetaVar kappa fam) -> String
    oneStr lbl d = unlines $
      [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
 
@@ -314,23 +314,23 @@ makeDelInsMaps (MergeState iot eqvs) =
 
    -- We only insert the equivalences when we don't yet have data about these
    -- variables in whatever map we are complementing
-   addEqvs :: Subst fam prim (MetaVar fam prim)
-           -> Subst fam prim (MetaVar fam prim)
+   addEqvs :: Subst kappa fam (MetaVar kappa fam)
+           -> Subst kappa fam (MetaVar kappa fam)
    addEqvs s = let go k = foldl' k s eqvsL
                 in go $ \s' (Exists (v :*: u)) 
                         -> if or (map (`M.member` s') [ Exists v , Exists u ])
                            then s'
                            else substInsert s' v (Hole u)
 
-isDup :: Chg fam prim x -> Bool
+isDup :: Chg kappa fam x -> Bool
 isDup (Chg (Hole _) (Hole _)) = True
 isDup _ = False
 
-instance ShowHO (MetaVar fam prim) where
+instance ShowHO (MetaVar kappa fam) where
   showHO = ('#':) . show . metavarGet
 
-mrgChgChg :: Chg fam prim x -> Chg fam prim x
-          -> MergeM fam prim (Phase2 fam prim x)
+mrgChgChg :: Chg kappa fam x -> Chg kappa fam x
+          -> MergeM kappa fam (Phase2 kappa fam x)
 -- Changes must have unifiable domains
 mrgChgChg p q
  | isDup p = mrgChgDup p q
@@ -342,8 +342,8 @@ mrgChgChg p q
       Right r  -> onEqvs (M.union r)
                >> return (P2TestEq p q)
 
-mrgChgDup :: Chg fam prim x -> Chg fam prim x
-          -> MergeM fam prim (Phase2 fam prim x)
+mrgChgDup :: Chg kappa fam x -> Chg kappa fam x
+          -> MergeM kappa fam (Phase2 kappa fam x)
 mrgChgDup dup@(Chg (Hole v) _) q = 
  trace (mkDbgString "chg" "dup" (show q) (show dup))
   $ do i <- gets iota
@@ -352,17 +352,17 @@ mrgChgDup dup@(Chg (Hole v) _) q =
          Just i' -> modify (\s -> s { iota = i' })
                  >> return (P2Instantiate dup)
 
-mrgChgSpn :: (CompoundCnstr fam prim x)
-          => Chg fam prim x -> SRep (Aligned fam prim) (Rep x)
-          -> MergeM fam prim (Phase2 fam prim x)
+mrgChgSpn :: (CompoundCnstr kappa fam x)
+          => Chg kappa fam x -> SRep (Aligned kappa fam) (Rep x)
+          -> MergeM kappa fam (Phase2 kappa fam x)
 mrgChgSpn p@(Chg dp ip) spn =
  trace (mkDbgString "chg" "spn" (show p) (show spn))
    $ instM dp (Spn spn) >> return (P2Instantiate' p (chgIns $ disalign $ Spn spn))
 
-instM :: forall fam prim at  
-       . HolesMV fam prim at
-      -> Aligned fam prim at
-      -> MergeM fam prim ()
+instM :: forall kappa fam at  
+       . HolesMV kappa fam at
+      -> Aligned kappa fam at
+      -> MergeM kappa fam ()
 -- instantiating over a copy is fine; 
 instM _ (Cpy _)    = return ()
 
@@ -393,9 +393,9 @@ instM (Roll r) (Spn s) =
     Nothing  -> throwError "constr-clash"
     Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
 
-phase2 :: Subst2 fam prim
-       -> Phase2 fam prim at
-       -> MergeM fam prim (Chg fam prim at)
+phase2 :: Subst2 kappa fam
+       -> Phase2 kappa fam at
+       -> MergeM kappa fam (Chg kappa fam at)
 phase2 di (P2TestEq ca cb) = chgeq di ca cb
 phase2 di (P2Instantiate chg) =
   trace ("p2-inst:\n  " ++ show chg) $
@@ -407,24 +407,24 @@ phase2 di (P2Instantiate' chg i) =
            [] -> return $ chgrefine di chg
            xs -> throwError ("mov-mov " ++ show xs)
  where
-   getCommonVars :: HolesMV fam prim at -> HolesMV fam prim at -> [Int]
+   getCommonVars :: HolesMV kappa fam at -> HolesMV kappa fam at -> [Int]
    getCommonVars x y =
      let vx = holesVars x
          vy = holesVars y
       in M.keys (M.intersection vx vy)
 
-chgrefine :: Subst2 fam prim
-          -> Chg fam prim at
-          -> Chg fam prim at
+chgrefine :: Subst2 kappa fam
+          -> Chg kappa fam at
+          -> Chg kappa fam at
 chgrefine (d , i) (Chg del ins) =
   let del' = substApply d del
       ins' = substApply i ins
    in Chg del' ins'
 
-chgeq :: Subst2 fam prim
-      -> Chg fam prim at
-      -> Chg fam prim at
-      -> MergeM fam prim (Chg fam prim at)
+chgeq :: Subst2 kappa fam
+      -> Chg kappa fam at
+      -> Chg kappa fam at
+      -> MergeM kappa fam (Chg kappa fam at)
 chgeq di ca cb = 
   let ca' = chgrefine di ca
       cb' = chgrefine di cb
@@ -438,14 +438,14 @@ chgeq di ca cb =
 -- Pretty -- 
 
 
-instance Show (PatchC fam prim x) where
+instance Show (PatchC kappa fam x) where
   show = myRender . holesPretty go
     where
       go x = case x of
                InL c -> confPretty c
                InR c -> chgPretty c
 
-confPretty :: Conflict fam prim x
+confPretty :: Conflict kappa fam x
            -> Doc AnsiStyle
 confPretty (FailedContr vars)
   = group (pretty "{!!" <+> sep (map (pretty . exElim metavarGet) vars) <+> pretty "!!}")

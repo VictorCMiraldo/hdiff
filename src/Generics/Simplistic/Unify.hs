@@ -30,16 +30,16 @@ import Generics.Simplistic.Util
 
 -- |Unification can return succesfully or find either
 -- a 'OccursCheck' failure or a 'SymbolClash' failure.
-data UnifyErr fam prim phi :: * where
+data UnifyErr kappa fam phi :: * where
   -- |The occurs-check fails when the variable in question
   -- occurs within the term its supposed to be unified with.
   OccursCheck :: [Exists phi]
-              -> UnifyErr fam prim phi
+              -> UnifyErr kappa fam phi
   -- |A symbol-clash is thrown when the head of the
   -- two terms is different and neither is a variabe.
-  SymbolClash :: Holes    fam prim phi at
-              -> Holes    fam prim phi at
-              -> UnifyErr fam prim phi
+  SymbolClash :: Holes    kappa fam phi at
+              -> Holes    kappa fam phi at
+              -> UnifyErr kappa fam phi
 
 -- |A substitution is but a map; the existential quantifiers are
 -- necessary to ensure we can reuse from "Data.Map"
@@ -56,18 +56,18 @@ data UnifyErr fam prim phi :: * where
 -- >   compare (Exists (Const x)) (Exists (Const y))
 -- >     = compare x y
 --
-type Subst fam prim phi 
-  = M.Map (Exists phi) (Exists (Holes fam prim phi))
+type Subst kappa fam phi 
+  = M.Map (Exists phi) (Exists (Holes kappa fam phi))
 
 -- |Empty substitution
-substEmpty :: Subst fam prim phi
+substEmpty :: Subst kappa fam phi
 substEmpty = M.empty
 
 -- |Looks a value up in a substitution, see 'substInsert'
 substLkup :: (Ord (Exists phi))
-          => Subst fam prim phi -- ^
+          => Subst kappa fam phi -- ^
           -> phi at
-          -> Maybe (Holes fam prim phi at)
+          -> Maybe (Holes kappa fam phi at)
 substLkup sigma var =
   case M.lookup (Exists var) sigma of
     Nothing         -> Nothing
@@ -80,9 +80,9 @@ substLkup sigma var =
 -- |Applies a substitution to a term; Variables not in the
 -- support of the substitution are left untouched.
 substApply :: (Ord (Exists phi))
-           => Subst fam prim phi -- ^
-           -> Holes fam prim phi at
-           -> Holes fam prim phi at
+           => Subst kappa fam phi -- ^
+           -> Holes kappa fam phi at
+           -> Holes kappa fam phi at
 substApply sigma = holesJoin
                  . holesMap (\v -> maybe (Hole v) (substApply sigma)
                                  $ substLkup sigma v)
@@ -95,42 +95,42 @@ substApply sigma = holesJoin
 -- Please, always use this insertion function; or, if you insert
 -- by hand, ensure thetype indices match.
 substInsert :: (Ord (Exists phi))
-            => Subst fam prim phi -- ^
+            => Subst kappa fam phi -- ^
             -> phi at
-            -> Holes fam prim phi at
-            -> Subst fam prim phi
+            -> Holes kappa fam phi at
+            -> Subst kappa fam phi
 substInsert sigma v x = M.insert (Exists v) (Exists x) sigma
 
 -- |Unification is done in a monad.
-type UnifyM fam prim phi
-  = StateT (Subst fam prim phi) (Except (UnifyErr fam prim phi))
+type UnifyM kappa fam phi
+  = StateT (Subst kappa fam phi) (Except (UnifyErr kappa fam phi))
 
 -- |Attempts to unify two 'Holes'
 unify :: ( Ord (Exists phi) , EqHO phi)
-      => Holes fam prim phi at -- ^
-      -> Holes fam prim phi at
-      -> Except (UnifyErr fam prim phi)
-                (Subst fam prim phi)
+      => Holes kappa fam phi at -- ^
+      -> Holes kappa fam phi at
+      -> Except (UnifyErr kappa fam phi)
+                (Subst kappa fam phi)
 unify = unifyWith substEmpty
 
 -- |Attempts to unify two 'Holes' with an already existing
 -- substitution
 unifyWith :: ( Ord (Exists phi) , EqHO phi)
-          => Subst fam prim phi -- ^ Starting subst
-          -> Holes fam prim phi at
-          -> Holes fam prim phi at
-          -> Except (UnifyErr fam prim phi)
-                    (Subst fam prim phi)
+          => Subst kappa fam phi -- ^ Starting subst
+          -> Holes kappa fam phi at
+          -> Holes kappa fam phi at
+          -> Except (UnifyErr kappa fam phi)
+                    (Subst kappa fam phi)
 unifyWith sigma x y = execStateT (unifyM x y) sigma
 
 -- Actual unification algorithm; In order to improve efficiency,
 -- we first register all equivalences we need to satisfy,
 -- then on 'mininize' we do the occurs-check.
-unifyM :: forall fam prim phi at
+unifyM :: forall kappa fam phi at
         . (EqHO phi , Ord (Exists phi)) 
-       => Holes fam prim phi at
-       -> Holes fam prim phi at
-       -> UnifyM fam prim phi ()
+       => Holes kappa fam phi at
+       -> Holes kappa fam phi at
+       -> UnifyM kappa fam phi ()
 unifyM x y = do
   _ <- getEquivs x y
   s <- get
@@ -138,14 +138,14 @@ unifyM x y = do
     Left vs  -> throwError (OccursCheck vs)
     Right s' -> put s'
   where
-    getEquivs :: Holes fam prim phi b
-              -> Holes fam prim phi b
-              -> UnifyM fam prim phi ()
+    getEquivs :: Holes kappa fam phi b
+              -> Holes kappa fam phi b
+              -> UnifyM kappa fam phi ()
     getEquivs p q = void $ holesMapM (uncurry' getEq) (lcp p q)
     
-    getEq :: Holes fam prim phi b
-          -> Holes fam prim phi b
-          -> UnifyM fam prim phi (Holes fam prim phi b)
+    getEq :: Holes kappa fam phi b
+          -> Holes kappa fam phi b
+          -> UnifyM kappa fam phi (Holes kappa fam phi b)
     getEq p (Hole var)   = record_eq var p >> return p
     getEq p@(Hole var) q = record_eq var q >> return p
     getEq p q | eqHO p q   = return p
@@ -154,7 +154,7 @@ unifyM x y = do
     -- Whenever we see a variable being matched against a term
     -- we record the equivalence. First we make sure we did not
     -- record such equivalence yet, otherwise, we recursively thin
-    record_eq :: phi b -> Holes fam prim phi b -> UnifyM fam prim phi ()
+    record_eq :: phi b -> Holes kappa fam phi b -> UnifyM kappa fam phi ()
     record_eq var q = do
       sigma <- get
       case substLkup sigma var of
@@ -178,18 +178,18 @@ unifyM x y = do
 -- Then, @minimize sigma@ will return @fromList [(0 , bin (bin 4 4) 2) , (1 , bin 4 4)]@
 -- This returns @Left vs@ if occurs-check fail for variables @vs@.
 --
-minimize :: forall fam prim phi . (Ord (Exists phi))
-         => Subst fam prim phi -- ^
-         -> Either [Exists phi] (Subst fam prim phi)
+minimize :: forall kappa fam phi . (Ord (Exists phi))
+         => Subst kappa fam phi -- ^
+         -> Either [Exists phi] (Subst kappa fam phi)
 minimize sigma =
   let sigma' = breakCycles inj proj $ removeIds proj sigma
    in whileM sigma' [] $ \s _
     -> M.fromList <$> (mapM (secondF (exMapM (go sigma'))) (M.toList s))
   where
-    inj :: Exists phi -> Exists (Holes fam prim phi)
+    inj :: Exists phi -> Exists (Holes kappa fam phi)
     inj = exMap Hole
 
-    proj :: Exists (Holes fam prim phi) -> Maybe (Exists phi)
+    proj :: Exists (Holes kappa fam phi) -> Maybe (Exists phi)
     proj (Exists (Hole phi)) = Just $ Exists phi
     proj _                   = Nothing
     
@@ -201,9 +201,9 @@ minimize sigma =
     -- We use the writer monad solely to let us know whether some variables have
     -- been substituted in this current term. After one iteration
     -- of the map where no variable is further refined, we are done.
-    go :: Subst fam prim phi
-       -> Holes fam prim phi at
-       -> Writer [Exists phi] (Holes fam prim phi at)
+    go :: Subst kappa fam phi
+       -> Holes kappa fam phi at
+       -> Writer [Exists phi] (Holes kappa fam phi at)
     go ss = holesRefineVarsM $ \var -> do
            case substLkup ss var of
              Nothing       -> return (Hole var)

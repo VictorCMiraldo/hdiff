@@ -26,7 +26,7 @@ repPretty f x =
 holesAnnPretty
   :: (forall x . h   x -> Doc ann)
   -> (forall x . phi x -> Doc ann -> Doc ann) 
-  -> HolesAnn fam prim phi h a
+  -> HolesAnn kappa fam phi h a
   -> Doc ann
 holesAnnPretty f g (Hole' ann x) = g ann (f x)
 holesAnnPretty _ g (Prim' ann x) = g ann (PP.pretty $ show x)
@@ -35,20 +35,20 @@ holesAnnPretty f g (Roll' ann x)
 
 holesPretty
   :: (forall x . h x -> Doc ann) 
-  -> Holes fam prim h a
+  -> Holes kappa fam h a
   -> Doc ann
 holesPretty f = holesAnnPretty f (const id)
 
 sfixAnnPretty
   :: (forall x . phi x -> Doc ann -> Doc ann) 
-  -> SFixAnn fam prim phi a
+  -> SFixAnn kappa fam phi a
   -> Doc ann
 sfixAnnPretty f = holesAnnPretty (error "imp") f
 
-sfixPretty :: SFix fam prim a -> Doc ann
+sfixPretty :: SFix kappa fam a -> Doc ann
 sfixPretty = sfixAnnPretty  (const id)
 
-instance Show (SFix fam prim a) where
+instance Show (SFix kappa fam a) where
   show = show . sfixPretty 
 
 -----------------------------

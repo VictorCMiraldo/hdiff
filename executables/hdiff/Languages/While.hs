@@ -78,20 +78,20 @@ deriving instance Generic ABinOp
 deriving instance Generic BBinOp
 deriving instance Generic RBinOp
 
-instance Deep WhileFam WhilePrims Stmt
-instance Deep WhileFam WhilePrims [Stmt]
-instance Deep WhileFam WhilePrims AExpr
-instance Deep WhileFam WhilePrims BExpr
-instance Deep WhileFam WhilePrims ABinOp
-instance Deep WhileFam WhilePrims BBinOp
-instance Deep WhileFam WhilePrims RBinOp
+instance Deep WhilePrims WhileFam Stmt
+instance Deep WhilePrims WhileFam [Stmt]
+instance Deep WhilePrims WhileFam AExpr
+instance Deep WhilePrims WhileFam BExpr
+instance Deep WhilePrims WhileFam ABinOp
+instance Deep WhilePrims WhileFam BBinOp
+instance Deep WhilePrims WhileFam RBinOp
 
 instance HasDecEq WhileFam where
 
-dfromWhile :: Stmt -> SFix WhileFam WhilePrims Stmt
+dfromWhile :: Stmt -> SFix WhilePrims WhileFam Stmt
 dfromWhile = dfrom
 
-dtoWhile   :: SFix WhileFam WhilePrims Stmt -> Stmt
+dtoWhile   :: SFix WhilePrims WhileFam Stmt -> Stmt
 dtoWhile   = dto
 
 -- ** Parser definition
