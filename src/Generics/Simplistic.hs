@@ -58,7 +58,7 @@ getDatatypeName x@SM_D = datatypeName (smetaI x)
 getConstructorName :: SMeta C c -> String
 getConstructorName x@SM_C = conName (smetaI x)
 
--- A Value of type @REP fam prim f rep@ represents one layer of
+-- A Value of type @REP prim f rep@ represents one layer of
 -- rep and, for the atoms of rep that are not elems of
 -- the primitive types, some custom data dictated by a functor f.
 -- You know where this is going.
@@ -141,73 +141,74 @@ repMap f = runIdentity . repMapM (return . f)
 -- Holes -- 
 
 
-type PrimCnstr fam prim b
-  = (Elem b prim , NotElem b fam , Show b , Eq b)
+type PrimCnstr prim b
+  = (Elem b prim , Show b , Eq b , Typeable b)
 
-type CompoundCnstr fam prim a
-  = (Elem a fam , NotElem a prim , Generic a , Typeable a)
+type CompoundCnstr prim a
+  = (NotElem a prim , Generic a , Typeable a)
 
 -- |The cofree comonad and free monad on the same type;
 -- this allows us to use the same recursion operator
 -- for everything.
-data HolesAnn fam prim phi h a where
-  Hole' :: phi a
-        -> h a -> HolesAnn fam prim phi h a
-  Prim' :: (PrimCnstr fam prim a)
+data HolesAnn prim phi h a where
+  Hole' :: (Typeable a)
         => phi a
-        -> a -> HolesAnn fam prim phi h a
-  Roll' :: (CompoundCnstr fam prim a)
+        -> h a -> HolesAnn prim phi h a
+  Prim' :: (PrimCnstr prim a)
         => phi a
-        -> SRep (HolesAnn fam prim phi h) (Rep a)
-        -> HolesAnn fam prim phi h a
+        -> a -> HolesAnn prim phi h a
+  Roll' :: (CompoundCnstr prim a)
+        => phi a
+        -> SRep (HolesAnn prim phi h) (Rep a)
+        -> HolesAnn prim phi h a
 
 -- |Deep representations are easily achieved by forbiding
 -- the 'Hole'' constructor and providing unit annotations.
-type SFix fam prim = HolesAnn fam prim U1 V1
+type SFix prim = HolesAnn prim U1 V1
 
-pattern SFix :: () => (CompoundCnstr fam prim a)
-             => SRep (SFix fam prim) (Rep a)
-             -> SFix fam prim a
+pattern SFix :: () => (CompoundCnstr prim a)
+             => SRep (SFix prim) (Rep a)
+             -> SFix prim a
 pattern SFix x = Roll x
 {-# COMPLETE SFix , Prim #-}
 
 -- |A tree with holes has unit annotations
-type Holes fam prim = HolesAnn fam prim U1
+type Holes prim = HolesAnn prim U1
 
-pattern Hole :: h a -> Holes fam prim h a
+pattern Hole :: () => (Typeable a) => h a -> Holes prim h a
 pattern Hole x = Hole' U1 x
 
-pattern Prim :: () => (PrimCnstr fam prim a)
-             => a -> Holes fam prim h a
+pattern Prim :: () => (PrimCnstr prim a)
+             => a -> Holes prim h a
 pattern Prim a = Prim' U1 a
 
-pattern Roll :: () => (CompoundCnstr fam prim a)
-             => SRep (Holes fam prim h) (Rep a)
-             -> Holes fam prim h a
+pattern Roll :: () => (CompoundCnstr prim a)
+             => SRep (Holes prim h) (Rep a)
+             -> Holes prim h a
 pattern Roll x = Roll' U1 x
 {-# COMPLETE Hole , Prim , Roll #-}
 
 -- |Annotated fixpoints are also easy; forbid the 'Hole''
 -- constructor but add something to every 'Roll' of
 -- the representation.
-type SFixAnn fam prim phi = HolesAnn fam prim phi V1
+type SFixAnn prim phi = HolesAnn prim phi V1
 
-pattern PrimAnn :: () => (PrimCnstr fam prim a)
-                => phi a -> a -> SFixAnn fam prim phi a
+pattern PrimAnn :: () => (PrimCnstr prim a)
+                => phi a -> a -> SFixAnn prim phi a
 pattern PrimAnn ann a = Prim' ann a
 
 
-pattern SFixAnn :: () => (CompoundCnstr fam prim a)
+pattern SFixAnn :: () => (CompoundCnstr prim a)
                 => phi a
-                -> SRep (SFixAnn fam prim phi) (Rep a)
-                -> SFixAnn fam prim phi a
+                -> SRep (SFixAnn prim phi) (Rep a)
+                -> SFixAnn prim phi a
 pattern SFixAnn ann x = Roll' ann x
 {-# COMPLETE SFixAnn , PrimAnn #-}
 
 ---------------------------------
 
 instance (forall x . NFData (phi x) , forall x . NFData (h x))
-    => NFData (HolesAnn fam prim phi h f) where
+    => NFData (HolesAnn prim phi h f) where
   rnf (Prim' ann _) = rnf ann
   rnf (Hole' ann h) = rnf ann `seq` rnf h
   rnf (Roll' ann x) = rnf ann `seq` rnf x
@@ -228,7 +229,7 @@ instance NFData (U1 x) where
   
 ---------------------------------
 
-getAnn :: HolesAnn fam prim phi h a
+getAnn :: HolesAnn prim phi h a
        -> phi a
 getAnn (Hole' ann _) = ann
 getAnn (Prim' ann _) = ann
@@ -237,61 +238,61 @@ getAnn (Roll' ann _) = ann
 holesMapAnnM :: (Monad m)
              => (forall x . f x   -> m (g x))
              -> (forall x . phi x -> m (psi x))
-             -> HolesAnn fam prim phi f a -> m (HolesAnn fam prim psi g a)
+             -> HolesAnn prim phi f a -> m (HolesAnn prim psi g a)
 holesMapAnnM f g (Hole' a x)   = Hole' <$> g a <*> f x
 holesMapAnnM _ g (Prim' a x)   = flip Prim' x <$> g a
 holesMapAnnM f g (Roll' a x) = Roll' <$> g a <*> repMapM (holesMapAnnM f g) x
 
 holesMapM :: (Monad m)
           => (forall x . f x -> m (g x))
-          -> Holes fam prim f a -> m (Holes fam prim g a)
+          -> Holes prim f a -> m (Holes prim g a)
 holesMapM f = holesMapAnnM f return
 
 holesMap :: (forall x . f x -> g x)
-         -> Holes fam prim f a -> Holes fam prim g a
+         -> Holes prim f a -> Holes prim g a
 holesMap f = runIdentity . holesMapM (return . f)
 
 holesMapAnn :: (forall x . f x -> g x)
             -> (forall x . w x -> z x)
-            -> HolesAnn fam prim w f a -> HolesAnn fam prim z g a
+            -> HolesAnn prim w f a -> HolesAnn prim z g a
 holesMapAnn f g = runIdentity . holesMapAnnM (return . f) (return . g)
 
-holesJoin :: Holes fam prim (Holes fam prim f) a -> Holes fam prim f a
+holesJoin :: Holes prim (Holes prim f) a -> Holes prim f a
 holesJoin (Hole x) = x
 holesJoin (Prim x) = Prim x
 holesJoin (Roll x) = Roll (repMap holesJoin x)
 
-holesHolesList :: Holes fam prim f a -> [Exists f]
+holesHolesList :: Holes prim f a -> [Exists f]
 holesHolesList (Hole x) = [Exists x]
 holesHolesList (Prim _) = []
 holesHolesList (Roll x) = concatMap (exElim holesHolesList) $ repLeavesList x
 
-holesHolesSet :: (Ord (Exists f)) => Holes fam prim f a -> S.Set (Exists f)
+holesHolesSet :: (Ord (Exists f)) => Holes prim f a -> S.Set (Exists f)
 holesHolesSet = S.fromList . holesHolesList
 
 holesRefineVarsM :: (Monad m)
-                 => (forall b . f b -> m (Holes fam prim g b))
-                 -> Holes fam prim f a
-                 -> m (Holes fam prim g a)
+                 => (forall b . f b -> m (Holes prim g b))
+                 -> Holes prim f a
+                 -> m (Holes prim g a)
 holesRefineVarsM f = fmap holesJoin . holesMapM f
         
 
-holesRefineVars :: (forall b . f b -> Holes fam prim g b)
-                -> Holes fam prim f a
-                -> Holes fam prim g a
+holesRefineVars :: (forall b . f b -> Holes prim g b)
+                -> Holes prim f a
+                -> Holes prim g a
 holesRefineVars f = holesJoin . runIdentity . holesMapM (return . f)
       
 holesRefineM :: (Monad m)
-             => (forall b . f b -> m (Holes fam prim g b))
-             -> (forall b . (PrimCnstr fam prim b)
-                  => b -> m (Holes fam prim g b))
-             -> Holes fam prim f a
-             -> m (Holes fam prim g a)
+             => (forall b . f b -> m (Holes prim g b))
+             -> (forall b . (PrimCnstr prim b)
+                  => b -> m (Holes prim g b))
+             -> Holes prim f a
+             -> m (Holes prim g a)
 holesRefineM f _ (Hole x) = f x
 holesRefineM _ g (Prim x) = g x
 holesRefineM f g (Roll x) = Roll <$> repMapM (holesRefineM f g) x
      
-holesSize :: HolesAnn fam prim phi h a -> Int
+holesSize :: HolesAnn prim phi h a -> Int
 holesSize (Hole' _ _) = 0
 holesSize (Prim' _ _) = 1
 holesSize (Roll' _ x) = 1 + sum (map (exElim holesSize) $ repLeavesList x)
@@ -299,12 +300,12 @@ holesSize (Roll' _ x) = 1 + sum (map (exElim holesSize) $ repLeavesList x)
 -- Simpler cata; separate action injecting primitives
 -- into the annotation type.
 cataM :: (Monad m)
-      => (forall b . (CompoundCnstr fam prim b)
+      => (forall b . (CompoundCnstr prim b)
             => ann b -> SRep phi (Rep b) -> m (phi b))
-      -> (forall b . (PrimCnstr fam prim b)
+      -> (forall b . (PrimCnstr prim b)
             => ann b -> b -> m (phi b))
-      -> (forall b . ann b -> h b -> m (phi b))
-      -> HolesAnn fam prim ann h a
+      -> (forall b . (Typeable b) => ann b -> h b -> m (phi b))
+      -> HolesAnn prim ann h a
       -> m (phi a)
 cataM f g h (Roll' ann x) = repMapM (cataM f g h) x >>= f ann
 cataM _ g _ (Prim' ann x) = g ann x
@@ -315,9 +316,9 @@ synthesizeM :: (Monad m)
                   => ann b -> SRep phi (Rep b) -> m (phi b))
             -> (forall b . (Elem b prim)
                   => ann b -> b -> m (phi b))
-           -> (forall b . ann b -> h b -> m (phi b))
-            -> HolesAnn fam prim ann h a
-            -> m (HolesAnn fam prim phi h a)
+           -> (forall b . (Typeable b) => ann b -> h b -> m (phi b))
+            -> HolesAnn prim ann h a
+            -> m (HolesAnn prim phi h a)
 synthesizeM f g h = cataM (\ann r -> flip Roll' r
                                 <$> f ann (repMap getAnn r))
                           (\ann b -> flip Prim' b <$> g ann b)
@@ -328,8 +329,8 @@ synthesize :: (forall b . Generic b
            -> (forall b . (Elem b prim)
                  => ann b -> b -> phi b)
            -> (forall b . ann b -> h b -> phi b)
-           -> HolesAnn fam prim ann h a
-           -> HolesAnn fam prim phi h a
+           -> HolesAnn prim ann h a
+           -> HolesAnn prim phi h a
 synthesize f g h = runIdentity
                  . synthesizeM (\ann -> return . f ann)
                                (\ann -> return . g ann)
@@ -342,8 +343,9 @@ botElim _ = error "botElim"
 -- Anti unification is so simple it doesn't
 -- deserve its own module
 
-lcp :: Holes fam prim h a -> Holes fam prim i a
-    -> Holes fam prim (Holes fam prim h :*: Holes fam prim i) a
+lcp :: (Typeable a)
+    => Holes prim h a -> Holes prim i a
+    -> Holes prim (Holes prim h :*: Holes prim i) a
 lcp (Prim x) (Prim y)
  | x == y    = Prim x
  | otherwise = Hole (Prim x :*: Prim y)
@@ -355,69 +357,69 @@ lcp x y = Hole (x :*: y)
 
 ----------------------------------
 
-instance EqHO h => EqHO (Holes fam prim h) where
+instance EqHO h => EqHO (Holes prim h) where
   eqHO x y = all (exElim $ uncurry' go) $ holesHolesList (lcp x y)
     where
-      go :: Holes fam prim h a -> Holes fam prim h a -> Bool
+      go :: Holes prim h a -> Holes prim h a -> Bool
       go (Hole h1) (Hole h2) = eqHO h1 h2
       go _         _         = False
 
 instance EqHO V1 where
   eqHO _ _ = True
 
-instance EqHO h => Eq (Holes fam prim h t) where
+instance EqHO h => Eq (Holes prim h t) where
    (==) = eqHO
 
 -- Converting values to deep representations is easy and follows
 -- almost the usual convention; one top level class
 -- and one generic version. This time though, we need
 -- special treatment on atoms.
-class (CompoundCnstr fam prim a) => Deep fam prim a where
-  dfrom :: a -> SFix fam prim a
-  default dfrom :: (GDeep fam prim (Rep a))
-                => a -> SFix fam prim a
+class (CompoundCnstr prim a) => Deep prim a where
+  dfrom :: a -> SFix prim a
+  default dfrom :: (GDeep prim (Rep a))
+                => a -> SFix prim a
   dfrom = SFix . gdfrom . from
   
-  dto :: SFix fam prim a -> a
-  default dto :: (GDeep fam prim (Rep a)) => SFix fam prim a -> a
+  dto :: SFix prim a -> a
+  default dto :: (GDeep prim (Rep a)) => SFix prim a -> a
   dto (SFix x) = to . gdto $ x
 
 -- Your usual suspect; the GDeep typeclass
-class GDeep fam prim f where
-  gdfrom :: f x -> SRep (SFix fam prim) f 
-  gdto   :: SRep (SFix fam prim) f -> f x 
+class GDeep prim f where
+  gdfrom :: f x -> SRep (SFix prim) f 
+  gdto   :: SRep (SFix prim) f -> f x 
 
 -- And the class that disambiguates primitive types
 -- from types in the family. This is completely hidden from
 -- the user though
-class GDeepAtom fam prim (isPrim :: Bool) a where
-  gdfromAtom  :: Proxy isPrim -> a -> SFix fam prim a
-  gdtoAtom    :: Proxy isPrim -> SFix fam prim a -> a
+class GDeepAtom prim (isPrim :: Bool) a where
+  gdfromAtom  :: Proxy isPrim -> a -> SFix prim a
+  gdtoAtom    :: Proxy isPrim -> SFix prim a -> a
 
-instance (CompoundCnstr fam prim a , Deep fam prim a)
-     => GDeepAtom fam prim 'False a where
+instance (CompoundCnstr prim a , Deep prim a)
+     => GDeepAtom prim 'False a where
   gdfromAtom _ a = dfrom $ a
   gdtoAtom _   x = dto x
 
-instance (PrimCnstr fam prim a) => GDeepAtom fam prim 'True a where
+instance (PrimCnstr prim a) => GDeepAtom prim 'True a where
   gdfromAtom _ a = Prim a
   gdtoAtom   _ (Prim a) = a
 
 -- This ties the recursive knot
-instance (GDeepAtom fam prim (IsElem a prim) a) => GDeep fam prim (K1 R a) where
+instance (GDeepAtom prim (IsElem a prim) a) => GDeep prim (K1 R a) where
   gdfrom (K1 a)   = S_K1 (gdfromAtom (Proxy :: Proxy (IsElem a prim)) a)
   gdto   (S_K1 a) = K1 (gdtoAtom (Proxy :: Proxy (IsElem a prim)) a)
 
 -- The rest of the instances are trivial
-instance GDeep fam prim U1 where
+instance GDeep prim U1 where
   gdfrom U1  = S_U1
   gdto S_U1 = U1
 
-instance (GDeep fam prim f , GDeep fam prim g) => GDeep fam prim (f :*: g) where
+instance (GDeep prim f , GDeep prim g) => GDeep prim (f :*: g) where
   gdfrom (x :*: y) = (gdfrom x) :**: (gdfrom y)
   gdto (x :**: y) = (gdto x) :*: (gdto y)
 
-instance (GDeep fam prim f , GDeep fam prim g) => GDeep fam prim (f :+: g) where
+instance (GDeep prim f , GDeep prim g) => GDeep prim (f :+: g) where
   gdfrom (L1 x) = S_L1 (gdfrom x)
   gdfrom (R1 x) = S_R1 (gdfrom x)
 
@@ -438,8 +440,8 @@ instance Datatype d => GDeepMeta D d where
 instance Selector s => GDeepMeta S s where
   smeta = SM_S
 
-instance (GDeepMeta i c , GDeep fam prim f)
-    => GDeep fam prim (M1 i c f) where
+instance (GDeepMeta i c , GDeep prim f)
+    => GDeep prim (M1 i c f) where
   gdfrom (M1 x)   = S_M1 smeta (gdfrom x)
   gdto (S_M1 _ x) = M1 (gdto x)
 
