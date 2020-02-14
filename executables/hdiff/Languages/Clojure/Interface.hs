@@ -38,13 +38,13 @@ deriving instance Generic Term
 deriving instance Generic Sep
 deriving instance Generic Tag
 
-instance Deep CljFam CljPrims Expr
-instance Deep CljFam CljPrims FormTy
-instance Deep CljFam CljPrims CollTy
-instance Deep CljFam CljPrims SepExprList
-instance Deep CljFam CljPrims Term
-instance Deep CljFam CljPrims Sep
-instance Deep CljFam CljPrims Tag
+instance Deep CljPrims CljFam Expr
+instance Deep CljPrims CljFam FormTy
+instance Deep CljPrims CljFam CollTy
+instance Deep CljPrims CljFam SepExprList
+instance Deep CljPrims CljFam Term
+instance Deep CljPrims CljFam Sep
+instance Deep CljPrims CljFam Tag
 
 instance HasDecEq CljFam where
 
