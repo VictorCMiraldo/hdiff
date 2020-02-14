@@ -372,6 +372,13 @@ instM (Hole v) a = do
     Nothing -> throwError "contr"
     Just i' -> modify (\st -> st { iota = i' })
 
+-- Instantiating over a modification might also be
+-- possible in select cases; namelly, when the deletion
+-- context has no variables, unifies with the deletion
+-- context of the modification and both insert the
+-- same thing. This is tricky to detect and I think
+-- we overall need a better formalism to deal with
+-- merging chgs over spines; I'm postponing this for now.
 instM _ (Mod _) = throwError "inst-mod"
 
 -- instantiating over a permutation if we are not immediatly

@@ -100,8 +100,8 @@ opqhandlingOpt = option (readmOneOf [("never" , D.DO_Never)
                                     ])
                ( long "diff-opq"
               <> short 'k'
-              <> metavar "never | spine | always ; default: spine"
-              <> value D.DO_OnSpine
+              <> metavar "never | spine | always ; default: never"
+              <> value D.DO_Never
               <> help aux
               <> hidden)
   where    

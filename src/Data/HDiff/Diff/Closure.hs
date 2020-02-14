@@ -73,19 +73,15 @@ closure gl (Roll x) =
         Just res -> InR $ Roll res
         Nothing  ->
           -- Distributing closed changes yields closed changes;
-          let chgs = repMap (either' InL (InR . chgVarsDistr)) aux
-              cD   = Roll $ repMap (codelta (chgDel . body)) chgs
-              cI   = Roll $ repMap (codelta (chgIns . body)) chgs
-              dels = repLeaves (codelta decls) (M.unionWith (+)) M.empty chgs
-              inss = repLeaves (codelta uses)  (M.unionWith (+)) M.empty chgs
+          let chgs = repMap (either' id chgVarsDistr) aux
+              cD   = Roll $ repMap (chgDel . body) chgs
+              cI   = Roll $ repMap (chgIns . body) chgs
+              dels = repLeaves decls (M.unionWith (+)) M.empty chgs
+              inss = repLeaves uses  (M.unionWith (+)) M.empty chgs
            in if isClosed gl dels inss
               then InR (Hole $ ChgVars dels inss (Chg cD cI))
               else InL (ChgVars dels inss (Chg cD cI))
  where
-  codelta :: (f x -> r) -> Sum f f x -> r
-  codelta f (InL c) = f c
-  codelta f (InR c) = f c
-   
   fromInR :: Sum f g x -> Maybe (g x)
   fromInR (InL _) = Nothing
   fromInR (InR c) = Just c
