@@ -13,6 +13,8 @@
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Java where
 
+#ifdef REAL_LANGUAGES
+
 import qualified Language.Java.Syntax as Java
 import qualified Language.Java.Parser as Java
 import Control.Monad.Except
@@ -209,3 +211,5 @@ parseFile file = do
 dfromJava :: Java.CompilationUnit
           -> SFix JavaPrim JavaFam Java.CompilationUnit
 dfromJava = dfrom
+
+#endif

@@ -43,11 +43,11 @@ import           Data.HDiff.Show
 import           Languages.Interface
 import           HDiff.Options
 
-instance NFData (D.MetaVar fam prim x) where
+instance NFData (D.MetaVar kappa fam x) where
   rnf (D.MV_Prim i) = rnf i
   rnf (D.MV_Comp i) = rnf i
 
-instance NFData (D.Chg fam prim x) where
+instance NFData (D.Chg kappa fam x) where
   rnf (D.Chg d i) = rnf d `seq` rnf i
   
 time :: (NFData a) => IO a -> IO (Double, a)
@@ -88,12 +88,12 @@ mainAST v sel opts = withParsed1 sel mainParsers (optFileA opts)
 
 -- |Applies a patch to an element and either checks it is equal to
 --  another element, or returns the result.
-tryApply :: (LangCnstr fam prim ix)
+tryApply :: (LangCnstr kappa fam ix)
          => Verbosity
-         -> D.Patch fam prim ix
-         -> SFix fam prim ix
-         -> Maybe (SFix fam prim ix)
-         -> IO (Maybe (SFix fam prim ix))
+         -> D.Patch kappa fam ix
+         -> SFix kappa fam ix
+         -> Maybe (SFix kappa fam ix)
+         -> IO (Maybe (SFix kappa fam ix))
 tryApply v patch fa fb
   = case D.patchApply patch fa of
       Nothing -> hPutStrLn stderr "!! apply failed"
@@ -102,16 +102,16 @@ tryApply v patch fa fb
               >> exitWith (ExitFailure 2)
       Just b' -> return $ maybe (Just b') (testEq b') fb
  where
-   testEq :: SFix fam prim ix -> SFix fam prim ix -> Maybe (SFix fam prim ix)
+   testEq :: SFix kappa fam ix -> SFix kappa fam ix -> Maybe (SFix kappa fam ix)
    testEq x y = if eqHO x y then Just x else Nothing
 
 -- |Runs our diff algorithm with particular options parsed
 -- from the CLI options.
-diffWithOpts :: (LangCnstr fam prim ix) 
+diffWithOpts :: (LangCnstr kappa fam ix) 
              => Options
-             -> SFix fam prim ix
-             -> SFix fam prim ix
-             -> IO (D.Patch fam prim ix)
+             -> SFix kappa fam ix
+             -> SFix kappa fam ix
+             -> IO (D.Patch kappa fam ix)
 diffWithOpts opts fa fb = do
   let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) (skipClosures opts)
   return (D.diffOpts localopts fa fb)

@@ -47,14 +47,14 @@ type RTreePrims = '[ String ]
 type RTreeFam   = '[ RTree , [RTree] ]
 
 deriving instance Generic RTree
-instance Deep RTreeFam RTreePrims RTree 
-instance Deep RTreeFam RTreePrims [ RTree ]
+instance Deep RTreePrims RTreeFam RTree 
+instance Deep RTreePrims RTreeFam [ RTree ]
 instance HasDecEq RTreeFam where
 
-dfromRTree :: RTree -> SFix RTreeFam RTreePrims RTree
+dfromRTree :: RTree -> SFix RTreePrims RTreeFam RTree
 dfromRTree = dfrom
 
-dtoRTree :: SFix RTreeFam RTreePrims RTree -> RTree
+dtoRTree :: SFix RTreePrims RTreeFam RTree -> RTree
 dtoRTree = dto
 
 

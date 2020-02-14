@@ -27,7 +27,7 @@ copy_composes mode = forAll genSimilarTrees' $ \(t1 , t2)
          mcpy  = Hole changeCopy :: PatchRTree
       in composes patch mcpy .&&. composes mcpy patch
  where
-   changeCopy :: Chg RTreeFam RTreePrims RTree
+   changeCopy :: Chg RTreePrims RTreeFam RTree
    changeCopy = Chg (Hole $ MV_Comp 0) (Hole $ MV_Comp 0)
 
 composes_correct :: DiffMode -> Property

@@ -8,6 +8,8 @@
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Languages.Python where
 
+#ifdef REAL_LANGUAGES
+
 import Control.Monad.Except
 
 import GHC.Generics
@@ -307,3 +309,4 @@ instance Deep PyPrim PyFam ((Expr SrcSpan, Maybe (Expr SrcSpan, Maybe (Expr SrcS
 
 -}
 
+#endif

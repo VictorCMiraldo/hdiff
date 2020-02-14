@@ -10,6 +10,8 @@
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Languages.JavaScript where
 
+#ifdef REAL_LANGUAGES
+
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.Parser
 import Text.Parsec.Pos 
@@ -168,3 +170,5 @@ instance Deep JSPrim JSFam (CatchClause Loc)
   , (CatchClause Loc)
 
 -}
+
+#endif

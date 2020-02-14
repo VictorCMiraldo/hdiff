@@ -14,6 +14,8 @@
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Lua where
 
+#ifdef REAL_LANGUAGES
+
 import Language.Lua.Syntax
 import qualified Language.Lua.Parser as Lua
 
@@ -90,3 +92,5 @@ parseFile file = do
 
 dfromLua :: Block -> SFix LuaPrim LuaFam Block
 dfromLua = dfrom
+
+#endif

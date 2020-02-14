@@ -622,17 +622,6 @@ ob27 = myHdiffRTree o27 b27
 
 ---- looped subst:
 
--- This is unminimizable
-s :: Subst RTreeFam RTreePrims (MetaVar RTreeFam RTreePrims)
-s = let s0 = substEmpty
-        s1 = substInsert s0 (var 0) (Hole (var 1))
-        s2 = substInsert s1 (var 1) (Hole (var 2))
-        s3 = substInsert s2 (var 2) (Hole (var 0))
-     in s3
-  where
-    var :: Int -> MetaVar RTreeFam RTreePrims RTree
-    var x = MV_Comp x
-
 gen3Trees :: Gen (RTree , RTree , RTree)
 gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3

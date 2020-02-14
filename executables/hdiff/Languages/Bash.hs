@@ -14,12 +14,13 @@
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Bash where
 
+#ifdef REAL_LANGUAGES
+
 import qualified Language.Bash.Syntax as Bash
 import qualified Language.Bash.Parse as Bash
 import qualified Language.Bash.Word  as Bash
 import qualified Language.Bash.Cond  as Bash
 import Control.Monad.Except
-
 
 import Generics.Simplistic
 
@@ -124,3 +125,5 @@ parseFile file = do
 
 dfromSh :: Bash.List -> SFix ShPrim ShFam Bash.List
 dfromSh = dfrom
+
+#endif
