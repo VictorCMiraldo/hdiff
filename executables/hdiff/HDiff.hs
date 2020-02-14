@@ -144,8 +144,9 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
       Just om -> do
         when (v == Loud) (hPutStrLn stdout $ show om)
         mtgt <- sequence (fmap pp (optFileRes opts))
-        res  <- tryApply v om fo mtgt
-        case res of
-          Just _  -> return ExitSuccess
-          Nothing -> return (ExitFailure 3)
+        mres <- tryApply v om fo mtgt
+        case mres of
+          Just res -> when (v == Loud) (hPutStrLn stdout (show res))
+                   >> return ExitSuccess
+          Nothing  -> return (ExitFailure 3)
           
