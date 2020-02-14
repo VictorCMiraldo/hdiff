@@ -142,17 +142,16 @@ repMap f = runIdentity . repMapM (return . f)
 
 
 type PrimCnstr prim b
-  = (Elem b prim , Show b , Eq b , Typeable b)
+  = (Elem b prim , Show b , Eq b)
 
 type CompoundCnstr prim a
-  = (NotElem a prim , Generic a , Typeable a)
+  = (NotElem a prim , Generic a)
 
 -- |The cofree comonad and free monad on the same type;
 -- this allows us to use the same recursion operator
 -- for everything.
 data HolesAnn prim phi h a where
-  Hole' :: (Typeable a)
-        => phi a
+  Hole' :: phi a
         -> h a -> HolesAnn prim phi h a
   Prim' :: (PrimCnstr prim a)
         => phi a
@@ -175,7 +174,7 @@ pattern SFix x = Roll x
 -- |A tree with holes has unit annotations
 type Holes prim = HolesAnn prim U1
 
-pattern Hole :: () => (Typeable a) => h a -> Holes prim h a
+pattern Hole :: h a -> Holes prim h a
 pattern Hole x = Hole' U1 x
 
 pattern Prim :: () => (PrimCnstr prim a)
@@ -304,7 +303,7 @@ cataM :: (Monad m)
             => ann b -> SRep phi (Rep b) -> m (phi b))
       -> (forall b . (PrimCnstr prim b)
             => ann b -> b -> m (phi b))
-      -> (forall b . (Typeable b) => ann b -> h b -> m (phi b))
+      -> (forall b . ann b -> h b -> m (phi b))
       -> HolesAnn prim ann h a
       -> m (phi a)
 cataM f g h (Roll' ann x) = repMapM (cataM f g h) x >>= f ann
@@ -316,7 +315,7 @@ synthesizeM :: (Monad m)
                   => ann b -> SRep phi (Rep b) -> m (phi b))
             -> (forall b . (Elem b prim)
                   => ann b -> b -> m (phi b))
-           -> (forall b . (Typeable b) => ann b -> h b -> m (phi b))
+           -> (forall b . ann b -> h b -> m (phi b))
             -> HolesAnn prim ann h a
             -> m (HolesAnn prim phi h a)
 synthesizeM f g h = cataM (\ann r -> flip Roll' r
@@ -343,8 +342,7 @@ botElim _ = error "botElim"
 -- Anti unification is so simple it doesn't
 -- deserve its own module
 
-lcp :: (Typeable a)
-    => Holes prim h a -> Holes prim i a
+lcp :: Holes prim h a -> Holes prim i a
     -> Holes prim (Holes prim h :*: Holes prim i) a
 lcp (Prim x) (Prim y)
  | x == y    = Prim x

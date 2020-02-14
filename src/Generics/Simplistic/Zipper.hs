@@ -94,21 +94,28 @@ plug (Z_M1 c x)    k = S_M1 c $ plug x k
 plug (Z_PairL x y) k = (plug x k) :**: y
 plug (Z_PairR x y) k = x :**: (plug y k)
 
-type Zipper' fam prim ann phi t
-  = Zipper (CompoundCnstr fam prim t)
-           (HolesAnn fam prim ann phi)
-           (HolesAnn fam prim ann phi) t
+type Zipper' prim ann phi t
+  = Zipper (CompoundCnstr prim t)
+           (HolesAnn prim ann phi)
+           (HolesAnn prim ann phi) t
 
 sameTy2 :: (Typeable x , Typeable y) => x -> y -> Maybe (x :~: y)
 sameTy2 x y = case eqTypeRep (typeOf x) (typeOf y) of
                 Just HRefl -> Just Refl
                 Nothing    -> Nothing
 
-zippers :: forall fam prim ann phi t
-         . (HasDecEq fam , Typeable t)
-        => (forall a . (Elem t fam) => phi a -> Maybe (a :~: t)) 
-        -> HolesAnn fam prim ann phi t
-        -> [Zipper' fam prim ann phi t] 
+data IsTypeable x :: * where
+  IsT :: (Typeable x) => IsTypeable x
+
+addTypeables :: HolesAnn prim ann phi t
+             -> HolesAnn prim (IsTypeable :*: ann) phi t
+addTypeables = holesMapAnn id (\ann -> IsT :*: ann)
+
+zippers :: forall prim ann phi t
+         . (Typeable t)
+        => (forall a . phi a -> Maybe (a :~: t)) 
+        -> HolesAnn prim ann phi t
+        -> [Zipper' prim ann phi t] 
 zippers _   (Prim' _ _) = []
 zippers _   (Hole' _ _) = []
 zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
@@ -116,12 +123,12 @@ zippers aux (Roll' _ r) = map (uncurry Zipper) (go r)
     pf :: Proxy fam
     pf = Proxy
 
-    pa :: HolesAnn fam prim ann phi a -> Proxy a
+    pa :: HolesAnn prim ann phi a -> Proxy a
     pa _ = Proxy
 
-    go :: SRep (HolesAnn fam prim ann phi) f
-       -> [(SZip t (HolesAnn fam prim ann phi) f
-          , HolesAnn fam prim ann phi t)]
+    go :: SRep (HolesAnn prim ann phi) f
+       -> [(SZip t (HolesAnn prim ann phi) f
+          , HolesAnn prim ann phi t)]
     go S_U1       = []
     go (S_L1 x)   = first Z_L1 <$> go x
     go (S_R1 x)   = first Z_R1 <$> go x
