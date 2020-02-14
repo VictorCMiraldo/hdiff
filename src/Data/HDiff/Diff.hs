@@ -167,11 +167,15 @@ diffOpts :: (All Digestible kappa)
          -> Patch kappa fam ix
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts x y
-     in if doGlobalChgs opts 
-        then Hole (Chg del ins)
-        else case close $ extractSpine (doOpaqueHandling opts) id i del ins of
-                Nothing -> error "invariant broke: has open variables"
-                Just r  -> r
+     -- When doOpaqueHandling /= DO_OnSpine && doGlobalChgs == True
+     -- the extractSpine step is totally superfluous; but we won't care
+     -- too much for this level of detail here.
+     in let sp = extractSpine (doOpaqueHandling opts) id i del ins
+         in if doGlobalChgs opts 
+            then Hole (chgDistr sp)
+            else case close sp of
+                    Nothing -> error "invariant broke: has open variables"
+                    Just r  -> r
 
 diff :: forall kappa fam ix
       . (All Digestible kappa)

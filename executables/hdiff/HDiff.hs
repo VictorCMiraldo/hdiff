@@ -37,7 +37,7 @@ import qualified Data.HDiff.MetaVar      as D
 import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
 import qualified Data.HDiff.Merge        as D
-import qualified Data.HDiff.Merge.Align  as D
+import qualified Data.HDiff.Diff.Align  as D
 import           Data.HDiff.Show
 
 import           Languages.Interface

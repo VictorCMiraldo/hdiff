@@ -19,7 +19,7 @@ import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
 import qualified Data.HDiff.MetaVar as D
-import qualified Data.HDiff.Merge.Align as D
+import qualified Data.HDiff.Diff.Align as D
 
 -- import qualified Data.HDiff.Merge   as D
 

@@ -81,7 +81,7 @@
 -- its arguments have no metavariables except one. An ins block
 -- is the same but on the insertion side. Naturally, when a del is followed
 -- by an ins they become a chg again.
-module Data.HDiff.Merge.Align where
+module Data.HDiff.Diff.Align where
 
 import Data.Proxy
 import Data.Functor.Const

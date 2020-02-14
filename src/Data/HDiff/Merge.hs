@@ -31,7 +31,7 @@ import           Generics.Simplistic.Zipper
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
 import           Data.HDiff.Instantiate
-import           Data.HDiff.Merge.Align
+import           Data.HDiff.Diff.Align
 
 
 import           Generics.Simplistic.Pretty
