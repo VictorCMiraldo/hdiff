@@ -12,16 +12,19 @@ if [[ "$#" -ne "1" ]]; then
 fi
 dataset="$1"
 
-if [[ -d "results" ]]; then
-  echo "Directory results already exists"
+
+res="res-$(git log -n 1 --format=%h)"
+if [[ -d $res ]]; then
+  echo "Directory res already exists"
   exit 1
 fi
-mkdir results
+
+mkdir -p $res/individual
 
 dry="--dry"
 
 meta () {
-  echo "$(date) | $1" >> results/meta
+  echo "$(date) | $1" >> $res/meta
 }
 
 ## The merge experiment will
@@ -32,7 +35,7 @@ runMergeLoc() {
   local parser=$2
   local exp=merge.sh
   local name=${exp%%.*}
-  local log="results/$name-$parser"
+  local log="$res/individual/$name-$parser"
 
   for hh in 1 6; do
     for mm in nonest proper patience; do
@@ -52,7 +55,7 @@ runMergeGlob() {
   local parser=$2
   local exp=merge.sh
   local name=${exp%%.*}
-  local log="results/$name-$parser"
+  local log="$res/individual/$name-$parser"
 
   for hh in 1 6; do
     for mm in nonest proper patience; do
@@ -72,7 +75,7 @@ runDiff () {
   local parser=$2
   local exp=diff.sh
   local name=${exp%%.*}
-  local log="results/$name-$parser"
+  local log="$res/individual/$name-$parser"
 
   for mm in nonest proper patience; do
       meta "Launching hdiff $parser $name $hh $mm $kk local"
@@ -107,4 +110,12 @@ wait
 
 meta "We are done!"
 
+for lang in java js lua py clj sh; do 
+  ./scripts/process-merge-results.sh $res/individual/merge-$lang.* | sort -nr -k6 > $res/$lang-summary
+done
+
+for lang in java js lua py clj sh; do 
+  echo "## $lang" >> final
+  head -n 3 $res/$lang-summary >> final
+done
 

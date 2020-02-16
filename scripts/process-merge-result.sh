@@ -28,7 +28,7 @@ awkScript='\
   /parse-error/ { PERR=$1  }\
   /timeout/     { TOUT=$1  }\
   /unknown/     { OTHER=$1 }\
-  END           { print " success: " SUCC " mdiff: " MDIF " conf: " CONF " parse-error: " PERR " timeout: " TOUT " other: " OTHER }'
+  END           { print " success+mdif: " (SUCC + MDIF) " mdiff: " MDIF " conf: " CONF " parse-error: " PERR " timeout: " TOUT " other: " OTHER }'
 
 while IFS= read -r header; do 
   cat $1 | grep "$header" | cut -d' ' -f6 | sort | uniq -c | awk "$awkScript" | xargs -I{} echo "$header {}"
