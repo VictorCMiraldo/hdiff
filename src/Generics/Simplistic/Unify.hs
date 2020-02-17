@@ -12,7 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 module Generics.Simplistic.Unify
   ( -- * Substitution
-    Subst , substEmpty , substInsert , substLkup , substApply , substFromVarEqs
+    Subst , substEmpty , substInsert , substLkup , substApply , substFromVarEqs , applyEquivalences
     -- * Unification
   , UnifyErr(..) , unify , unifyWith , minimize , splitVarEqs
   ) where
@@ -111,7 +111,6 @@ substInsert :: (Ord (Exists phi))
             -> Subst kappa fam phi
 substInsert sigma v (Hole u)
   | Exists v  < Exists u = M.insert (Exists v) (Exists (Hole u)) sigma
-  | Exists v == Exists u = sigma
   | otherwise            = M.insert (Exists u) (Exists (Hole v)) sigma
 substInsert sigma v x    = M.insert (Exists v) (Exists x) sigma
 
@@ -123,6 +122,24 @@ substFromVarEqs s =
    in case minimize s' of
         Left  _   -> error "invariant broke"
         Right res -> res
+
+applyEquivalences :: forall kappa fam phi
+                   . (Ord (Exists phi))
+                  => Subst kappa fam phi
+                  -> Subst kappa fam phi
+                  -> Subst kappa fam phi
+applyEquivalences eqvs = M.foldlWithKey' go M.empty
+  where
+    go :: Subst kappa fam phi
+       -> Exists phi
+       -> Exists (Holes kappa fam phi)
+       -> Subst kappa fam phi
+    go m (Exists k) (Exists v) =
+      let k' = substApply eqvs (Hole k)
+          v' = substApply eqvs v
+       in case k' of
+            Hole k'' -> substInsert m k'' (unsafeCoerce v')
+            _        -> error "applyEquivalence: not an equivalence"
 
 -- |Unification is done in a monad.
 type UnifyM kappa fam phi
@@ -231,12 +248,10 @@ minimize sigma =
              -- Didn't find anything for var
              Nothing          -> return (Hole var)
 
-{-
              -- Found out @var == var'@;
-             Just (Hole var') -> if (Exists var' < Exists var)
+             Just (Hole var') -> if (Exists var < Exists var')
                                  then tell [Exists var] >> return (Hole var')
                                  else return (Hole var')
--}
 
              -- Found out @var == r && r is not variable@
              Just r  -> tell [Exists var] >> return r

@@ -162,7 +162,6 @@ mrg p q = do
    dbgMap lbl m = unlines $
      [ lbl ++ ": " ++ show v ++ " => " ++ show c | (v , c) <- M.toList m ]
 
-
 makeDelInsMaps :: forall kappa fam
                 . MergeState kappa fam
                -> Either [Exists (MetaVar kappa fam)]
@@ -172,8 +171,8 @@ makeDelInsMaps (MergeState was bec eqv) = do
   trace (unlines [ dbgMap "was" was
                  , dbgMap "eqv" eqvMap
                  , dbgMap "became" bec])
-    $ do was' <- M.union eqvMap <$> minimize was
-         bec' <- M.union eqvMap <$> minimize bec
+    $ do let was' = applyEquivalences eqvMap was
+         let bec' = applyEquivalences eqvMap bec
          trace (unlines [ "%%%" , dbgMap "was'" was' , dbgMap "bec'" bec'])
            (return (was' , bec'))
  where
