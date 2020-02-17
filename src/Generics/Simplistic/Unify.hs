@@ -12,17 +12,17 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 module Generics.Simplistic.Unify
   ( -- * Substitution
-    Subst , substEmpty , substInsert , substLkup , substApply
+    Subst , substEmpty , substInsert , substLkup , substApply , substFromVarEqs
     -- * Unification
-  , UnifyErr(..) , unify , unifyWith , minimize
+  , UnifyErr(..) , unify , unifyWith , minimize , splitVarEqs
   ) where
 
-import           Data.List (sort)
+import           Data.List (sort, foldl')
 import qualified Data.Map as M
 import           Control.Monad.Except
 import           Control.Monad.State
 import           Control.Monad.Writer
-import           Control.Monad.Cont
+import           Control.Arrow (first , second)
 import           Unsafe.Coerce
 
 import Generics.Simplistic
@@ -79,12 +79,23 @@ substLkup sigma var =
 
 -- |Applies a substitution to a term; Variables not in the
 -- support of the substitution are left untouched.
-substApply :: (Ord (Exists phi))
+substApply :: forall kappa fam phi at
+            . (Ord (Exists phi))
            => Subst kappa fam phi -- ^
            -> Holes kappa fam phi at
            -> Holes kappa fam phi at
 substApply sigma = holesJoin
-                 . holesMap (\v -> maybe (Hole v) id $ substLkup sigma v)
+                 . holesMap (\v -> ifProgress v $ substLkup sigma v)
+  where
+    bigger :: phi x -> Holes kappa fam phi y -> Bool
+    bigger v (Hole u) = Exists v > Exists u
+    bigger _ _        = True
+    
+    ifProgress :: phi x -> Maybe (Holes kappa fam phi x) -> Holes kappa fam phi x
+    ifProgress v (Just t)
+      | bigger v t = substApply sigma t
+      | otherwise  = t
+    ifProgress v Nothing = Hole v
 
 -- |Inserts a point in a substitution. Note how the index of
 -- @phi@ /must/ match the index of the term being inserted.
@@ -98,7 +109,20 @@ substInsert :: (Ord (Exists phi))
             -> phi at
             -> Holes kappa fam phi at
             -> Subst kappa fam phi
-substInsert sigma v x = M.insert (Exists v) (Exists x) sigma
+substInsert sigma v (Hole u)
+  | Exists v  < Exists u = M.insert (Exists v) (Exists (Hole u)) sigma
+  | Exists v == Exists u = sigma
+  | otherwise            = M.insert (Exists u) (Exists (Hole v)) sigma
+substInsert sigma v x    = M.insert (Exists v) (Exists x) sigma
+
+substFromVarEqs :: (Ord (Exists phi))
+                => [Exists (phi :*: phi)]
+                -> Subst kappa fam phi
+substFromVarEqs s =
+  let s' = foldl' (\s (Exists (v :*: u)) -> substInsert s v (Hole u)) substEmpty s
+   in case minimize s' of
+        Left  _   -> error "invariant broke"
+        Right res -> res
 
 -- |Unification is done in a monad.
 type UnifyM kappa fam phi
@@ -165,7 +189,6 @@ unifyM x y = do
         -- is the same as q, if not, we will have to thin p' with q.
         Just q' -> unless (eqHO q' q)
                  $ void $ getEquivs q q'
-          
 
 -- |The minimization step performs the /occurs check/ and removes
 --  unecessary steps. For example;
@@ -182,8 +205,8 @@ minimize :: forall kappa fam phi . (Ord (Exists phi))
          -> Either [Exists phi] (Subst kappa fam phi)
 minimize sigma =
   let sigma' = sortVarEqs inj proj sigma -- breakCycles inj proj $ removeIds proj sigma
-   in whileM sigma' [] $ \s _
-    -> M.fromList <$> (mapM (secondF (exMapM (go sigma'))) (M.toList s))
+   in whileM sigma' [] $ \_ _
+    -> M.fromList <$> (mapM (secondF (exMapM (go sigma'))) (M.toList sigma'))
   where
     inj :: Exists phi -> Exists (Holes kappa fam phi)
     inj = exMap Hole
@@ -212,9 +235,9 @@ minimize sigma =
              -- Found out @var == var'@;
              Just (Hole var') -> if (Exists var' < Exists var)
                                  then tell [Exists var] >> return (Hole var')
-                                 else return (Hole var)
+                                 else return (Hole var')
 -}
-                                  
+
              -- Found out @var == r && r is not variable@
              Just r  -> tell [Exists var] >> return r
 
@@ -259,27 +282,50 @@ s = M.fromList
   ]
 -}
 
-sortVarEqs :: forall a b
-            . (Ord a) => (a -> b) -> (b -> Maybe a) -> M.Map a b -> M.Map a b
-sortVarEqs inj proj = uncurry joinVarEqvs . M.partition isVarEqv 
+splitVarEqs :: forall kappa fam phi
+             . (Ord (Exists phi))
+            => Subst kappa fam phi
+            -> ([Exists (phi :*: phi)] , Subst kappa fam phi)
+splitVarEqs = first (map $ uncurry unsafePair) . splitVarEqs' proj
   where
+    unsafePair :: Exists phi -> Exists phi -> Exists (phi :*: phi)
+    unsafePair (Exists x) (Exists y) = Exists (x :*: unsafeCoerce y)
+    
+    proj :: Exists (Holes kappa fam phi) -> Maybe (Exists phi)
+    proj (Exists (Hole phi)) = Just $ Exists phi
+    proj _                   = Nothing
+
+splitVarEqs' :: forall a b
+              . (Ord a) => (b -> Maybe a) -> M.Map a b -> ([(a , a)], M.Map a b)
+splitVarEqs' proj = first (map (second unsafeProj) . M.toList)
+                  . M.partition isVarEqv
+  where
+    unsafeProj :: b -> a
+    unsafeProj = maybe (error "impossible; we just checked!") id . proj
+    
     isVarEqv :: b -> Bool
     isVarEqv v = maybe False (const True) $ proj v
 
-    sortVarEq1 v0 (Just v1)
+sortVarEqs :: forall a b
+            . (Ord a) => (a -> b) -> (b -> Maybe a) -> M.Map a b -> M.Map a b
+sortVarEqs inj proj = uncurry joinVarEqvs . splitVarEqs' proj
+  where
+    sortVarEq1 v0 v1
       | v0 <  v1   = Just (v0 , v1)
       | v0 == v1   = Nothing
       | otherwise  = Just (v1 , v0)
 
-    joinVarEqvs :: M.Map a b -> M.Map a b -> M.Map a b
+    joinVarEqvs :: [(a , a)] -> M.Map a b -> M.Map a b
     joinVarEqvs varEqvs rest =
-      M.foldlWithKey' (\m k v ->
-        case sortVarEq1 k (proj v) of
+      foldl' (\m (k, v) ->
+        case sortVarEq1 k v of
           Nothing        -> m
           Just (k' , v') -> M.insert k' (inj v') m
        ) rest $ varEqvs
 
 {-
+
+import           Control.Monad.Cont
   
 -- |Removes the keys that project to themselves according to
 -- the provided projection.

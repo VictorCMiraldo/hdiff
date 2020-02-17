@@ -10,7 +10,7 @@ module Data.HDiff.MergeSpec (spec) where
 
 import Data.HDiff.Base
 import Data.HDiff.Merge
-import Data.HDiff.Merge.Align
+import Data.HDiff.Diff.Align
 import Data.HDiff.Diff
 import Data.HDiff.MetaVar
 import Data.HDiff.Show
@@ -552,7 +552,7 @@ mytest a o b r =
 
 -}
 
-myHdiffRTree = hdiffRTreeHM DM_ProperShare 1
+myHdiffRTree = hdiffRTreeHM DM_NoNested 1
 
 oa1 = myHdiffRTree o1 a1
 ob1 = myHdiffRTree o1 b1
