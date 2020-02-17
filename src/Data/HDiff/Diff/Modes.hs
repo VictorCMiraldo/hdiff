@@ -21,6 +21,7 @@ import           Data.HDiff.Diff.Preprocess
 import           Data.HDiff.Diff.Types
 import           Data.HDiff.MetaVar
 
+
 -- |A predicate indicating whether a tree can be shared.
 type CanShare kappa fam = forall a ix . PrepFix a kappa fam ix -> Bool
 

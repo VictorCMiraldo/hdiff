@@ -326,9 +326,6 @@ isDup :: Chg kappa fam x -> Bool
 isDup (Chg (Hole _) (Hole _)) = True
 isDup _ = False
 
-instance ShowHO (MetaVar kappa fam) where
-  showHO = ('#':) . show . metavarGet
-
 mrgChgChg :: Chg kappa fam x -> Chg kappa fam x
           -> MergeM kappa fam (Phase2 kappa fam x)
 -- Changes must have unifiable domains

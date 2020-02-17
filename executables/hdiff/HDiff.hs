@@ -27,6 +27,7 @@ import qualified Control.Exception as Exc
 import System.CPUTime
 import Options.Applicative
 
+import GHC.Generics (V1)
 import Generics.Simplistic
 import Generics.Simplistic.Util
 
@@ -38,6 +39,7 @@ import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
 import qualified Data.HDiff.Merge        as D
 import qualified Data.HDiff.Diff.Align  as D
+import qualified Data.HDiff.Diff.Preprocess  as D
 import           Data.HDiff.Show
 
 import           Languages.Interface
@@ -79,6 +81,9 @@ putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
 
 -- * Generic interface
+
+instance ShowHO V1 where
+  showHO _ = "impossible!"
 
 mainAST :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainAST v sel opts = withParsed1 sel mainParsers (optFileA opts)
@@ -122,7 +127,7 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
     (secs , patch) <- time (D.align <$> diffWithOpts opts fa fb)
     unless (v == Quiet || withStats opts)
       $ hPutStrLn stdout (show patch)
-    when (testApply opts) $ putStrLn "--test-apply currently deprecated" -- void (tryApply v patch fa (Just fb))
+    when (testApply opts) $ void (tryApply v (holesMap D.disalign patch) fa (Just fb))
     when (withStats opts) $ 
       putStrLn . unwords $
         [ "time(s):" ++ show secs

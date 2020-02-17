@@ -9,6 +9,8 @@ import Generics.Simplistic
 import Generics.Simplistic.Unify
 ------------------------------------
 import Data.HDiff.Base
+import Data.HDiff.Show
+
 
 patchApply :: Patch kappa fam at
            -> SFix kappa fam at
@@ -21,6 +23,6 @@ chgApply :: Chg kappa fam at
          -> Maybe (SFix kappa fam at)
 chgApply chg p = 
   case runExcept $ unify (chgDel chg) (holesMapAnn (error "imp") id p) of
-    Left  _     -> Nothing
+    Left  err   -> error (show err)
     Right sigma -> holesMapAnnM (const Nothing) return
                  $ substApply sigma (chgIns chg)

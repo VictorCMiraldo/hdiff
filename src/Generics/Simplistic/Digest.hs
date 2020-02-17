@@ -42,9 +42,9 @@ toW64s = map combine . chunksOf 8 . BA.unpack . getDigest
     -- precondition: length must be 8!!!
     combine :: [Word8] -> Word64
     combine = foldl' (\acu (n , next)
-                       -> shiftL (fromIntegral next) (8*n) .|. acu) 0
+                       -> shiftL (fromIntegral next) n .|. acu) 0
             . zip [0,8,16,24,32,40,48,56]
-    
+
 -- |Auxiliar hash function with the correct types instantiated.
 hash :: BS.ByteString -> Digest
 hash = Digest . Hash.hash

@@ -15,6 +15,7 @@ import qualified Data.Text as T
 
 import Generics.Simplistic
 import Generics.Simplistic.Util
+import Generics.Simplistic.Unify
 import Generics.Simplistic.Pretty
 
 import qualified Data.HDiff.Base    as D
@@ -44,17 +45,16 @@ instance {-# OVERLAPING #-} (ShowHO phi)
     => Show (Holes kappa phi x) where
   show = myRender . holesPretty (pretty . showHO)
 -}
-
+{-
 instance {-# OVERLAPPABLE #-} (ShowHO ann , ShowHO phi)
     => Show (HolesAnn kappa fam ann phi x) where
   show = myRender . holesAnnPretty (pretty . showHO) addAnn
     where
       addAnn ann d = sep [pretty "<" , pretty (showHO ann) , pretty "|" , d , pretty ">"]
+-}
 
 instance ShowHO (D.HolesMV kappa fam) where
   showHO = myRender . holesPretty (metavarPretty id)
-
-
 
 instance Show (D.HolesMV kappa fam x) where
   show = myRender . holesPretty (metavarPretty id)
@@ -119,6 +119,14 @@ instance Show (Holes kappa fam (D.Aligned kappa fam) x) where
 
 instance Show (D.MetaVar kappa fam x) where
   show = ('#':) . show . D.metavarGet
+
+instance ShowHO (D.MetaVar kappa fam) where
+  showHO = show
+
+
+instance Show (UnifyErr kappa fam (D.MetaVar kappa fam)) where
+  show (OccursCheck xs) = "OccursCheck " ++ show xs
+  show (SymbolClash x y) = "SymbolClash " ++ show x ++ " /= " ++ show y
 
 {-
 
