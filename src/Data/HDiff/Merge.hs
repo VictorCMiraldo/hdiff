@@ -244,13 +244,15 @@ type Subst2 kappa fam = ( Subst kappa fam (MetaVar kappa fam)
 
 mrgCpy :: MetaVar kappa fam at -> Chg kappa fam at
        -> MergeM kappa fam (Phase2 kappa fam at)
-mrgCpy x chg =
+mrgCpy x chg = return $ P2Instantiate chg
+{-
   trace (mkDbgString "cpy" "prm" (show x) (show chg))
    $ do i <- gets iota
         case instAdd i x (Hole chg) of
           Nothing -> error "inv-failure; cpy"
           Just i' -> modify (\s -> s { iota = i' })
                   >> return (P2Instantiate (Chg (Hole x) (Hole x)))
+-}
 
 mrgPrmPrm :: MetaVar kappa fam x
           -> MetaVar kappa fam x
