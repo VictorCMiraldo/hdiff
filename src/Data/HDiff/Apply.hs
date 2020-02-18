@@ -23,6 +23,6 @@ chgApply :: Chg kappa fam at
          -> Maybe (SFix kappa fam at)
 chgApply chg p = 
   case runExcept $ unify (chgDel chg) (holesMapAnn (error "imp") id p) of
-    Left  err   -> error (show err)
+    Left  err   -> Nothing
     Right sigma -> holesMapAnnM (const Nothing) return
                  $ substApply sigma (chgIns chg)
