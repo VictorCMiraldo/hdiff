@@ -244,7 +244,7 @@ type Subst2 kappa fam = ( Subst kappa fam (MetaVar kappa fam)
 
 mrgCpy :: MetaVar kappa fam at -> Chg kappa fam at
        -> MergeM kappa fam (Phase2 kappa fam at)
-mrgCpy x chg = return P2Instantiate chg
+mrgCpy x chg = return $ P2Instantiate chg
 {-
   trace (mkDbgString "cpy" "prm" (show x) (show chg))
    $ do i <- gets iota
