@@ -71,6 +71,6 @@ executables:
       - time
       - deepseq
       - hdiff
-    ghc-options: -O2 -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
+    ghc-options: -XCPP -O2 -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
 
 
