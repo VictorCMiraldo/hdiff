@@ -108,22 +108,28 @@ mergeAl p q = case runExcept (evalStateT (mrg p q) mrgSt0) of
 -- in turn requier a state.
 
 data MergeState kappa fam = MergeState
-  { iota :: Inst (Patch kappa fam)
-  , eqs  :: Subst kappa fam (MetaVar kappa fam)
+  { iotaDel :: Subst kappa fam (MetaVar kappa fam)
+  , iotaIns :: Subst kappa fam (MetaVar kappa fam)
   }
   
 type MergeM     kappa fam = StateT (MergeState kappa fam) (Except String)
 
 mrgSt0 :: MergeState kappa fam
-mrgSt0 = MergeState M.empty substEmpty
+mrgSt0 = MergeState substEmpty substEmpty
 
-onEqvs :: (Subst kappa fam (MetaVar kappa fam) -> Subst kappa fam (MetaVar kappa fam))
+onDel :: (Subst kappa fam (MetaVar kappa fam) -> Subst kappa fam (MetaVar kappa fam))
+      -> MergeM kappa fam ()
+onDel f = modify (\st -> st { iotaDel = f $ iotaDel st })
+
+onIns :: (Subst kappa fam (MetaVar kappa fam) -> Subst kappa fam (MetaVar kappa fam))
+      -> MergeM kappa fam ()
+onIns f = modify (\st -> st { iotaIns = f $ iotaIns st })
+
+instMV :: MetaVar kappa fam at -> Chg kappa fam at
        -> MergeM kappa fam ()
-onEqvs f = do
-  e <- gets eqs
-  let es' = f e
-  trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
-  
+instMV x c = do
+  onDel (\s -> substInsert s x (chgDel c))
+  onIns (\s -> substInsert s x (chgIns c))
 
 mrg :: Aligned kappa fam x -> Aligned kappa fam x
     -> MergeM kappa fam (Aligned kappa fam x)
@@ -133,6 +139,60 @@ mrg p q = do
   case makeDelInsMaps inst of
     Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
     Right di -> alignedMapM (phase2 di) phase1
+
+makeDelInsMaps :: forall kappa fam
+                . MergeState kappa fam
+               -> Either [Exists (MetaVar kappa fam)]
+                         (Subst2 kappa fam)
+makeDelInsMaps (MergeState iotD iotI) = do
+  let eqs = M.filter isEqv iotD
+  d <- trace (oneStr "sd" $ iotD) (minimize iotD)
+  i <- trace (oneStr "si" $ iotI) (minimize $ addEqvs eqs iotI)
+  trace (diStr (d , i)) $
+    return (d , i)
+ where
+   isEqv :: Exists (HolesMV kappa fam) -> Bool
+   isEqv (Exists (Hole _)) = True
+   isEqv _                 = False
+   
+   toSubst :: [(Int , Exists (Holes kappa fam (MetaVar kappa fam)))]
+           -> Subst kappa fam (MetaVar kappa fam)
+   toSubst = M.fromList
+           . map (\(i , Exists h) -> (Exists (mkVar i h) , Exists h))
+
+   mkVar :: Int -> Holes kappa fam (MetaVar kappa fam) at -> MetaVar kappa fam at
+   mkVar vx (Prim _) = MV_Prim vx
+   mkVar vx (Hole v) = metavarSet vx v
+   mkVar vx (Roll _) = MV_Comp vx
+
+   diStr :: Subst2 kappa fam -> String
+   diStr (d , i) = unlines $
+     [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
+     [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
+
+   oneStr :: String -> Subst kappa fam (MetaVar kappa fam) -> String
+   oneStr lbl d = unlines $
+     [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
+
+   -- TODO: moev this to unification; call it substToList.
+   -- eqvsL = [ Exists (u :*: unsafeCoerce v) | (Exists u , Exists (Hole v)) <- M.toList eqvs]
+
+   -- We only insert the equivalences when we don't yet have data about these
+   -- variables in whatever map we are complementing
+   --
+   -- This essentially means that albeit v and u are /the same/;
+   -- if we already made a decision about what v or u should be,
+   -- we stick to it. In a way, if v or u are already a member of
+   -- our maps, there will be no occurence of v or u in the
+   -- final result, rendering the equivalence useless.
+   addEqvs :: Subst kappa fam (MetaVar kappa fam)
+           -> Subst kappa fam (MetaVar kappa fam)
+           -> Subst kappa fam (MetaVar kappa fam)
+   addEqvs eqs s = let go k = M.foldlWithKey k s eqs
+                    in go $ \s' (Exists v) (Exists (Hole u))
+                          -> if or (map (`M.member` s') [ Exists v , Exists u ])
+                             then s'
+                             else substInsert s' v (Hole $ unsafeCoerce u)
 
 mrg0 :: Aligned kappa fam x -> Aligned kappa fam x
     -> MergeM kappa fam (Aligned' kappa fam (Phase2 kappa fam) x)
@@ -263,7 +323,7 @@ mrgPrmPrm x y x' y' =
   trace (mkDbgString "prm" "prm" (show x ++ " |-> " ++ show y) (show x' ++ " |-> " ++ show y'))
    $ do -- let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
         let ins oldEs = substInsert oldEs x (Hole x') 
-        onEqvs ins
+        onDel ins
         return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
 
 mrgPrm :: MetaVar kappa fam x
@@ -272,63 +332,16 @@ mrgPrm :: MetaVar kappa fam x
        -> MergeM kappa fam (Phase2 kappa fam x)
 mrgPrm x y c = 
   trace (mkDbgString "prm" "chg" (show x ++ " |-> " ++ show y) (show c))
+    $ do instMV x c
+         return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
+{-
     $ do i <- gets iota
          case instAdd i x (Hole c) of
            Nothing -> error "inv-failure; inst"
            Just i' -> modify (\s -> s { iota = i' })
                    >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
+-}
 
-
-makeDelInsMaps :: forall kappa fam
-                . MergeState kappa fam
-               -> Either [Exists (MetaVar kappa fam)]
-                         (Subst2 kappa fam)
-makeDelInsMaps (MergeState iot eqvs) =
-  let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iot
-      si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iot
-   in trace (oneStr "eqvs" eqvs) $ do
-    d <- trace (oneStr "sd" $ toSubst sd) (minimize (addEqvs (toSubst sd)))
-    i <- trace (oneStr "si" $ toSubst si) (minimize (addEqvs (toSubst si)))
-    trace (diStr (d , i))
-      return (d , i)
- where
-   toSubst :: [(Int , Exists (Holes kappa fam (MetaVar kappa fam)))]
-           -> Subst kappa fam (MetaVar kappa fam)
-   toSubst = M.fromList
-           . map (\(i , Exists h) -> (Exists (mkVar i h) , Exists h))
-
-   mkVar :: Int -> Holes kappa fam (MetaVar kappa fam) at -> MetaVar kappa fam at
-   mkVar vx (Prim _) = MV_Prim vx
-   mkVar vx (Hole v) = metavarSet vx v
-   mkVar vx (Roll _) = MV_Comp vx
-
-   diStr :: Subst2 kappa fam -> String
-   diStr (d , i) = unlines $
-     [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
-     [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
-
-   oneStr :: String -> Subst kappa fam (MetaVar kappa fam) -> String
-   oneStr lbl d = unlines $
-     [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
-
-   -- TODO: moev this to unification; call it substToList.
-   eqvsL = [ Exists (u :*: unsafeCoerce v) | (Exists u , Exists (Hole v)) <- M.toList eqvs]
-
-   -- We only insert the equivalences when we don't yet have data about these
-   -- variables in whatever map we are complementing
-   --
-   -- This essentially means that albeit v and u are /the same/;
-   -- if we already made a decision about what v or u should be,
-   -- we stick to it. In a way, if v or u are already a member of
-   -- our maps, there will be no occurence of v or u in the
-   -- final result, rendering the equivalence useless.
-   addEqvs :: Subst kappa fam (MetaVar kappa fam)
-           -> Subst kappa fam (MetaVar kappa fam)
-   addEqvs s = let go k = foldl' k s eqvsL
-                in go $ \s' (Exists (v :*: u)) 
-                        -> if or (map (`M.member` s') [ Exists v , Exists u ])
-                           then s'
-                           else substInsert s' v (Hole u)
 
 isDup :: Chg kappa fam x -> Bool
 isDup (Chg (Hole _) (Hole _)) = True
@@ -344,18 +357,40 @@ mrgChgChg p q
    trace (mkDbgString "chg" "chg" (show p) (show q)) 
    $ case runExcept (unify (chgDel p) (chgDel q)) of
       Left err -> throwError "chg-unif"
-      Right r  -> onEqvs (M.union r)
+      Right r  -> onDel (\ds -> M.foldlWithKey insertEqIfNew ds r)
                >> return (P2TestEq p q)
+  where
+    insertEqIfNew :: Subst kappa fam (MetaVar kappa fam)
+                  -> Exists (MetaVar kappa fam)
+                  -> Exists (HolesMV kappa fam)
+                  -> Subst kappa fam (MetaVar kappa fam)
+    --We have discovered a variable equivalence. 
+    insertEqIfNew old (Exists v) (Exists (Hole u))
+      -- have we already made a decision about any of the equivalences
+      -- discovered here?
+      = if or (map (`M.member` old) [ Exists v , Exists u ])
+        then old
+        else M.insert (Exists v) (Exists (Hole u)) old
+    -- We have discovered an veriable refinement (x is a term!)
+    insertEqIfNew old v x = M.insert v x old
+
+        
+    
 
 mrgChgDup :: Chg kappa fam x -> Chg kappa fam x
           -> MergeM kappa fam (Phase2 kappa fam x)
 mrgChgDup dup@(Chg (Hole v) _) q = 
  trace (mkDbgString "chg" "dup" (show q) (show dup))
-  $ do i <- gets iota
+  $ do instMV v q
+       return (P2Instantiate dup)
+
+{-
+       i <- gets iota
        case instAdd i v (Hole q) of
          Nothing -> throwError "chg-dup"
          Just i' -> modify (\s -> s { iota = i' })
                  >> return (P2Instantiate dup)
+-}
 
 mrgChgSpn :: (CompoundCnstr kappa fam x)
           => Chg kappa fam x -> SRep (Aligned kappa fam) (Rep x)
@@ -371,11 +406,13 @@ instM :: forall kappa fam at
 -- instantiating over a copy is fine; 
 instM _ (Cpy _)    = return ()
 
-instM (Hole v) a = do
+instM (Hole v) a = instMV v (disalign a)
+{-
   i <- gets iota
   case instAdd i v (Hole $ disalign a) of
     Nothing -> throwError "contr"
     Just i' -> modify (\st -> st { iota = i' })
+-}
 
 -- Instantiating over a modification might also be
 -- possible in select cases; namelly, when the deletion
@@ -413,6 +450,9 @@ phase2 di (P2Instantiate chg) =
   trace ("p2-inst:\n  " ++ show chg) $
     return (chgrefine di chg)
 phase2 di (P2Instantiate' chg i) =
+  trace ("p2-inst:\n  " ++ show chg) $
+    return (chgrefine di chg)
+{-
   trace ("p2-inst-and-chk:\n  i = " ++ show i ++ "\n  c = " ++ show chg) $
     do es <- gets eqs
        case getCommonVars (substApply es (chgIns chg)) (substApply es i) of
@@ -424,6 +464,7 @@ phase2 di (P2Instantiate' chg i) =
      let vx = holesVars x
          vy = holesVars y
       in M.keys (M.intersection vx vy)
+-}
 
 chgrefine :: Subst2 kappa fam
           -> Chg kappa fam at
