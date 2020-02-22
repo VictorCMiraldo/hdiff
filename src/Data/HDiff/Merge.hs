@@ -316,6 +316,12 @@ makeDelInsMaps (MergeState iot eqvs) =
 
    -- We only insert the equivalences when we don't yet have data about these
    -- variables in whatever map we are complementing
+   --
+   -- This essentially means that albeit v and u are /the same/;
+   -- if we already made a decision about what v or u should be,
+   -- we stick to it. In a way, if v or u are already a member of
+   -- our maps, there will be no occurence of v or u in the
+   -- final result, rendering the equivalence useless.
    addEqvs :: Subst kappa fam (MetaVar kappa fam)
            -> Subst kappa fam (MetaVar kappa fam)
    addEqvs s = let go k = foldl' k s eqvsL
