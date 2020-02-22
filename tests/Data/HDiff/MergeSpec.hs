@@ -10,7 +10,7 @@ module Data.HDiff.MergeSpec (spec) where
 
 import Data.HDiff.Base
 import Data.HDiff.Merge
-import Data.HDiff.Merge.Align
+import Data.HDiff.Diff.Align
 import Data.HDiff.Diff
 import Data.HDiff.MetaVar
 import Data.HDiff.Show

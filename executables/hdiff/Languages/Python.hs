@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
