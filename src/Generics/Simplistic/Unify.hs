@@ -84,7 +84,8 @@ substApply :: (Ord (Exists phi))
            -> Holes kappa fam phi at
            -> Holes kappa fam phi at
 substApply sigma = holesJoin
-                 . holesMap (\v -> maybe (Hole v) id $ substLkup sigma v)
+                 . holesMap (\v -> maybe (Hole v) (substApply sigma)
+                                 $ substLkup sigma v)
 
 -- |Inserts a point in a substitution. Note how the index of
 -- @phi@ /must/ match the index of the term being inserted.
@@ -181,7 +182,7 @@ minimize :: forall kappa fam phi . (Ord (Exists phi))
          => Subst kappa fam phi -- ^
          -> Either [Exists phi] (Subst kappa fam phi)
 minimize sigma =
-  let sigma' = sortVarEqs inj proj sigma -- breakCycles inj proj $ removeIds proj sigma
+  let sigma' = breakCycles inj proj $ removeIds proj sigma
    in whileM sigma' [] $ \s _
     -> M.fromList <$> (mapM (secondF (exMapM (go sigma'))) (M.toList s))
   where
@@ -205,18 +206,9 @@ minimize sigma =
        -> Writer [Exists phi] (Holes kappa fam phi at)
     go ss = holesRefineVarsM $ \var -> do
            case substLkup ss var of
-             -- Didn't find anything for var
-             Nothing          -> return (Hole var)
-
-{-
-             -- Found out @var == var'@;
-             Just (Hole var') -> if (Exists var' < Exists var)
-                                 then tell [Exists var] >> return (Hole var')
-                                 else return (Hole var)
--}
-                                  
-             -- Found out @var == r && r is not variable@
-             Just r  -> tell [Exists var] >> return r
+             Nothing       -> return (Hole var)
+             Just r        -> tell [Exists var]
+                           >> return r
 
     -- | Just like nub; but works on a sorted list
     mnub :: (Ord a) => [a] -> [a]
@@ -239,48 +231,6 @@ minimize sigma =
            then Left xs'
            else whileM x' xs' f
 
-{-
-data Whatever
-  = Var Int
-  | Else String
-  deriving (Eq , Show)
-
-proj :: Whatever -> Maybe Int
-proj (Var x) = Just x
-proj _       = Nothing
-
-s :: M.Map Int Whatever
-s = M.fromList
-  [ (0 , Var 1)
-  , (1 , Var 2)
-  , (2 , Var 0)
-  , (3 , Else "x")
-  , (42 , Var 5)
-  ]
--}
-
-sortVarEqs :: forall a b
-            . (Ord a) => (a -> b) -> (b -> Maybe a) -> M.Map a b -> M.Map a b
-sortVarEqs inj proj = uncurry joinVarEqvs . M.partition isVarEqv 
-  where
-    isVarEqv :: b -> Bool
-    isVarEqv v = maybe False (const True) $ proj v
-
-    sortVarEq1 v0 (Just v1)
-      | v0 <  v1   = Just (v0 , v1)
-      | v0 == v1   = Nothing
-      | otherwise  = Just (v1 , v0)
-
-    joinVarEqvs :: M.Map a b -> M.Map a b -> M.Map a b
-    joinVarEqvs varEqvs rest =
-      M.foldlWithKey' (\m k v ->
-        case sortVarEq1 k (proj v) of
-          Nothing        -> m
-          Just (k' , v') -> M.insert k' (inj v') m
-       ) rest $ varEqvs
-
-{-
-  
 -- |Removes the keys that project to themselves according to
 -- the provided projection.
 --
@@ -327,5 +277,3 @@ breakCycles inj proj m0
         \a -> case cycleFor a m of
                 Nothing -> return ()
                 Just r  -> exit $ Just (a , r)
-
--}
