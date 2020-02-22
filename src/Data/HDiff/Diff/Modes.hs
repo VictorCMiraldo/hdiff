@@ -25,8 +25,7 @@ import           Data.HDiff.MetaVar
 -- |A predicate indicating whether a tree can be shared.
 type CanShare kappa fam = forall a ix . PrepFix a kappa fam ix -> Bool
 
-extractHoles :: All Digestible kappa
-             => DiffMode
+extractHoles :: DiffMode
              -> CanShare kappa fam
              -> IsSharedMap
              -> Delta (PrepFix a kappa fam) at
@@ -40,16 +39,14 @@ extractHoles DM_Patience h tr (src :*: dst)
  
 -- ** Proper Shares
 
-extractProperShare :: (All Digestible kappa)
-                   => CanShare kappa fam
+extractProperShare :: CanShare kappa fam
                    -> IsSharedMap
                    -> PrepFix a kappa fam at
                    -> Holes kappa fam (MetaVar kappa fam) at
 extractProperShare h tr a = properShare h tr (tagProperShare tr a)
 
 tagProperShare :: forall a kappa fam at
-                . (All Digestible kappa)
-               => IsSharedMap
+                . IsSharedMap
                -> PrepFix a kappa fam at
                -> PrepFix (Int , Bool) kappa fam at
 tagProperShare ism = synthesize onRec onPrim (const botElim)
