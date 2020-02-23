@@ -15,6 +15,8 @@ module Generics.Simplistic.Unify
     Subst , substEmpty , substInsert , substLkup , substApply
     -- * Unification
   , UnifyErr(..) , unify , unifyWith , minimize
+    -- * Name Equivalence
+  , Eqvs , eqApply , substApplyEq , splitVarEqs
   ) where
 
 import           Data.List (sort)
@@ -23,6 +25,7 @@ import           Control.Monad.Except
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Control.Monad.Cont
+import           Control.Arrow (first)
 import           Unsafe.Coerce
 
 import Generics.Simplistic
@@ -86,6 +89,7 @@ substApply :: (Ord (Exists phi))
 substApply sigma = holesJoin
                  . holesMap (\v -> maybe (Hole v) (substApply sigma)
                                  $ substLkup sigma v)
+
 
 -- |Inserts a point in a substitution. Note how the index of
 -- @phi@ /must/ match the index of the term being inserted.
@@ -277,3 +281,64 @@ breakCycles inj proj m0
         \a -> case cycleFor a m of
                 Nothing -> return ()
                 Just r  -> exit $ Just (a , r)
+
+---------------------------
+-- Variable Equivalences --
+---------------------------
+
+type Eqvs kappa fam phi = M.Map (Exists phi) (Exists phi)
+
+eqApply :: (Ord (Exists phi))
+        => Eqvs kappa fam phi
+        -> phi at -> phi at
+eqApply eqs v = maybe v (exElim $ unsafeCoerce) $ M.lookup (Exists v) eqs
+
+{-
+eqApplyTerm :: (Ord (Exists phi))
+            => Eqvs kappa fam phi
+            -> Holes kappa fam phi at -> Holes kappa fam phi at
+eqApplyTerm eqvs = holesMap (eqApply eqvs)
+-}
+
+substApplyEq :: (Ord (Exists phi))
+             => Eqvs kappa fam phi 
+             -> Subst kappa fam phi -- ^
+             -> Holes kappa fam phi at
+             -> Holes kappa fam phi at
+substApplyEq eqs sigma = holesJoin . holesMap (
+  \v -> case substLkup sigma v of
+          Just r  -> holesMap (eqApply eqs) r
+          Nothing -> let v' = eqApply eqs v
+                      in case substLkup sigma v' of
+                           Nothing -> Hole v'
+                           Just r  -> holesMap (eqApply eqs) r)
+
+-- |Returns a substitution consisting only of variable equivalences.
+splitVarEqs :: (Ord (Exists phi))
+            => Subst kappa fam phi
+            -> (Eqvs kappa fam phi, Subst kappa fam phi)
+splitVarEqs = getVarEqs' (exElim isHole)
+  where
+    isHole :: Holes kappa fam phi at -> Maybe (Exists phi)
+    isHole (Hole v) = Just (Exists v)
+    isHole _        = Nothing
+    
+    getVarEqs' :: forall a b
+                 . (Ord a) => (b -> Maybe a) -> M.Map a b -> (M.Map a a , M.Map a b)
+    getVarEqs' proj = first insVarEqvs . M.partition isVarEqv 
+      where
+        isVarEqv :: b -> Bool
+        isVarEqv v = maybe False (const True) $ proj v
+
+        sortVarEq1 v0 (Just v1)
+          | v0 <  v1   = Just (v0 , v1)
+          | v0 == v1   = Nothing
+          | otherwise  = Just (v1 , v0)
+
+        insVarEqvs :: M.Map a b -> M.Map a a
+        insVarEqvs varEqvs =
+          M.foldlWithKey' (\m k v ->
+            case sortVarEq1 k (proj v) of
+              Nothing        -> m
+              Just (k' , v') -> M.insert k' v' m
+           ) M.empty $ varEqvs

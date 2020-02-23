@@ -137,24 +137,27 @@ mrg p q = do
   phase1 <- mrg0 p q
   inst <- get
   case makeDelInsMaps inst of
-    Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
-    Right di -> alignedMapM (phase2 di) phase1
+    Left vs   -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
+    Right ewb -> alignedMapM (phase2 ewb) phase1
+
+
+data EqWasBecameMaps kappa fam = EqWasBecameMaps
+  { ewbEqs    :: Eqvs  kappa fam (MetaVar kappa fam)
+  , ewbWas    :: Subst kappa fam (MetaVar kappa fam)
+  , ewbBecame :: Subst kappa fam (MetaVar kappa fam)
+  }
 
 makeDelInsMaps :: forall kappa fam
                 . MergeState kappa fam
                -> Either [Exists (MetaVar kappa fam)]
-                         (Subst2 kappa fam)
+                         (EqWasBecameMaps kappa fam)
 makeDelInsMaps (MergeState iotD iotI) = do
-  let eqs = M.filter isEqv iotD
+  let (eqvs , _) = splitVarEqs iotD
   d <- trace (oneStr "sd" $ iotD) (minimize iotD)
-  i <- trace (oneStr "si" $ iotI) (minimize $ addEqvs eqs iotI)
-  trace (diStr (d , i)) $
-    return (d , i)
+  i <- trace (oneStr "si" $ iotI) (minimize iotI)
+  let res = EqWasBecameMaps eqvs d i
+  trace (ewbStr res) $ return res
  where
-   isEqv :: Exists (HolesMV kappa fam) -> Bool
-   isEqv (Exists (Hole _)) = True
-   isEqv _                 = False
-   
    toSubst :: [(Int , Exists (Holes kappa fam (MetaVar kappa fam)))]
            -> Subst kappa fam (MetaVar kappa fam)
    toSubst = M.fromList
@@ -165,8 +168,9 @@ makeDelInsMaps (MergeState iotD iotI) = do
    mkVar vx (Hole v) = metavarSet vx v
    mkVar vx (Roll _) = MV_Comp vx
 
-   diStr :: Subst2 kappa fam -> String
-   diStr (d , i) = unlines $
+   ewbStr :: EqWasBecameMaps kappa fam -> String
+   ewbStr (EqWasBecameMaps e d i) = unlines $
+     [ "eq-map : " ++ show v ++ ": " ++ show c | (v , c) <- M.toList e ] ++
      [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
      [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
 
@@ -442,16 +446,16 @@ instM (Roll r) (Spn s) =
     Nothing  -> throwError "constr-clash"
     Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
 
-phase2 :: Subst2 kappa fam
+phase2 :: EqWasBecameMaps kappa fam
        -> Phase2 kappa fam at
        -> MergeM kappa fam (Chg kappa fam at)
-phase2 di (P2TestEq ca cb) = chgeq di ca cb
-phase2 di (P2Instantiate chg) =
+phase2 ewb (P2TestEq ca cb) = chgeq ewb ca cb
+phase2 ewb (P2Instantiate chg) =
   trace ("p2-inst:\n  " ++ show chg) $
-    return (chgrefine di chg)
-phase2 di (P2Instantiate' chg i) =
+    return (chgrefine ewb chg)
+phase2 ewb (P2Instantiate' chg i) =
   trace ("p2-inst:\n  " ++ show chg) $
-    return (chgrefine di chg)
+    return (chgrefine ewb chg)
 {-
   trace ("p2-inst-and-chk:\n  i = " ++ show i ++ "\n  c = " ++ show chg) $
     do es <- gets eqs
@@ -466,15 +470,15 @@ phase2 di (P2Instantiate' chg i) =
       in M.keys (M.intersection vx vy)
 -}
 
-chgrefine :: Subst2 kappa fam
+chgrefine :: EqWasBecameMaps kappa fam
           -> Chg kappa fam at
           -> Chg kappa fam at
-chgrefine (d , i) (Chg del ins) =
-  let del' = substApply d del
-      ins' = substApply i ins
+chgrefine (EqWasBecameMaps e d i) (Chg del ins) =
+  let del' = substApplyEq e d del
+      ins' = substApplyEq e i ins
    in Chg del' ins'
 
-chgeq :: Subst2 kappa fam
+chgeq :: EqWasBecameMaps kappa fam
       -> Chg kappa fam at
       -> Chg kappa fam at
       -> MergeM kappa fam (Chg kappa fam at)
