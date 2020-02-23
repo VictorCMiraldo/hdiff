@@ -312,7 +312,15 @@ makeDelInsMaps (MergeState iot eqvs) =
      [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
 
    -- TODO: moev this to unification; call it substToList.
-   eqvsL = [ Exists (u :*: unsafeCoerce v) | (Exists u , Exists (Hole v)) <- M.toList eqvs]
+   eqvsL  = [ Exists (u :*: unsafeCoerce v) | (Exists u , Exists (Hole v)) <- M.toList eqvs]
+
+   fixedL = [ (Exists u , Exists t) | (Exists u , Exists t) <- M.toList eqvs
+              , hasNoHoles t ]
+
+   hasNoHoles :: Holes kappa fam phi x -> Bool
+   hasNoHoles (Hole _) = False
+   hasNoHoles (Prim _) = True
+   hasNoHoles (Roll r) = all (exElim hasNoHoles) $ repLeavesList r
 
    -- We only insert the equivalences when we don't yet have data about these
    -- variables in whatever map we are complementing
@@ -324,11 +332,12 @@ makeDelInsMaps (MergeState iot eqvs) =
    -- final result, rendering the equivalence useless.
    addEqvs :: Subst kappa fam (MetaVar kappa fam)
            -> Subst kappa fam (MetaVar kappa fam)
-   addEqvs s = let go k = foldl' k s eqvsL
-                in go $ \s' (Exists (v :*: u)) 
-                        -> if or (map (`M.member` s') [ Exists v , Exists u ])
-                           then s'
-                           else substInsert s' v (Hole u)
+   addEqvs s0 = let s = M.union s0 (M.fromList fixedL)
+                    go k = foldl' k s eqvsL
+                 in go $ \s' (Exists (v :*: u)) 
+                         -> if or (map (`M.member` s') [ Exists v , Exists u ])
+                            then s'
+                            else substInsert s' v (Hole u)
 
 isDup :: Chg kappa fam x -> Bool
 isDup (Chg (Hole _) (Hole _)) = True
