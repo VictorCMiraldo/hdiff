@@ -29,6 +29,8 @@ import GHC.Generics
 import Control.Monad.Identity
 import Control.DeepSeq
 
+import Unsafe.Coerce
+
 import qualified Data.Set as S
 
 import Generics.Simplistic.Util 
@@ -203,6 +205,16 @@ pattern SFixAnn :: () => (CompoundCnstr kappa fam a)
 pattern SFixAnn ann x = Roll' ann x
 {-# COMPLETE SFixAnn , PrimAnn #-}
 
+---------------
+-- Coercions --
+---------------
+
+sfixToHoles :: SFix kappa fam at -> Holes kappa fam h at
+sfixToHoles = unsafeCoerce
+
+holesToSFix :: Holes kappa fam V1 at -> SFix kappa fam at
+holesToSFix = id
+
 ---------------------------------
 
 instance (forall x . NFData (phi x) , forall x . NFData (h x))
@@ -341,21 +353,23 @@ botElim _ = error "botElim"
 -- Anti unification is so simple it doesn't
 -- deserve its own module
 
-lcp :: Holes kappa fam h a -> Holes kappa fam i a
+-- |Computes the /least general generalization/ of two
+-- trees.
+lgg :: Holes kappa fam h a -> Holes kappa fam i a
     -> Holes kappa fam (Holes kappa fam h :*: Holes kappa fam i) a
-lcp (Prim x) (Prim y)
+lgg (Prim x) (Prim y)
  | x == y    = Prim x
  | otherwise = Hole (Prim x :*: Prim y)
-lcp x@(Roll rx) y@(Roll ry) =
+lgg x@(Roll rx) y@(Roll ry) =
   case zipSRep rx ry of
     Nothing -> Hole (x :*: y)
-    Just r  -> Roll (repMap (uncurry' lcp) r)
-lcp x y = Hole (x :*: y)
+    Just r  -> Roll (repMap (uncurry' lgg) r)
+lgg x y = Hole (x :*: y)
 
 ----------------------------------
 
 instance EqHO h => EqHO (Holes kappa fam h) where
-  eqHO x y = all (exElim $ uncurry' go) $ holesHolesList (lcp x y)
+  eqHO x y = all (exElim $ uncurry' go) $ holesHolesList (lgg x y)
     where
       go :: Holes kappa fam h a -> Holes kappa fam h a -> Bool
       go (Hole h1) (Hole h2) = eqHO h1 h2

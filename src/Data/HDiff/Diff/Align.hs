@@ -116,9 +116,11 @@ data Aligned' kappa fam f x where
       => SRep (Aligned' kappa fam f) (Rep x)
       -> Aligned' kappa fam f x
 
-  Cpy :: MetaVar kappa fam x                       -> Aligned' kappa fam f x
-  Prm :: MetaVar kappa fam x -> MetaVar kappa fam x -> Aligned' kappa fam f x
-  Mod :: f x                                      -> Aligned' kappa fam f x
+  Cpy     :: MetaVar kappa fam x  -> Aligned' kappa fam f x
+  CpyPrim :: (PrimCnstr kappa fam x)
+          => x                    -> Aligned' kappa fam f x
+  Prm     :: MetaVar kappa fam x -> MetaVar kappa fam x -> Aligned' kappa fam f x
+  Mod     :: f x                                      -> Aligned' kappa fam f x
 
 instance (forall x . NFData (f x)) => NFData (Aligned' kappa fam f a) where
   rnf (Del (Zipper z h)) = map (maybe () (exElim rnf)) (zipLeavesList z) `seq` rnf h
@@ -140,6 +142,7 @@ alignedMapM f (Spn spn) = Spn <$> repMapM (alignedMapM f) spn
 alignedMapM _ (Cpy x)   = return $ Cpy x
 alignedMapM _ (Prm x y) = return $ Prm x y
 alignedMapM f (Mod x)   = Mod <$> f x
+alignedMapM _ (CpyPrim x) = return $ CpyPrim x
 
 alignedMap :: (forall x . f x -> g x)
            -> Aligned' kappa fam f ty
@@ -197,6 +200,7 @@ disalign (Ins (Zipper ins rest)) =
    in aux { chgIns = Roll (plug ins' $ chgIns aux) }
 disalign (Spn rep) = chgDistr $ Roll (repMap (Hole . disalign) rep)
 disalign (Cpy x)   = Chg (Hole x) (Hole x)
+disalign (CpyPrim x) = Chg (Prim x) (Prim x)
 disalign (Prm x y) = Chg (Hole x) (Hole y)
 disalign (Mod chg) = chg
 
@@ -229,14 +233,13 @@ annotStiffness = synthesize go (const $ const $ Const True)
 -- alignChg c = alignChg' (chgVars c) c
 
 align :: (HasDecEq fam) => Patch kappa fam x -> Holes kappa fam (Aligned kappa fam) x
-align p = holesMap (alignChg' vars) p
+align p = holesMap alignChg' p
   where
-    vars = patchVars p
-
     alignChg' :: (HasDecEq fam)
-              => M.Map Int Arity -> Chg kappa fam x -> Aligned kappa fam x
-    alignChg' vars c@(Chg d i) = -- rmFauxPerms
+              => Chg kappa fam x -> Aligned kappa fam x
+    alignChg' c@(Chg d i) = -- rmFauxPerms
       syncAnnot vars (annotStiffness d) (annotStiffness i)
+      where vars = chgVars c
 
 
 getAnn' :: (forall x . phi x -> String)
@@ -316,6 +319,10 @@ syncMod vars a b =
   let a' = dropAnn a
       b' = dropAnn b
    in case (a' , b') of
+        (Prim x , Prim y)
+          -> if x == y
+             then CpyPrim x
+             else Mod (Chg a' b')
         (Hole v , Hole u)
           -> let arV = M.lookup (metavarGet v) vars
                  arU = M.lookup (metavarGet u) vars

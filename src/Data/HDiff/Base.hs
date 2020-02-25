@@ -35,8 +35,8 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
    aux :: Bool
    aux = (`runCont` id) $
      callCC $ \exit -> flip evalStateT M.empty $ do
-       _ <- holesMapM (uncurry' (reg (cast exit))) (lcp d1 d2)
-       _ <- holesMapM (uncurry' (chk (cast exit))) (lcp i1 i2)
+       _ <- holesMapM (uncurry' (reg (cast exit))) (lgg d1 d2)
+       _ <- holesMapM (uncurry' (chk (cast exit))) (lgg i1 i2)
        return True
    
    cast :: (Bool -> Cont Bool b)
@@ -119,7 +119,7 @@ chgDistr p = Chg (holesJoin $ holesMap chgDel p)
                  (holesJoin $ holesMap chgIns p)
 
 chgPatch :: Chg kappa fam at -> Patch kappa fam at
-chgPatch c = holesMap (uncurry' Chg) $ lcp (chgDel c) (chgIns c) 
+chgPatch c = holesMap (uncurry' Chg) $ lgg (chgDel c) (chgIns c) 
 
 -- |Alpha equality for patches
 patchEq :: Patch kappa fam at -> Patch kappa fam at -> Bool

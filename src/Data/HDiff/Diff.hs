@@ -84,6 +84,7 @@ buildSharingTrie opts x y
   $ T.zipWith (+) (buildArityTrie opts x)
                   (buildArityTrie opts y)
 
+{-
 -- |Given two treefixes, we will compute the longest path from
 --  the root that they overlap and will factor it out.
 --  This is somehow analogous to a @zipWith@. Moreover, however,
@@ -99,7 +100,7 @@ extractSpine :: forall kappa fam phi at
 extractSpine dopq meta maxI dx dy
   = holesMap (uncurry' Chg)
   $ issueOpqCopiesSpine
-  $ lcp dx dy
+  $ lgg dx dy
  where
    issueOpqCopiesSpine :: Holes kappa fam (Holes2 kappa fam phi) at
                        -> Holes kappa fam (Holes2 kappa fam (MetaVar kappa fam)) at
@@ -122,6 +123,20 @@ extractSpine dopq meta maxI dx dy
      i <- get
      put (i+1)
      return $ Hole (Hole (MV_Prim i) :*: Hole (MV_Prim i))
+-}
+
+cpyPrimsOnSpine :: Int
+                -> Patch kappa fam at
+                -> Patch kappa fam at
+cpyPrimsOnSpine maxI = flip evalState maxI
+                     . holesRefineM (return . Hole) (fmap Hole . doCpy)
+  where
+   doCpy :: (PrimCnstr kappa fam b)
+          => b -> State Int (Chg kappa fam b)
+   doCpy _ = do
+     i <- get
+     put (i+1)
+     return $ Chg (Hole (MV_Prim i)) (Hole (MV_Prim i))
 
 
 -- |Diffs two generic merkelized structures.
@@ -167,6 +182,10 @@ diffOpts :: (All Digestible kappa)
          -> Patch kappa fam ix
 diffOpts opts x y
   = let (i , del :*: ins) = diffOpts' opts x y
+     in if doGlobalChgs opts
+        then Hole (Chg del ins)
+        else cpyPrimsOnSpine i (close (Chg del ins))
+{-
      -- When doOpaqueHandling /= DO_OnSpine && doGlobalChgs == True
      -- the extractSpine step is totally superfluous; but we won't care
      -- too much for this level of detail here.
@@ -176,6 +195,7 @@ diffOpts opts x y
             else case close sp of
                     Nothing -> error "invariant broke: has open variables"
                     Just r  -> r
+-}
 
 diff :: forall kappa fam ix
       . (All Digestible kappa)

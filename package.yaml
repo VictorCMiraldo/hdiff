@@ -1,5 +1,5 @@
 name:        hdiff
-version:     0.0.3
+version:     0.0.4
 synopsis:    Pattern-Expression-based differencing of arbitrary types.
 description: This package provides an executable and a library to compute
              and manipulate pattern-expression based differences between
@@ -37,27 +37,9 @@ tests:
       - hdiff
 
 executables:
-  #  Here's the STDiff executable we need to run the tests
-  #  with stdiff
-  # 
-  # stdiff:
-  #   source-dirs:
-  #     - executables/stdiff
-  #   main: STDiff.hs
-  #   dependencies:
-  #     - generics-mrsop
-  #     - generics-mrsop-gdiff
-  #     - parsec
-  #     - gitrev
-  #     - optparse-applicative
-  #     - language-lua
-  #     - time
-  #   cpp-options: -DWITH_LUA -DWITH_CLOJURE
-  #   ghc-options: -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
-
   hdiff:
     source-dirs:
-      - executables/hdiff
+      - executable
     main: HDiff.hs
     dependencies:
       - parsec

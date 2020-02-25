@@ -141,7 +141,7 @@ unifyM x y = do
     getEquivs :: Holes kappa fam phi b
               -> Holes kappa fam phi b
               -> UnifyM kappa fam phi ()
-    getEquivs p q = void $ holesMapM (uncurry' getEq) (lcp p q)
+    getEquivs p q = void $ holesMapM (uncurry' getEq) (lgg p q)
     
     getEq :: Holes kappa fam phi b
           -> Holes kappa fam phi b

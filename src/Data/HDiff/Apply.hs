@@ -12,7 +12,6 @@ import Data.HDiff.Base
 import Data.HDiff.Show
 import Data.HDiff.MetaVar
 
-
 patchApply :: Patch kappa fam at
            -> SFix kappa fam at
            -> Maybe (SFix kappa fam at)
@@ -23,9 +22,8 @@ chgApply :: Chg kappa fam at
          -> SFix kappa fam at
          -> Maybe (SFix kappa fam at)
 chgApply chg p = 
-  case runExcept $ unify (chgDel chg) (holesMapAnn (error "imp") id p) of
+  case runExcept $ unify (chgDel chg) (sfixToHoles p) of
     Left  err   -> Nothing -- error (show err)
-    Right sigma -> holesMapAnnM (const Nothing) return
-                 $ substApply sigma (chgIns chg)
+    Right sigma -> holesMapM uninstHole $ substApply sigma (chgIns chg)
  where
-   showAndErr mv = error ("non-instantiated-mvar: " ++ show (metavarGet mv))
+   uninstHole mv = error ("non-instantiated-mvar: " ++ show (metavarGet mv))

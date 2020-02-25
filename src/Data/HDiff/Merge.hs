@@ -94,7 +94,7 @@ diff3 :: forall kappa fam ix
 diff3 oa ob =
   let oa' = align oa
       ob' = align (ob `withFreshNamesFrom` oa)
-   in holesMap (uncurry' mergeAl . delta alignDistr) $ lcp oa' ob'
+   in holesMap (uncurry' mergeAl . delta alignDistr) $ lgg oa' ob'
  where
    delta f (x :*: y) = (f x :*: f y)
 
@@ -137,8 +137,10 @@ mrg p q = do
 mrg0 :: Aligned kappa fam x -> Aligned kappa fam x
     -> MergeM kappa fam (Aligned' kappa fam (Phase2 kappa fam) x)
 -- Copies are the easiest case
-mrg0 (Cpy x) q = Mod <$> mrgCpy x (disalign q)
-mrg0 p (Cpy x) = Mod <$> mrgCpy x (disalign p)
+mrg0 (Cpy x) q     = return $ Mod (P2Instantiate (disalign q))
+mrg0 p (Cpy x)     = return $ Mod (P2Instantiate (disalign p))
+mrg0 (CpyPrim _) q = return $ Mod (P2Instantiate (disalign q))
+mrg0 p (CpyPrim _) = return $ Mod (P2Instantiate (disalign p))
 
 -- Permutations are almost as simple as copies
 mrg0 (Prm x y) (Prm x' y') = Mod <$> mrgPrmPrm x y x' y'
@@ -378,7 +380,8 @@ instM :: forall kappa fam at
       -> Aligned kappa fam at
       -> MergeM kappa fam ()
 -- instantiating over a copy is fine; 
-instM _ (Cpy _)    = return ()
+instM _ (Cpy     _) = return ()
+instM _ (CpyPrim _) = return ()
 
 instM (Hole v) a = do
   i <- gets iota
