@@ -46,17 +46,10 @@ buildArityTrie opts df = go df T.empty
     minHeight = doMinHeight opts
     
     go :: PrepFix a kappa fam ix -> T.Trie Int -> T.Trie Int
-    go (PrimAnn (Const prep) _) t
-      -- We only populat the sharing map if opaques are supposed
-      -- to be handled as recursive trees
-      | doOpaqueHandling opts == DO_AsIs = ins (treeDigest prep) t
-      | otherwise                        = t
-    -- TODO: think about holes. I'm posponing this until
-    -- we actually use diffing things holes.
-    -- go (Hole' (Const  _)    _) t = t
+    go (PrimAnn _            _) t = t
     go (SFixAnn (Const prep) p) t
       | treeHeight prep <= minHeight = t
-      | otherwise = ins (treeDigest prep) (goR p t)
+      | otherwise                    = ins (treeDigest prep) (goR p t)
 
     goR :: SRep (PrepFix a kappa fam) ix -> T.Trie Int -> T.Trie Int
     goR S_U1 t = t
@@ -164,11 +157,7 @@ diffOpts' opts x y
         delins  = extractHoles (doMode opts) mkCanShare sh (dx' :*: dy')
      in (i , delins)
  where
-   mkCanShare :: forall a ix
-               . PrepFix a kappa fam ix
-              -> Bool
-   mkCanShare (PrimAnn _ _)
-     = doOpaqueHandling opts == DO_AsIs
+   mkCanShare :: forall a ix . PrepFix a kappa fam ix -> Bool
    mkCanShare pr
      = doMinHeight opts < treeHeight (getConst $ getAnn pr)
 

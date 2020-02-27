@@ -93,7 +93,7 @@ asrI :: Doc AnsiStyle -> Doc AnsiStyle
 asrI d = annotate mygreen $ group
        $ sep [pretty "[+" , d , pretty "+]"]
 
-alignedPretty :: D.Aligned kappa fam x -> Doc AnsiStyle
+alignedPretty :: D.Al kappa fam x -> Doc AnsiStyle
 alignedPretty (D.Del x)
   = zipperPretty sfixPretty alignedPretty asrD x
 alignedPretty (D.Ins x)
@@ -108,13 +108,13 @@ alignedPretty (D.Prm x y)
 alignedPretty (D.Mod c)
   = chgPretty c
 
-alignedPretty' :: D.Aligned kappa fam x -> Doc AnsiStyle
+alignedPretty' :: D.Al kappa fam x -> Doc AnsiStyle
 alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
 
-instance Show (D.Aligned kappa fam x) where
+instance Show (D.Al kappa fam x) where
   show = myRender . alignedPretty'
 
-instance Show (Holes kappa fam (D.Aligned kappa fam) x) where
+instance Show (Holes kappa fam (D.Al kappa fam) x) where
   show = myRender . holesPretty alignedPretty'
 
 instance Show (D.MetaVar kappa fam x) where

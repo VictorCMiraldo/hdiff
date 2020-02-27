@@ -23,6 +23,7 @@ import Data.HDiff.MetaVar
 type Holes2 kappa fam phi
   = (Holes kappa fam phi :*: Holes kappa fam phi)
 
+-- |Handy synonym
 type HolesMV kappa fam = Holes kappa fam (MetaVar kappa fam)
 
 -- |Alpha-equality for 'Holes2' with metavariables
@@ -68,10 +69,17 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
                        else lift $ exit False
    chk exit _ _ = lift (exit False)
 
+-- |The multiset of variables used by a context.
+holesVars :: HolesMV kappa fam at -> M.Map Int Arity
+holesVars c = flip execState M.empty
+            $ holesMapM register c >> return ()
+  where
+    register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
+                 >> return mvar
+
 -- * Changes
 --
 -- $changeintro
-
 
 -- | Changes are pairs of context; one deletion
 -- and one insertion.
@@ -89,22 +97,29 @@ unChg (Chg d i) = d :*: i
 changeEq :: Chg kappa fam at -> Chg kappa fam at -> Bool
 changeEq c1 c2 = holes2Eq (unChg c1) (unChg c2)
 
--- |A /copy/ is a change with the form @x |-> x@
-cpy :: Chg kappa fam at -> Bool
-cpy (Chg (Hole v) (Hole u)) = metavarGet v == metavarGet u
-cpy _                         = False
-
--- |Returns whether or not a change is a permutation
-perm :: Chg kappa fam at -> Bool
-perm (Chg (Hole _) (Hole _)) = True
-perm _                         = False
-
 instance EqHO (Chg kappa fam) where
   eqHO = changeEq
 
 -- |A 'Domain' is just a deletion context. Type-synonym helps us
 -- identify what's what on the algorithms below.
 type Domain kappa fam = HolesMV kappa fam
+
+-- |The multiset of variables used by a patch.
+chgVars :: Chg kappa fam at -> M.Map Int Arity
+chgVars (Chg d i) = flip execState M.empty
+                  $  holesMapM register d
+                  >> holesMapM register i
+                  >> return ()
+  where
+    register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
+                 >> return mvar
+
+chgMaxVar :: Chg kappa fam at -> Maybe Int
+chgMaxVar = fmap fst . M.lookupMax . chgVars
+
+chgCost :: Chg kappa fam at -> Int
+chgCost (Chg d i) = holesSize d + holesSize i
+
 
 -- * Patches
 --
@@ -141,29 +156,8 @@ patchVars = flip execState M.empty . holesMapM go
     go r@(Chg d i)
       = holesMapM register d >> holesMapM register i >> return r
 
--- |The multiset of variables used by a context.
-holesVars :: HolesMV kappa fam at -> M.Map Int Arity
-holesVars c = flip execState M.empty
-            $ holesMapM register c >> return ()
-  where
-    register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
-                 >> return mvar
-
--- |The multiset of variables used by a patch.
-chgVars :: Chg kappa fam at -> M.Map Int Arity
-chgVars (Chg d i) = flip execState M.empty
-                  $  holesMapM register d
-                  >> holesMapM register i
-                  >> return ()
-  where
-    register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
-                 >> return mvar
-
 patchMaxVar :: Patch kappa fam at -> Maybe Int
 patchMaxVar = fmap fst . M.lookupMax . patchVars
-
-chgMaxVar :: Chg kappa fam at -> Maybe Int
-chgMaxVar = fmap fst . M.lookupMax . chgVars
 
 -- |Returns a patch that is guaranteed to have
 -- distinci variable names from the first argument.
@@ -188,7 +182,3 @@ domain = chgDel . chgDistr
 -- | Counts how many constructors are inserted and deleted.
 patchCost :: Patch kappa fam at -> Int
 patchCost = sum . map (exElim chgCost) . holesHolesList 
-
-chgCost :: Chg kappa fam at -> Int
-chgCost (Chg d i) = holesSize d + holesSize i
-

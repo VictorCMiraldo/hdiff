@@ -1,4 +1,3 @@
-
 {-# LANGUAGE TemplateHaskell       #-}
 module HDiff.Options where
 
@@ -23,7 +22,7 @@ readmOneOf = maybeReader . flip L.lookup
 -- * Version
 
 vERSION_STR :: String
-vERSION_STR = "hdiff 0.0.3 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]"
+vERSION_STR = "hdiff 0.0.4 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]"
 
 ---------------------------
 -- * Cmd Line Options
@@ -36,8 +35,7 @@ data Options
             , testApply    :: Bool
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
-            , opqHandling  :: D.DiffOpaques
-            , skipClosures :: Bool
+            , globScoped   :: Bool
             , withStats    :: Bool
             }
   | Merge   { optFileA     :: FilePath
@@ -46,13 +44,12 @@ data Options
             , optFileRes   :: Maybe FilePath
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
-            , opqHandling  :: D.DiffOpaques
-            , skipClosures :: Bool
+            , globScoped   :: Bool
             }
   deriving (Eq , Show)
 
 data OptionMode
-  = OptAST | OptDiff | OptMerge -- | OptGDiff | OptSTMerge
+  = OptAST | OptDiff | OptMerge 
   deriving (Eq , Show)
 
 astOpts :: Parser Options
@@ -82,34 +79,16 @@ diffmodeOpt = option (readmOneOf [("proper"  , D.DM_ProperShare)
   where    
     aux = unwords
       ["Controls how context extraction works. Check 'Data.HDiff.Diff.Types'"
-      , "and 'Data.HDiff.Diff.Modes' document this."
+      , "and 'Data.HDiff.Diff.Modes' for documentation."
       ]
 
-skipClosuresOpt :: Parser Bool
-skipClosuresOpt = switch ( long "skip-closures"
+globScopedOpt :: Parser Bool
+globScopedOpt = switch ( long "global-scope"
                  <> help (unwords ["Does not isolate changes into well-scoped parts;"
                                   ,"consequently no spine is available and the patch"
                                   ,"will consist in a single change"
                                   ]))
       
-
-opqhandlingOpt :: Parser D.DiffOpaques
-opqhandlingOpt = option (readmOneOf [("never" , D.DO_Never)
-                                    ,("spine" , D.DO_OnSpine)
-                                    ,("always", D.DO_AsIs)
-                                    ])
-               ( long "diff-opq"
-              <> short 'k'
-              <> metavar "never | spine | always ; default: never"
-              <> value D.DO_Never
-              <> help aux
-              <> hidden)
-  where    
-    aux = unwords
-      ["Controls how to handle opaque values. We either treat them like normal"
-      ,"trees, with 'always', never share them, or share only the opaque values"
-      ,"that end up on the spine"
-      ]
 
 diffOpts :: Parser Options
 diffOpts =
@@ -120,8 +99,7 @@ diffOpts =
                  <> hidden)
        <*> minheightOpt
        <*> diffmodeOpt
-       <*> opqhandlingOpt
-       <*> skipClosuresOpt 
+       <*> globScopedOpt 
        <*> switch ( long "with-stats"
                  <> help "Produces statistics; suppresses the output of the patch")
                  
@@ -144,8 +122,7 @@ mergeOpts =
         <*> testmergeOpt
         <*> minheightOpt
         <*> diffmodeOpt
-        <*> opqhandlingOpt
-        <*> skipClosuresOpt 
+        <*> globScopedOpt 
 
 
 parseOptions :: Parser Options
@@ -198,9 +175,9 @@ versionOpts :: Parser (a -> a)
 versionOpts = infoOption vERSION_STR (long "version")
 
 optionMode :: Options -> OptionMode
-optionMode (AST _)                    = OptAST
-optionMode (Merge _ _ _ _ _ _ _ _)    = OptMerge
-optionMode (Diff _ _ _ _ _ _ _ _)     = OptDiff
+optionMode (AST _)                  = OptAST
+optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
+optionMode (Diff _ _ _ _ _ _ _)     = OptDiff
 
 
 hdiffOpts :: ParserInfo (Verbosity , SelectedFileParser , Options)

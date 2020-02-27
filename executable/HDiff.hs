@@ -118,7 +118,7 @@ diffWithOpts :: (LangCnstr kappa fam ix)
              -> SFix kappa fam ix
              -> IO (D.Patch kappa fam ix)
 diffWithOpts opts fa fb = do
-  let localopts = D.DiffOptions (minHeight opts) (opqHandling opts) (diffMode opts) (skipClosures opts)
+  let localopts = D.DiffOptions (minHeight opts) (diffMode opts) (globScoped opts)
   return (D.diffOpts localopts fa fb)
 
 mainDiff :: Verbosity -> Maybe String -> Options -> IO ExitCode

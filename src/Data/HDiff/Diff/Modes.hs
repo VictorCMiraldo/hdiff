@@ -73,22 +73,14 @@ properShare :: forall kappa fam at
             -> PrepFix (Int , Bool) kappa fam at
             -> Holes kappa fam (MetaVar kappa fam) at
 properShare _ _ (PrimAnn _ k) = Prim k
-properShare h tr pr@(SFixAnn ann _)
+properShare h tr pr@(SFixAnn ann d)
   = let prep  = getConst ann
         isPS  = snd $ treeParm prep
      in if not (isPS && h pr)
-        then properShare' pr
+        then Roll (repMap (properShare h tr) d) 
         else case T.lookup (toW64s $ treeDigest prep) tr of
-               Nothing -> properShare' pr
+               Nothing -> Roll (repMap (properShare h tr) d) 
                Just i  -> Hole (MV_Comp $ getMetavar i) 
-  where
-    -- TODO: Abstract the properShare', noNested' and patience'
-    -- into a single function, remove 'CanShare' from these specific functions
-    -- and make the life of whoever is making an extraction strategy
-    -- simpler.
-    properShare' :: PrepFix (Int , Bool) kappa fam at
-                 -> Holes kappa fam (MetaVar kappa fam) at
-    properShare' (SFixAnn _ d) = Roll (repMap (properShare h tr) d) -- HPeel' c (mapNP (properShare h tr) d)
 
 -- ** Patience
 
@@ -104,20 +96,16 @@ patience :: forall kappa fam at a
          -> PrepFix a kappa fam at
          -> Holes kappa fam (MetaVar kappa fam) at
 patience _ _ (PrimAnn _ k) = Prim k
-patience h tr pr@(SFixAnn ann _)
-  = if not (h pr)
-    then patience' pr
-    else case T.lookup (toW64s $ treeDigest $ getConst ann) tr of
-           Nothing -> patience' pr
-           Just i | getArity i == 2 -> Hole (MV_Comp $ getMetavar i)
-                  | otherwise       -> patience' pr
-  where
-    patience' :: PrepFix a kappa fam at
-              -> Holes kappa fam (MetaVar kappa fam) at
-    patience' (PrimAnn _ k) = Prim k
-    patience' (SFixAnn _ d) = Roll (repMap (patience h tr) d) 
+patience h tr pr@(SFixAnn ann d)
+  = let aux = Roll (repMap (patience h tr) d)
+     in if not (h pr)
+        then aux
+        else case T.lookup (toW64s $ treeDigest $ getConst ann) tr of
+               Just i | getArity i == 2 -> Hole (MV_Comp $ getMetavar i)
+                      | otherwise       -> aux
+               Nothing                  -> aux
 
-
+              
 -- ** No Nested
 
 extractNoNested :: CanShare kappa fam 
@@ -152,13 +140,9 @@ noNested :: forall kappa fam at a
          -> PrepFix a kappa fam at
          -> Holes kappa fam (Const Int :*: PrepFix a kappa fam) at
 noNested _ _ (PrimAnn _ x) = Prim x
-noNested h tr pr@(SFixAnn ann _)
+noNested h tr pr@(SFixAnn ann d)
   = if not (h pr)
-    then noNested' pr
+    then Roll (repMap (noNested h tr) d)
     else case T.lookup (toW64s $ treeDigest $ getConst ann) tr of
-           Nothing -> noNested' pr
+           Nothing -> Roll (repMap (noNested h tr) d)
            Just i  -> Hole (Const (getMetavar i) :*: pr)
-  where
-    noNested' :: PrepFix a kappa fam at
-              -> Holes kappa fam (Const Int :*: PrepFix a kappa fam) at
-    noNested' (SFixAnn _ d) = Roll (repMap (noNested h tr) d)

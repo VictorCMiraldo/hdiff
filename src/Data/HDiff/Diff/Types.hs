@@ -2,18 +2,6 @@ module Data.HDiff.Diff.Types where
 
 import qualified Data.WordTrie as T
 
--- |Controls the sharing of opaque values.
-data DiffOpaques
-  -- |Never share opaque values
-  = DO_Never
-  -- |Only share opaque values that appear
-  -- on the spine.
-  | DO_OnSpine
-  -- |Handle values of type @K k@ normally,
-  -- as we handle recursive trees, of type @I i@.
-  | DO_AsIs
-  deriving (Eq , Show)
-
 -- |Diffing Algorithm modes. This is better illustrated with an
 -- example. Supposte we have the following source and destination
 -- trees:
@@ -47,8 +35,6 @@ data DiffMode
 data DiffOptions = DiffOptions
   -- ^ Minimum height of trees considered for sharing
   { doMinHeight      :: Int
-  -- ^ How do we share opaque values
-  , doOpaqueHandling :: DiffOpaques
   -- ^ Context extraction mode
   , doMode           :: DiffMode
   -- ^ Should we skip change minimization and closures?
@@ -56,7 +42,7 @@ data DiffOptions = DiffOptions
   } deriving (Eq , Show)
 
 diffOptionsDefault :: DiffOptions
-diffOptionsDefault = DiffOptions 1 DO_Never DM_NoNested False
+diffOptionsDefault = DiffOptions 1 DM_NoNested False
 
 -- |The data structure that captures which subtrees are shared
 --  between source and destination. Besides providing an efficient

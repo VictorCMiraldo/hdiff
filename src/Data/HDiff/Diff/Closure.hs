@@ -8,16 +8,14 @@
 {-# LANGUAGE GADTs                 #-}
 module Data.HDiff.Diff.Closure where
 
-import Data.Functor.Sum
+import           Data.Functor.Sum
+import           Control.Monad.Writer hiding (Sum)
 import qualified Data.Map as M
-import Control.Monad.Writer hiding (Sum)
-
-import Data.Monoid hiding (Sum)
-import Data.HDiff.Base
-import Data.HDiff.MetaVar
-
+-------------------------------------
 import Generics.Simplistic
 import Generics.Simplistic.Util
+-------------------------------------
+import Data.HDiff.Base
 
 -- |Enable us to annotate a change with the
 -- variables it declares in its deletion context
@@ -49,6 +47,10 @@ chgVarsDistr h =
       u'        = M.unionsWith (+) us
    in WithVars d' u' (Chg (holesJoin hD) (holesJoin hI))
 
+-- |Given a globally-scoped change, extract the largest possible
+-- spine whilst maintaining well-scoped and closed changes.
+-- Calling close with a change that has free variables will
+-- trigger a call to 'error'.
 close :: Chg kappa fam at
       -> Holes kappa fam (Chg kappa fam) at
 close c =
@@ -61,20 +63,21 @@ close c =
             -> ChgVars kappa fam at
    withVars (d :*: i) = WithVars (holesVars d) (holesVars i) (Chg d i)
                 
-closure :: M.Map Int Arity
-        -> Holes kappa fam (ChgVars kappa fam) at
-        -> Sum (ChgVars kappa fam) (Holes kappa fam (ChgVars kappa fam)) at 
-closure _  (Prim x)  = InR $ Prim x
-closure gl (Hole cv)
-  | isClosed gl cv = InR $ Hole cv
-  | otherwise      = InL cv
-closure gl (Roll x) =
-  let aux = repMap (closure gl) x
-   in case repMapM fromInR aux of
-        Just res -> InR $ Roll res
-        Nothing  -> let res = chgVarsDistr $ Roll $ repMap (either' Hole  id) aux
-                     in if isClosed gl res then InR (Hole res) else InL res
- where
-  fromInR :: Sum f g x -> Maybe (g x)
-  fromInR (InL _) = Nothing
-  fromInR (InR c) = Just c
+
+   closure :: M.Map Int Arity
+           -> Holes kappa fam (ChgVars kappa fam) at
+           -> Sum (ChgVars kappa fam) (Holes kappa fam (ChgVars kappa fam)) at 
+   closure _  (Prim x)  = InR $ Prim x
+   closure gl (Hole cv)
+     | isClosed gl cv = InR $ Hole cv
+     | otherwise      = InL cv
+   closure gl (Roll x) =
+     let aux = repMap (closure gl) x
+      in case repMapM fromInR aux of
+           Just res -> InR $ Roll res
+           Nothing  -> let res = chgVarsDistr $ Roll $ repMap (either' Hole  id) aux
+                        in if isClosed gl res then InR (Hole res) else InL res
+    where
+     fromInR :: Sum f g x -> Maybe (g x)
+     fromInR (InL _) = Nothing
+     fromInR (InR r) = Just r

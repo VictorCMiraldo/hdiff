@@ -61,8 +61,8 @@ data Conflict :: [*] -> [*] -> * -> * where
               -> Conflict kappa fam at
   
   Conflict :: String
-           -> Aligned kappa fam at
-           -> Aligned kappa fam at
+           -> Al kappa fam at
+           -> Al kappa fam at
            -> Conflict kappa fam at
 
 -- |A 'PatchC' is a patch with potential conflicts inside
@@ -98,7 +98,7 @@ diff3 oa ob =
  where
    delta f (x :*: y) = (f x :*: f y)
 
-mergeAl :: Aligned kappa fam x -> Aligned kappa fam x
+mergeAl :: Al kappa fam x -> Al kappa fam x
         -> Sum (Conflict kappa fam) (Chg kappa fam) x
 mergeAl p q = case runExcept (evalStateT (mrg p q) mrgSt0) of
                 Left err -> InL $ Conflict err p q
@@ -125,22 +125,20 @@ onEqvs f = do
   trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
   
 
-mrg :: Aligned kappa fam x -> Aligned kappa fam x
-    -> MergeM kappa fam (Aligned kappa fam x)
+mrg :: Al kappa fam x -> Al kappa fam x
+    -> MergeM kappa fam (Al kappa fam x)
 mrg p q = do
   phase1 <- mrg0 p q
   inst <- get
   case makeDelInsMaps inst of
     Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
-    Right di -> alignedMapM (phase2 di) phase1
+    Right di -> alMapM (phase2 di) phase1
 
-mrg0 :: Aligned kappa fam x -> Aligned kappa fam x
-    -> MergeM kappa fam (Aligned' kappa fam (Phase2 kappa fam) x)
+mrg0 :: Al kappa fam x -> Al kappa fam x
+    -> MergeM kappa fam (Al' kappa fam (Phase2 kappa fam) x)
 -- Copies are the easiest case
 mrg0 (Cpy x) q     = return $ Mod (P2Instantiate (disalign q))
 mrg0 p (Cpy x)     = return $ Mod (P2Instantiate (disalign p))
-mrg0 (CpyPrim _) q = return $ Mod (P2Instantiate (disalign q))
-mrg0 p (CpyPrim _) = return $ Mod (P2Instantiate (disalign p))
 
 -- Permutations are almost as simple as copies
 mrg0 (Prm x y) (Prm x' y') = Mod <$> mrgPrmPrm x y x' y'
@@ -188,9 +186,9 @@ isCpy _                       = False
 
 -- |Checks that a deletion is compatible with an alignment; if so, returns
 -- an adapted alignment;
-compat :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Aligned kappa fam) x
-       -> Aligned kappa fam x
-       -> MergeM kappa fam (Aligned kappa fam x , Aligned kappa fam x)
+compat :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Al kappa fam) x
+       -> Al kappa fam x
+       -> MergeM kappa fam (Al kappa fam x , Al kappa fam x)
 compat (Zipper zip h) (Del (Zipper zip' h'))
   | zip == zip' = return (h , h')
   | otherwise   = throwError "del-del"
@@ -213,10 +211,10 @@ compat (Zipper zip h) (Spn rep) =
    isInR1 (InL _ :*: _) = True
    isInR1 _             = False
 
-   isCpyL1 :: Exists (Sum a b :*: Aligned kappa fam) -> Bool
+   isCpyL1 :: Exists (Sum a b :*: Al kappa fam) -> Bool
    isCpyL1 (Exists (_ :*: a)) = isCpyA a
 
-   isCpyA :: Aligned kappa fam x -> Bool
+   isCpyA :: Al kappa fam x -> Bool
    isCpyA (Cpy _) = True
    isCpyA (Spn r) = all (exElim isCpyA) (repLeavesList r)
    isCpyA _       = False
@@ -369,7 +367,7 @@ mrgChgDup dup@(Chg (Hole v) _) q =
                  >> return (P2Instantiate dup)
 
 mrgChgSpn :: (CompoundCnstr kappa fam x)
-          => Chg kappa fam x -> SRep (Aligned kappa fam) (Rep x)
+          => Chg kappa fam x -> SRep (Al kappa fam) (Rep x)
           -> MergeM kappa fam (Phase2 kappa fam x)
 mrgChgSpn p@(Chg dp ip) spn =
  trace (mkDbgString "chg" "spn" (show p) (show spn))
@@ -377,11 +375,10 @@ mrgChgSpn p@(Chg dp ip) spn =
 
 instM :: forall kappa fam at  
        . HolesMV kappa fam at
-      -> Aligned kappa fam at
+      -> Al kappa fam at
       -> MergeM kappa fam ()
 -- instantiating over a copy is fine; 
 instM _ (Cpy     _) = return ()
-instM _ (CpyPrim _) = return ()
 
 instM (Hole v) a = do
   i <- gets iota
