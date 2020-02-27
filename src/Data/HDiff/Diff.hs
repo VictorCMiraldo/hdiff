@@ -158,6 +158,8 @@ diffOpts' opts x y
      in (i , delins)
  where
    mkCanShare :: forall a ix . PrepFix a kappa fam ix -> Bool
+   mkCanShare (Prim' _ _)
+     = False
    mkCanShare pr
      = doMinHeight opts < treeHeight (getConst $ getAnn pr)
 
