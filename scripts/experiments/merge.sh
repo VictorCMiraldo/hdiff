@@ -17,8 +17,7 @@ fi
 
 height=1
 mode="nonest"
-opq="spine"
-skipclosures=""
+globscope=""
 parser=""
 while [[ "$#" -gt 0 ]]; do
   arg=$1;
@@ -27,8 +26,7 @@ while [[ "$#" -gt 0 ]]; do
     -m|--min-height)   height=$1; shift;;
     -d|--diff-mode)    mode=$1; shift;;
     -p|--parser)       parser=$1; shift;;
-    -o|--opq-handling) opq=$1; shift;;
-    --skip-closures)   skipclosures="--skip-closures";;
+    --global-scope)    globscope="--global-scope";;
     *) echo "Unknown experiment argument: $arg"; exit 1 ;;
   esac
 done
@@ -37,14 +35,14 @@ timeout="45s"
 function doMerge() {
   local hdr=""
   local res=42
-  hdr="$prefix $height $mode $opq"
+  hdr="$prefix $height $mode"
   if [[ ! -z "$skipclosures" ]]; then 
     hdr="$hdr global"
   else
     hdr="$hdr local"
   fi
   timeout "${timeout}" hdiff -p $parser \
-    merge -d $mode -m $height -k $opq $skipclosures \
+    merge -d $mode -m $height $skipclosures \
     --test-merge "$fm" "$fa" "$fo" "$fb"
   res=$?
   case $res in

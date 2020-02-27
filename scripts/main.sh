@@ -12,7 +12,6 @@ if [[ "$#" -ne "1" ]]; then
 fi
 dataset="$1"
 
-
 res="res-$(git log -n 1 --format=%h)"
 if [[ -d $res ]]; then
   echo "Directory res already exists"
@@ -39,13 +38,11 @@ runMergeLoc() {
 
   for hh in 1 6; do
     for mm in nonest proper patience; do
-      for kk in spine never always; do
-        meta "Launching hdiff $parser $name $hh $mm $kk local"
-        echo "Launching hdiff $parser $name $hh $mm $kk local"
+        meta "Launching hdiff $parser $name $hh $mm local"
+        echo "Launching hdiff $parser $name $hh $mm local"
          ./scripts/run-experiment.sh $dry \
-            -l "$log.$hh.$mm.$kk.loc.log" -m 16 "$path" $exp \
-            -m $hh -d $mm -o $kk -p $parser 2> /dev/null &
-      done
+            -l "$log.$hh.$mm.loc.log" -m 16 "$path" $exp \
+            -m $hh -d $mm -p $parser 2> /dev/null &
     done
   done
 }
@@ -59,12 +56,11 @@ runMergeGlob() {
 
   for hh in 1 6; do
     for mm in nonest proper patience; do
-      for kk in spine never always; do
-        meta "Launching hdiff $parser $name $hh $mm $kk global"
-        echo "Launching hdiff $parser $name $hh $mm $kk global"
+        meta "Launching hdiff $parser $name $hh $mm global"
+        echo "Launching hdiff $parser $name $hh $mm global"
          ./scripts/run-experiment.sh $dry \
-            -l "$log.$hh.$mm.$kk.glob.log" -m 16 "$path" $exp \
-            -m $hh -d $mm -o $kk -p $parser --skip-closures 2> /dev/null &
+            -l "$log.$hh.$mm.glob.log" -m 16 "$path" $exp \
+            -m $hh -d $mm -p $parser --global-scope 2> /dev/null &
       done
     done
   done
@@ -78,17 +74,11 @@ runDiff () {
   local log="$res/individual/$name-$parser"
 
   for mm in nonest proper patience; do
-      meta "Launching hdiff $parser $name $hh $mm $kk local"
-      echo "Launching hdiff $parser $name $hh $mm $kk local"
+      meta "Launching hdiff $parser $name $hh $mm local"
+      echo "Launching hdiff $parser $name $hh $mm local"
        ./scripts/run-experiment.sh $dry \
-          -l "$log.1.$mm.never.loc.log" -m 16 "$path" $exp \
+          -l "$log.1.$mm.loc.log" -m 16 "$path" $exp \
           -d $mm -o never -p $parser 2> /dev/null &
-
-      meta "Launching hdiff $parser $name $hh $mm $kk global"
-      echo "Launching hdiff $parser $name $hh $mm $kk global"
-      ./scripts/run-experiment.sh $dry \
-         -l "$log.1.$mm.never.loc.log" -m 16 "$path" $exp \
-         -d $mm -o never -p $parser --skip-closures 2> /dev/null &
   done
 } 
 
@@ -97,7 +87,6 @@ meta "Let the experiments begin"
 #Runs hdiff on the supported languages
 for lang in lua clj sh java js py; do
   runMergeLoc  "conflicts-$lang" "$lang"
-  wait
   runMergeGlob "conflicts-$lang" "$lang"
   wait
 done
