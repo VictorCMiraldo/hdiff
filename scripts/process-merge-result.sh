@@ -7,7 +7,7 @@ showUsage() {
   echo "  Log file must have been produced by ./run-experiment.sh ... merge.sh ..."
   echo "  Or be in the format:"
   echo ""  
-  echo "  <reponame-commitId-objId> <height> <mode> <opq-mode> <global|local> <result>"
+  echo "  <reponame-commitId-objId> <height> <mode> <global|local> <result>"
   echo ""
   exit 1
 }
@@ -25,10 +25,11 @@ awkScript='\
   /parse-error/ { PERR=$1  }\
   /timeout/     { TOUT=$1  }\
   /unknown/     { OTHER=$1 }\
+  /apply-fail/  { OTHER=$1 }\
   END           { print " success+mdiff: " (SUCC + MDIF) " mdiff: " MDIF " conf: " CONF " parse-error: " PERR " timeout: " TOUT " other: " OTHER }'
 
 while IFS= read -r header; do 
-  cat "$@" | grep "$header" | cut -d' ' -f6 | sort | uniq -c | awk "$awkScript" | xargs -I{} echo "$header {}"
-done < <(cat "$@" | cut -d' ' -f2,3,4,5 | sort | uniq)
+  cat "$@" | grep "$header" | cut -d' ' -f5 | sort | uniq -c | awk "$awkScript" | xargs -I{} echo "$header {}"
+done < <(cat "$@" | cut -d' ' -f2,3,4 | sort | uniq)
 
 
