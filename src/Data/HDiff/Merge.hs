@@ -237,8 +237,8 @@ mergePhase1 p q =
    -- and "apply" the deletion to the other change, when we
    -- can safely delete the zipper from the other change
    -- we continue merge with the result and preserve the deletion.
-   (Del zp@(Zipper z _), _) -> Del . Zipper z <$> (compat zp q >>= uncurry mergePhase1)
-   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (compat zq p >>= uncurry mergePhase1 . swap)
+   (Del zp@(Zipper z _), _) -> Del . Zipper z <$> (tryDel zp q >>= uncurry mergePhase1)
+   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (tryDel zq p >>= uncurry mergePhase1 . swap)
 
    -- Spines mean that on one hand a constructor was copied; but the mod
    -- indicates this constructor changed. Hence, we hace to try applying
@@ -305,30 +305,24 @@ mergePhase1 p q =
     trace (mkDbgString "chg" "spn" (show p) (show spn))
       $ instM dp (Spn spn) >> return (P2Instantiate' p (chgIns $ disalign $ Spn spn))
 
-
-
-
--- Spines and Changes
-
-isCpy :: Chg kappa fam x -> Bool
-isCpy (Chg (Hole v) (Hole u)) = metavarGet v == metavarGet u
-isCpy _                       = False
-
--- |Checks that a deletion is compatible with an alignment; if so, returns
--- an adapted alignment;
-compat :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Al kappa fam) x
+-- |Checks whether we can /delete/ a zipper from an alignment.
+-- For example, a zipper @Bin (Leaf 42) HOLE@ could be /deleted/
+-- from a spine @Bin Cpy (Bin ...)@, and the result would be
+-- overlaying whatever alignment is the continuation
+-- of the deleton with the @Bin ...@ subtree.
+tryDel :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Al kappa fam) x
        -> Al kappa fam x
        -> MergeM kappa fam (Al kappa fam x , Al kappa fam x)
-compat (Zipper zip h) (Del (Zipper zip' h'))
-  | zip == zip' = return (h , h')
-  | otherwise   = throwError "del-del"
+tryDel (Zipper z h) (Del (Zipper z' h'))
+  | z == z'   = return (h , h')
+  | otherwise = throwError "del-del"
 -- Here we know chg is incompatibile; If it did not touch any
 -- of the recursive places fixed by 'zip' it would have been
 -- recognized as a deletion; if can't be a copy or a pemrutation
 -- because it is not flagged as such (and we handled those above!)
-compat (Zipper zip h) (Mod chg) = throwError "del-mod"
-compat (Zipper zip h) (Spn rep) =
-  case zipperRepZip zip rep of
+tryDel (Zipper _ _) (Mod _)   = throwError "del-mod"
+tryDel (Zipper z h) (Spn rep) =
+  case zipperRepZip z rep of
     Nothing -> throwError "del-spn-1"
     Just r  -> let hs = repLeavesList r
                 in case partition (exElim isInR1) hs of
