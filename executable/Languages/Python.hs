@@ -155,8 +155,6 @@ type PyFam = '[ () , [String] , SrcSpan,
   ,  (Expr (), Maybe (Expr (), Maybe (Expr ())))
   ] 
 
-instance HasDecEq PyFam where
-
 parseFile :: String -> ExceptT String IO (Module SrcSpan)
 parseFile file = do
   res <- lift $ readFile file

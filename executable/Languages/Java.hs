@@ -199,8 +199,6 @@ instance Deep JavaPrim JavaFam [Java.VarInit]
 instance Deep JavaPrim JavaFam [Java.EnumConstant]
 instance Deep JavaPrim JavaFam Java.EnumConstant
 
-instance HasDecEq JavaFam where
-
 parseFile :: String -> ExceptT String IO Java.CompilationUnit
 parseFile file = do
   res <- lift $ readFile file

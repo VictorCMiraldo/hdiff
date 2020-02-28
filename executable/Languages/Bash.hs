@@ -71,8 +71,6 @@ type ShFam =
   , Bash.IODesc 
   ]
 
-instance HasDecEq ShFam where
-
 instance Deep ShPrim ShFam Bash.List
 instance Deep ShPrim ShFam [Bash.Statement]
 instance Deep ShPrim ShFam Bash.Statement

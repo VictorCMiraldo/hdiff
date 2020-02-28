@@ -98,8 +98,6 @@ type JSFam =
   , (CatchClause ())
   ]
 
-instance HasDecEq JSFam where
-
 parseFile :: String -> ExceptT String IO (JavaScript Loc)
 parseFile file = do
   res <- lift $ readFile file

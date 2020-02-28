@@ -64,7 +64,7 @@ mainParsers
     ]
 
 type LangCnstr kappa fam ix
-  = (HasDecEq fam, All Digestible kappa)
+  = (All Digestible kappa)
     
 data LangParser :: * where
   LangParser :: (LangCnstr kappa fams ix)

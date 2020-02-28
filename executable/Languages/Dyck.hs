@@ -76,8 +76,6 @@ instance Deep DyckPrim DyckFam ()
 instance Deep DyckPrim DyckFam (Dyck ())
 instance Deep DyckPrim DyckFam (DyckAtom ())
 
-instance HasDecEq DyckFam where
-
 parseFile :: String -> ExceptT String IO (Dyck WS)
 parseFile file = do
   res <- lift $ readFile file

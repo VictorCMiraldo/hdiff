@@ -52,8 +52,6 @@ instance Deep LuaPrim LuaFam Binop
 instance Deep LuaPrim LuaFam Unop
 instance Deep LuaPrim LuaFam [Var]
 
-instance HasDecEq LuaFam where
-
 type LuaFam = 
   [ Block
   , (Maybe Block)

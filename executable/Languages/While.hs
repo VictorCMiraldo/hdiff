@@ -86,8 +86,6 @@ instance Deep WhilePrims WhileFam ABinOp
 instance Deep WhilePrims WhileFam BBinOp
 instance Deep WhilePrims WhileFam RBinOp
 
-instance HasDecEq WhileFam where
-
 dfromWhile :: Stmt -> SFix WhilePrims WhileFam Stmt
 dfromWhile = dfrom
 

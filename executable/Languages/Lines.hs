@@ -42,7 +42,6 @@ type LinesFam   = '[Stmt , Line , [Line]]
 instance Deep LinesPrims LinesFam Line
 instance Deep LinesPrims LinesFam [Line]
 instance Deep LinesPrims LinesFam Stmt
-instance HasDecEq LinesFam where
 
 dfromLines :: Stmt -> SFix LinesPrims LinesFam Stmt
 dfromLines = dfrom

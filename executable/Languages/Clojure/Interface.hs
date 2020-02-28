@@ -46,8 +46,6 @@ instance Deep CljPrims CljFam Term
 instance Deep CljPrims CljFam Sep
 instance Deep CljPrims CljFam Tag
 
-instance HasDecEq CljFam where
-
 type CljFam = 
   [ Expr
   , FormTy
