@@ -120,6 +120,12 @@ chgMaxVar = fmap fst . M.lookupMax . chgVars
 chgCost :: Chg kappa fam at -> Int
 chgCost (Chg d i) = holesSize d + holesSize i
 
+chgShiftVarsBy :: Int -> Chg kappa fam at -> Chg kappa fam at
+chgShiftVarsBy n (Chg del ins)
+  = Chg (holesMap (metavarAdd n) del)
+        (holesMap (metavarAdd n) ins)
+
+
 
 -- * Patches
 --
@@ -168,13 +174,8 @@ withFreshNamesFrom p q =
   case patchMaxVar q of
     -- q has no variables!
     Nothing -> p
-    Just v  -> holesMap (changeAdd (v + 1)) p
-  where
-    changeAdd :: Int -> Chg kappa fam at -> Chg kappa fam at
-    changeAdd n (Chg del ins)
-      = Chg (holesMap (metavarAdd n) del)
-            (holesMap (metavarAdd n) ins)
-      
+    Just v  -> holesMap (chgShiftVarsBy (v + 1)) p
+
 -- | The deletion context of a patch
 domain :: Patch kappa fam at -> Domain kappa fam at
 domain = chgDel . chgDistr

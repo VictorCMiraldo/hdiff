@@ -213,6 +213,7 @@ annotRigidity = synthesize go (const $ const $ Const True)
 -- |Aligns a patch in two passes. First it annotates the
 -- contxts with rigidity information, then it aligns the
 -- contexts.
+{-
 align :: (HasDecEq fam) => Patch kappa fam at -> PatchAl kappa fam at
 align = holesMap chgAlign
   where
@@ -220,6 +221,33 @@ align = holesMap chgAlign
               => Chg kappa fam x -> Al kappa fam x
     chgAlign c@(Chg d i) = -- rmFauxPerms
       al (chgVars c) (annotRigidity d) (annotRigidity i)
+-}
+
+align :: (HasDecEq fam) => Patch kappa fam at -> PatchAl kappa fam at
+align = fst . align'
+
+align' :: (HasDecEq fam) => Patch kappa fam at
+       -> (PatchAl kappa fam at , Int)
+align' p = flip runState maxv
+        $ holesMapM (alRefineM cpyPrims . chgAlign) p
+  where
+    -- Compute the variables globally since we need the overall
+    -- max value anyway.
+    vars = patchVars p
+    maxv = (+1) . maybe 0 fst $ M.lookupMax vars
+
+    -- second pass copies prims
+    cpyPrims :: Chg kappa fam x -> State Int (Al kappa fam x)
+    cpyPrims c@(Chg (Prim x) (Prim y))
+      | x == y    = get >>= \i -> put (i+1) >> return (Cpy (MV_Prim i))
+      | otherwise = return (Mod c)
+    cpyPrims c    = return (Mod c)
+    
+    -- first pass aligns changes and reveals a spine
+    chgAlign :: (HasDecEq fam)
+              => Chg kappa fam x -> Al kappa fam x
+    chgAlign c@(Chg d i) = al (chgVars c) (annotRigidity d) (annotRigidity i)
+ 
 
 ----------------------------
 -- * Internals of 'align' --

@@ -92,8 +92,8 @@ diff3 :: forall kappa fam ix
 -- Since patches are well-scoped (again! yay! lol)
 -- we can map over the anti-unif for efficiency purposes.
 diff3 oa ob =
-  let oa' = align oa
-      ob' = align (ob `withFreshNamesFrom` oa)
+  let (oa' , maxa) = align' oa
+      ob'          = align (holesMap (chgShiftVarsBy maxa) ob)
    in holesMap (uncurry' mergeAl . delta alignDistr) $ lgg oa' ob'
  where
    delta f (x :*: y) = (f x :*: f y)
