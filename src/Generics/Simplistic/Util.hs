@@ -19,7 +19,7 @@ module Generics.Simplistic.Util
   , (:->) , (<.>)
 
     -- * Poly-kind indexed product functionality
-  , (:*:)(..) , Delta , curry' , uncurry' , delta
+  , (:*:)(..) , Delta , curry' , uncurry' , delta , deltaMap
 
     -- * Poly-kind indexed sums
   , Sum(..) , either' , either''
@@ -68,6 +68,10 @@ type Delta f = f :*: f
 -- |Duplicates its argument
 delta :: f :-> Delta f
 delta fx = fx :*: fx
+
+-- |Applies the same function to both components of the pair
+deltaMap :: (f :-> g) -> Delta f :-> Delta g
+deltaMap f (x :*: y) = f x :*: f y
 
 -- |Higher-order sum eliminator
 either' :: (f :-> r) -> (g :-> r) -> Sum f g :-> r

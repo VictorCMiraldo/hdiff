@@ -16,8 +16,6 @@ module Data.HDiff.Merge where
 import           Control.Monad.Cont
 import           Control.Monad.State
 import           Control.Monad.Except
-import           Control.Monad.Writer hiding (Sum)
-import           Data.Functor.Const
 import qualified Data.Map as M
 import           Data.Type.Equality
 import           Data.List (partition, foldl')
@@ -30,7 +28,6 @@ import           Generics.Simplistic.Zipper
 ----------------------------------------
 import           Data.HDiff.MetaVar
 import           Data.HDiff.Base
-import           Data.HDiff.Instantiate
 import           Data.HDiff.Diff.Align
 
 
@@ -56,10 +53,18 @@ mkDbgString ca cb stra strb =
           ,"  " ++ cb ++ " = " ++ strb
           , ""]
 
+-- * Types and Auxiliary Definitions
+--
+-- $mergetypes
+
+-- |A conflict signals a location in the source object
+-- that was changed in two different ways.
+-- There probably is a better way of identifying
+-- conflicts in a more localized fashion, but this will work for now.
 data Conflict :: [*] -> [*] -> * -> * where
-  FailedContr :: [Exists (MetaVar kappa fam)]
-              -> Conflict kappa fam at
-  
+  -- ^ A conflict carries a label about the issue
+  --   and the the alignments that diverge in
+  --   unreconcilable ways.
   Conflict :: String
            -> Al kappa fam at
            -> Al kappa fam at
@@ -69,12 +74,68 @@ data Conflict :: [*] -> [*] -> * -> * where
 type PatchC kappa fam at
   = Holes kappa fam (Sum (Conflict kappa fam) (Chg kappa fam)) at
 
+-- |The core of the merge algorithm carries around
+-- a map of decisions it made regarding how certain locations
+-- have changed, in 'iota'; and also carries around a list
+-- of equivalences it discovered, in 'eqs'.
+data MergeState kappa fam = MergeState
+  { iota :: M.Map Int (Exists (Chg kappa fam))
+  , eqs  :: Subst kappa fam (MetaVar kappa fam)
+  }
+
+-- |Empty merge state
+mrgSt0 :: MergeState kappa fam
+mrgSt0 = MergeState M.empty substEmpty
+
+-- |Apply a function over the 'eqs' field of 'MergeState'
+onEqvs :: (Subst kappa fam (MetaVar kappa fam)
+            -> Subst kappa fam (MetaVar kappa fam))
+       -> MergeM kappa fam ()
+onEqvs f = do
+  e <- gets eqs
+  let es' = f e
+  trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
+
+-- |Synonym for the merge monad.
+type MergeM kappa fam = StateT (MergeState kappa fam) (Except String)
+
+-- |Attempts to insert a new point into an instantiation.
+-- If @Patch kappa fam at@ is already associated to a value, ensure
+-- it is the same as @x@. Note that we should really stick to
+-- using 'instAdd' to manipulate instantiations as it forces
+-- the metavariable and the element @Patch kappa fam@ to have the
+-- same index.
+instAdd :: M.Map Int (Exists (Chg kappa fam))
+        -> MetaVar kappa fam at -> Chg kappa fam at
+        -> Maybe (M.Map Int (Exists (Chg kappa fam)))
+instAdd inst v x =
+  case M.lookup (metavarGet v) inst of
+     Just (Exists old)
+       | eqHO x (unsafeCoerce old) -> return inst
+       | otherwise                 -> Nothing
+     Nothing
+       -> Just $ M.insert (metavarGet v) (Exists x) inst
+
+-- |Attempts to add a point to 'iota'; the string serves
+-- as a label for throwing an error when this fails.
+addToIota :: String -> MetaVar kappa fam at -> Chg kappa fam at
+          -> MergeM kappa fam ()
+addToIota errLbl v p = do
+  i <- gets iota
+  case instAdd i v p of
+    Nothing -> throwError errLbl
+    Just i' -> modify (\st -> st { iota = i' })
+
+
+-- |Casts a 'PatchC' into a 'Patch' in case no conflicts
+-- have been found.
 noConflicts :: PatchC kappa fam ix -> Maybe (Patch kappa fam ix)
 noConflicts = holesMapM rmvInL
   where
     rmvInL (InL _) = Nothing
     rmvInL (InR x) = Just x
 
+-- |Extracts the list of conflicts from a patch.
 getConflicts :: PatchC kappa fam ix -> [Exists (Conflict kappa fam)]
 getConflicts = foldr act [] . holesHolesList
   where
@@ -84,97 +145,166 @@ getConflicts = foldr act [] . holesHolesList
     act (Exists (InR _)) = id
     act (Exists (InL c)) = (Exists c :)
 
-diff3 :: forall kappa fam ix
-       . (HasDecEq fam)
-      => Patch kappa fam ix
-      -> Patch kappa fam ix
+-- * Diff3
+--
+-- $diff3
+
+-- |@diff3 p q@ omputes a patch that attempts to reconcile
+-- the differences from @p@ and @q@ into a single patch.
+-- In the locations where this is not possible, we
+-- place a conflict.
+diff3 :: Patch kappa fam ix -> Patch kappa fam ix
       -> PatchC kappa fam ix
--- Since patches are well-scoped (again! yay! lol)
--- we can map over the anti-unif for efficiency purposes.
 diff3 oa ob =
+  -- The first step is computing an alignment of
+  -- oa; yet, we must care for the variables introduced
+  -- by it; note how we align a /shifted/ version of ob
+  -- to ensure no variable clashes.
   let (oa' , maxa) = align' oa
       ob'          = align (holesMap (chgShiftVarsBy maxa) ob)
-   in holesMap (uncurry' mergeAl . delta alignDistr) $ lgg oa' ob'
- where
-   delta f (x :*: y) = (f x :*: f y)
+   in holesMap (uncurry' mergeAl . deltaMap alignDistr) $ lgg oa' ob'
 
+-- |Attempts to merge two alignments. Assumes the alignments
+-- have a disjoint set of variables.
 mergeAl :: Al kappa fam x -> Al kappa fam x
         -> Sum (Conflict kappa fam) (Chg kappa fam) x
-mergeAl p q = case runExcept (evalStateT (mrg p q) mrgSt0) of
+mergeAl p q = case runExcept (evalStateT (mergeAlM p q) mrgSt0) of
                 Left err -> InL $ Conflict err p q
                 Right r  -> InR (disalign r)
 
--- Merging alignments might require merging changes; which
--- in turn requier a state.
-
-data MergeState kappa fam = MergeState
-  { iota :: Inst (Patch kappa fam)
-  , eqs  :: Subst kappa fam (MetaVar kappa fam)
-  }
-  
-type MergeM     kappa fam = StateT (MergeState kappa fam) (Except String)
-
-mrgSt0 :: MergeState kappa fam
-mrgSt0 = MergeState M.empty substEmpty
-
-onEqvs :: (Subst kappa fam (MetaVar kappa fam) -> Subst kappa fam (MetaVar kappa fam))
-       -> MergeM kappa fam ()
-onEqvs f = do
-  e <- gets eqs
-  let es' = f e
-  trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
-  
-
-mrg :: Al kappa fam x -> Al kappa fam x
-    -> MergeM kappa fam (Al kappa fam x)
-mrg p q = do
-  phase1 <- mrg0 p q
+-- |Merging alignments is done in two phases.
+-- A first phase is responsible for gathering equivalences,
+-- making decisions about what to instantiate and issuing
+-- commands that will be executed on a second phase; after
+-- we process all of this gathered global information which
+mergeAlM :: Al kappa fam x -> Al kappa fam x -> MergeM kappa fam (Al kappa fam x)
+mergeAlM p q = do
+  phase1 <- mergePhase1 p q
   inst <- get
   case makeDelInsMaps inst of
     Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
     Right di -> alMapM (phase2 di) phase1
 
-mrg0 :: Al kappa fam x -> Al kappa fam x
-    -> MergeM kappa fam (Al' kappa fam (Phase2 kappa fam) x)
--- Copies are the easiest case
-mrg0 (Cpy x) q     = return $ Mod (P2Instantiate (disalign q))
-mrg0 p (Cpy x)     = return $ Mod (P2Instantiate (disalign p))
+-- |The second phase consists in going where 'mergePhase1' left
+-- off and carrying one of three tasts.
+data Phase2 :: [*] -> [*] -> * -> * where
+  -- ^ Either we need to instantiate a given change with the
+  --   updated information about how each subtree was individually altred.
+  P2Instantiate :: Chg kappa fam at
+                -> Phase2 kappa fam at
 
--- Permutations are almost as simple as copies
-mrg0 (Prm x y) (Prm x' y') = Mod <$> mrgPrmPrm x y x' y'
-mrg0 (Prm x y) q = Mod <$> mrgPrm x y (disalign q)
-mrg0 p (Prm x y) = Mod <$> mrgPrm x y (disalign p)
+  -- ^ Sometimes we must check that the instantiation did not
+  --   mention any of the variables in a given insertion context.
+  P2Instantiate' :: Chg kappa fam at
+                 -> HolesMV kappa fam at
+                 -> Phase2 kappa fam at
+  
+  -- ^ Finally, when we cannot really reconcile we can at least try to
+  --   check whether we are looking at the same change or not.
+  P2TestEq      :: Chg kappa fam at
+                -> Chg kappa fam at
+                -> Phase2 kappa fam at
 
--- Insertions are preserved as long as they are not
--- simultaneous.
-mrg0 (Ins (Zipper zip p)) (Ins (Zipper zip' q))
-  | zip == zip' = Ins . Zipper zip <$> mrg0 p q
-  | otherwise   = throwError "ins-ins"
 
-mrg0 (Ins (Zipper zip p)) q    = Ins . Zipper zip <$> mrg0 p q
-mrg0 p (Ins (Zipper zip q))    = Ins . Zipper zip <$> mrg0 p q
+-- |Computes an alignment with leaves of type 'Phase2',
+-- which enables us to map over and make decisions after
+-- we have collected al the informatino.
+mergePhase1 :: Al kappa fam x -> Al kappa fam x
+            -> MergeM kappa fam (Al' kappa fam (Phase2 kappa fam) x)
+mergePhase1 p q =
+ case (p , q) of
+   -- Copies are the easiest case; all we must do is
+   -- instantiate the other change.
+   (Cpy _ , _) -> return $ Mod $ P2Instantiate (disalign q)
+   (_ , Cpy _) -> return $ Mod $ P2Instantiate (disalign p)
 
--- Deletions need to be checked for compatibility
-mrg0 (Del p@(Zipper zip _)) q = compat p q
-                            >>= fmap (Del . Zipper zip) . uncurry mrg0
-mrg0 p (Del q@(Zipper zip _)) = compat q p
-                            >>= fmap (Del . Zipper zip) . uncurry mrg0 . swap
-  where swap (x , y) = (y , x)
+   -- Permutations are almost as simple as copies but 
+   -- do require some additional processing; we delegate to
+   -- an auxiliary function
+   (Prm x y, Prm x' y') -> Mod <$> mrgPrmPrm x y x' y'
+   (Prm x y, _)         -> Mod <$> mrgPrm x y (disalign q)
+   (_, Prm x y)         -> Mod <$> mrgPrm x y (disalign p)
 
--- Spines mean that on one hand a constructor was copied; but the mod
--- indicates this constructor changed. Hence, we hace to try applying
--- the change to the spine at hand.
-mrg0 (Mod p) (Spn q) = Mod <$>  mrgChgSpn p q
-mrg0 (Spn p) (Mod q) = Mod <$>  mrgChgSpn q p
+   -- Insertions are preserved as long as they are not
+   -- simultaneous.
+   (Ins (Zipper z p'), Ins (Zipper z' q'))
+     | z == z'   -> Ins . Zipper z <$> mergePhase1 p' q'
+     | otherwise -> throwError "ins-ins"
+   (Ins (Zipper z p'), _) -> Ins . Zipper z <$> mergePhase1 p' q
+   (_ ,Ins (Zipper z q')) -> Ins . Zipper z <$> mergePhase1 p q'
 
--- When we have two spines it is easy, just pointwise merge their
--- recursive positions
-mrg0 (Spn p) (Spn q) = case zipSRep p q of
-                        Nothing -> throwError "spn-spn"
-                        Just r  -> Spn <$> repMapM (uncurry' mrg0) r
+   -- Deletions need to be checked for compatibility: we try
+   -- and "apply" the deletion to the other change, when we
+   -- can safely delete the zipper from the other change
+   -- we continue merge with the result and preserve the deletion.
+   (Del zp@(Zipper z _), _) -> Del . Zipper z <$> (compat zp q >>= uncurry mergePhase1)
+   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (compat zq p >>= uncurry mergePhase1 . swap)
 
--- Modifications sould be instantiated, if possible.
-mrg0 (Mod p) (Mod q) = Mod <$> mrgChgChg p q
+   -- Spines mean that on one hand a constructor was copied; but the mod
+   -- indicates this constructor changed. Hence, we hace to try applying
+   -- the change to the spine at hand.
+   (Mod p', Spn q') -> Mod <$> mrgChgSpn p' q'
+   (Spn p', Mod q') -> Mod <$> mrgChgSpn q' p'
+
+   -- When we have two spines it is easy, just pointwise merge their
+   -- recursive positions
+   (Spn p', Spn q') -> case zipSRep p' q' of
+       Nothing -> throwError "spn-spn"
+       Just r  -> Spn <$> repMapM (uncurry' mergePhase1) r
+
+   -- Finally, modifications sould be instantiated, if possible.
+   (Mod p', Mod q') -> Mod <$> mrgChgChg p' q'
+ where
+   swap (x , y) = (y , x)
+
+   mrgPrmPrm :: MetaVar kappa fam x
+             -> MetaVar kappa fam x
+             -> MetaVar kappa fam x
+             -> MetaVar kappa fam x
+             -> MergeM kappa fam (Phase2 kappa fam x)
+   mrgPrmPrm x y x' y' =
+     trace (mkDbgString "prm" "prm" (show x ++ " |-> " ++ show y)
+                                    (show x' ++ " |-> " ++ show y'))
+      $ do -- let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
+           let ins oldEs = substInsert oldEs x (Hole x') 
+           onEqvs ins
+           return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
+
+   mrgPrm :: MetaVar kappa fam x
+          -> MetaVar kappa fam x
+          -> Chg kappa fam x
+          -> MergeM kappa fam (Phase2 kappa fam x)
+   mrgPrm x y c = 
+     trace (mkDbgString "prm" "chg" (show x ++ " |-> " ++ show y) (show c))
+       $ addToIota "prm-chg" x c
+       >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
+            
+   mrgChgChg :: Chg kappa fam x -> Chg kappa fam x
+             -> MergeM kappa fam (Phase2 kappa fam x)
+   -- Changes must have unifiable domains
+   mrgChgChg p q
+    | isDup p = mrgChgDup p q
+    | isDup q = mrgChgDup q p
+    | otherwise =
+      trace (mkDbgString "chg" "chg" (show p) (show q)) 
+      $ case runExcept (unify (chgDel p) (chgDel q)) of
+         Left err -> throwError "chg-unif"
+         Right r  -> onEqvs (M.union r)
+                  >> return (P2TestEq p q)
+
+   mrgChgDup :: Chg kappa fam x -> Chg kappa fam x
+             -> MergeM kappa fam (Phase2 kappa fam x)
+   mrgChgDup dup@(Chg (Hole v) _) q = 
+    trace (mkDbgString "chg" "dup" (show q) (show dup))
+     $ addToIota "chg-dup" v q >> return (P2Instantiate dup)
+
+   mrgChgSpn :: (CompoundCnstr kappa fam x)
+             => Chg kappa fam x -> SRep (Al kappa fam) (Rep x)
+             -> MergeM kappa fam (Phase2 kappa fam x)
+   mrgChgSpn p@(Chg dp ip) spn =
+    trace (mkDbgString "chg" "spn" (show p) (show spn))
+      $ instM dp (Spn spn) >> return (P2Instantiate' p (chgIns $ disalign $ Spn spn))
+
 
 
 
@@ -224,59 +354,9 @@ compat (Zipper zip h) (Spn rep) =
 -- Handling changes --
 ----------------------
 
-data Phase2 :: [*] -> [*] -> * -> * where
-  -- |A instantiation needs to be done after we completed the information
-  --  discovery phase.
-  P2Instantiate :: Chg kappa fam at
-                -> Phase2 kappa fam at
-
-  P2Instantiate' :: Chg kappa fam at
-                 -> HolesMV kappa fam at
-                 -> Phase2 kappa fam at
-  
-  -- |Sometimes we must decide whether we are looking into the same change or not.
-  P2TestEq      :: Chg kappa fam at
-                -> Chg kappa fam at
-                -> Phase2 kappa fam at
-
 type Subst2 kappa fam = ( Subst kappa fam (MetaVar kappa fam)
                        , Subst kappa fam (MetaVar kappa fam))
 
-mrgCpy :: MetaVar kappa fam at -> Chg kappa fam at
-       -> MergeM kappa fam (Phase2 kappa fam at)
-mrgCpy x chg = return $ P2Instantiate chg
-{-
-  trace (mkDbgString "cpy" "prm" (show x) (show chg))
-   $ do i <- gets iota
-        case instAdd i x (Hole chg) of
-          Nothing -> error "inv-failure; cpy"
-          Just i' -> modify (\s -> s { iota = i' })
-                  >> return (P2Instantiate (Chg (Hole x) (Hole x)))
--}
-
-mrgPrmPrm :: MetaVar kappa fam x
-          -> MetaVar kappa fam x
-          -> MetaVar kappa fam x
-          -> MetaVar kappa fam x
-          -> MergeM kappa fam (Phase2 kappa fam x)
-mrgPrmPrm x y x' y' =
-  trace (mkDbgString "prm" "prm" (show x ++ " |-> " ++ show y) (show x' ++ " |-> " ++ show y'))
-   $ do -- let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
-        let ins oldEs = substInsert oldEs x (Hole x') 
-        onEqvs ins
-        return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
-
-mrgPrm :: MetaVar kappa fam x
-       -> MetaVar kappa fam x
-       -> Chg kappa fam x
-       -> MergeM kappa fam (Phase2 kappa fam x)
-mrgPrm x y c = 
-  trace (mkDbgString "prm" "chg" (show x ++ " |-> " ++ show y) (show c))
-    $ do i <- gets iota
-         case instAdd i x (Hole c) of
-           Nothing -> error "inv-failure; inst"
-           Just i' -> modify (\s -> s { iota = i' })
-                   >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
 
 
 makeDelInsMaps :: forall kappa fam
@@ -284,8 +364,8 @@ makeDelInsMaps :: forall kappa fam
                -> Either [Exists (MetaVar kappa fam)]
                          (Subst2 kappa fam)
 makeDelInsMaps (MergeState iot eqvs) =
-  let sd = M.toList $ M.map (exMap $ holesJoin . holesMap chgDel) iot
-      si = M.toList $ M.map (exMap $ holesJoin . holesMap chgIns) iot
+  let sd = M.toList $ M.map (exMap chgDel) iot
+      si = M.toList $ M.map (exMap chgIns) iot
    in trace (oneStr "eqvs" eqvs) $ do
     d <- trace (oneStr "sd" $ toSubst sd) (minimize (addEqvs (toSubst sd)))
     i <- trace (oneStr "si" $ toSubst si) (minimize (addEqvs (toSubst si)))
@@ -343,36 +423,6 @@ isDup :: Chg kappa fam x -> Bool
 isDup (Chg (Hole _) (Hole _)) = True
 isDup _ = False
 
-mrgChgChg :: Chg kappa fam x -> Chg kappa fam x
-          -> MergeM kappa fam (Phase2 kappa fam x)
--- Changes must have unifiable domains
-mrgChgChg p q
- | isDup p = mrgChgDup p q
- | isDup q = mrgChgDup q p
- | otherwise =
-   trace (mkDbgString "chg" "chg" (show p) (show q)) 
-   $ case runExcept (unify (chgDel p) (chgDel q)) of
-      Left err -> throwError "chg-unif"
-      Right r  -> onEqvs (M.union r)
-               >> return (P2TestEq p q)
-
-mrgChgDup :: Chg kappa fam x -> Chg kappa fam x
-          -> MergeM kappa fam (Phase2 kappa fam x)
-mrgChgDup dup@(Chg (Hole v) _) q = 
- trace (mkDbgString "chg" "dup" (show q) (show dup))
-  $ do i <- gets iota
-       case instAdd i v (Hole q) of
-         Nothing -> throwError "chg-dup"
-         Just i' -> modify (\s -> s { iota = i' })
-                 >> return (P2Instantiate dup)
-
-mrgChgSpn :: (CompoundCnstr kappa fam x)
-          => Chg kappa fam x -> SRep (Al kappa fam) (Rep x)
-          -> MergeM kappa fam (Phase2 kappa fam x)
-mrgChgSpn p@(Chg dp ip) spn =
- trace (mkDbgString "chg" "spn" (show p) (show spn))
-   $ instM dp (Spn spn) >> return (P2Instantiate' p (chgIns $ disalign $ Spn spn))
-
 instM :: forall kappa fam at  
        . HolesMV kappa fam at
       -> Al kappa fam at
@@ -380,11 +430,7 @@ instM :: forall kappa fam at
 -- instantiating over a copy is fine; 
 instM _ (Cpy     _) = return ()
 
-instM (Hole v) a = do
-  i <- gets iota
-  case instAdd i v (Hole $ disalign a) of
-    Nothing -> throwError "contr"
-    Just i' -> modify (\st -> st { iota = i' })
+instM (Hole v) a = addToIota "inst" v (disalign a)
 
 -- Instantiating over a modification might also be
 -- possible in select cases; namelly, when the deletion
@@ -468,8 +514,8 @@ instance Show (PatchC kappa fam x) where
 
 confPretty :: Conflict kappa fam x
            -> Doc AnsiStyle
-confPretty (FailedContr vars)
-  = group (pretty "{!!" <+> sep (map (pretty . exElim metavarGet) vars) <+> pretty "!!}")
+-- confPretty (FailedContr vars)
+--   = group (pretty "{!!" <+> sep (map (pretty . exElim metavarGet) vars) <+> pretty "!!}")
 confPretty (Conflict lbl c d)
   = vcat [ pretty "{!! >>>>>>>" <+> pretty lbl <+> pretty "<<<<<<<"
          , alignedPretty c

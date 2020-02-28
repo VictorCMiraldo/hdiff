@@ -21,15 +21,10 @@ import Data.Proxy
 import Data.Type.Equality
 import GHC.Generics
 import Data.Functor.Sum
-import Control.Monad.State
 import Control.Arrow (first)
-
-import qualified Data.Set as S
 
 import Generics.Simplistic
 import Generics.Simplistic.Util
-
-import Debug.Trace
 
 data SZip ty w f where
   Z_L1    ::                SZip ty w f -> SZip ty w (f :+: g)
@@ -97,8 +92,7 @@ type Zipper' kappa fam ann phi t
            (HolesAnn kappa fam ann phi) t
 
 zippers :: forall kappa fam ann phi t
-         . (HasDecEq fam)
-        => (forall a . (Elem t fam) => phi a -> Maybe (a :~: t)) 
+         . (forall a . (Elem t fam) => phi a -> Maybe (a :~: t)) 
         -> HolesAnn kappa fam ann phi t
         -> [Zipper' kappa fam ann phi t] 
 zippers _   (Prim' _ _) = []

@@ -1,23 +1,24 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE UndecidableSuperClasses  #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE ConstraintKinds       #-}
-{-# LANGUAGE DefaultSignatures     #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE PolyKinds             #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DeriveGeneric           #-}
+{-# LANGUAGE QuantifiedConstraints   #-}
+{-# LANGUAGE UndecidableInstances    #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
+{-# LANGUAGE FlexibleContexts        #-}
+{-# LANGUAGE FlexibleInstances       #-}
+{-# LANGUAGE ConstraintKinds         #-}
+{-# LANGUAGE DefaultSignatures       #-}
+{-# LANGUAGE StandaloneDeriving      #-}
+{-# LANGUAGE TypeOperators           #-}
+{-# LANGUAGE DataKinds               #-}
+{-# LANGUAGE PolyKinds               #-}
+{-# LANGUAGE GADTs                   #-}
+{-# LANGUAGE KindSignatures          #-}
+{-# LANGUAGE PatternSynonyms         #-}
+{-# LANGUAGE RankNTypes              #-}
+{-# LANGUAGE TypeFamilies            #-}
+{-# LANGUAGE MultiParamTypeClasses   #-}
+{-# LANGUAGE ScopedTypeVariables     #-}
+{-# OPTIONS_GHC -Wno-orphans         #-}
+
 -- |This is a inplace clone of @simplistic-generics@ with
 -- added deep representations; I should move this stuff
 -- to @simplistic-generics@ at one point.
@@ -34,8 +35,6 @@ import Unsafe.Coerce
 import qualified Data.Set as S
 
 import Generics.Simplistic.Util 
-
-
 
 ---------------------
 -- Representations --
@@ -458,15 +457,14 @@ instance (GDeepMeta i c , GDeep kappa fam f)
 
 -------------------------------
 
-class HasDecEq fam where
-  sameTy :: forall x y . (Elem x fam , Elem y fam) 
-         => Proxy fam -> Proxy x -> Proxy y -> Maybe (x :~: y)
-  sameTy _ _ _ = go (hasElem :: ElemPrf x fam) (hasElem :: ElemPrf y fam)
-    where
-      go :: ElemPrf x fam' -> ElemPrf b fam' -> Maybe (x :~: b)
-      go Here       Here      = Just Refl
-      go (There rr) (There y) = go rr y
-      go _          _         = Nothing
+sameTy :: forall fam x y . (Elem x fam , Elem y fam) 
+      => Proxy fam -> Proxy x -> Proxy y -> Maybe (x :~: y)
+sameTy _ _ _ = go (hasElem :: ElemPrf x fam) (hasElem :: ElemPrf y fam)
+ where
+   go :: ElemPrf x fam' -> ElemPrf b fam' -> Maybe (x :~: b)
+   go Here       Here      = Just Refl
+   go (There rr) (There y) = go rr y
+   go _          _         = Nothing
 
 --------------------------------
 

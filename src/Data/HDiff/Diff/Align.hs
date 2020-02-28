@@ -209,14 +209,13 @@ alignDistr (Roll a) = Spn (repMap alignDistr a)
 -- 'align'' also returns the first fresh name, which is important
 -- to ensure we can stick to the Barendregt's convention
 -- the code.
-align :: (HasDecEq fam) => Patch kappa fam at -> PatchAl kappa fam at
+align :: Patch kappa fam at -> PatchAl kappa fam at
 align = fst . align'
 
 -- |Backbone of alignment; check 'align' for explanation.
 -- The returned @Int@ is the first unbound name that can
 -- be used.
-align' :: (HasDecEq fam) => Patch kappa fam at
-       -> (PatchAl kappa fam at , Int)
+align' :: Patch kappa fam at -> (PatchAl kappa fam at , Int)
 align' p = flip runState maxv
         $ holesMapM (alRefineM cpyPrims . chgAlign) p
   where
@@ -233,8 +232,7 @@ align' p = flip runState maxv
     cpyPrims c    = return (Mod c)
     
     -- first pass aligns changes and reveals a spine
-    chgAlign :: (HasDecEq fam)
-              => Chg kappa fam x -> Al kappa fam x
+    chgAlign :: Chg kappa fam x -> Al kappa fam x
     chgAlign c@(Chg d i) = al (chgVars c) (annotRigidity d) (annotRigidity i)
  
 ----------------------------------
@@ -268,8 +266,7 @@ annotRigidity = synthesize go (const $ const $ Const True)
 -- If that is the case, we return a zipper with its focus
 -- point on the only recursive position that contains holes.
 hasRigidZipper :: forall kappa fam t
-                . (HasDecEq fam)
-               => HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
+                . HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
                -> Maybe (Zipper (CompoundCnstr kappa fam t)
                                 (SFix kappa fam)
                                 (HolesAnn kappa fam IsRigid (MetaVar kappa fam)) t)
@@ -295,8 +292,8 @@ hasRigidZipper r =
 
 -- |An 'Aligner' is a function that receives annotated
 -- contexts and produces an alignment.
-type Aligner kappa fam = forall t . (HasDecEq fam)
-                       => HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
+type Aligner kappa fam = forall t 
+                        . HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
                        -> HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
                        -> Al kappa fam t
 
