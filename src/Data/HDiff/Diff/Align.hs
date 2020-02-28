@@ -7,12 +7,33 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 
--- |The idea is to align insertion and deletions
--- that happen inside changes.
+module Data.HDiff.Diff.Align where
+
+import           Data.Proxy
+import           Data.Functor.Const
+import           Data.Type.Equality
+import qualified Data.Map as M
+import           Control.Monad.Identity
+import           Control.Monad.State
+import           Control.DeepSeq
+import           GHC.Generics
+-----------------------------------
+import Generics.Simplistic
+import Generics.Simplistic.Util hiding (Delta)
+import Generics.Simplistic.Zipper
+-----------------------------------
+import Data.HDiff.Base
+import Data.HDiff.MetaVar
+
+-- * Alignments
+-- 
+-- $aligndoc
 --
--- Problem:
+-- The idea is to align insertion and deletions
+-- that happen inside changes, to enable the
+-- merge algorithm to better identify real copies.
 --
--- Take the following change:
+-- To illustrate the problem, take the following change:
 --
 -- >        :
 -- >       / \
@@ -81,28 +102,15 @@
 -- its arguments have no metavariables except one. An ins block
 -- is the same but on the insertion side. Naturally, when a del is followed
 -- by an ins they become a chg again.
-module Data.HDiff.Diff.Align where
 
-import           Data.Proxy
-import           Data.Functor.Const
-import           Data.Type.Equality
-import qualified Data.Map as M
-import           Control.Monad.Identity
-import           Control.Monad.State
-import           Control.DeepSeq
-import           GHC.Generics
------------------------------------
-import Generics.Simplistic
-import Generics.Simplistic.Util hiding (Delta)
-import Generics.Simplistic.Zipper
------------------------------------
-import Data.HDiff.Base
-import Data.HDiff.MetaVar
+-- ** Datatype and Map
+--
+-- $aligndataandmap
 
--- |An alignment identifies which pieces have been deleted,
+-- |The alignment datatype encodes which pieces have been deleted,
 -- inserted or copied. We use a parameter @f@ instead of
 -- a default 'Chg' to be able to plug auxiliary data
--- into the leaves.
+-- into the leaves, as used in "Data.HDiff.Merge".
 data Al' kappa fam f x where
   Del :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Al' kappa fam f)  x
       -> Al' kappa fam f x
@@ -116,7 +124,9 @@ data Al' kappa fam f x where
   Prm :: MetaVar kappa fam x -> MetaVar kappa fam x -> Al' kappa fam f x
   Mod :: f x                                        -> Al' kappa fam f x
 
--- |The usual alignment, though, will fallback to changes.
+-- |Most of the times we will actually be using
+-- alignments that contain changes as their modifications,
+-- however.
 type Al kappa fam = Al' kappa fam (Chg kappa fam)
 
 instance (forall x . NFData (f x)) => NFData (Al' kappa fam f a) where
@@ -153,9 +163,9 @@ alMap :: (forall x . f x -> g x)
       -> Al' kappa fam g ty
 alMap f = runIdentity . alMapM (return . f)
 
-
-----------------------------------------------
--- It is easy to disalign back into a change
+-- ** Converting to and from 'Al'
+--
+-- $alignconvert
 
 -- |Computes a change that is equivalent to the alignment
 -- in question. Note it does /not/ form an isomorphism
@@ -190,42 +200,21 @@ alignDistr (Hole a) = a
 alignDistr (Prim a) = Mod (Chg (Prim a) (Prim a))
 alignDistr (Roll a) = Spn (repMap alignDistr a)
 
-----------------------------------
-
--- |A subtree is said to be /rigid/ when it does not
--- contain metavariables.
-type IsRigid = Const Bool
-
-isRigid :: HolesAnn kappa fam IsRigid h x -> Bool
-isRigid = getConst . getAnn
-
--- | Annotates something with whether or not
--- it contains holes; we call a value of type
--- 'HolesAnn' /stiff/ if it contains no holes.
-annotRigidity :: Holes    kappa fam         h x
-              -> HolesAnn kappa fam IsRigid h x
-annotRigidity = synthesize go (const $ const $ Const True)
-                              (const $ const $ Const False)
-  where
-    go :: U1 b -> SRep IsRigid (Rep b) -> Const Bool b
-    go _ = Const . repLeaves getConst (&&) True
-
--- |Aligns a patch in two passes. First it annotates the
--- contxts with rigidity information, then it aligns the
--- contexts.
-{-
-align :: (HasDecEq fam) => Patch kappa fam at -> PatchAl kappa fam at
-align = holesMap chgAlign
-  where
-    chgAlign :: (HasDecEq fam)
-              => Chg kappa fam x -> Al kappa fam x
-    chgAlign c@(Chg d i) = -- rmFauxPerms
-      al (chgVars c) (annotRigidity d) (annotRigidity i)
--}
-
+-- |Aligns a patch in three passes. First it annotates the
+-- contexts with rigidity information, then it aligns the
+-- contexts and finally it goes over modifications over
+-- opaque values and try to issue copies.
+--
+-- The 'align' function is defined as @fst . align'@, where
+-- 'align'' also returns the first fresh name, which is important
+-- to ensure we can stick to the Barendregt's convention
+-- the code.
 align :: (HasDecEq fam) => Patch kappa fam at -> PatchAl kappa fam at
 align = fst . align'
 
+-- |Backbone of alignment; check 'align' for explanation.
+-- The returned @Int@ is the first unbound name that can
+-- be used.
 align' :: (HasDecEq fam) => Patch kappa fam at
        -> (PatchAl kappa fam at , Int)
 align' p = flip runState maxv
@@ -248,12 +237,36 @@ align' p = flip runState maxv
               => Chg kappa fam x -> Al kappa fam x
     chgAlign c@(Chg d i) = al (chgVars c) (annotRigidity d) (annotRigidity i)
  
+----------------------------------
 
-----------------------------
--- * Internals of 'align' --
+-- |A subtree is said to be /rigid/ when it does not
+-- contain metavariables.
+type IsRigid = Const Bool
 
--- |Given a SRep; check if all holes but one are stiff;
--- if so, cast it to a plug.
+isRigid :: HolesAnn kappa fam IsRigid h x -> Bool
+isRigid = getConst . getAnn
+
+-- | Annotates something with whether or not
+-- it contains holes; we call a value of type
+-- 'HolesAnn' /stiff/ if it contains no holes.
+annotRigidity :: Holes    kappa fam         h x
+              -> HolesAnn kappa fam IsRigid h x
+annotRigidity = synthesize go (const $ const $ Const True)
+                              (const $ const $ Const False)
+  where
+    go :: U1 b -> SRep IsRigid (Rep b) -> Const Bool b
+    go _ = Const . repLeaves getConst (&&) True
+
+
+
+-- ** Internals of 'align'
+--
+-- $alignbowels
+
+-- |Given a SRep; check if all recursive positions but one
+-- are rigid, that is, contains no holes.
+-- If that is the case, we return a zipper with its focus
+-- point on the only recursive position that contains holes.
 hasRigidZipper :: forall kappa fam t
                 . (HasDecEq fam)
                => HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
@@ -278,7 +291,7 @@ hasRigidZipper r =
 
     myCast :: HolesAnn kappa fam IsRigid (MetaVar kappa fam) x
            -> SFix kappa fam x
-    myCast = holesMapAnn (error "supposed to be rigid; no holes!") (const U1)
+    myCast = holesMapAnn (error "invariant broke: supposed to be rigid; no holes!") (const U1)
 
 -- |An 'Aligner' is a function that receives annotated
 -- contexts and produces an alignment.
@@ -350,9 +363,14 @@ alMod vars a b =
 dropAnn :: HolesAnn kappa fam ann phi t -> Holes kappa fam phi t
 dropAnn = holesMapAnn id (const U1)
 
---------------------
--- Cost Functions --
---------------------
+-- ** Cost Functions
+--
+-- $aligncost
+--
+-- Cost functions count how many constructors are
+-- deleted and inserted by an alignment.
+-- Constructors in the spine are not counted
+-- since they are copied.
 
 alignCost :: Al kappa fam t -> Int
 alignCost (Del (Zipper z h)) =

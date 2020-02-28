@@ -14,7 +14,7 @@ module Generics.Simplistic.Unify
   ( -- * Substitution
     Subst , substEmpty , substInsert , substLkup , substApply
     -- * Unification
-  , UnifyErr(..) , unify , unifyWith , minimize
+  , UnifyErr(..) , unify , unify_ , unifyWith , minimize
   ) where
 
 import           Data.List (sort)
@@ -104,6 +104,15 @@ substInsert sigma v x = M.insert (Exists v) (Exists x) sigma
 -- |Unification is done in a monad.
 type UnifyM kappa fam phi
   = StateT (Subst kappa fam phi) (Except (UnifyErr kappa fam phi))
+
+-- |Attempts to unify two 'Holes', but ignores
+-- which error happened when they could not be unified.
+unify_ :: ( Ord (Exists phi) , EqHO phi)
+       => Holes kappa fam phi at -- ^
+       -> Holes kappa fam phi at
+       -> Maybe (Subst kappa fam phi)
+unify_ a = either (const Nothing) Just
+         . runExcept . unify a
 
 -- |Attempts to unify two 'Holes'
 unify :: ( Ord (Exists phi) , EqHO phi)

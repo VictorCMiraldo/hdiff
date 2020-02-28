@@ -1,45 +1,48 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE GADTs                 #-}
+-- |Defines composition for 'Chg'. If you wish
+-- to produce patches as the result of composition,
+-- you should call 'Data.HDiff.Diff.Closure.close'
+-- manually.
 module Data.HDiff.Compose where
 
-import Control.Monad.Except
--------------------------------
 import Generics.Simplistic.Unify
 -------------------------------
 import Data.HDiff.Base
 
-
-e2m :: Except e a -> Maybe a
-e2m = either (const Nothing) Just . runExcept
-
--- |Running @q `after` p@ will yield a patch, when possible, that
--- changes elements in the domain of @p@ into elements in the
--- codomain of @q@.
+-- |Change composition. Running @q `chgAfter` p@ will yield a change,
+-- when possible, that changes elements in the domain
+-- of @p@ into elements in the codomain of @q@.
 --
--- This is just another application of 'thin'. 
---
--- PRECONDITION: Names must be disjoint in both changes; we call thin
---               directly, without checking this.
---
-after :: Chg kappa fam at
-      -> Chg kappa fam at
-      -> Maybe (Chg kappa fam at)
-after q p = do
-  sigma <- e2m $ unify (chgDel q) (chgIns p)
+-- The changes under composition should have
+-- a disjoint set of names. This is /not/ checked.
+-- If unsure, use '(.!)'.
+chgAfter :: Chg kappa fam at
+         -> Chg kappa fam at
+         -> Maybe (Chg kappa fam at)
+chgAfter q p = do
+  sigma <- unify_ (chgDel q) (chgIns p)
   let rD = substApply sigma (chgDel p)
   let rI = substApply sigma (chgIns q)
   return (Chg rD rI)
 
+-- |Composes two patches into a change. This function
+-- will rename variables as necessary to ensure
+-- it passes two changes with disjoint names to 'chgAfter'
 (.!) :: Patch kappa fam at
      -> Patch kappa fam at
-     -> Maybe (Patch kappa fam at)
-q .! p = chgPatch <$> (chgDistr q) `after` (chgDistr p')
+     -> Maybe (Chg kappa fam at)
+q .! p = (chgDistr q) `chgAfter` (chgDistr p')
   where
     p' = p `withFreshNamesFrom` q
 
-composes :: Patch kappa fam at
-         -> Patch kappa fam at
-         -> Bool
-composes q p = maybe False (const True) (q .! p)
-         
+-- |Predicate that returns whether or not
+-- two patches compose.
+patchComposes :: Patch kappa fam at
+              -> Patch kappa fam at
+              -> Bool
+patchComposes q p = maybe False (const True) (q .! p)
+ 
+
+        

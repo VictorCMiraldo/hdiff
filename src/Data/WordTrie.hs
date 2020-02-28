@@ -8,6 +8,9 @@ import qualified Data.Map  as M
 import qualified Data.List as L
 import           Data.Word (Word64)
 
+-- TODO: Optimize this monster before doing numbers
+-- one last time.
+
 -- |A Trie indexed by 'Word64's.
 data Trie a = Fork
   { trieVal :: Maybe a
