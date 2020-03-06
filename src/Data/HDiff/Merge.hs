@@ -18,7 +18,7 @@ import           Control.Monad.State
 import           Control.Monad.Except
 import qualified Data.Map as M
 import           Data.Type.Equality
-import           Data.List (partition, foldl')
+import           Data.List (partition)
 ----------------------------------------
 import           GHC.Generics
 import           Generics.Simplistic
@@ -79,9 +79,14 @@ type PatchC kappa fam at
 -- have changed, in 'iota'; and also carries around a list
 -- of equivalences it discovered, in 'eqs'.
 data MergeState kappa fam = MergeState
-  { iota :: M.Map Int (Exists (Chg kappa fam))
+  { iota :: Inst kappa fam
   , eqs  :: Subst kappa fam (MetaVar kappa fam)
   }
+
+-- |Through the first phase of our merging algorithm we
+-- collect information aout /how/ some subtrees have been changed.
+-- This information is stored in this 'Inst' map.
+type Inst kappa fam = M.Map (Exists (MetaVar kappa fam)) (Exists (Chg kappa fam))
 
 -- |Empty merge state
 mrgSt0 :: MergeState kappa fam
@@ -105,16 +110,15 @@ type MergeM kappa fam = StateT (MergeState kappa fam) (Except String)
 -- using 'instAdd' to manipulate instantiations as it forces
 -- the metavariable and the element @Patch kappa fam@ to have the
 -- same index.
-instAdd :: M.Map Int (Exists (Chg kappa fam))
-        -> MetaVar kappa fam at -> Chg kappa fam at
-        -> Maybe (M.Map Int (Exists (Chg kappa fam)))
+instAdd :: Inst kappa fam -> MetaVar kappa fam at -> Chg kappa fam at
+        -> Maybe (Inst kappa fam)
 instAdd inst v x =
-  case M.lookup (metavarGet v) inst of
+  case M.lookup (Exists v) inst of
      Just (Exists old)
        | eqHO x (unsafeCoerce old) -> return inst
        | otherwise                 -> Nothing
      Nothing
-       -> Just $ M.insert (metavarGet v) (Exists x) inst
+       -> Just $ M.insert (Exists v) (Exists x) inst
 
 -- |Attempts to add a point to 'iota'; the string serves
 -- as a label for throwing an error when this fails.
@@ -181,7 +185,7 @@ mergeAlM :: Al kappa fam x -> Al kappa fam x -> MergeM kappa fam (Al kappa fam x
 mergeAlM p q = do
   phase1 <- mergePhase1 p q
   inst <- get
-  case makeDelInsMaps inst of
+  case splitDelInsMaps inst of
     Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
     Right di -> alMapM (phase2 di) phase1
 
@@ -279,31 +283,35 @@ mergePhase1 p q =
        $ addToIota "prm-chg" x c
        >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
             
+   isDup :: Chg kappa fam x -> Bool
+   isDup (Chg (Hole _) (Hole _)) = True
+   isDup _ = False
+
    mrgChgChg :: Chg kappa fam x -> Chg kappa fam x
              -> MergeM kappa fam (Phase2 kappa fam x)
    -- Changes must have unifiable domains
-   mrgChgChg p q
-    | isDup p = mrgChgDup p q
-    | isDup q = mrgChgDup q p
+   mrgChgChg p' q'
+    | isDup p' = mrgChgDup p' q'
+    | isDup q' = mrgChgDup q' p'
     | otherwise =
-      trace (mkDbgString "chg" "chg" (show p) (show q)) 
-      $ case runExcept (unify (chgDel p) (chgDel q)) of
-         Left err -> throwError "chg-unif"
+      trace (mkDbgString "chg" "chg" (show p') (show q')) 
+      $ case runExcept (unify (chgDel p') (chgDel q')) of
+         Left _e  -> throwError "chg-unif"
          Right r  -> onEqvs (M.union r)
-                  >> return (P2TestEq p q)
+                  >> return (P2TestEq p' q')
 
    mrgChgDup :: Chg kappa fam x -> Chg kappa fam x
              -> MergeM kappa fam (Phase2 kappa fam x)
-   mrgChgDup dup@(Chg (Hole v) _) q = 
-    trace (mkDbgString "chg" "dup" (show q) (show dup))
-     $ addToIota "chg-dup" v q >> return (P2Instantiate dup)
+   mrgChgDup dup@(Chg (Hole v) _) q' = 
+    trace (mkDbgString "chg" "dup" (show q') (show dup))
+     $ addToIota "chg-dup" v q' >> return (P2Instantiate dup)
 
    mrgChgSpn :: (CompoundCnstr kappa fam x)
              => Chg kappa fam x -> SRep (Al kappa fam) (Rep x)
              -> MergeM kappa fam (Phase2 kappa fam x)
-   mrgChgSpn p@(Chg dp ip) spn =
-    trace (mkDbgString "chg" "spn" (show p) (show spn))
-      $ instM dp (Spn spn) >> return (P2Instantiate' p (chgIns $ disalign $ Spn spn))
+   mrgChgSpn p'@(Chg dp _) spn =
+    trace (mkDbgString "chg" "spn" (show p') (show spn))
+      $ instM dp (Spn spn) >> return (P2Instantiate' p' (chgIns $ disalign $ Spn spn))
 
 -- |Checks whether we can /delete/ a zipper from an alignment.
 -- For example, a zipper @Bin (Leaf 42) HOLE@ could be /deleted/
@@ -344,88 +352,10 @@ tryDel (Zipper z h) (Spn rep) =
    isCpyA _       = False
 
 
-----------------------
--- Handling changes --
-----------------------
-
-type Subst2 kappa fam = ( Subst kappa fam (MetaVar kappa fam)
-                       , Subst kappa fam (MetaVar kappa fam))
-
-
-
-makeDelInsMaps :: forall kappa fam
-                . MergeState kappa fam
-               -> Either [Exists (MetaVar kappa fam)]
-                         (Subst2 kappa fam)
-makeDelInsMaps (MergeState iot eqvs) =
-  let sd = M.toList $ M.map (exMap chgDel) iot
-      si = M.toList $ M.map (exMap chgIns) iot
-   in trace (oneStr "eqvs" eqvs) $ do
-    d <- trace (oneStr "sd" $ toSubst sd) (minimize (addEqvs (toSubst sd)))
-    i <- trace (oneStr "si" $ toSubst si) (minimize (addEqvs (toSubst si)))
-    trace (diStr (d , i))
-      return (d , i)
- where
-   toSubst :: [(Int , Exists (Holes kappa fam (MetaVar kappa fam)))]
-           -> Subst kappa fam (MetaVar kappa fam)
-   toSubst = M.fromList
-           . map (\(i , Exists h) -> (Exists (mkVar i h) , Exists h))
-
-   mkVar :: Int -> Holes kappa fam (MetaVar kappa fam) at -> MetaVar kappa fam at
-   mkVar vx (Prim _) = MV_Prim vx
-   mkVar vx (Hole v) = metavarSet vx v
-   mkVar vx (Roll _) = MV_Comp vx
-
-   diStr :: Subst2 kappa fam -> String
-   diStr (d , i) = unlines $
-     [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
-     [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
-
-   oneStr :: String -> Subst kappa fam (MetaVar kappa fam) -> String
-   oneStr lbl d = unlines $
-     [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
-
-   -- TODO: moev this to unification; call it substToList.
-   eqvsL  = [ Exists (u :*: unsafeCoerce v) | (Exists u , Exists (Hole v)) <- M.toList eqvs]
-
-   fixedL = [ (Exists u , Exists t) | (Exists u , Exists t) <- M.toList eqvs
-              , hasNoHoles t ]
-
-   hasNoHoles :: Holes kappa fam phi x -> Bool
-   hasNoHoles (Hole _) = False
-   hasNoHoles (Prim _) = True
-   hasNoHoles (Roll r) = all (exElim hasNoHoles) $ repLeavesList r
-
-   -- We only insert the equivalences when we don't yet have data about these
-   -- variables in whatever map we are complementing
-   --
-   -- This essentially means that albeit v and u are /the same/;
-   -- if we already made a decision about what v or u should be,
-   -- we stick to it. In a way, if v or u are already a member of
-   -- our maps, there will be no occurence of v or u in the
-   -- final result, rendering the equivalence useless.
-   addEqvs :: Subst kappa fam (MetaVar kappa fam)
-           -> Subst kappa fam (MetaVar kappa fam)
-   addEqvs s0 = let s = M.union s0 (M.fromList fixedL)
-                    go k = foldl' k s eqvsL
-                 in go $ \s' (Exists (v :*: u)) 
-                         -> if or (map (`M.member` s') [ Exists v , Exists u ])
-                            then s'
-                            else substInsert s' v (Hole u)
-
-isDup :: Chg kappa fam x -> Bool
-isDup (Chg (Hole _) (Hole _)) = True
-isDup _ = False
-
-instM :: forall kappa fam at  
-       . HolesMV kappa fam at
-      -> Al kappa fam at
-      -> MergeM kappa fam ()
+instM :: HolesMV kappa fam at -> Al kappa fam at -> MergeM kappa fam ()
 -- instantiating over a copy is fine; 
 instM _ (Cpy     _) = return ()
-
 instM (Hole v) a = addToIota "inst" v (disalign a)
-
 -- Instantiating over a modification might also be
 -- possible in select cases; namelly, when the deletion
 -- context has no variables, unifies with the deletion
@@ -434,25 +364,112 @@ instM (Hole v) a = addToIota "inst" v (disalign a)
 -- we overall need a better formalism to deal with
 -- merging chgs over spines; I'm postponing this for now.
 instM _ (Mod _) = throwError "inst-mod"
-
 -- instantiating over a permutation if we are not immediatly
 -- matching is tricky. I will be conservative and
 -- raise a conflit. I suspect we can do better though.
 -- For example; register that the deletion of x must be d
 -- and return whatever we found about the insertion of y at this very
 -- place; but this is difficult.
-instM d (Prm _ _) = throwError "inst-perm"
-
+instM _ (Prm _ _) = throwError "inst-perm"
 instM x@(Prim _) d
   | x == chgDel (disalign d) = return ()
   | otherwise                = throwError "symbol-clash"
-
-instM (Roll r) (Ins _) = throwError "chg-ins"
-instM (Roll r) (Del _) = throwError "chg-del"
+instM (Roll _) (Ins _) = throwError "chg-ins"
+instM (Roll _) (Del _) = throwError "chg-del"
 instM (Roll r) (Spn s) =
   case zipSRep r s of
     Nothing  -> throwError "constr-clash"
     Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
+
+
+----------------------
+-- Handling changes --
+----------------------
+
+type Subst2 kappa fam = ( Subst kappa fam (MetaVar kappa fam)
+                       , Subst kappa fam (MetaVar kappa fam))
+
+-- * Processing 'iota' and 'eqs'
+
+-- |Splits the gathered equivalences into those that
+-- have no holes and the rest. For example,
+--
+-- > splitEqvs (M.fromList
+-- >   [ (var 0 , Bin (var 1) (var 2))
+-- >   , (var 1 , Bin (Leaf 42) (Leaf 84))
+-- >   ]
+-- > = (M.singleton (var 1) ... , M.singleton (var 0) ...)
+--
+splitEqvs :: Subst  kappa fam (MetaVar kappa fam)
+          -> Subst2 kappa fam 
+splitEqvs = M.partition (exElim hasNoHoles)
+  where
+   hasNoHoles :: Holes kappa fam phi x -> Bool
+   hasNoHoles (Hole _) = False
+   hasNoHoles (Prim _) = True
+   hasNoHoles (Roll r) = all (exElim hasNoHoles) $ repLeavesList r
+
+-- |After we have split the equivalences into rigid and non-rigid,
+-- with 'splitEqvs', we will add them to our deletion and
+-- insertion maps.
+addEqvsAndSimpl :: Subst kappa fam (MetaVar kappa fam)
+                -> Subst2 kappa fam
+                -> Either [Exists (MetaVar kappa fam)]
+                          (Subst kappa fam (MetaVar kappa fam))
+addEqvsAndSimpl m (rig, nrig) = minimize $ M.foldrWithKey go (M.union m rig) nrig
+  where
+    go :: Exists (MetaVar kappa fam)
+       -> Exists (HolesMV kappa fam)
+       -> Subst kappa fam (MetaVar kappa fam)
+       -> Subst kappa fam (MetaVar kappa fam)
+    go var u s 
+      -- we know 'var' and 'u' have the same index since they
+      -- are comming from a subst, hence, we won't unsafe corce
+      -- but just directly add in the map
+      | canAdd var u s = M.insert var u s 
+      | otherwise      = s
+
+    -- If we have a variable equivalence, and either of them are already members
+    -- of the existing map we won't add the equivalence.
+    -- The reason being that if we have an entry (var x , T) in the
+    -- map, it means the merge algorithm has made a decision to
+    -- instantiate x; if we insert an entry (var y , var x) or (var x , var y),
+    -- then simplify, we will conflict with the merge's algorithm decision.
+    -- Particularly when 'y' appears somewhere else. Recall that although
+    -- we are using substitutions, these maps actually have the 'was' and
+    -- 'became' semantics, not usual 'is-equivalent' semantics.
+    canAdd :: Exists (MetaVar kappa fam)
+           -> Exists (HolesMV kappa fam)
+           -> Subst kappa fam (MetaVar kappa fam)
+           -> Bool
+    canAdd v (Exists (Hole u)) s = all (`M.notMember` s) [ v , Exists u ]
+    canAdd v _                 s = v `M.notMember` s
+
+-- |Here we split the a state into the deletion and insertion
+-- maps that will be used to instantiate the result of the
+-- first phase of the merge algorithm
+splitDelInsMaps :: forall kappa fam
+                . MergeState kappa fam
+               -> Either [Exists (MetaVar kappa fam)]
+                         (Subst2 kappa fam)
+splitDelInsMaps (MergeState iot eqvs) =
+  let sd = M.map (exMap chgDel) iot
+      si = M.map (exMap chgIns) iot
+      e' = splitEqvs eqvs
+   in trace (oneStr "eqvs" eqvs) $ do
+    d <- trace (oneStr "sd" $ sd) (addEqvsAndSimpl sd e')
+    i <- trace (oneStr "si" $ si) (addEqvsAndSimpl si e')
+    trace (diStr (d , i))
+      return (d , i)
+ where
+   diStr :: Subst2 kappa fam -> String
+   diStr (d , i) = unlines $
+     [ "del-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ] ++
+     [ "ins-map: " ++ show v ++ ": " ++ show c | (v , c) <- M.toList i ]
+
+   oneStr :: String -> Subst kappa fam (MetaVar kappa fam) -> String
+   oneStr lbl d = unlines $
+     [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
 
 phase2 :: Subst2 kappa fam
        -> Phase2 kappa fam at
