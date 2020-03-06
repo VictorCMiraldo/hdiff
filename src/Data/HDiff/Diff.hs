@@ -152,9 +152,7 @@ diffOpts' opts x y
   = let dx      = preprocess x
         dy      = preprocess y
         (i, sh) = buildSharingTrie opts dx dy
-        dx'     = tagProperShare sh dx
-        dy'     = tagProperShare sh dy
-        delins  = extractHoles (doMode opts) mkCanShare sh (dx' :*: dy')
+        delins  = extractHoles (doMode opts) mkCanShare sh (dx :*: dy)
      in (i , delins)
  where
    mkCanShare :: forall a ix . PrepFix a kappa fam ix -> Bool
