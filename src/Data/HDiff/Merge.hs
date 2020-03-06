@@ -413,10 +413,10 @@ splitEqvs = M.partition (exElim hasNoHoles)
 -- with 'splitEqvs', we will add them to our deletion and
 -- insertion maps.
 addEqvsAndSimpl :: Subst kappa fam (MetaVar kappa fam)
-                -> Subst kappa fam (MetaVar kappa fam)
+                -> Subst2 kappa fam
                 -> Either [Exists (MetaVar kappa fam)]
                           (Subst kappa fam (MetaVar kappa fam))
-addEqvsAndSimpl m eqs = minimize $ M.foldrWithKey go m eqs
+addEqvsAndSimpl m (rig, nrig) = minimize $ M.foldrWithKey go (M.union m rig) nrig
   where
     go :: Exists (MetaVar kappa fam)
        -> Exists (HolesMV kappa fam)
@@ -455,7 +455,7 @@ splitDelInsMaps :: forall kappa fam
 splitDelInsMaps (MergeState iot eqvs) =
   let sd = M.map (exMap chgDel) iot
       si = M.map (exMap chgIns) iot
-      e' = eqvs -- splitEqvs eqvs
+      e' = splitEqvs eqvs
    in trace (oneStr "eqvs" eqvs) $ do
     d <- trace (oneStr "sd" $ sd) (addEqvsAndSimpl sd e')
     i <- trace (oneStr "si" $ si) (addEqvsAndSimpl si e')
