@@ -35,7 +35,7 @@ hdiffRTreeH h a b = diff h (dfromRTree a) (dfromRTree b)
 hdiffRTreeHM :: DiffMode -> Int -> RTree -> RTree -> PatchRTree
 hdiffRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
                                                     , doMinHeight = h
-                                                    , doOpaqueHandling = DO_OnSpine })
+                                                    })
                                 (dfromRTree a)
                                 (dfromRTree b)
 

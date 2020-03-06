@@ -566,6 +566,10 @@ ob3 = myHdiffRTree o3 b3
 oa7 = myHdiffRTree o7 a7
 ob7 = myHdiffRTree o7 b7
 
+oa8 = myHdiffRTree o8 a8
+ob8 = myHdiffRTree o8 b8
+
+
 oa5 = myHdiffRTree o5 a5
 ob5 = myHdiffRTree o5 b5
 

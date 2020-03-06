@@ -49,7 +49,6 @@ type RTreeFam   = '[ RTree , [RTree] ]
 deriving instance Generic RTree
 instance Deep RTreePrims RTreeFam RTree 
 instance Deep RTreePrims RTreeFam [ RTree ]
-instance HasDecEq RTreeFam where
 
 dfromRTree :: RTree -> SFix RTreePrims RTreeFam RTree
 dfromRTree = dfrom
