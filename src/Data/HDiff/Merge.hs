@@ -281,6 +281,8 @@ mergePhase1 p q =
    mrgPrm x y c = 
      trace (mkDbgString "prm" "chg" (show x ++ " |-> " ++ show y) (show c))
        $ addToIota "prm-chg" x c
+       -- TODO: is this P2Instantiate' necessary? oesn't
+       -- a P2Instantiate work?
        >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
             
    isDup :: Chg kappa fam x -> Bool
