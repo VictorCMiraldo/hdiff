@@ -195,13 +195,8 @@ data Phase2 :: [*] -> [*] -> * -> * where
   -- ^ Either we need to instantiate a given change with the
   --   updated information about how each subtree was individually altred.
   P2Instantiate :: Chg kappa fam at
+                -> Maybe (HolesMV kappa fam at)
                 -> Phase2 kappa fam at
-
-  -- ^ Sometimes we must check that the instantiation did not
-  --   mention any of the variables in a given insertion context.
-  P2Instantiate' :: Chg kappa fam at
-                 -> HolesMV kappa fam at
-                 -> Phase2 kappa fam at
   
   -- ^ Finally, when we cannot really reconcile we can at least try to
   --   check whether we are looking at the same change or not.
@@ -219,8 +214,8 @@ mergePhase1 p q =
  case (p , q) of
    -- Copies are the easiest case; all we must do is
    -- instantiate the other change.
-   (Cpy _ , _) -> return $ Mod $ P2Instantiate (disalign q)
-   (_ , Cpy _) -> return $ Mod $ P2Instantiate (disalign p)
+   (Cpy _ , _) -> return $ Mod $ P2Instantiate (disalign q) Nothing
+   (_ , Cpy _) -> return $ Mod $ P2Instantiate (disalign p) Nothing
 
    -- Permutations are almost as simple as copies but 
    -- do require some additional processing; we delegate to
@@ -242,7 +237,7 @@ mergePhase1 p q =
    -- can safely delete the zipper from the other change
    -- we continue merge with the result and preserve the deletion.
    (Del zp@(Zipper z _), _) -> Del . Zipper z <$> (tryDel zp q >>= uncurry mergePhase1)
-   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (tryDel zq p >>= uncurry mergePhase1 . swap)
+   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (tryDel zq p >>= uncurry mergePhase1) -- todo remove swap?
 
    -- Spines mean that on one hand a constructor was copied; but the mod
    -- indicates this constructor changed. Hence, we hace to try applying
@@ -283,7 +278,7 @@ mergePhase1 p q =
        $ addToIota "prm-chg" x c
        -- TODO: is this P2Instantiate' necessary? oesn't
        -- a P2Instantiate work?
-       >> return (P2Instantiate' (Chg (Hole x) (Hole y)) (chgIns c))
+       >> return (P2Instantiate (Chg (Hole x) (Hole y)) Nothing) -- (Just $ chgIns c))
             
    isDup :: Chg kappa fam x -> Bool
    isDup (Chg (Hole _) (Hole _)) = True
@@ -306,14 +301,14 @@ mergePhase1 p q =
              -> MergeM kappa fam (Phase2 kappa fam x)
    mrgChgDup dup@(Chg (Hole v) _) q' = 
     trace (mkDbgString "chg" "dup" (show q') (show dup))
-     $ addToIota "chg-dup" v q' >> return (P2Instantiate dup)
+     $ addToIota "chg-dup" v q' >> return (P2Instantiate dup Nothing)
 
    mrgChgSpn :: (CompoundCnstr kappa fam x)
              => Chg kappa fam x -> SRep (Al kappa fam) (Rep x)
              -> MergeM kappa fam (Phase2 kappa fam x)
    mrgChgSpn p'@(Chg dp _) spn =
     trace (mkDbgString "chg" "spn" (show p') (show spn))
-      $ instM dp (Spn spn) >> return (P2Instantiate' p' (chgIns $ disalign $ Spn spn))
+      $ instM dp (Spn spn) >> return (P2Instantiate p' (Just $ chgIns $ disalign $ Spn spn))
 
 -- |Checks whether we can /delete/ a zipper from an alignment.
 -- For example, a zipper @Bin (Leaf 42) HOLE@ could be /deleted/
@@ -477,10 +472,10 @@ phase2 :: Subst2 kappa fam
        -> Phase2 kappa fam at
        -> MergeM kappa fam (Chg kappa fam at)
 phase2 di (P2TestEq ca cb) = chgeq di ca cb
-phase2 di (P2Instantiate chg) =
+phase2 di (P2Instantiate chg Nothing) =
   trace ("p2-inst:\n  " ++ show chg) $
     return (chgrefine di chg)
-phase2 di (P2Instantiate' chg i) =
+phase2 di (P2Instantiate chg (Just i)) =
   trace ("p2-inst-and-chk:\n  i = " ++ show i ++ "\n  c = " ++ show chg) $
     do es <- gets eqs
        case getCommonVars (substApply es (chgIns chg)) (substApply es i) of
