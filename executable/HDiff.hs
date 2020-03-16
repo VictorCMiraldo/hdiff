@@ -141,17 +141,19 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
   $ \pp fa fo fb -> do
     patchOA <- diffWithOpts opts fo fa
     patchOB <- diffWithOpts opts fo fb
-    let omc = D.diff3 patchOA patchOB
-    case D.noConflicts omc of
-      Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
-              >> when (v == VeryLoud) (hPutStrLn stdout $ show omc)
-              >> return (ExitFailure 1)
-      Just om -> do
-        when (v == Loud) (hPutStrLn stdout $ show om)
-        mtgt <- sequence (fmap pp (optFileRes opts))
-        mres <- tryApply v om fo mtgt
-        case mres of
-          Just res -> when (v == Loud) (hPutStrLn stdout (show res))
-                   >> return ExitSuccess
-          Nothing  -> return (ExitFailure 3)
-          
+    let momc = D.diff3 patchOA patchOB
+    case momc of
+      Nothing  -> return (ExitFailure 13)
+      Just omc -> case D.noConflicts omc of
+         Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
+                 >> when (v == VeryLoud) (hPutStrLn stdout $ show omc)
+                 >> return (ExitFailure 1)
+         Just om -> do
+           when (v == Loud) (hPutStrLn stdout $ show om)
+           mtgt <- sequence (fmap pp (optFileRes opts))
+           mres <- tryApply v om fo mtgt
+           case mres of
+             Just res -> when (v == Loud) (hPutStrLn stdout (show res))
+                      >> return ExitSuccess
+             Nothing  -> return (ExitFailure 3)
+

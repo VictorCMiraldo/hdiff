@@ -102,7 +102,8 @@ onEqvs f = do
   trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
 
 -- |Synonym for the merge monad.
-type MergeM kappa fam = StateT (MergeState kappa fam) (Except String)
+type MergeM kappa fam
+  = StateT (MergeState kappa fam) (ExceptT String Maybe)
 
 -- |Attempts to insert a new point into an instantiation.
 -- If @Patch kappa fam at@ is already associated to a value, ensure
@@ -158,7 +159,7 @@ getConflicts = foldr act [] . holesHolesList
 -- In the locations where this is not possible, we
 -- place a conflict.
 diff3 :: Patch kappa fam ix -> Patch kappa fam ix
-      -> PatchC kappa fam ix
+      -> Maybe (PatchC kappa fam ix)
 diff3 oa ob =
   -- The first step is computing an alignment of
   -- oa; yet, we must care for the variables introduced
@@ -166,15 +167,25 @@ diff3 oa ob =
   -- to ensure no variable clashes.
   let (oa' , maxa) = align' oa
       ob'          = align (holesMap (chgShiftVarsBy maxa) ob)
-   in holesMap (uncurry' mergeAl . deltaMap alignDistr) $ lgg oa' ob'
+   in holesMapM (uncurry' mergeAl . deltaMap alignDistr) $ lgg oa' ob'
 
 -- |Attempts to merge two alignments. Assumes the alignments
 -- have a disjoint set of variables.
 mergeAl :: Al kappa fam x -> Al kappa fam x
-        -> Sum (Conflict kappa fam) (Chg kappa fam) x
-mergeAl p q = case runExcept (evalStateT (mergeAlM p q) mrgSt0) of
-                Left err -> InL $ Conflict err p q
-                Right r  -> InR (disalign r)
+        -> Maybe (Sum (Conflict kappa fam) (Chg kappa fam) x)
+mergeAl p q = case runExceptT (evalStateT (mergeAlM p q) mrgSt0) of
+                Nothing         -> Nothing
+                Just (Left err) -> Just $ InL $ Conflict err p q
+                Just (Right r)  -> Just $ InR (disalign r)
+
+-- |The merge algorithm requires both of its arguments
+-- to form a span, when this is not the case, we fail with
+-- 'Nothing'; signifing that the patches don't even
+-- apply to a common ancestor. Its different from a conflict, where
+-- the patches apply to at least one common element but modify
+-- this element in different ways.
+invFail_notSpan :: MergeM kappa fam a
+invFail_notSpan = lift (lift Nothing)
 
 -- |Merging alignments is done in two phases.
 -- A first phase is responsible for gathering equivalences,
@@ -248,7 +259,7 @@ mergePhase1 p q =
    -- When we have two spines it is easy, just pointwise merge their
    -- recursive positions
    (Spn p', Spn q') -> case zipSRep p' q' of
-       Nothing -> throwError "spn-spn"
+       Nothing -> invFail_notSpan
        Just r  -> Spn <$> repMapM (uncurry' mergePhase1) r
 
    -- Finally, modifications sould be instantiated, if possible.
@@ -293,7 +304,7 @@ mergePhase1 p q =
     | otherwise =
       trace (mkDbgString "chg" "chg" (show p') (show q')) 
       $ case runExcept (unify (chgDel p') (chgDel q')) of
-         Left _e  -> throwError "chg-unif"
+         Left _e  -> invFail_notSpan
          Right r  -> onEqvs (M.union r)
                   >> return (P2TestEq p' q')
 
@@ -328,7 +339,7 @@ tryDel (Zipper z h) (Del (Zipper z' h'))
 tryDel (Zipper _ _) (Mod _)   = throwError "del-mod"
 tryDel (Zipper z h) (Spn rep) =
   case zipperRepZip z rep of
-    Nothing -> throwError "del-spn-1"
+    Nothing -> invFail_notSpan
     Just r  -> let hs = repLeavesList r
                 in case partition (exElim isInR1) hs of
                      ([Exists (InL Refl :*: x)] , xs)
@@ -370,12 +381,12 @@ instM _ (Mod _) = throwError "inst-mod"
 instM _ (Prm _ _) = throwError "inst-perm"
 instM x@(Prim _) d
   | x == chgDel (disalign d) = return ()
-  | otherwise                = throwError "symbol-clash"
+  | otherwise                = invFail_notSpan
 instM (Roll _) (Ins _) = throwError "chg-ins"
 instM (Roll _) (Del _) = throwError "chg-del"
 instM (Roll r) (Spn s) =
   case zipSRep r s of
-    Nothing  -> throwError "constr-clash"
+    Nothing  -> invFail_notSpan
     Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
 
 

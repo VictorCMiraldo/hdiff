@@ -69,6 +69,7 @@ data MergeOutcome
   = MergeOk RTree
   | MergeDiffers -- VCM: not applicable currently!
   | ApplyFailed
+  | NotSpan
   | HasConflicts
   deriving (Eq , Show)
 
@@ -89,11 +90,13 @@ doMerge mode a o b
         -- we get a different result altogether.
         oa = hdiffRTreeHM mode 1 o a
         ob = hdiffRTreeHM mode 1 o b
-     in case noConflicts (diff3 oa ob) of
-          Just oc -> case applyRTree oc o of
-                      Right res -> MergeOk res
-                      Left _    -> ApplyFailed
-          Nothing -> HasConflicts
+     in case diff3 oa ob of
+         Nothing -> NotSpan
+         Just d3 -> case noConflicts d3 of
+           Just oc -> case applyRTree oc o of
+                       Right res -> MergeOk res
+                       Left _    -> ApplyFailed
+           Nothing -> HasConflicts
 
 xexpectMerge :: MergeOutcome -> String -> String -> RTree -> RTree -> RTree
              -> SpecWith (Arg Property)
