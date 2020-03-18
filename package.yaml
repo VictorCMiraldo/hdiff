@@ -23,6 +23,7 @@ dependencies:
   - memory
   - template-haskell
   - deepseq
+  - simplistic-generics
 
 library:
   source-dirs: src/

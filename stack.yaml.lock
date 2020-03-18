@@ -6,25 +6,18 @@
 packages:
 - completed:
     cabal-file:
-      size: 1823
-      sha256: eba805fccc97e70ec39a4ad52110c4e0c46130206fecc63e72f9f0163a5af816
-    name: generics-mrsop
-    version: 2.3.1
-    git: git@github.com:VictorCMiraldo/generics-mrsop.git
+      size: 1348
+      sha256: 00916294006d766608933aac8e8b57dc8974c28d1298c9a37033a2bd14a98bea
+    name: simplistic-generics
+    version: 2.0.0
+    git: git@gitlab.com:trupill/simplistic-generics.git
     pantry-tree:
-      size: 2168
-      sha256: e357720fafc0d2090d025bad8f4c658d30ae8a98aca6a34e7d5ac0c03679c87e
-    commit: a45f12cb41f72afc6ab2ac94a09928be1c05219a
+      size: 663
+      sha256: 44f7bef7feaf44cd4b991d442764ea61aaf2cafdf2d9467552454dbba6c60ab2
+    commit: 7d75c7c0779d13c5ce64e7ef669c5adb383e66d2
   original:
-    git: git@github.com:VictorCMiraldo/generics-mrsop.git
-    commit: a45f12cb41f72afc6ab2ac94a09928be1c05219a
-- completed:
-    hackage: generics-mrsop-gdiff-0.0.2@sha256:c8172829bd87dc2f52e44206d6c1f0e131e1d74415517baff2c5cde390fe571e,1756
-    pantry-tree:
-      size: 631
-      sha256: 7f6538b609f3627234023b280f6e823ec50192b6d8c190032be9bbf3e494450a
-  original:
-    hackage: generics-mrsop-gdiff-0.0.2
+    git: git@gitlab.com:trupill/simplistic-generics.git
+    commit: 7d75c7c0779d13c5ce64e7ef669c5adb383e66d2
 - completed:
     hackage: language-lua-0.11.0.1@sha256:b3bdf864965279f830323d5ed7d38073b2687b3a07b7fa73aa13782560f48f89,2919
     pantry-tree:
