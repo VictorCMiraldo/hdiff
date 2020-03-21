@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -14,6 +15,7 @@ import           Data.Functor.Const
 import qualified Data.Map as M
 ------------------------------------
 import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
 ------------------------------------
 import Data.HDiff.MetaVar
@@ -40,7 +42,8 @@ type Holes2 kappa fam phi
 -- 
 -- I like to think of them as pattern mathcing lambda-terms
 -- terms.
-holes2Eq :: Holes2 kappa fam (MetaVar kappa fam) at
+holes2Eq :: (All Eq kappa)
+         => Holes2 kappa fam (MetaVar kappa fam) at
          -> Holes2 kappa fam (MetaVar kappa fam) at
          -> Bool
 holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
@@ -123,10 +126,11 @@ unChg (Chg d i) = d :*: i
 
 -- |Alpha equality for changes; which is the default
 -- equality function.
-changeEq :: Chg kappa fam at -> Chg kappa fam at -> Bool
+changeEq :: (All Eq kappa)
+         => Chg kappa fam at -> Chg kappa fam at -> Bool
 changeEq c1 c2 = holes2Eq (unChg c1) (unChg c2)
 
-instance EqHO (Chg kappa fam) where
+instance (All Eq kappa) => EqHO (Chg kappa fam) where
   eqHO = changeEq
 
 -- |The domain of a change is just its deletion context.
@@ -170,7 +174,7 @@ chgDistr p = Chg (holesJoin $ holesMap chgDel p)
                  (holesJoin $ holesMap chgIns p)
 
 -- |Alpha equality for patches
-patchEq :: Patch kappa fam at -> Patch kappa fam at -> Bool
+patchEq :: (All Eq kappa) => Patch kappa fam at -> Patch kappa fam at -> Bool
 patchEq p1 p2 = changeEq (chgDistr p1) (chgDistr p2)        
 
 -- |The multiset of variables used by a patch.

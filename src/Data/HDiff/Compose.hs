@@ -8,6 +8,7 @@
 module Data.HDiff.Compose where
 
 import Generics.Simplistic.Unify
+import Generics.Simplistic.Util
 -------------------------------
 import Data.HDiff.Base
 
@@ -18,8 +19,8 @@ import Data.HDiff.Base
 -- The changes under composition should have
 -- a disjoint set of names. This is /not/ checked.
 -- If unsure, use '(.!)'.
-chgAfter :: Chg kappa fam at
-         -> Chg kappa fam at
+chgAfter :: (All Eq kappa)
+         => Chg kappa fam at -> Chg kappa fam at
          -> Maybe (Chg kappa fam at)
 chgAfter q p = do
   sigma <- unify_ (chgDel q) (chgIns p)
@@ -30,8 +31,8 @@ chgAfter q p = do
 -- |Composes two patches into a change. This function
 -- will rename variables as necessary to ensure
 -- it passes two changes with disjoint names to 'chgAfter'
-(.!) :: Patch kappa fam at
-     -> Patch kappa fam at
+(.!) :: (All Eq kappa)
+     => Patch kappa fam at -> Patch kappa fam at
      -> Maybe (Chg kappa fam at)
 q .! p = (chgDistr q) `chgAfter` (chgDistr p')
   where
@@ -39,8 +40,8 @@ q .! p = (chgDistr q) `chgAfter` (chgDistr p')
 
 -- |Predicate that returns whether or not
 -- two patches compose.
-patchComposes :: Patch kappa fam at
-              -> Patch kappa fam at
+patchComposes :: (All Eq kappa)
+              => Patch kappa fam at -> Patch kappa fam at
               -> Bool
 patchComposes q p = maybe False (const True) (q .! p)
  

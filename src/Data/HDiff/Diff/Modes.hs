@@ -13,6 +13,7 @@ import           Data.Functor.Const
 
 import           GHC.Generics
 import           Generics.Simplistic
+import           Generics.Simplistic.Deep
 import           Generics.Simplistic.Util
 import           Generics.Simplistic.Digest
 
@@ -51,8 +52,12 @@ tagProperShare :: forall a kappa fam at
                -> PrepFix (Int , Bool) kappa fam at
 tagProperShare ism = synthesize onRec onPrim (const botElim)
   where
+    botElim :: V1 x -> y
+    botElim = error "impossible"
+   
     myar :: PrepData x -> Int
     myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest 
+
     onPrim :: (Elem b kappa)
            => Const (PrepData a) b
            -> b
@@ -118,8 +123,8 @@ extractNoNested h tr (src :*: dst)
         delHs = S.fromList $ map getHole $ holesHolesList del'
         insHs = S.fromList $ map getHole $ holesHolesList ins'
         holes = delHs `S.intersection` insHs 
-        del   = holesRefineVars (refineHole holes) del'
-        ins   = holesRefineVars (refineHole holes) ins'
+        del   = holesRefineHoles (refineHole holes) del'
+        ins   = holesRefineHoles (refineHole holes) ins'
      in (del :*: ins)
   where
     getHole :: Exists (Const Int :*: f) -> Int

@@ -6,6 +6,8 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE PolyKinds             #-}
 
 module Data.HDiff.Diff.Align where
 
@@ -19,6 +21,7 @@ import           Control.DeepSeq
 import           GHC.Generics
 -----------------------------------
 import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util hiding (Delta)
 import Generics.Simplistic.Zipper
 -----------------------------------
@@ -209,13 +212,15 @@ alignDistr (Roll a) = Spn (repMap alignDistr a)
 -- 'align'' also returns the first fresh name, which is important
 -- to ensure we can stick to the Barendregt's convention
 -- the code.
-align :: Patch kappa fam at -> PatchAl kappa fam at
+align :: (All Eq kappa) => Patch kappa fam at -> PatchAl kappa fam at
 align = fst . align'
 
 -- |Backbone of alignment; check 'align' for explanation.
 -- The returned @Int@ is the first unbound name that can
 -- be used.
-align' :: Patch kappa fam at -> (PatchAl kappa fam at , Int)
+align' :: forall kappa fam at
+        . (All Eq kappa)
+       => Patch kappa fam at -> (PatchAl kappa fam at , Int)
 align' p = flip runState maxv
         $ holesMapM (alRefineM cpyPrims . chgAlign) p
   where
@@ -227,8 +232,8 @@ align' p = flip runState maxv
     -- second pass copies prims
     cpyPrims :: Chg kappa fam x -> State Int (Al kappa fam x)
     cpyPrims c@(Chg (Prim x) (Prim y))
-      | x == y    = get >>= \i -> put (i+1) >> return (Cpy (MV_Prim i))
-      | otherwise = return (Mod c)
+      | weq (Proxy :: Proxy kappa) x y = get >>= \i -> put (i+1) >> return (Cpy (MV_Prim i))
+      | otherwise                      = return (Mod c)
     cpyPrims c    = return (Mod c)
     
     -- first pass aligns changes and reveals a spine

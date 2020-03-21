@@ -14,7 +14,7 @@ module Data.HDiff.MetaVar where
 
 import Data.Function (on)
 --------------------------------------
-import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
 --------------------------------------
 

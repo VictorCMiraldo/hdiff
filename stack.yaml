@@ -2,7 +2,7 @@ resolver: lts-14.4
 
 extra-deps:
   - git: git@gitlab.com:trupill/simplistic-generics.git
-    commit: 7d75c7c0779d13c5ce64e7ef669c5adb383e66d2
+    commit: bc4e4a1f5e850feaed678a76134a4a537fbab581
   - language-lua-0.11.0.1
   - alex-tools-0.4
   - binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705

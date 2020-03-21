@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -22,6 +23,7 @@ import           Data.List (partition)
 ----------------------------------------
 import           GHC.Generics
 import           Generics.Simplistic
+import           Generics.Simplistic.Deep
 import           Generics.Simplistic.Util
 import           Generics.Simplistic.Unify
 import           Generics.Simplistic.Zipper
@@ -93,7 +95,8 @@ mrgSt0 :: MergeState kappa fam
 mrgSt0 = MergeState M.empty substEmpty
 
 -- |Apply a function over the 'eqs' field of 'MergeState'
-onEqvs :: (Subst kappa fam (MetaVar kappa fam)
+onEqvs :: (All Show kappa)
+       => (Subst kappa fam (MetaVar kappa fam)
             -> Subst kappa fam (MetaVar kappa fam))
        -> MergeM kappa fam ()
 onEqvs f = do
@@ -110,7 +113,8 @@ type MergeM kappa fam = StateT (MergeState kappa fam) (Except String)
 -- using 'instAdd' to manipulate instantiations as it forces
 -- the metavariable and the element @Patch kappa fam@ to have the
 -- same index.
-instAdd :: Inst kappa fam -> MetaVar kappa fam at -> Chg kappa fam at
+instAdd :: (All Eq kappa)
+        => Inst kappa fam -> MetaVar kappa fam at -> Chg kappa fam at
         -> Maybe (Inst kappa fam)
 instAdd inst v x =
   case M.lookup (Exists v) inst of
@@ -122,7 +126,8 @@ instAdd inst v x =
 
 -- |Attempts to add a point to 'iota'; the string serves
 -- as a label for throwing an error when this fails.
-addToIota :: String -> MetaVar kappa fam at -> Chg kappa fam at
+addToIota :: (All Eq kappa)
+          => String -> MetaVar kappa fam at -> Chg kappa fam at
           -> MergeM kappa fam ()
 addToIota errLbl v p = do
   i <- gets iota
@@ -157,7 +162,8 @@ getConflicts = foldr act [] . holesHolesList
 -- the differences from @p@ and @q@ into a single patch.
 -- In the locations where this is not possible, we
 -- place a conflict.
-diff3 :: Patch kappa fam ix -> Patch kappa fam ix
+diff3 :: (All Show kappa , All Eq kappa)
+      => Patch kappa fam ix -> Patch kappa fam ix
       -> PatchC kappa fam ix
 diff3 oa ob =
   -- The first step is computing an alignment of
@@ -170,7 +176,8 @@ diff3 oa ob =
 
 -- |Attempts to merge two alignments. Assumes the alignments
 -- have a disjoint set of variables.
-mergeAl :: Al kappa fam x -> Al kappa fam x
+mergeAl :: (All Show kappa , All Eq kappa)
+        => Al kappa fam x -> Al kappa fam x
         -> Sum (Conflict kappa fam) (Chg kappa fam) x
 mergeAl p q = case runExcept (evalStateT (mergeAlM p q) mrgSt0) of
                 Left err -> InL $ Conflict err p q
@@ -181,7 +188,8 @@ mergeAl p q = case runExcept (evalStateT (mergeAlM p q) mrgSt0) of
 -- making decisions about what to instantiate and issuing
 -- commands that will be executed on a second phase; after
 -- we process all of this gathered global information which
-mergeAlM :: Al kappa fam x -> Al kappa fam x -> MergeM kappa fam (Al kappa fam x)
+mergeAlM :: (All Show kappa , All Eq kappa)
+         => Al kappa fam x -> Al kappa fam x -> MergeM kappa fam (Al kappa fam x)
 mergeAlM p q = do
   phase1 <- mergePhase1 p q
   inst <- get
@@ -208,7 +216,9 @@ data Phase2 :: [*] -> [*] -> * -> * where
 -- |Computes an alignment with leaves of type 'Phase2',
 -- which enables us to map over and make decisions after
 -- we have collected al the informatino.
-mergePhase1 :: Al kappa fam x -> Al kappa fam x
+mergePhase1 :: forall kappa fam x
+             . (All Show kappa , All Eq kappa)
+            => Al kappa fam x -> Al kappa fam x
             -> MergeM kappa fam (Al' kappa fam (Phase2 kappa fam) x)
 mergePhase1 p q =
  case (p , q) of
@@ -315,7 +325,8 @@ mergePhase1 p q =
 -- from a spine @Bin Cpy (Bin ...)@, and the result would be
 -- overlaying whatever alignment is the continuation
 -- of the deleton with the @Bin ...@ subtree.
-tryDel :: Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Al kappa fam) x
+tryDel :: (All Eq kappa)
+       => Zipper (CompoundCnstr kappa fam x) (SFix kappa fam) (Al kappa fam) x
        -> Al kappa fam x
        -> MergeM kappa fam (Al kappa fam x , Al kappa fam x)
 tryDel (Zipper z h) (Del (Zipper z' h'))
@@ -349,7 +360,8 @@ tryDel (Zipper z h) (Spn rep) =
    isCpyA _       = False
 
 
-instM :: HolesMV kappa fam at -> Al kappa fam at -> MergeM kappa fam ()
+instM :: (All Eq kappa)
+      => HolesMV kappa fam at -> Al kappa fam at -> MergeM kappa fam ()
 -- instantiating over a copy is fine; 
 instM _ (Cpy     _) = return ()
 instM (Hole v) a = addToIota "inst" v (disalign a)
@@ -446,9 +458,10 @@ addEqvsAndSimpl m (rig, nrig) = minimize $ M.foldrWithKey go (M.union m rig) nri
 -- maps that will be used to instantiate the result of the
 -- first phase of the merge algorithm
 splitDelInsMaps :: forall kappa fam
-                . MergeState kappa fam
-               -> Either [Exists (MetaVar kappa fam)]
-                         (Subst2 kappa fam)
+                 . (All Show kappa)
+                => MergeState kappa fam
+                -> Either [Exists (MetaVar kappa fam)]
+                          (Subst2 kappa fam)
 splitDelInsMaps (MergeState iot eqvs) =
   let sd = M.map (exMap chgDel) iot
       si = M.map (exMap chgIns) iot
@@ -468,7 +481,8 @@ splitDelInsMaps (MergeState iot eqvs) =
    oneStr lbl d = unlines $
      [ "[" ++ lbl ++ "] " ++ show v ++ ": " ++ show c | (v , c) <- M.toList d ]
 
-phase2 :: Subst2 kappa fam
+phase2 :: (All Show kappa , All Eq kappa)
+       => Subst2 kappa fam
        -> Phase2 kappa fam at
        -> MergeM kappa fam (Chg kappa fam at)
 phase2 di (P2TestEq ca cb) = chgeq di ca cb
@@ -496,7 +510,8 @@ chgrefine (d , i) (Chg del ins) =
       ins' = substApply i ins
    in Chg del' ins'
 
-chgeq :: Subst2 kappa fam
+chgeq :: (All Show kappa , All Eq kappa)
+      => Subst2 kappa fam
       -> Chg kappa fam at
       -> Chg kappa fam at
       -> MergeM kappa fam (Chg kappa fam at)
@@ -513,15 +528,14 @@ chgeq di ca cb =
 -- Pretty -- 
 
 
-instance Show (PatchC kappa fam x) where
+instance (All Show kappa) => Show (PatchC kappa fam x) where
   show = myRender . holesPretty go
     where
       go x = case x of
                InL c -> confPretty c
                InR c -> chgPretty c
 
-confPretty :: Conflict kappa fam x
-           -> Doc AnsiStyle
+confPretty :: (All Show kappa) => Conflict kappa fam x -> Doc AnsiStyle
 -- confPretty (FailedContr vars)
 --   = group (pretty "{!!" <+> sep (map (pretty . exElim metavarGet) vars) <+> pretty "!!}")
 confPretty (Conflict lbl c d)

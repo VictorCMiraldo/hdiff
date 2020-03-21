@@ -16,6 +16,7 @@ import Data.Functor.Const
 
 import GHC.Generics
 import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
 import Generics.Simplistic.Digest
 
@@ -41,6 +42,9 @@ preprocess :: forall kappa fam at
            -> PrepFix () kappa fam at
 preprocess = synthesize (const onRec) (const onPrim) (const botElim)
   where
+    botElim :: V1 x -> a
+    botElim = error "botElim"
+    
     pp :: Proxy kappa
     pp = Proxy
     

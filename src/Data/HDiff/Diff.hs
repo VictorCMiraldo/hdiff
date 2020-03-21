@@ -15,13 +15,13 @@ module Data.HDiff.Diff
   ) where
 
 import           Data.Functor.Const
-
 import           Control.Monad.State
-
+-----------------------------------------
 import           Generics.Simplistic
+import           Generics.Simplistic.Deep
 import           Generics.Simplistic.Util
 import           Generics.Simplistic.Digest
-
+-----------------------------------------
 import qualified Data.WordTrie as T
 import           Data.HDiff.Diff.Types
 import           Data.HDiff.Diff.Modes
@@ -55,6 +55,7 @@ buildArityTrie opts df = go df T.empty
     goR S_U1 t = t
     goR (S_L1 x) t = goR x t
     goR (S_R1 x) t = goR x t
+    goR (S_ST x) t = goR x t
     goR (S_M1 _ x) t = goR x t
     goR (x :**: y) t = goR y (goR x t)
     goR (S_K1 x) t = go x t
@@ -162,7 +163,7 @@ diffOpts' opts x y
 -- |When running the diff for two fixpoints, we can
 -- cast the resulting deletion and insertion context into
 -- an actual patch.
-diffOpts :: (All Digestible kappa)
+diffOpts :: (All Eq kappa , All Digestible kappa)
          => DiffOptions
          -> SFix kappa fam ix
          -> SFix kappa fam ix
@@ -185,7 +186,7 @@ diffOpts opts x y
 -}
 
 diff :: forall kappa fam ix
-      . (All Digestible kappa)
+      . (All Eq kappa , All Digestible kappa)
      => MinHeight
      -> SFix kappa fam ix
      -> SFix kappa fam ix

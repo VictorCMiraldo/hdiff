@@ -5,15 +5,16 @@
 -- for patches and changes.
 module Data.HDiff.Apply where
 
-import Generics.Simplistic
+import Generics.Simplistic.Deep
+import Generics.Simplistic.Util
 import Generics.Simplistic.Unify
 ------------------------------------
 import Data.HDiff.Base
 import Data.HDiff.MetaVar
 
 -- |Semantics of a change as a partial function over 'SFix'
-chgApply :: Chg kappa fam at
-         -> SFix kappa fam at
+chgApply :: (All Eq kappa)
+         => Chg kappa fam at -> SFix kappa fam at
          -> Maybe (SFix kappa fam at)
 chgApply chg p = do
   sigma <- unify_ (chgDel chg) (sfixToHoles p)
@@ -23,7 +24,6 @@ chgApply chg p = do
 
 -- |Semantics of a patch as a partial function over 'SFix';
 -- This is defined as @chgApply . chgDistr@.
-patchApply :: Patch kappa fam at
-           -> SFix kappa fam at
+patchApply :: (All Eq kappa) => Patch kappa fam at -> SFix kappa fam at
            -> Maybe (SFix kappa fam at)
 patchApply = chgApply . chgDistr
