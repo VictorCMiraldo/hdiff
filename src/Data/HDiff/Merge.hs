@@ -104,8 +104,21 @@ onEqvs f = do
   let es' = f e
   trace ("eqvs = " ++ show es') (modify (\st -> st { eqs = es' }))
 
+-- |The merge algorithm might fail with a conflict
+-- or when the involved patches are not a span.
+data MergeErr = NotASpan | Conf String
+
 -- |Synonym for the merge monad.
-type MergeM kappa fam = StateT (MergeState kappa fam) (Except String)
+type MergeM kappa fam = StateT (MergeState kappa fam)
+                               (Except MergeErr)
+
+-- |Makes it easier to throw conflicts
+throwConf :: String -> MergeM kappa fam a
+throwConf = throwError . Conf
+
+-- |Records an invariant failure.
+throwInvFailure :: MergeM kappa fam a
+throwInvFailure = throwError NotASpan
 
 -- |Attempts to insert a new point into an instantiation.
 -- If @Patch kappa fam at@ is already associated to a value, ensure
@@ -132,7 +145,7 @@ addToIota :: (All Eq kappa)
 addToIota errLbl v p = do
   i <- gets iota
   case instAdd i v p of
-    Nothing -> throwError errLbl
+    Nothing -> throwConf errLbl
     Just i' -> modify (\st -> st { iota = i' })
 
 
@@ -164,7 +177,7 @@ getConflicts = foldr act [] . holesHolesList
 -- place a conflict.
 diff3 :: (All Show kappa , All Eq kappa)
       => Patch kappa fam ix -> Patch kappa fam ix
-      -> PatchC kappa fam ix
+      -> Maybe (PatchC kappa fam ix)
 diff3 oa ob =
   -- The first step is computing an alignment of
   -- oa; yet, we must care for the variables introduced
@@ -172,16 +185,17 @@ diff3 oa ob =
   -- to ensure no variable clashes.
   let (oa' , maxa) = align' oa
       ob'          = align (holesMap (chgShiftVarsBy maxa) ob)
-   in holesMap (uncurry' mergeAl . deltaMap alignDistr) $ lgg oa' ob'
+   in holesMapM (uncurry' mergeAl . deltaMap alignDistr) $ lgg oa' ob'
 
 -- |Attempts to merge two alignments. Assumes the alignments
 -- have a disjoint set of variables.
 mergeAl :: (All Show kappa , All Eq kappa)
         => Al kappa fam x -> Al kappa fam x
-        -> Sum (Conflict kappa fam) (Chg kappa fam) x
+        -> Maybe (Sum (Conflict kappa fam) (Chg kappa fam) x)
 mergeAl p q = case runExcept (evalStateT (mergeAlM p q) mrgSt0) of
-                Left err -> InL $ Conflict err p q
-                Right r  -> InR (disalign r)
+                Left NotASpan   -> Nothing
+                Left (Conf err) -> Just $ InL $ Conflict err p q
+                Right r         -> Just $ InR (disalign r)
 
 -- |Merging alignments is done in two phases.
 -- A first phase is responsible for gathering equivalences,
@@ -194,7 +208,7 @@ mergeAlM p q = do
   phase1 <- mergePhase1 p q
   inst <- get
   case splitDelInsMaps inst of
-    Left vs  -> throwError ("failed-contr: " ++ show (map (exElim metavarGet) vs))
+    Left vs  -> throwConf ("failed-contr: " ++ show (map (exElim metavarGet) vs))
     Right di -> alMapM (phase2 di) phase1
 
 -- |The second phase consists in going where 'mergePhase1' left
@@ -238,7 +252,7 @@ mergePhase1 p q =
    -- simultaneous.
    (Ins (Zipper z p'), Ins (Zipper z' q'))
      | z == z'   -> Ins . Zipper z <$> mergePhase1 p' q'
-     | otherwise -> throwError "ins-ins"
+     | otherwise -> throwConf "ins-ins"
    (Ins (Zipper z p'), _) -> Ins . Zipper z <$> mergePhase1 p' q
    (_ ,Ins (Zipper z q')) -> Ins . Zipper z <$> mergePhase1 p q'
 
@@ -247,7 +261,7 @@ mergePhase1 p q =
    -- can safely delete the zipper from the other change
    -- we continue merge with the result and preserve the deletion.
    (Del zp@(Zipper z _), _) -> Del . Zipper z <$> (tryDel zp q >>= uncurry mergePhase1)
-   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (tryDel zq p >>= uncurry mergePhase1) -- todo remove swap?
+   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (tryDel zq p >>= uncurry mergePhase1) 
 
    -- Spines mean that on one hand a constructor was copied; but the mod
    -- indicates this constructor changed. Hence, we hace to try applying
@@ -258,14 +272,12 @@ mergePhase1 p q =
    -- When we have two spines it is easy, just pointwise merge their
    -- recursive positions
    (Spn p', Spn q') -> case zipSRep p' q' of
-       Nothing -> throwError "spn-spn"
+       Nothing -> throwInvFailure
        Just r  -> Spn <$> repMapM (uncurry' mergePhase1) r
 
    -- Finally, modifications sould be instantiated, if possible.
    (Mod p', Mod q') -> Mod <$> mrgChgChg p' q'
  where
-   swap (x , y) = (y , x)
-
    mrgPrmPrm :: MetaVar kappa fam x
              -> MetaVar kappa fam x
              -> MetaVar kappa fam x
@@ -303,7 +315,7 @@ mergePhase1 p q =
     | otherwise =
       trace (mkDbgString "chg" "chg" (show p') (show q')) 
       $ case runExcept (unify (chgDel p') (chgDel q')) of
-         Left _e  -> throwError "chg-unif"
+         Left _e  -> throwInvFailure
          Right r  -> onEqvs (M.union r)
                   >> return (P2TestEq p' q')
 
@@ -312,6 +324,7 @@ mergePhase1 p q =
    mrgChgDup dup@(Chg (Hole v) _) q' = 
     trace (mkDbgString "chg" "dup" (show q') (show dup))
      $ addToIota "chg-dup" v q' >> return (P2Instantiate dup Nothing)
+   mrgChgDup _ _ = error "imp: we did check with isDup' before calling"
 
    mrgChgSpn :: (CompoundCnstr kappa fam x)
              => Chg kappa fam x -> SRep (Al kappa fam) (Rep x)
@@ -331,21 +344,21 @@ tryDel :: (All Eq kappa)
        -> MergeM kappa fam (Al kappa fam x , Al kappa fam x)
 tryDel (Zipper z h) (Del (Zipper z' h'))
   | z == z'   = return (h , h')
-  | otherwise = throwError "del-del"
+  | otherwise = throwConf "del-del"
 -- Here we know chg is incompatibile; If it did not touch any
 -- of the recursive places fixed by 'zip' it would have been
 -- recognized as a deletion; if can't be a copy or a pemrutation
 -- because it is not flagged as such (and we handled those above!)
-tryDel (Zipper _ _) (Mod _)   = throwError "del-mod"
+tryDel (Zipper _ _) (Mod _)   = throwConf "del-mod"
 tryDel (Zipper z h) (Spn rep) =
   case zipperRepZip z rep of
-    Nothing -> throwError "del-spn-1"
+    Nothing -> throwInvFailure
     Just r  -> let hs = repLeavesList r
                 in case partition (exElim isInR1) hs of
                      ([Exists (InL Refl :*: x)] , xs)
                        | all isCpyL1 xs -> return (h , x)
-                       | otherwise      -> throwError "del-spn-2"
-                     _                  -> throwError "del-spn-3"
+                       | otherwise      -> throwConf "del-spn-2"
+                     _                  -> throwConf "del-spn-3"
  where
    isInR1 :: (Sum a b :*: f) i -> Bool
    isInR1 (InL _ :*: _) = True
@@ -358,6 +371,7 @@ tryDel (Zipper z h) (Spn rep) =
    isCpyA (Cpy _) = True
    isCpyA (Spn r) = all (exElim isCpyA) (repLeavesList r)
    isCpyA _       = False
+tryDel _ _ = error "imp: no other case should show up"
 
 
 instM :: (All Eq kappa)
@@ -372,22 +386,22 @@ instM (Hole v) a = addToIota "inst" v (disalign a)
 -- same thing. This is tricky to detect and I think
 -- we overall need a better formalism to deal with
 -- merging chgs over spines; I'm postponing this for now.
-instM _ (Mod _) = throwError "inst-mod"
+instM _ (Mod _) = throwConf "inst-mod"
 -- instantiating over a permutation if we are not immediatly
 -- matching is tricky. I will be conservative and
 -- raise a conflit. I suspect we can do better though.
 -- For example; register that the deletion of x must be d
 -- and return whatever we found about the insertion of y at this very
 -- place; but this is difficult.
-instM _ (Prm _ _) = throwError "inst-perm"
+instM _ (Prm _ _) = throwConf "inst-perm"
 instM x@(Prim _) d
   | x == chgDel (disalign d) = return ()
-  | otherwise                = throwError "symbol-clash"
-instM (Roll _) (Ins _) = throwError "chg-ins"
-instM (Roll _) (Del _) = throwError "chg-del"
+  | otherwise                = throwInvFailure
+instM (Roll _) (Ins _) = throwConf "chg-ins"
+instM (Roll _) (Del _) = throwConf "chg-del"
 instM (Roll r) (Spn s) =
   case zipSRep r s of
-    Nothing  -> throwError "constr-clash"
+    Nothing  -> throwInvFailure
     Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
 
 
@@ -494,7 +508,7 @@ phase2 di (P2Instantiate chg (Just i)) =
     do es <- gets eqs
        case getCommonVars (substApply es (chgIns chg)) (substApply es i) of
            [] -> return $ chgrefine di chg
-           xs -> throwError ("mov-mov " ++ show xs)
+           xs -> throwConf ("mov-mov " ++ show xs)
  where
    getCommonVars :: HolesMV kappa fam at -> HolesMV kappa fam at -> [Int]
    getCommonVars x y =
@@ -522,7 +536,7 @@ chgeq di ca cb =
   in trace ("p2-eq?:\n  ca = " ++ show ca' ++ "\n  cb = " ++ show cb' ++ "\n [" ++ show r ++ "]") $
      if r
      then return ca'
-     else throwError "not-eq"
+     else throwConf "not-eq"
 
 ------------
 -- Pretty -- 
