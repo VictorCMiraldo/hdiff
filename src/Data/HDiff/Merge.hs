@@ -38,7 +38,7 @@ import           Data.Text.Prettyprint.Doc.Render.Terminal
 
 import Unsafe.Coerce 
 
-#define DEBUG_MERGE
+-- #define DEBUG_MERGE
 #ifdef DEBUG_MERGE
 import Debug.Trace
 #else

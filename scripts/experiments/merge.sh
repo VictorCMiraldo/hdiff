@@ -36,13 +36,13 @@ function doMerge() {
   local hdr=""
   local res=42
   hdr="$prefix $height $mode"
-  if [[ ! -z "$skipclosures" ]]; then 
+  if [[ ! -z "$globscope" ]]; then 
     hdr="$hdr global"
   else
     hdr="$hdr local"
   fi
   timeout "${timeout}" hdiff -p $parser \
-    merge -d $mode -m $height $skipclosures \
+    merge -d $mode -m $height $globscope \
     --test-merge "$fm" "$fa" "$fo" "$fb"
   res=$?
   case $res in

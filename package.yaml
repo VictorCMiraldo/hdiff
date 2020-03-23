@@ -53,5 +53,5 @@ executables:
       - time
       - deepseq
       - hdiff
-    # cpp-options: -DREAL_LANGUAGES
+    cpp-options: -DREAL_LANGUAGES
     ghc-options: -XCPP -O2 -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 

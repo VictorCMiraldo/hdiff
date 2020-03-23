@@ -20,7 +20,7 @@ fi
 
 mkdir -p $res/individual
 
-dry="--dry"
+dry="" #"--dry"
 
 meta () {
   echo "$(date) | $1" >> $res/meta
@@ -36,11 +36,11 @@ runMergeLoc() {
   local name=${exp%%.*}
   local log="$res/individual/$name-$parser"
 
-  for hh in 1 6; do
-    for mm in nonest proper patience; do
+  for hh in 1; do
+    for mm in patience; do
         meta "Launching hdiff $parser $name $hh $mm local"
         echo "Launching hdiff $parser $name $hh $mm local"
-         ./scripts/run-experiment.sh $dry \
+         ./scripts/run-experiment.sh -s 0 $dry \
             -l "$log.$hh.$mm.loc.log" -m 16 "$path" $exp \
             -m $hh -d $mm -p $parser 2> /dev/null &
     done
@@ -54,16 +54,15 @@ runMergeGlob() {
   local name=${exp%%.*}
   local log="$res/individual/$name-$parser"
 
-  for hh in 1 6; do
-    for mm in nonest proper patience; do
+  for hh in 1; do
+    for mm in nonest patience; do
         meta "Launching hdiff $parser $name $hh $mm global"
         echo "Launching hdiff $parser $name $hh $mm global"
-         ./scripts/run-experiment.sh $dry \
+         ./scripts/run-experiment.sh -s 0 $dry \
             -l "$log.$hh.$mm.glob.log" -m 16 "$path" $exp \
             -m $hh -d $mm -p $parser --global-scope 2> /dev/null &
       done
     done
-  done
 }
 
 runDiff () {
@@ -85,26 +84,26 @@ runDiff () {
 meta "Let the experiments begin"
 
 #Runs hdiff on the supported languages
-for lang in lua clj sh java js py; do
+for lang in lua clj java js py; do
   runMergeLoc  "conflicts-$lang" "$lang"
   runMergeGlob "conflicts-$lang" "$lang"
-  wait
-done
-
-# Get timings for stdiff and hdiff
-for lang in java lua clj; do
-  runDiff "conflicts-$lang" "$lang"
 done
 wait
 
+# Get timings for stdiff and hdiff
+# for lang in java lua clj; do
+#   runDiff "conflicts-$lang" "$lang"
+# done
+# wait
+
 meta "We are done!"
 
-for lang in java js lua py clj sh; do 
-  ./scripts/process-merge-results.sh $res/individual/merge-$lang.* | sort -nr -k6 > $res/$lang-summary
+for lang in java js lua py clj; do 
+  ./scripts/process-merge-result.sh $res/individual/merge-$lang.* | sort -nr -k6 > $res/$lang-summary
 done
 
-for lang in java js lua py clj sh; do 
-  echo "## $lang" >> final
-  head -n 3 $res/$lang-summary >> final
+for lang in java js lua py clj; do 
+  echo "## $lang" >> $res/final
+  head -n 3 $res/$lang-summary >> $res/final
 done
 
