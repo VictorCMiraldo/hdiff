@@ -72,6 +72,10 @@ data Conflict :: [*] -> [*] -> * -> * where
            -> Al kappa fam at
            -> Conflict kappa fam at
 
+-- |Extracts the label out of a conflict
+conflictLbl :: Conflict kappa fam at -> String
+conflictLbl (Conflict lbl _ _) = lbl
+
 -- |A 'PatchC' is a patch with potential conflicts inside
 type PatchC kappa fam at
   = Holes kappa fam (Sum (Conflict kappa fam) (Chg kappa fam)) at
@@ -208,7 +212,7 @@ mergeAlM p q = do
   phase1 <- mergePhase1 p q
   inst <- get
   case splitDelInsMaps inst of
-    Left vs  -> throwConf ("failed-contr: " ++ show (map (exElim metavarGet) vs))
+    Left vs  -> throwConf ("failed-contr : " ++ show (map (exElim metavarGet) vs))
     Right di -> alMapM (phase2 di) phase1
 
 -- |The second phase consists in going where 'mergePhase1' left

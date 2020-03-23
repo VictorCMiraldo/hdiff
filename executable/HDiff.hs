@@ -121,6 +121,12 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
         ]
     return ExitSuccess
 
+appendConflictsTo :: Maybe FilePath -> D.PatchC kappa fam at -> IO ()
+appendConflictsTo Nothing  _ = return ()
+appendConflictsTo (Just f) x = do
+  let cs = map (exElim D.conflictLbl) $ D.getConflicts x
+  withFile f AppendMode (\hd -> mapM_ (hPutStrLn hd) cs)
+
 mainMerge :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opts) (optFileB opts)
   $ \pp fa fo fb -> do
@@ -131,6 +137,7 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
       Nothing  -> return (ExitFailure 13)
       Just omc -> case D.noConflicts omc of
          Nothing -> putStrLnErr " !! Conflicts O->A O->B !!"
+                 >> appendConflictsTo (optListConfs opts) omc
                  >> when (v == VeryLoud) (hPutStrLn stdout $ show omc)
                  >> return (ExitFailure 1)
          Just om -> do
