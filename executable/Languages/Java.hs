@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE CPP                   #-}
 {-# OPTIONS_GHC -Wno-orphans                            #-}
 {-# OPTIONS_GHC -Wno-missing-signatures                 #-}

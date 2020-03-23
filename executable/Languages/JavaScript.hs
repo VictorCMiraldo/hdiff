@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Languages.JavaScript where
