@@ -22,7 +22,7 @@ readmOneOf = maybeReader . flip L.lookup
 -- * Version
 
 vERSION_STR :: String
-vERSION_STR = "hdiff 0.0.4 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]"
+vERSION_STR = "hdiff 0.0.5 [" ++ $(gitBranch) ++ "@" ++ $(gitHash) ++ "]"
 
 ---------------------------
 -- * Cmd Line Options
@@ -45,6 +45,7 @@ data Options
             , minHeight    :: Int
             , diffMode     :: D.DiffMode
             , globScoped   :: Bool
+            , optListConfs :: Maybe FilePath
             }
   deriving (Eq , Show)
 
@@ -111,8 +112,16 @@ testmergeOpt
            ( long "test-merge"
            <> help ("Attempts to apply the merged patch to "
                  ++ "OLDILFE and checks it matches this given file")
-           <> value Nothing
-           <> hidden)
+           <> value Nothing)
+
+
+listconfsOpt :: Parser (Maybe FilePath)
+listconfsOpt
+  = option (fmap Just str)
+           ( long "list-conflicts-to"
+           <> help ("If the produced patch contains conflicts, will list them"
+                 ++ "one per line to the supplied file; the file will be opened in APPEND mode.")
+           <> value Nothing) 
 
 mergeOpts :: Parser Options
 mergeOpts =
@@ -123,6 +132,7 @@ mergeOpts =
         <*> minheightOpt
         <*> diffmodeOpt
         <*> globScopedOpt 
+        <*> listconfsOpt
 
 
 parseOptions :: Parser Options
@@ -176,7 +186,7 @@ versionOpts = infoOption vERSION_STR (long "version")
 
 optionMode :: Options -> OptionMode
 optionMode (AST _)                  = OptAST
-optionMode (Merge _ _ _ _ _ _ _)    = OptMerge
+optionMode (Merge _ _ _ _ _ _ _ _)  = OptMerge
 optionMode (Diff _ _ _ _ _ _ _)     = OptDiff
 
 
