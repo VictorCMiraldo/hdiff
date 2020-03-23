@@ -23,6 +23,8 @@ import qualified Language.Bash.Cond  as Bash
 import Control.Monad.Except
 
 import Generics.Simplistic
+import Generics.Simplistic.Deep
+import Generics.Simplistic.Deep.TH
 
 type ShPrim = '[ Bool , String , Char , Int ]
 
@@ -71,48 +73,50 @@ type ShFam =
   , Bash.IODesc 
   ]
 
-instance Deep ShPrim ShFam Bash.List
-instance Deep ShPrim ShFam [Bash.Statement]
-instance Deep ShPrim ShFam Bash.Statement
-instance Deep ShPrim ShFam Bash.AndOr
-instance Deep ShPrim ShFam Bash.ListTerm
-instance Deep ShPrim ShFam Bash.Pipeline
-instance Deep ShPrim ShFam [Bash.Command]
-instance Deep ShPrim ShFam Bash.Command
-instance Deep ShPrim ShFam Bash.ShellCommand
-instance Deep ShPrim ShFam [Bash.Redir]
-instance Deep ShPrim ShFam [Bash.Assign]
-instance Deep ShPrim ShFam [Bash.Word]
-instance Deep ShPrim ShFam Bash.Word
-instance Deep ShPrim ShFam [Either Bash.Assign Bash.Word]
-instance Deep ShPrim ShFam (Bash.CondExpr Bash.Word)
-instance Deep ShPrim ShFam Bash.WordList
-instance Deep ShPrim ShFam [Bash.CaseClause]
-instance Deep ShPrim ShFam (Maybe Bash.List)
-instance Deep ShPrim ShFam Bash.Assign
-instance Deep ShPrim ShFam Bash.Parameter
-instance Deep ShPrim ShFam Bash.AssignOp
-instance Deep ShPrim ShFam Bash.RValue
-instance Deep ShPrim ShFam (Maybe Bash.Word)
-instance Deep ShPrim ShFam Bash.Span
-instance Deep ShPrim ShFam Bash.ParamSubst
-instance Deep ShPrim ShFam Bash.ProcessSubstOp
-instance Deep ShPrim ShFam Bash.AltOp
-instance Deep ShPrim ShFam Bash.Direction
-instance Deep ShPrim ShFam (Maybe Bash.Direction)
-instance Deep ShPrim ShFam Bash.LetterCaseOp
-instance Deep ShPrim ShFam [(Maybe Bash.Word, Bash.Word)]
-instance Deep ShPrim ShFam (Maybe Bash.Word, Bash.Word)
-instance Deep ShPrim ShFam (Either Bash.Assign Bash.Word)
-instance Deep ShPrim ShFam Bash.UnaryOp
-instance Deep ShPrim ShFam Bash.BinaryOp
-instance Deep ShPrim ShFam Bash.CaseClause
-instance Deep ShPrim ShFam Bash.CaseTerm
-instance Deep ShPrim ShFam Bash.Redir
-instance Deep ShPrim ShFam (Maybe Bash.IODesc)
-instance Deep ShPrim ShFam Bash.RedirOp
-instance Deep ShPrim ShFam Bash.HeredocOp
-instance Deep ShPrim ShFam Bash.IODesc 
+deriveDeepFor ''ShPrim ''ShFam
+-- 
+-- instance Deep ShPrim ShFam Bash.List
+-- instance Deep ShPrim ShFam [Bash.Statement]
+-- instance Deep ShPrim ShFam Bash.Statement
+-- instance Deep ShPrim ShFam Bash.AndOr
+-- instance Deep ShPrim ShFam Bash.ListTerm
+-- instance Deep ShPrim ShFam Bash.Pipeline
+-- instance Deep ShPrim ShFam [Bash.Command]
+-- instance Deep ShPrim ShFam Bash.Command
+-- instance Deep ShPrim ShFam Bash.ShellCommand
+-- instance Deep ShPrim ShFam [Bash.Redir]
+-- instance Deep ShPrim ShFam [Bash.Assign]
+-- instance Deep ShPrim ShFam [Bash.Word]
+-- instance Deep ShPrim ShFam Bash.Word
+-- instance Deep ShPrim ShFam [Either Bash.Assign Bash.Word]
+-- instance Deep ShPrim ShFam (Bash.CondExpr Bash.Word)
+-- instance Deep ShPrim ShFam Bash.WordList
+-- instance Deep ShPrim ShFam [Bash.CaseClause]
+-- instance Deep ShPrim ShFam (Maybe Bash.List)
+-- instance Deep ShPrim ShFam Bash.Assign
+-- instance Deep ShPrim ShFam Bash.Parameter
+-- instance Deep ShPrim ShFam Bash.AssignOp
+-- instance Deep ShPrim ShFam Bash.RValue
+-- instance Deep ShPrim ShFam (Maybe Bash.Word)
+-- instance Deep ShPrim ShFam Bash.Span
+-- instance Deep ShPrim ShFam Bash.ParamSubst
+-- instance Deep ShPrim ShFam Bash.ProcessSubstOp
+-- instance Deep ShPrim ShFam Bash.AltOp
+-- instance Deep ShPrim ShFam Bash.Direction
+-- instance Deep ShPrim ShFam (Maybe Bash.Direction)
+-- instance Deep ShPrim ShFam Bash.LetterCaseOp
+-- instance Deep ShPrim ShFam [(Maybe Bash.Word, Bash.Word)]
+-- instance Deep ShPrim ShFam (Maybe Bash.Word, Bash.Word)
+-- instance Deep ShPrim ShFam (Either Bash.Assign Bash.Word)
+-- instance Deep ShPrim ShFam Bash.UnaryOp
+-- instance Deep ShPrim ShFam Bash.BinaryOp
+-- instance Deep ShPrim ShFam Bash.CaseClause
+-- instance Deep ShPrim ShFam Bash.CaseTerm
+-- instance Deep ShPrim ShFam Bash.Redir
+-- instance Deep ShPrim ShFam (Maybe Bash.IODesc)
+-- instance Deep ShPrim ShFam Bash.RedirOp
+-- instance Deep ShPrim ShFam Bash.HeredocOp
+-- instance Deep ShPrim ShFam Bash.IODesc 
 
 parseFile :: String -> ExceptT String IO Bash.List
 parseFile file = do

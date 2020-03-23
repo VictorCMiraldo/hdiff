@@ -27,31 +27,18 @@ import qualified Control.Exception as Exc
 import System.CPUTime
 import Options.Applicative
 
-import GHC.Generics (V1)
-import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
 
-import           Data.Type.Equality
-
 import qualified Data.HDiff.Base         as D
-import qualified Data.HDiff.MetaVar      as D
 import qualified Data.HDiff.Apply        as D
 import qualified Data.HDiff.Diff         as D
 import qualified Data.HDiff.Merge        as D
 import qualified Data.HDiff.Diff.Align  as D
-import qualified Data.HDiff.Diff.Preprocess  as D
-import           Data.HDiff.Show
 
 import           Languages.Interface
 import           HDiff.Options
 
-instance NFData (D.MetaVar kappa fam x) where
-  rnf (D.MV_Prim i) = rnf i
-  rnf (D.MV_Comp i) = rnf i
-
-instance NFData (D.Chg kappa fam x) where
-  rnf (D.Chg d i) = rnf d `seq` rnf i
-  
 time :: (NFData a) => IO a -> IO (Double, a)
 time act = do
     t1 <- getCPUTime
@@ -82,9 +69,6 @@ putStrLnErr = hPutStrLn stderr
 
 -- * Generic interface
 
-instance ShowHO V1 where
-  showHO _ = "impossible!"
-
 mainAST :: Verbosity -> Maybe String -> Options -> IO ExitCode
 mainAST v sel opts = withParsed1 sel mainParsers (optFileA opts)
   $ \_ fa -> do
@@ -107,8 +91,9 @@ tryApply v patch fa fb
               >> exitWith (ExitFailure 2)
       Just b' -> return $ maybe (Just b') (testEq b') fb
  where
-   testEq :: SFix kappa fam ix -> SFix kappa fam ix -> Maybe (SFix kappa fam ix)
-   testEq x y = if eqHO x y then Just x else Nothing
+   testEq :: (All Eq kappa)
+          => SFix kappa fam ix -> SFix kappa fam ix -> Maybe (SFix kappa fam ix)
+   testEq x y = if x == y then Just x else Nothing
 
 -- |Runs our diff algorithm with particular options parsed
 -- from the CLI options.

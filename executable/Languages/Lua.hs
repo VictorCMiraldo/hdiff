@@ -23,35 +23,10 @@ import Data.Text (Text)
 import Control.Monad.Except
 
 import Generics.Simplistic
+import Generics.Simplistic.Deep
+import Generics.Simplistic.Deep.TH
 
 type LuaPrim = '[ Text , Bool ]
-
-instance Deep LuaPrim LuaFam Block
-instance Deep LuaPrim LuaFam (Maybe Block)
-instance Deep LuaPrim LuaFam [Stat]
-instance Deep LuaPrim LuaFam Stat
-instance Deep LuaPrim LuaFam [(Exp , Block)]
-instance Deep LuaPrim LuaFam (Exp , Block)
-instance Deep LuaPrim LuaFam Exp
-instance Deep LuaPrim LuaFam (Maybe Exp)
-instance Deep LuaPrim LuaFam [TableField]
-instance Deep LuaPrim LuaFam TableField
-instance Deep LuaPrim LuaFam Name
-instance Deep LuaPrim LuaFam NumberType
-instance Deep LuaPrim LuaFam FunBody
-instance Deep LuaPrim LuaFam [Name]
-instance Deep LuaPrim LuaFam PrefixExp
-instance Deep LuaPrim LuaFam Var
-instance Deep LuaPrim LuaFam FunCall
-instance Deep LuaPrim LuaFam FunArg
-instance Deep LuaPrim LuaFam FunName
-instance Deep LuaPrim LuaFam (Maybe Name)
-instance Deep LuaPrim LuaFam [Exp]
-instance Deep LuaPrim LuaFam (Maybe [Exp])
-instance Deep LuaPrim LuaFam Binop
-instance Deep LuaPrim LuaFam Unop
-instance Deep LuaPrim LuaFam [Var]
-
 type LuaFam = 
   [ Block
   , (Maybe Block)
@@ -79,6 +54,35 @@ type LuaFam =
   , Unop
   , [Var]
   ]
+
+deriveDeepFor ''LuaPrim ''LuaFam
+
+-- instance Deep LuaPrim LuaFam Block
+-- instance Deep LuaPrim LuaFam (Maybe Block)
+-- instance Deep LuaPrim LuaFam [Stat]
+-- instance Deep LuaPrim LuaFam Stat
+-- instance Deep LuaPrim LuaFam [(Exp , Block)]
+-- instance Deep LuaPrim LuaFam (Exp , Block)
+-- instance Deep LuaPrim LuaFam Exp
+-- instance Deep LuaPrim LuaFam (Maybe Exp)
+-- instance Deep LuaPrim LuaFam [TableField]
+-- instance Deep LuaPrim LuaFam TableField
+-- instance Deep LuaPrim LuaFam Name
+-- instance Deep LuaPrim LuaFam NumberType
+-- instance Deep LuaPrim LuaFam FunBody
+-- instance Deep LuaPrim LuaFam [Name]
+-- instance Deep LuaPrim LuaFam PrefixExp
+-- instance Deep LuaPrim LuaFam Var
+-- instance Deep LuaPrim LuaFam FunCall
+-- instance Deep LuaPrim LuaFam FunArg
+-- instance Deep LuaPrim LuaFam FunName
+-- instance Deep LuaPrim LuaFam (Maybe Name)
+-- instance Deep LuaPrim LuaFam [Exp]
+-- instance Deep LuaPrim LuaFam (Maybe [Exp])
+-- instance Deep LuaPrim LuaFam Binop
+-- instance Deep LuaPrim LuaFam Unop
+-- instance Deep LuaPrim LuaFam [Var]
+
 
 
 parseFile :: String -> ExceptT String IO Block

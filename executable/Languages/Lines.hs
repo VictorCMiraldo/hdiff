@@ -22,6 +22,7 @@ import           Control.Monad.Except
 
 import GHC.Generics
 import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Digest
 
 -----------------------

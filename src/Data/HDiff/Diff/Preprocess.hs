@@ -64,6 +64,7 @@ maxAlg :: forall phi f
 maxAlg _ S_U1       = 0
 maxAlg f (S_L1 x)   = maxAlg f x
 maxAlg f (S_R1 x)   = maxAlg f x
+maxAlg f (S_ST x)   = maxAlg f x
 maxAlg f (S_M1 _ x) = maxAlg f x
 maxAlg f (x :**: y) = max (maxAlg f x) (maxAlg f y)
 maxAlg f (S_K1 x)   = f x

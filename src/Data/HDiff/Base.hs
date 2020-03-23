@@ -11,6 +11,7 @@ module Data.HDiff.Base where
 
 import           Control.Monad.Cont
 import           Control.Monad.State
+import           Control.DeepSeq
 import           Data.Functor.Const
 import qualified Data.Map as M
 ------------------------------------
@@ -118,6 +119,9 @@ data Chg kappa fam at = Chg
   { chgDel :: HolesMV kappa fam at
   , chgIns :: HolesMV kappa fam at
   }
+
+instance NFData (Chg kappa fam x) where
+  rnf (Chg d i) = rnf d `seq` rnf i
 
 -- | Translates from a change to an indexed product.
 unChg :: Chg kappa fam at

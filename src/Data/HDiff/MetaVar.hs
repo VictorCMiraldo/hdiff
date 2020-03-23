@@ -13,6 +13,7 @@
 module Data.HDiff.MetaVar where
 
 import Data.Function (on)
+import Control.DeepSeq
 --------------------------------------
 import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
@@ -28,6 +29,11 @@ data MetaVar fam prim at where
           => Int -> MetaVar fam prim at
 deriving instance Eq  (MetaVar fam prim at)
 deriving instance Ord (MetaVar fam prim at)
+instance NFData (MetaVar kappa fam x) where
+  rnf (MV_Prim i) = rnf i
+  rnf (MV_Comp i) = rnf i
+
+
           
 metavarGet :: MetaVar fam prim at -> Int
 metavarGet (MV_Prim i) = i

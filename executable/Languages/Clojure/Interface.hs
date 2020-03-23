@@ -22,7 +22,8 @@ import Data.Text (Text)
 import Control.Monad.Except
 
 import GHC.Generics
-import Generics.Simplistic
+import Generics.Simplistic.Deep
+import Generics.Simplistic.Deep.TH
 
 type CljPrims = '[ Text ]
 
@@ -38,14 +39,6 @@ deriving instance Generic Term
 deriving instance Generic Sep
 deriving instance Generic Tag
 
-instance Deep CljPrims CljFam Expr
-instance Deep CljPrims CljFam FormTy
-instance Deep CljPrims CljFam CollTy
-instance Deep CljPrims CljFam SepExprList
-instance Deep CljPrims CljFam Term
-instance Deep CljPrims CljFam Sep
-instance Deep CljPrims CljFam Tag
-
 type CljFam = 
   [ Expr
   , FormTy
@@ -55,6 +48,19 @@ type CljFam =
   , Sep
   , Tag
   ]
+
+deriveDeepFor ''CljPrims ''CljFam
+
+-- -- The TH above generates:
+-- instance Deep CljPrims CljFam Expr
+-- instance Deep CljPrims CljFam FormTy
+-- instance Deep CljPrims CljFam CollTy
+-- instance Deep CljPrims CljFam SepExprList
+-- instance Deep CljPrims CljFam Term
+-- instance Deep CljPrims CljFam Sep
+-- instance Deep CljPrims CljFam Tag
+
+
 
 dfromClj :: Expr -> SFix CljPrims CljFam Expr
 dfromClj = dfrom
