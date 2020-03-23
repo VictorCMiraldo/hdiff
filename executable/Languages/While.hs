@@ -22,15 +22,10 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 
 import           Control.Monad
 import           Control.Monad.Except
-import           Data.Type.Equality
-import           Data.Text.Prettyprint.Doc (pretty)
 
 import GHC.Generics hiding (Prefix , Infix)
-import Generics.Simplistic.TH (getTypesInvolved)
-import Generics.Simplistic
-
-import System.IO
-import System.Exit
+import Generics.Simplistic.Deep
+import Generics.Simplistic.Deep.TH
 
 -----------------------
 -- * Parser
@@ -78,13 +73,15 @@ deriving instance Generic ABinOp
 deriving instance Generic BBinOp
 deriving instance Generic RBinOp
 
-instance Deep WhilePrims WhileFam Stmt
-instance Deep WhilePrims WhileFam [Stmt]
-instance Deep WhilePrims WhileFam AExpr
-instance Deep WhilePrims WhileFam BExpr
-instance Deep WhilePrims WhileFam ABinOp
-instance Deep WhilePrims WhileFam BBinOp
-instance Deep WhilePrims WhileFam RBinOp
+deriveDeepFor ''WhilePrims ''WhileFam
+
+-- instance Deep WhilePrims WhileFam Stmt
+-- instance Deep WhilePrims WhileFam [Stmt]
+-- instance Deep WhilePrims WhileFam AExpr
+-- instance Deep WhilePrims WhileFam BExpr
+-- instance Deep WhilePrims WhileFam ABinOp
+-- instance Deep WhilePrims WhileFam BBinOp
+-- instance Deep WhilePrims WhileFam RBinOp
 
 dfromWhile :: Stmt -> SFix WhilePrims WhileFam Stmt
 dfromWhile = dfrom

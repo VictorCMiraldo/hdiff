@@ -14,7 +14,7 @@ import Data.List (elemIndex , splitAt)
 
 import Control.Monad.Except
 
-import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Digest
 import Generics.Simplistic.Util
 
@@ -64,7 +64,7 @@ mainParsers
     ]
 
 type LangCnstr kappa fam ix
-  = (All Digestible kappa)
+  = (All Digestible kappa , All Eq kappa , All Show kappa)
     
 data LangParser :: * where
   LangParser :: (LangCnstr kappa fams ix)
@@ -83,6 +83,8 @@ getParserForExt _   []     = Nothing
 getParserForExt ext (p:ps)
   | parserExtension p == ext = Just p
   | otherwise                = getParserForExt ext ps
+
+data Nat = Z | S Nat
 
 data VectorOf (a :: *) (n :: Nat) :: * where
   V0 :: VectorOf a 'Z

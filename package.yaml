@@ -1,5 +1,5 @@
 name:        hdiff
-version:     0.0.4
+version:     0.0.5
 synopsis:    Pattern-Expression-based differencing of arbitrary types.
 description: This package provides an executable and a library to compute
              and manipulate pattern-expression based differences between
@@ -23,6 +23,7 @@ dependencies:
   - memory
   - template-haskell
   - deepseq
+  - simplistic-generics
 
 library:
   source-dirs: src/

@@ -1,13 +1,19 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# OPTIONS_GHC -Wno-orphans      #-}
 module Generics.Simplistic.Pretty where
 
+import           Data.Proxy                   (Proxy(..))
 import           Data.Text.Prettyprint.Doc    (Doc)
 import qualified Data.Text.Prettyprint.Doc as PP
 
 import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Zipper
 import Generics.Simplistic.Util
 
@@ -23,32 +29,36 @@ repPretty f x =
                $ (PP.pretty c:)
                $ map (exElim f) xs
 
-holesAnnPretty
-  :: (forall x . h   x -> Doc ann)
+holesAnnPretty :: forall kappa fam phi h ann a
+   . (All Show kappa)
+  => (forall x . h   x -> Doc ann)
   -> (forall x . phi x -> Doc ann -> Doc ann) 
   -> HolesAnn kappa fam phi h a
   -> Doc ann
 holesAnnPretty f g (Hole' ann x) = g ann (f x)
-holesAnnPretty _ g (Prim' ann x) = g ann (PP.pretty $ show x)
+holesAnnPretty _ g (Prim' ann x)
+  = g ann (PP.pretty $ wshow (Proxy :: Proxy kappa) x)
 holesAnnPretty f g (Roll' ann x)
   = g ann (repPretty (holesAnnPretty f g) x)
 
 holesPretty
-  :: (forall x . h x -> Doc ann) 
+  :: (All Show kappa)
+  => (forall x . h x -> Doc ann) 
   -> Holes kappa fam h a
   -> Doc ann
 holesPretty f = holesAnnPretty f (const id)
 
 sfixAnnPretty
-  :: (forall x . phi x -> Doc ann -> Doc ann) 
+  :: (All Show kappa)
+  => (forall x . phi x -> Doc ann -> Doc ann) 
   -> SFixAnn kappa fam phi a
   -> Doc ann
 sfixAnnPretty f = holesAnnPretty (error "imp") f
 
-sfixPretty :: SFix kappa fam a -> Doc ann
+sfixPretty :: (All Show kappa) => SFix kappa fam a -> Doc ann
 sfixPretty = sfixAnnPretty  (const id)
 
-instance Show (SFix kappa fam a) where
+instance (All Show kappa) => Show (SFix kappa fam a) where
   show = show . sfixPretty 
 
 -----------------------------

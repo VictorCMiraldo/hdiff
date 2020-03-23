@@ -77,6 +77,7 @@ authAlg proj = digestConcat . allDigs . repMap (Const . proj)
     allDigs (S_K1 x) = [getConst x]
     allDigs (S_L1 x) = allDigs x
     allDigs (S_R1 x) = allDigs x
+    allDigs (S_ST x) = allDigs x
     allDigs (x :**: y) = allDigs x ++ allDigs y
     allDigs (S_M1 m@SM_D x) = hashStr (getDatatypeName m)    : allDigs x
     allDigs (S_M1 m@SM_C x) = hashStr (getConstructorName m) : allDigs x

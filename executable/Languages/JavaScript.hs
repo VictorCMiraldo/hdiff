@@ -20,6 +20,8 @@ import Control.Monad.Except
 
 import GHC.Generics
 import Generics.Simplistic
+import Generics.Simplistic.Deep
+import Generics.Simplistic.Deep.TH
 
 type JSPrim = '[ String , Int , Integer , Double , Bool , Char]
 
@@ -41,36 +43,6 @@ deriving instance (Generic a) => Generic (Prop a)
 deriving instance (Generic a) => Generic (CaseClause a)
 deriving instance (Generic a) => Generic (VarDecl a)
 deriving instance (Generic a) => Generic (CatchClause a)
-
-instance Deep JSPrim JSFam ()
-instance Deep JSPrim JSFam InfixOp
-instance Deep JSPrim JSFam AssignOp
-instance Deep JSPrim JSFam PrefixOp
-instance Deep JSPrim JSFam UnaryAssignOp
-
-instance Deep JSPrim JSFam (JavaScript ())
-instance Deep JSPrim JSFam [Statement ()]
-instance Deep JSPrim JSFam (Statement ())
-instance Deep JSPrim JSFam (Expression ())
-instance Deep JSPrim JSFam [CaseClause ()]
-instance Deep JSPrim JSFam (Maybe (Id ()))
-instance Deep JSPrim JSFam (Id ())
-instance Deep JSPrim JSFam (ForInInit ())
-instance Deep JSPrim JSFam (ForInit ())
-instance Deep JSPrim JSFam (Maybe (Expression ()))
-instance Deep JSPrim JSFam (Maybe (CatchClause ()))
-instance Deep JSPrim JSFam (Maybe (Statement ()))
-instance Deep JSPrim JSFam [VarDecl ()]
-instance Deep JSPrim JSFam [Id ()]
-instance Deep JSPrim JSFam [Expression ()]
-instance Deep JSPrim JSFam [(Prop (), Expression ())]
-instance Deep JSPrim JSFam (LValue ())
-instance Deep JSPrim JSFam (Prop (), Expression ())
-instance Deep JSPrim JSFam (Prop ())
-instance Deep JSPrim JSFam (CaseClause ())
-instance Deep JSPrim JSFam (VarDecl ())
-instance Deep JSPrim JSFam (CatchClause ())
-
 
 type JSFam =
   [ () , InfixOp , AssignOp , PrefixOp , UnaryAssignOp
@@ -97,6 +69,38 @@ type JSFam =
   , (VarDecl ())
   , (CatchClause ())
   ]
+
+deriveDeepFor ''JSPrim ''JSFam
+-- 
+-- instance Deep JSPrim JSFam ()
+-- instance Deep JSPrim JSFam InfixOp
+-- instance Deep JSPrim JSFam AssignOp
+-- instance Deep JSPrim JSFam PrefixOp
+-- instance Deep JSPrim JSFam UnaryAssignOp
+-- 
+-- instance Deep JSPrim JSFam (JavaScript ())
+-- instance Deep JSPrim JSFam [Statement ()]
+-- instance Deep JSPrim JSFam (Statement ())
+-- instance Deep JSPrim JSFam (Expression ())
+-- instance Deep JSPrim JSFam [CaseClause ()]
+-- instance Deep JSPrim JSFam (Maybe (Id ()))
+-- instance Deep JSPrim JSFam (Id ())
+-- instance Deep JSPrim JSFam (ForInInit ())
+-- instance Deep JSPrim JSFam (ForInit ())
+-- instance Deep JSPrim JSFam (Maybe (Expression ()))
+-- instance Deep JSPrim JSFam (Maybe (CatchClause ()))
+-- instance Deep JSPrim JSFam (Maybe (Statement ()))
+-- instance Deep JSPrim JSFam [VarDecl ()]
+-- instance Deep JSPrim JSFam [Id ()]
+-- instance Deep JSPrim JSFam [Expression ()]
+-- instance Deep JSPrim JSFam [(Prop (), Expression ())]
+-- instance Deep JSPrim JSFam (LValue ())
+-- instance Deep JSPrim JSFam (Prop (), Expression ())
+-- instance Deep JSPrim JSFam (Prop ())
+-- instance Deep JSPrim JSFam (CaseClause ())
+-- instance Deep JSPrim JSFam (VarDecl ())
+-- instance Deep JSPrim JSFam (CatchClause ())
+-- 
 
 parseFile :: String -> ExceptT String IO (JavaScript Loc)
 parseFile file = do

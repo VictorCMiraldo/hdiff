@@ -7,17 +7,15 @@
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Data.HDiff.Show where
 
-import           Data.Functor.Sum
-import           Data.Functor.Const
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Terminal
 import qualified Data.Text as T
-
-import Generics.Simplistic
+-------------------------------------
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
 import Generics.Simplistic.Unify
 import Generics.Simplistic.Pretty
-
+-------------------------------------
 import qualified Data.HDiff.Base    as D
 import qualified Data.HDiff.MetaVar as D
 import qualified Data.HDiff.Diff.Align as D
@@ -53,10 +51,10 @@ instance {-# OVERLAPPABLE #-} (ShowHO ann , ShowHO phi)
       addAnn ann d = sep [pretty "<" , pretty (showHO ann) , pretty "|" , d , pretty ">"]
 -}
 
-instance ShowHO (D.HolesMV kappa fam) where
+instance (All Show kappa) => ShowHO (D.HolesMV kappa fam) where
   showHO = myRender . holesPretty (metavarPretty id)
 
-instance Show (D.HolesMV kappa fam x) where
+instance (All Show kappa) => Show (D.HolesMV kappa fam x) where
   show = myRender . holesPretty (metavarPretty id)
 
 -- when using emacs, the output of the repl is in red;
@@ -68,8 +66,7 @@ mygreen     = colorDull Green
 mydullred   = colorDull Yellow
 mydullgreen = colorDull Green
 
-chgPretty :: D.Chg kappa fam x
-          -> Doc AnsiStyle
+chgPretty :: (All Show kappa) => D.Chg kappa fam x -> Doc AnsiStyle
 chgPretty (D.Chg d i)
   = group $ braces $ sep [group (chgD d) , group (chgI i) ]
  where
@@ -79,10 +76,10 @@ chgPretty (D.Chg d i)
    chg f o c h
      = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
 
-instance Show (D.Chg kappa fam x) where
+instance (All Show kappa) => Show (D.Chg kappa fam x) where
   show = myRender . chgPretty
 
-instance Show (D.Patch kappa fam x) where
+instance (All Show kappa) => Show (D.Patch kappa fam x) where
   show = myRender . holesPretty chgPretty
 
 asrD :: Doc AnsiStyle -> Doc AnsiStyle
@@ -93,7 +90,7 @@ asrI :: Doc AnsiStyle -> Doc AnsiStyle
 asrI d = annotate mygreen $ group
        $ sep [pretty "[+" , d , pretty "+]"]
 
-alignedPretty :: D.Al kappa fam x -> Doc AnsiStyle
+alignedPretty :: (All Show kappa) => D.Al kappa fam x -> Doc AnsiStyle
 alignedPretty (D.Del x)
   = zipperPretty sfixPretty alignedPretty asrD x
 alignedPretty (D.Ins x)
@@ -108,13 +105,13 @@ alignedPretty (D.Prm x y)
 alignedPretty (D.Mod c)
   = chgPretty c
 
-alignedPretty' :: D.Al kappa fam x -> Doc AnsiStyle
+alignedPretty' :: (All Show kappa) => D.Al kappa fam x -> Doc AnsiStyle
 alignedPretty' a = group $ sep [pretty "{-#" , alignedPretty a , pretty "#-}"]
 
-instance Show (D.Al kappa fam x) where
+instance (All Show kappa) => Show (D.Al kappa fam x) where
   show = myRender . alignedPretty'
 
-instance Show (Holes kappa fam (D.Al kappa fam) x) where
+instance (All Show kappa) => Show (Holes kappa fam (D.Al kappa fam) x) where
   show = myRender . holesPretty alignedPretty'
 
 instance Show (D.MetaVar kappa fam x) where
@@ -123,8 +120,7 @@ instance Show (D.MetaVar kappa fam x) where
 instance ShowHO (D.MetaVar kappa fam) where
   showHO = show
 
-
-instance Show (UnifyErr kappa fam (D.MetaVar kappa fam)) where
+instance (All Show kappa) => Show (UnifyErr kappa fam (D.MetaVar kappa fam)) where
   show (OccursCheck xs) = "OccursCheck " ++ show xs
   show (SymbolClash x y) = "SymbolClash " ++ show x ++ " /= " ++ show y
 

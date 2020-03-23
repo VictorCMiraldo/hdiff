@@ -20,7 +20,8 @@ import Control.Monad.Except
 import Text.ParserCombinators.Parsec
 
 import GHC.Generics hiding (Prefix , Infix)
-import Generics.Simplistic
+import Generics.Simplistic.Deep
+import Generics.Simplistic.Deep.TH
 
 data Sep
   = Paren | Brace | Curly
@@ -69,12 +70,14 @@ type DyckPrim = '[ String ]
 
 type DyckFam = '[Dyck WS , DyckAtom WS , Sep , () , Dyck () , DyckAtom ()]
 
-instance Deep DyckPrim DyckFam (Dyck WS)
-instance Deep DyckPrim DyckFam (DyckAtom WS)
-instance Deep DyckPrim DyckFam Sep
-instance Deep DyckPrim DyckFam ()
-instance Deep DyckPrim DyckFam (Dyck ())
-instance Deep DyckPrim DyckFam (DyckAtom ())
+deriveDeepFor ''DyckPrim ''DyckFam
+-- 
+-- instance Deep DyckPrim DyckFam (Dyck WS)
+-- instance Deep DyckPrim DyckFam (DyckAtom WS)
+-- instance Deep DyckPrim DyckFam Sep
+-- instance Deep DyckPrim DyckFam ()
+-- instance Deep DyckPrim DyckFam (Dyck ())
+-- instance Deep DyckPrim DyckFam (DyckAtom ())
 
 parseFile :: String -> ExceptT String IO (Dyck WS)
 parseFile file = do

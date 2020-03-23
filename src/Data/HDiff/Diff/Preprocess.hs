@@ -16,6 +16,7 @@ import Data.Functor.Const
 
 import GHC.Generics
 import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
 import Generics.Simplistic.Digest
 
@@ -41,6 +42,9 @@ preprocess :: forall kappa fam at
            -> PrepFix () kappa fam at
 preprocess = synthesize (const onRec) (const onPrim) (const botElim)
   where
+    botElim :: V1 x -> a
+    botElim = error "botElim"
+    
     pp :: Proxy kappa
     pp = Proxy
     
@@ -60,6 +64,7 @@ maxAlg :: forall phi f
 maxAlg _ S_U1       = 0
 maxAlg f (S_L1 x)   = maxAlg f x
 maxAlg f (S_R1 x)   = maxAlg f x
+maxAlg f (S_ST x)   = maxAlg f x
 maxAlg f (S_M1 _ x) = maxAlg f x
 maxAlg f (x :**: y) = max (maxAlg f x) (maxAlg f y)
 maxAlg f (S_K1 x)   = f x

@@ -9,10 +9,11 @@
 module Data.HDiff.Diff.Closure where
 
 import           Data.Functor.Sum
-import           Control.Monad.Writer hiding (Sum)
+import           Control.Monad.Writer hiding (Sum, All)
 import qualified Data.Map as M
 -------------------------------------
 import Generics.Simplistic
+import Generics.Simplistic.Deep
 import Generics.Simplistic.Util
 -------------------------------------
 import Data.HDiff.Base
@@ -51,7 +52,8 @@ chgVarsDistr h =
 -- spine whilst maintaining well-scoped and closed changes.
 -- Calling close with a change that has free variables will
 -- trigger a call to 'error'.
-close :: Chg kappa fam at
+close :: (All Eq kappa)
+      => Chg kappa fam at
       -> Holes kappa fam (Chg kappa fam) at
 close c =
   let gl = chgVars c
