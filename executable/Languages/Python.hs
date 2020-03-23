@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# OPTIONS_GHC -Wno-orphans       #-}
 module Languages.Python where
 
