@@ -141,7 +141,3 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
              Just res -> when (v == Loud) (hPutStrLn stdout (show res))
                       >> return ExitSuccess
              Nothing  -> return (ExitFailure 3)
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/decouble-simplistic

@@ -109,10 +109,6 @@ onEqvs f = do
 data MergeErr = NotASpan | Conf String
 
 -- |Synonym for the merge monad.
-<<<<<<< HEAD
-type MergeM kappa fam
-  = StateT (MergeState kappa fam) (ExceptT String Maybe)
-=======
 type MergeM kappa fam = StateT (MergeState kappa fam)
                                (Except MergeErr)
 
@@ -123,7 +119,6 @@ throwConf = throwError . Conf
 -- |Records an invariant failure.
 throwInvFailure :: MergeM kappa fam a
 throwInvFailure = throwError NotASpan
->>>>>>> origin/decouble-simplistic
 
 -- |Attempts to insert a new point into an instantiation.
 -- If @Patch kappa fam at@ is already associated to a value, ensure
@@ -180,12 +175,8 @@ getConflicts = foldr act [] . holesHolesList
 -- the differences from @p@ and @q@ into a single patch.
 -- In the locations where this is not possible, we
 -- place a conflict.
-<<<<<<< HEAD
-diff3 :: Patch kappa fam ix -> Patch kappa fam ix
-=======
 diff3 :: (All Show kappa , All Eq kappa)
       => Patch kappa fam ix -> Patch kappa fam ix
->>>>>>> origin/decouble-simplistic
       -> Maybe (PatchC kappa fam ix)
 diff3 oa ob =
   -- The first step is computing an alignment of
@@ -198,23 +189,6 @@ diff3 oa ob =
 
 -- |Attempts to merge two alignments. Assumes the alignments
 -- have a disjoint set of variables.
-<<<<<<< HEAD
-mergeAl :: Al kappa fam x -> Al kappa fam x
-        -> Maybe (Sum (Conflict kappa fam) (Chg kappa fam) x)
-mergeAl p q = case runExceptT (evalStateT (mergeAlM p q) mrgSt0) of
-                Nothing         -> Nothing
-                Just (Left err) -> Just $ InL $ Conflict err p q
-                Just (Right r)  -> Just $ InR (disalign r)
-
--- |The merge algorithm requires both of its arguments
--- to form a span, when this is not the case, we fail with
--- 'Nothing'; signifing that the patches don't even
--- apply to a common ancestor. Its different from a conflict, where
--- the patches apply to at least one common element but modify
--- this element in different ways.
-invFail_notSpan :: MergeM kappa fam a
-invFail_notSpan = lift (lift Nothing)
-=======
 mergeAl :: (All Show kappa , All Eq kappa)
         => Al kappa fam x -> Al kappa fam x
         -> Maybe (Sum (Conflict kappa fam) (Chg kappa fam) x)
@@ -222,7 +196,6 @@ mergeAl p q = case runExcept (evalStateT (mergeAlM p q) mrgSt0) of
                 Left NotASpan   -> Nothing
                 Left (Conf err) -> Just $ InL $ Conflict err p q
                 Right r         -> Just $ InR (disalign r)
->>>>>>> origin/decouble-simplistic
 
 -- |Merging alignments is done in two phases.
 -- A first phase is responsible for gathering equivalences,
@@ -299,11 +272,7 @@ mergePhase1 p q =
    -- When we have two spines it is easy, just pointwise merge their
    -- recursive positions
    (Spn p', Spn q') -> case zipSRep p' q' of
-<<<<<<< HEAD
-       Nothing -> invFail_notSpan
-=======
        Nothing -> throwInvFailure
->>>>>>> origin/decouble-simplistic
        Just r  -> Spn <$> repMapM (uncurry' mergePhase1) r
 
    -- Finally, modifications sould be instantiated, if possible.
@@ -346,11 +315,7 @@ mergePhase1 p q =
     | otherwise =
       trace (mkDbgString "chg" "chg" (show p') (show q')) 
       $ case runExcept (unify (chgDel p') (chgDel q')) of
-<<<<<<< HEAD
-         Left _e  -> invFail_notSpan
-=======
          Left _e  -> throwInvFailure
->>>>>>> origin/decouble-simplistic
          Right r  -> onEqvs (M.union r)
                   >> return (P2TestEq p' q')
 
@@ -387,11 +352,7 @@ tryDel (Zipper z h) (Del (Zipper z' h'))
 tryDel (Zipper _ _) (Mod _)   = throwConf "del-mod"
 tryDel (Zipper z h) (Spn rep) =
   case zipperRepZip z rep of
-<<<<<<< HEAD
-    Nothing -> invFail_notSpan
-=======
     Nothing -> throwInvFailure
->>>>>>> origin/decouble-simplistic
     Just r  -> let hs = repLeavesList r
                 in case partition (exElim isInR1) hs of
                      ([Exists (InL Refl :*: x)] , xs)
@@ -435,21 +396,12 @@ instM _ (Mod _) = throwConf "inst-mod"
 instM _ (Prm _ _) = throwConf "inst-perm"
 instM x@(Prim _) d
   | x == chgDel (disalign d) = return ()
-<<<<<<< HEAD
-  | otherwise                = invFail_notSpan
-instM (Roll _) (Ins _) = throwError "chg-ins"
-instM (Roll _) (Del _) = throwError "chg-del"
-instM (Roll r) (Spn s) =
-  case zipSRep r s of
-    Nothing  -> invFail_notSpan
-=======
   | otherwise                = throwInvFailure
 instM (Roll _) (Ins _) = throwConf "chg-ins"
 instM (Roll _) (Del _) = throwConf "chg-del"
 instM (Roll r) (Spn s) =
   case zipSRep r s of
     Nothing  -> throwInvFailure
->>>>>>> origin/decouble-simplistic
     Just res -> void $ repMapM (\x -> uncurry' instM x >> return x) res
 
 
