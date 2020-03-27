@@ -348,7 +348,7 @@ tryDel :: (All Eq kappa)
        -> MergeM kappa fam (Al kappa fam x , Al kappa fam x)
 tryDel (Zipper z h) (Del (Zipper z' h'))
   | z == z'   = return (h , h')
-  | otherwise = throwConf "del-del"
+  | otherwise = throwConf "del-del" -- never see this... why?
 -- Here we know chg is incompatibile; If it did not touch any
 -- of the recursive places fixed by 'zip' it would have been
 -- recognized as a deletion; if can't be a copy or a pemrutation
@@ -361,8 +361,8 @@ tryDel (Zipper z h) (Spn rep) =
                 in case partition (exElim isInR1) hs of
                      ([Exists (InL Refl :*: x)] , xs)
                        | all isCpyL1 xs -> return (h , x)
-                       | otherwise      -> throwConf "del-spn-2"
-                     _                  -> throwConf "del-spn-3"
+                       | otherwise      -> throwConf "del-spn"
+                     _                  -> error "unreachable: invariant of zipperRepZip"
  where
    isInR1 :: (Sum a b :*: f) i -> Bool
    isInR1 (InL _ :*: _) = True
@@ -382,7 +382,7 @@ instM :: (All Eq kappa)
       => HolesMV kappa fam at -> Al kappa fam at -> MergeM kappa fam ()
 -- instantiating over a copy is fine; 
 instM _ (Cpy     _) = return ()
-instM (Hole v) a = addToIota "inst" v (disalign a)
+instM (Hole v) a = addToIota "inst-contr" v (disalign a)
 -- Instantiating over a modification might also be
 -- possible in select cases; namelly, when the deletion
 -- context has no variables, unifies with the deletion
@@ -401,8 +401,8 @@ instM _ (Prm _ _) = throwConf "inst-perm"
 instM x@(Prim _) d
   | x == chgDel (disalign d) = return ()
   | otherwise                = throwInvFailure
-instM (Roll _) (Ins _) = throwConf "chg-ins"
-instM (Roll _) (Del _) = throwConf "chg-del"
+instM (Roll _) (Ins _) = throwConf "inst-ins"
+instM (Roll _) (Del _) = throwConf "inst-del"
 instM (Roll r) (Spn s) =
   case zipSRep r s of
     Nothing  -> throwInvFailure
