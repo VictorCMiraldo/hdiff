@@ -70,11 +70,11 @@ type ShFam =
   , (Maybe Bash.IODesc)
   , Bash.RedirOp
   , Bash.HeredocOp
-  , Bash.IODesc 
+  , Bash.IODesc
   ]
 
 deriveDeepFor ''ShPrim ''ShFam
--- 
+--
 -- instance Deep ShPrim ShFam Bash.List
 -- instance Deep ShPrim ShFam [Bash.Statement]
 -- instance Deep ShPrim ShFam Bash.Statement
@@ -116,13 +116,13 @@ deriveDeepFor ''ShPrim ''ShFam
 -- instance Deep ShPrim ShFam (Maybe Bash.IODesc)
 -- instance Deep ShPrim ShFam Bash.RedirOp
 -- instance Deep ShPrim ShFam Bash.HeredocOp
--- instance Deep ShPrim ShFam Bash.IODesc 
+-- instance Deep ShPrim ShFam Bash.IODesc
 
 parseFile :: String -> ExceptT String IO Bash.List
 parseFile file = do
   res <- lift $ readFile file
   case Bash.parse file res of
-    Left e  -> throwError (show e) 
+    Left e  -> throwError (show e)
     Right r -> return r
 
 dfromSh :: Bash.List -> SFix ShPrim ShFam Bash.List

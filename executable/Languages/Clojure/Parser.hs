@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 
--- | Taken from 
+-- | Taken from
 -- https://github.com/nazrhom/vcs-clojure/blob/master/src/Language/Clojure/Parser.hs
 module Languages.Clojure.Parser
     ( parseTop
@@ -38,7 +38,7 @@ parseSeq = do
   p1 <- parseExpr
   whiteSpace lexer
   p2 <- (try parseSeq <|> parseEmptyProgram)
-  return $ Seq p1 p2 
+  return $ Seq p1 p2
 
 parseTop = whiteSpace lexer *> (try parseSeq <|> parseEmptyProgram) <* eof
 
@@ -61,11 +61,11 @@ parseExpr = choice
   ]
 
 parseEmptyProgram = do
-  return $ Empty 
+  return $ Empty
 
 parseTerm = do
     term <- parseTaggedString
-    return $ Term term 
+    return $ Term term
 
 parseCollection = choice [ parseParens, parseVec, parseSet ]
 
@@ -87,7 +87,7 @@ parseTaggedString = choice [parseString, parseVar]
 parseDispatch = do
   char '#'
   disp <- parseDispatchable
-  return $ Dispatch disp 
+  return $ Dispatch disp
   where
     parseDispatchable = choice
       [ parseExpr
@@ -99,11 +99,11 @@ parseDispatch = do
     -- parseTaggedLit covers the var macro (as identifiers can start with a quote ('))
     parseRegExp = do
       regExp <- parseString
-      return $ Term regExp 
+      return $ Term regExp
 
     parseTaggedLit = do
       tLit <- parseVar
-      return $ Term tLit 
+      return $ Term tLit
 
     -- parseMeta = do
     --   start <- getPosition
@@ -115,7 +115,7 @@ parseComment = do
   char ';'
   comment <- manyTill anyChar (newline <|> eofS)
   -- single line comment, if we parse end here we have parsed newline as well
-  return $ Comment (T.pack comment) 
+  return $ Comment (T.pack comment)
 
 eofS = do
   eof
@@ -128,26 +128,26 @@ brackets p = between (symbol lexer "[") (string "]") p
 
 parseSet = do
   contents <- braces parseSepExprList
-  return $ Collection Set contents 
+  return $ Collection Set contents
 
 parseVec = do
   contents <- brackets parseSepExprList
-  return $ Collection Vec contents 
+  return $ Collection Vec contents
 
 parseParens = do
   contents <- parens parseSepExprList
-  return $ Collection Parens contents 
+  return $ Collection Parens contents
 
 parseSepExprList = parseSepExprList1 <|> parseEmptyList
 
 parseEmptyList = do
-  return $ Nil 
+  return $ Nil
 
 parseSepExprList1 = do
   x <- parseExpr
   sep <- parseSep
   xs <- parseSepExprList
-  return $ Cons x sep xs 
+  return $ Cons x sep xs
 
 parseSep = choice
   [ Comma <$ lexeme lexer (char ',')
@@ -157,7 +157,7 @@ parseSep = choice
   ]
 parseString = do
   qstring <- quotedString
-  return $ TaggedString String (T.pack qstring) 
+  return $ TaggedString String (T.pack qstring)
   where
     quotedString :: Parsec String () String
     quotedString = do
@@ -168,7 +168,7 @@ parseString = do
 
 parseVar = do
   vstring <- (identifier)
-  return $ TaggedString Var (T.pack vstring) 
+  return $ TaggedString Var (T.pack vstring)
 
 identifier = do
   c <- alphaNum <|> oneOf ":!#$%&*+./<=>?@\\^|-~_',"

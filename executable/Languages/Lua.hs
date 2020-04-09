@@ -27,7 +27,7 @@ import Generics.Simplistic.Deep
 import Generics.Simplistic.Deep.TH
 
 type LuaPrim = '[ Text , Bool ]
-type LuaFam = 
+type LuaFam =
   [ Block
   , (Maybe Block)
   , [Stat]
@@ -89,7 +89,7 @@ parseFile :: String -> ExceptT String IO Block
 parseFile file = do
   res <- lift $ Lua.parseFile file
   case res of
-    Left e  -> throwError (show e) 
+    Left e  -> throwError (show e)
     Right r -> return r
 
 dfromLua :: Block -> SFix LuaPrim LuaFam Block

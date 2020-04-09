@@ -15,7 +15,7 @@ module Languages.JavaScript where
 
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.Parser
-import Text.Parsec.Pos 
+import Text.Parsec.Pos
 
 import Control.Monad.Except
 
@@ -72,13 +72,13 @@ type JSFam =
   ]
 
 deriveDeepFor ''JSPrim ''JSFam
--- 
+--
 -- instance Deep JSPrim JSFam ()
 -- instance Deep JSPrim JSFam InfixOp
 -- instance Deep JSPrim JSFam AssignOp
 -- instance Deep JSPrim JSFam PrefixOp
 -- instance Deep JSPrim JSFam UnaryAssignOp
--- 
+--
 -- instance Deep JSPrim JSFam (JavaScript ())
 -- instance Deep JSPrim JSFam [Statement ()]
 -- instance Deep JSPrim JSFam (Statement ())
@@ -101,13 +101,13 @@ deriveDeepFor ''JSPrim ''JSFam
 -- instance Deep JSPrim JSFam (CaseClause ())
 -- instance Deep JSPrim JSFam (VarDecl ())
 -- instance Deep JSPrim JSFam (CatchClause ())
--- 
+--
 
 parseFile :: String -> ExceptT String IO (JavaScript Loc)
 parseFile file = do
   res <- lift $ readFile file
   case parseFromString res of
-    Left e  -> throwError (show e) 
+    Left e  -> throwError (show e)
     Right r -> return (fmap mkLoc r)
  where
    mkLoc :: SourcePos -> Loc

@@ -30,9 +30,9 @@ library:
   ghc-options: -O2 -Wall
 
 tests:
-  spec: 
+  spec:
     main: Spec.hs
-    source-dirs: 
+    source-dirs:
       - tests
     dependencies:
       - hdiff
@@ -55,4 +55,4 @@ executables:
       - deepseq
       - hdiff
     # cpp-options: -DREAL_LANGUAGES
-    ghc-options: -XCPP -O2 -Wno-overlapping-patterns -Wno-inaccessible-code -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-incomplete-record-updates 
+    ghc-options: -XCPP -O2 -Woverlapping-patterns -Winaccessible-code -Wincomplete-patterns -Wincomplete-uni-patterns -Wincomplete-record-updates

@@ -14,7 +14,7 @@
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.Java where
 
--- #ifdef REAL_LANGUAGES
+#ifdef REAL_LANGUAGES
 
 import qualified Language.Java.Syntax as Java
 import qualified Language.Java.Parser as Java
@@ -115,7 +115,7 @@ type JavaFam =
   ]
 
 deriveDeepFor ''JavaPrim ''JavaFam
--- 
+--
 -- instance Deep JavaPrim JavaFam Java.CompilationUnit
 -- instance Deep JavaPrim JavaFam (Maybe Java.PackageDecl)
 -- instance Deep JavaPrim JavaFam [Java.ImportDecl]
@@ -201,17 +201,16 @@ deriveDeepFor ''JavaPrim ''JavaFam
 -- instance Deep JavaPrim JavaFam [Java.VarInit]
 -- instance Deep JavaPrim JavaFam [Java.EnumConstant]
 -- instance Deep JavaPrim JavaFam Java.EnumConstant
--- 
 
 parseFile :: String -> ExceptT String IO Java.CompilationUnit
 parseFile file = do
   res <- lift $ readFile file
   case Java.parser Java.compilationUnit res of
-    Left e  -> throwError (show e) 
+    Left e  -> throwError (show e)
     Right r -> return r
 
 dfromJava :: Java.CompilationUnit
           -> SFix JavaPrim JavaFam Java.CompilationUnit
 dfromJava = dfrom
 
--- #endif
+#endif

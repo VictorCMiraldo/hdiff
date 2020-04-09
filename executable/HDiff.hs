@@ -97,7 +97,7 @@ tryApply v patch fa fb
 
 -- |Runs our diff algorithm with particular options parsed
 -- from the CLI options.
-diffWithOpts :: (LangCnstr kappa fam ix) 
+diffWithOpts :: (LangCnstr kappa fam ix)
              => Options
              -> SFix kappa fam ix
              -> SFix kappa fam ix
@@ -113,7 +113,7 @@ mainDiff v sel opts = withParsed2 sel mainParsers (optFileA opts) (optFileB opts
     unless (v == Quiet || withStats opts)
       $ hPutStrLn stdout (show patch)
     when (testApply opts) $ void (tryApply v (holesMap D.disalign patch) fa (Just fb))
-    when (withStats opts) $ 
+    when (withStats opts) $
       putStrLn . unwords $
         [ "time(s):" ++ show secs
         , "n+m:" ++ show (holesSize fa + holesSize fb)

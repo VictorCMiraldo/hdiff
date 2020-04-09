@@ -102,7 +102,7 @@ type PyFam = '[ () , [String] , SrcSpan,
   ,  (Expr (), Maybe (Expr ()))
   ,  Maybe (Expr (), Maybe (Expr (), Maybe (Expr ())))
   ,  (Expr (), Maybe (Expr (), Maybe (Expr ())))
-  ] 
+  ]
 
 deriveDeepFor ''PyPrim ''PyFam
 
@@ -165,7 +165,7 @@ parseFile :: String -> ExceptT String IO (Module SrcSpan)
 parseFile file = do
   res <- lift $ readFile file
   case parseModule res file of
-    Left e  -> throwError (show e) 
+    Left e  -> throwError (show e)
     Right r -> return (fst r)
 
 -- Forgets source location information

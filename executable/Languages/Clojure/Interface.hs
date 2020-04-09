@@ -39,7 +39,7 @@ deriving instance Generic Term
 deriving instance Generic Sep
 deriving instance Generic Tag
 
-type CljFam = 
+type CljFam =
   [ Expr
   , FormTy
   , CollTy
@@ -72,5 +72,5 @@ parseFile :: String -> ExceptT String IO Expr
 parseFile file = do
   res <- lift $ readFile file
   case Clj.parse Clj.parseTop file res of
-    Left e  -> throwError (show e) 
+    Left e  -> throwError (show e)
     Right r -> return r
