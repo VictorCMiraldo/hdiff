@@ -44,10 +44,10 @@ preprocess = synthesize (const onRec) (const onPrim) (const botElim)
   where
     botElim :: V1 x -> a
     botElim = error "botElim"
-    
+
     pp :: Proxy kappa
     pp = Proxy
-    
+
     onPrim :: (Elem b kappa) => b -> Const (PrepData ()) b
     onPrim b = Const $ PrepData (digPrim pp b) 0 ()
 

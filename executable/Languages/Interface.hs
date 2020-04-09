@@ -24,10 +24,10 @@ import System.Exit
 import qualified Languages.While             as While
 import qualified Languages.Lines             as Lines
 import qualified Languages.Dyck              as Dyck
+import qualified Languages.Java              as Java
 #ifdef REAL_LANGUAGES
 import qualified Languages.Lua               as Lua
 import qualified Languages.Clojure.Interface as Clj
-import qualified Languages.Java              as Java
 import qualified Languages.JavaScript        as JS
 import qualified Languages.Python            as Py
 import qualified Languages.Bash              as Sh
@@ -48,10 +48,10 @@ mainParsers
   = [LangParser "while"    (fmap While.dfromWhile . While.parseFile)
     ,LangParser "lines"    (fmap Lines.dfromLines . Lines.parseFile)
     ,LangParser "dyck"     (fmap Dyck.dfromDyck'  . Dyck.parseFile)
+    ,LangParser "java"     (fmap Java.dfromJava   . Java.parseFile)
 #ifdef REAL_LANGUAGES
     ,LangParser "lua"      (fmap Lua.dfromLua     . Lua.parseFile)
     ,LangParser "clj"      (fmap Clj.dfromClj     . Clj.parseFile)
-    ,LangParser "java"     (fmap Java.dfromJava   . Java.parseFile)
     ,LangParser "js"       (fmap JS.dfromJS'      . JS.parseFile)
     ,LangParser "py"       (fmap Py.dfromPy'      . Py.parseFile)
     ,LangParser "sh"       (fmap Sh.dfromSh       . Sh.parseFile)

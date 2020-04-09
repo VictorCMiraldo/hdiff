@@ -4,8 +4,6 @@
 {-# LANGUAGE GADTs            #-}
 module Data.HDiff.PatchSpec (spec) where
 
-import Data.Functor.Const
-
 import Data.HDiff.Diff
 import Data.HDiff.Base
 import Data.HDiff.MetaVar
@@ -13,8 +11,7 @@ import Data.HDiff.Compose
 import Languages.RTree
 import Languages.RTree.Diff
 
-import GHC.Generics
-import Generics.Simplistic
+import Generics.Simplistic.Deep
 
 import Test.QuickCheck
 import Test.Hspec hiding (after)
@@ -25,7 +22,7 @@ copy_composes :: DiffMode -> Property
 copy_composes mode = forAll genSimilarTrees' $ \(t1 , t2)
   -> let patch = hdiffRTreeHM mode 1 t1 t2
          mcpy  = Hole changeCopy :: PatchRTree
-      in composes patch mcpy .&&. composes mcpy patch
+      in patchComposes patch mcpy .&&. patchComposes mcpy patch
  where
    changeCopy :: Chg RTreePrims RTreeFam RTree
    changeCopy = Chg (Hole $ MV_Comp 0) (Hole $ MV_Comp 0)
@@ -68,7 +65,7 @@ composes_non_reflexive = forAll (genSimilarTrees' `suchThat` uncurry (/=))
   -> let patch = hdiffRTree t1 t2
       in composes patch patch === False
 -}
-           
+
 diffModeSpec :: DiffMode -> Spec
 diffModeSpec mode = do
   describe "composes" $ do

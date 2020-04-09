@@ -34,7 +34,7 @@ instance NFData (MetaVar kappa fam x) where
   rnf (MV_Comp i) = rnf i
 
 
-          
+
 metavarGet :: MetaVar fam prim at -> Int
 metavarGet (MV_Prim i) = i
 metavarGet (MV_Comp i) = i
@@ -44,7 +44,7 @@ metavarSet x (MV_Prim _) = MV_Prim x
 metavarSet x (MV_Comp _) = MV_Comp x
 
 metavarAdd :: Int -> MetaVar fam prim at -> MetaVar fam prim at
-metavarAdd n v = metavarSet (n + metavarGet v) v 
+metavarAdd n v = metavarSet (n + metavarGet v) v
 
 instance EqHO (MetaVar fam prim) where
   eqHO = (==)
@@ -101,7 +101,7 @@ metavarGet :: MetaVarIK ki at -> Int
 metavarGet = elimNA go getConst
   where go (Annotate x _) = x
 
-metavarSet :: Int -> MetaVarIK ki at -> MetaVarIK ki at 
+metavarSet :: Int -> MetaVarIK ki at -> MetaVarIK ki at
 metavarSet x (NA_K (Annotate _ k)) = NA_K (Annotate x k)
 metavarSet x (NA_I (Const _))      = NA_I (Const x)
 
