@@ -3,11 +3,11 @@ module Data.HDiff.DiffSpec (spec) where
 
 import Data.HDiff.Base
 import Data.HDiff.Diff
-import Data.HDiff.MetaVar
 import Languages.RTree
 import Languages.RTree.Diff
+import qualified Data.Set as S
 
-import Generics.Simplistic
+import Generics.Simplistic.Deep
 
 import Test.QuickCheck
 import Test.Hspec
@@ -20,8 +20,8 @@ diff_wellscoped_changes mode = forAll genSimilarTrees' $ \(t1 , t2)
   where
     go :: Chg fam prim ix -> Property
     go (Chg del ins)
-      = let vd = holesHolesSet del
-            vi = holesHolesSet ins
+      = let vd = S.fromList $ holesHolesList del
+            vi = S.fromList $ holesHolesList ins
          in property $ vd == vi
 
 apply_correctness :: DiffMode -> Property
@@ -30,7 +30,7 @@ apply_correctness mode = forAll genSimilarTrees' $ \(t1 , t2)
       in case applyRTree patch t1 of
            Left err -> counterexample ("Apply failed with: " ++ err) False
            Right r  -> property $ t2 == r
-           
+
 diffModeSpec :: DiffMode -> Spec
 diffModeSpec mode = do
   describe "diff" $ do

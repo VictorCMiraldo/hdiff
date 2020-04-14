@@ -40,7 +40,7 @@ type Holes2 kappa fam phi
 -- The semantics are that the first component of
 -- the 'Holes2' /binds/ metavariables and the second
 -- component /uses/ them.
--- 
+--
 -- I like to think of them as pattern mathcing lambda-terms
 -- terms.
 holes2Eq :: (All Eq kappa)
@@ -57,7 +57,7 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
        _ <- holesMapM (uncurry' (reg (cast exit))) (lgg d1 d2)
        _ <- holesMapM (uncurry' (chk (cast exit))) (lgg i1 i2)
        return True
-   
+
    cast :: (Bool -> Cont Bool b)
         -> Bool -> Cont Bool (Const () a)
    cast f b = (const (Const ())) <$> f b
@@ -66,17 +66,17 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
        -> Holes kappa fam (MetaVar kappa fam) at
        -> Holes kappa fam (MetaVar kappa fam) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   reg _ (Hole m1) (Hole m2) 
+   reg _ (Hole m1) (Hole m2)
      = modify (M.insert (metavarGet m1) (metavarGet m2))
      >> return (Const ())
-   reg exit _ _ 
+   reg exit _ _
      = lift $ exit False
 
    chk :: (Bool -> Cont Bool (Const () at))
        -> Holes kappa fam (MetaVar kappa fam) at
        -> Holes kappa fam (MetaVar kappa fam) at
        -> StateT (M.Map Int Int) (Cont Bool) (Const () at)
-   chk exit (Hole m1) (Hole m2) 
+   chk exit (Hole m1) (Hole m2)
      | metavarGet m1 == metavarGet m2 = return (Const ())
      | otherwise
      = do st <- get
@@ -86,11 +86,11 @@ holes2Eq (d1 :*: i1) (d2 :*: i2) = aux
                        then return (Const ())
                        else lift $ exit False
    chk exit _ _ = lift (exit False)
-        
+
 -- |Arity counts how many times a variable occurs
 type Arity = Int
 
--- |The multiset of variables used by a context. 
+-- |The multiset of variables used by a context.
 holesVars :: HolesMV kappa fam at -> M.Map Int Arity
 holesVars c = flip execState M.empty
             $ holesMapM register c >> return ()
@@ -143,7 +143,7 @@ instance (All Eq kappa) => EqHO (Chg kappa fam) where
 type Domain kappa fam = HolesMV kappa fam
 
 -- |The multiset of variables used by a change. We count
--- occurences of 
+-- occurences of
 chgVars :: Chg kappa fam at -> M.Map Int Arity
 chgVars (Chg d i) = flip execState M.empty
                   $  holesMapM register d
@@ -179,7 +179,7 @@ chgDistr p = Chg (holesJoin $ holesMap chgDel p)
 
 -- |Alpha equality for patches
 patchEq :: (All Eq kappa) => Patch kappa fam at -> Patch kappa fam at -> Bool
-patchEq p1 p2 = changeEq (chgDistr p1) (chgDistr p2)        
+patchEq p1 p2 = changeEq (chgDistr p1) (chgDistr p2)
 
 -- |The multiset of variables used by a patch.
 patchVars :: Patch kappa fam at -> M.Map Int Arity
@@ -187,7 +187,7 @@ patchVars = flip execState M.empty . holesMapM go
   where
     register mvar = modify (M.insertWith (+) (metavarGet mvar) 1)
                  >> return mvar
-    
+
     go r@(Chg d i)
       = holesMapM register d >> holesMapM register i >> return r
 
@@ -211,4 +211,4 @@ withFreshNamesFrom p q =
 -- | Counts how many constructors are inserted and deleted
 -- in a patch.
 patchCost :: Patch kappa fam at -> Int
-patchCost = sum . map (exElim chgCost) . holesHolesList 
+patchCost = sum . map (exElim chgCost) . holesHolesList

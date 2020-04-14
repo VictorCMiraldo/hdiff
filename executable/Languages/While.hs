@@ -134,7 +134,7 @@ statement :: Parser Stmt
 statement = statement'
         <|> parseBraces sequenceOfStmt
 
-sequenceOfStmt = 
+sequenceOfStmt =
   do list <- (many1 statement')
      -- If there's only one statement return it without using Seq.
      return $ if length list == 1 then head list else Seq list

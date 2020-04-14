@@ -41,7 +41,7 @@ isClosed global (WithVars ds us _) = M.unionWith (+) ds us `M.isSubmapOf` global
 -- not forget to compute the multiset union of the arity maps.
 chgVarsDistr :: Holes kappa fam (ChgVars kappa fam) at
              -> ChgVars kappa fam at
-chgVarsDistr h = 
+chgVarsDistr h =
   let (hD , ds) = runWriter $ holesMapM (\(WithVars d _ c) -> tell [d] >> return (chgDel c)) h
       (hI , us) = runWriter $ holesMapM (\(WithVars _ u c) -> tell [u] >> return (chgIns c)) h
       d'        = M.unionsWith (+) ds
@@ -64,11 +64,11 @@ close c =
    withVars :: (HolesMV kappa fam :*: HolesMV kappa fam) at
             -> ChgVars kappa fam at
    withVars (d :*: i) = WithVars (holesVars d) (holesVars i) (Chg d i)
-                
+
 
    closure :: M.Map Int Arity
            -> Holes kappa fam (ChgVars kappa fam) at
-           -> Sum (ChgVars kappa fam) (Holes kappa fam (ChgVars kappa fam)) at 
+           -> Sum (ChgVars kappa fam) (Holes kappa fam (ChgVars kappa fam)) at
    closure _  (Prim x)  = InR $ Prim x
    closure gl (Hole cv)
      | isClosed gl cv = InR $ Hole cv

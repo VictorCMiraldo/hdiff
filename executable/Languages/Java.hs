@@ -115,7 +115,7 @@ type JavaFam =
   ]
 
 deriveDeepFor ''JavaPrim ''JavaFam
--- 
+--
 -- instance Deep JavaPrim JavaFam Java.CompilationUnit
 -- instance Deep JavaPrim JavaFam (Maybe Java.PackageDecl)
 -- instance Deep JavaPrim JavaFam [Java.ImportDecl]
@@ -201,13 +201,12 @@ deriveDeepFor ''JavaPrim ''JavaFam
 -- instance Deep JavaPrim JavaFam [Java.VarInit]
 -- instance Deep JavaPrim JavaFam [Java.EnumConstant]
 -- instance Deep JavaPrim JavaFam Java.EnumConstant
--- 
 
 parseFile :: String -> ExceptT String IO Java.CompilationUnit
 parseFile file = do
   res <- lift $ readFile file
   case Java.parser Java.compilationUnit res of
-    Left e  -> throwError (show e) 
+    Left e  -> throwError (show e)
     Right r -> return r
 
 dfromJava :: Java.CompilationUnit

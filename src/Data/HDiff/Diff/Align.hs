@@ -29,7 +29,7 @@ import Data.HDiff.Base
 import Data.HDiff.MetaVar
 
 -- * Alignments
--- 
+--
 -- $aligndoc
 --
 -- The idea is to align insertion and deletions
@@ -235,11 +235,11 @@ align' p = flip runState maxv
       | weq (Proxy :: Proxy kappa) x y = get >>= \i -> put (i+1) >> return (Cpy (MV_Prim i))
       | otherwise                      = return (Mod c)
     cpyPrims c    = return (Mod c)
-    
+
     -- first pass aligns changes and reveals a spine
     chgAlign :: Chg kappa fam x -> Al kappa fam x
     chgAlign c@(Chg d i) = al (chgVars c) (annotRigidity d) (annotRigidity i)
- 
+
 ----------------------------------
 
 -- |A subtree is said to be /rigid/ when it does not
@@ -297,7 +297,7 @@ hasRigidZipper r =
 
 -- |An 'Aligner' is a function that receives annotated
 -- contexts and produces an alignment.
-type Aligner kappa fam = forall t 
+type Aligner kappa fam = forall t
                         . HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
                        -> HolesAnn kappa fam IsRigid (MetaVar kappa fam) t
                        -> Al kappa fam t

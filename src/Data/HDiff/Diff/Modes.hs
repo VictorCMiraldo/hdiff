@@ -37,7 +37,7 @@ extractHoles DM_ProperShare h tr (src :*: dst)
   = (extractProperShare h tr src :*: extractProperShare h tr dst)
 extractHoles DM_Patience h tr (src :*: dst)
   = (extractPatience h tr src :*: extractPatience h tr dst)
- 
+
 -- ** Proper Shares
 
 extractProperShare :: CanShare kappa fam
@@ -54,9 +54,9 @@ tagProperShare ism = synthesize onRec onPrim (const botElim)
   where
     botElim :: V1 x -> y
     botElim = error "impossible"
-   
+
     myar :: PrepData x -> Int
-    myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest 
+    myar = maybe 0 getArity . flip T.lookup ism . toW64s . treeDigest
 
     onPrim :: (Elem b kappa)
            => Const (PrepData a) b
@@ -73,7 +73,7 @@ tagProperShare ism = synthesize onRec onPrim (const botElim)
          in Const $ pd { treeParm = (max maxar myar' , myar' >= maxar) }
 
 properShare :: forall kappa fam at
-             . CanShare kappa fam 
+             . CanShare kappa fam
             -> IsSharedMap
             -> PrepFix (Int , Bool) kappa fam at
             -> Holes kappa fam (MetaVar kappa fam) at
@@ -82,14 +82,14 @@ properShare h tr pr@(SFixAnn ann d)
   = let prep  = getConst ann
         isPS  = snd $ treeParm prep
      in if not (isPS && h pr)
-        then Roll (repMap (properShare h tr) d) 
+        then Roll (repMap (properShare h tr) d)
         else case T.lookup (toW64s $ treeDigest prep) tr of
-               Nothing -> Roll (repMap (properShare h tr) d) 
-               Just i  -> Hole (MV_Comp $ getMetavar i) 
+               Nothing -> Roll (repMap (properShare h tr) d)
+               Just i  -> Hole (MV_Comp $ getMetavar i)
 
 -- ** Patience
 
-extractPatience :: CanShare kappa fam 
+extractPatience :: CanShare kappa fam
                 -> IsSharedMap
                 -> PrepFix a kappa fam at
                 -> Holes kappa fam (MetaVar kappa fam) at
@@ -110,10 +110,10 @@ patience h tr pr@(SFixAnn ann d)
                       | otherwise       -> aux
                Nothing                  -> aux
 
-              
+
 -- ** No Nested
 
-extractNoNested :: CanShare kappa fam 
+extractNoNested :: CanShare kappa fam
                 -> IsSharedMap
                 -> Delta (PrepFix a kappa fam) at
                 -> Delta (Holes kappa fam (MetaVar kappa fam)) at
@@ -122,7 +122,7 @@ extractNoNested h tr (src :*: dst)
         ins'  = noNested h tr dst
         delHs = S.fromList $ map getHole $ holesHolesList del'
         insHs = S.fromList $ map getHole $ holesHolesList ins'
-        holes = delHs `S.intersection` insHs 
+        holes = delHs `S.intersection` insHs
         del   = holesRefineHoles (refineHole holes) del'
         ins   = holesRefineHoles (refineHole holes) ins'
      in (del :*: ins)
@@ -137,7 +137,7 @@ extractNoNested h tr (src :*: dst)
       | i `S.member` s = case f of
                            (SFixAnn _ _) -> Hole (MV_Comp i)
                            (PrimAnn _ _) -> Hole (MV_Prim i)
-      | otherwise      = holesMapAnn (error "imp: void") (const U1) f 
+      | otherwise      = holesMapAnn (error "imp: void") (const U1) f
 
 noNested :: forall kappa fam at a
           . CanShare kappa fam

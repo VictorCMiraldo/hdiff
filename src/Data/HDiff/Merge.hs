@@ -38,7 +38,7 @@ import           Data.HDiff.Show
 import           Data.Text.Prettyprint.Doc hiding (align)
 import           Data.Text.Prettyprint.Doc.Render.Terminal
 
-import Unsafe.Coerce 
+import Unsafe.Coerce
 
 -- #define DEBUG_MERGE
 #ifdef DEBUG_MERGE
@@ -223,7 +223,7 @@ data Phase2 :: [*] -> [*] -> * -> * where
   P2Instantiate :: Chg kappa fam at
                 -> Maybe (HolesMV kappa fam at)
                 -> Phase2 kappa fam at
-  
+
   -- ^ Finally, when we cannot really reconcile we can at least try to
   --   check whether we are looking at the same change or not.
   P2TestEq      :: Chg kappa fam at
@@ -245,7 +245,7 @@ mergePhase1 p q =
    (Cpy _ , _) -> return $ Mod $ P2Instantiate (disalign q) Nothing
    (_ , Cpy _) -> return $ Mod $ P2Instantiate (disalign p) Nothing
 
-   -- Permutations are almost as simple as copies but 
+   -- Permutations are almost as simple as copies but
    -- do require some additional processing; we delegate to
    -- an auxiliary function
    (Prm x y, Prm x' y') -> Mod <$> mrgPrmPrm x y x' y'
@@ -265,7 +265,7 @@ mergePhase1 p q =
    -- can safely delete the zipper from the other change
    -- we continue merge with the result and preserve the deletion.
    (Del zp@(Zipper z _), _) -> Del . Zipper z <$> (tryDel zp q >>= uncurry mergePhase1)
-   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (tryDel zq p >>= uncurry mergePhase1) 
+   (_, Del zq@(Zipper z _)) -> Del . Zipper z <$> (tryDel zq p >>= uncurry mergePhase1)
 
    -- Spines mean that on one hand a constructor was copied; but the mod
    -- indicates this constructor changed. Hence, we hace to try applying
@@ -291,7 +291,7 @@ mergePhase1 p q =
      trace (mkDbgString "prm" "prm" (show x ++ " |-> " ++ show y)
                                     (show x' ++ " |-> " ++ show y'))
       $ do -- let ins oldEs = substInsert (substInsert oldEs x (Hole x')) y (Hole y')
-           let ins oldEs = substInsert oldEs x (Hole x') 
+           let ins oldEs = substInsert oldEs x (Hole x')
            onEqvs ins
            return (P2TestEq (Chg (Hole x) (Hole y)) (Chg (Hole x') (Hole y')))
 
@@ -299,13 +299,13 @@ mergePhase1 p q =
           -> MetaVar kappa fam x
           -> Chg kappa fam x
           -> MergeM kappa fam (Phase2 kappa fam x)
-   mrgPrm x y c = 
+   mrgPrm x y c =
      trace (mkDbgString "prm" "chg" (show x ++ " |-> " ++ show y) (show c))
        $ addToIota "prm-chg" x c
        -- TODO: is this P2Instantiate' necessary? oesn't
        -- a P2Instantiate work?
        >> return (P2Instantiate (Chg (Hole x) (Hole y)) Nothing) -- (Just $ chgIns c))
-            
+
    isDup :: Chg kappa fam x -> Bool
    isDup (Chg (Hole _) (Hole _)) = True
    isDup _ = False
@@ -317,7 +317,7 @@ mergePhase1 p q =
     | isDup p' = mrgChgDup p' q'
     | isDup q' = mrgChgDup q' p'
     | otherwise =
-      trace (mkDbgString "chg" "chg" (show p') (show q')) 
+      trace (mkDbgString "chg" "chg" (show p') (show q'))
       $ case runExcept (unify (chgDel p') (chgDel q')) of
          Left _e  -> throwInvFailure
          Right r  -> onEqvs (M.union r)
@@ -325,7 +325,7 @@ mergePhase1 p q =
 
    mrgChgDup :: Chg kappa fam x -> Chg kappa fam x
              -> MergeM kappa fam (Phase2 kappa fam x)
-   mrgChgDup dup@(Chg (Hole v) _) q' = 
+   mrgChgDup dup@(Chg (Hole v) _) q' =
     trace (mkDbgString "chg" "dup" (show q') (show dup))
      $ addToIota "chg-dup" v q' >> return (P2Instantiate dup Nothing)
    mrgChgDup _ _ = error "imp: we did check with isDup' before calling"
@@ -380,7 +380,7 @@ tryDel _ _ = error "imp: no other case should show up"
 
 instM :: (All Eq kappa)
       => HolesMV kappa fam at -> Al kappa fam at -> MergeM kappa fam ()
--- instantiating over a copy is fine; 
+-- instantiating over a copy is fine;
 instM _ (Cpy     _) = return ()
 instM (Hole v) a = addToIota "inst-contr" v (disalign a)
 -- Instantiating over a modification might also be
@@ -428,7 +428,7 @@ type Subst2 kappa fam = ( Subst kappa fam (MetaVar kappa fam)
 -- > = (M.singleton (var 1) ... , M.singleton (var 0) ...)
 --
 splitEqvs :: Subst  kappa fam (MetaVar kappa fam)
-          -> Subst2 kappa fam 
+          -> Subst2 kappa fam
 splitEqvs = M.partition (exElim hasNoHoles)
   where
    hasNoHoles :: Holes kappa fam phi x -> Bool
@@ -449,11 +449,11 @@ addEqvsAndSimpl m (rig, nrig) = minimize $ M.foldrWithKey go (M.union m rig) nri
        -> Exists (HolesMV kappa fam)
        -> Subst kappa fam (MetaVar kappa fam)
        -> Subst kappa fam (MetaVar kappa fam)
-    go var u s 
+    go var u s
       -- we know 'var' and 'u' have the same index since they
       -- are comming from a subst, hence, we won't unsafe corce
       -- but just directly add in the map
-      | canAdd var u s = M.insert var u s 
+      | canAdd var u s = M.insert var u s
       | otherwise      = s
 
     -- If we have a variable equivalence, and either of them are already members
@@ -533,7 +533,7 @@ chgeq :: (All Show kappa , All Eq kappa)
       -> Chg kappa fam at
       -> Chg kappa fam at
       -> MergeM kappa fam (Chg kappa fam at)
-chgeq di ca cb = 
+chgeq di ca cb =
   let ca' = chgrefine di ca
       cb' = chgrefine di cb
       r   = changeEq ca' cb'
@@ -543,7 +543,7 @@ chgeq di ca cb =
      else throwConf "not-eq"
 
 ------------
--- Pretty -- 
+-- Pretty --
 
 
 instance (All Show kappa) => Show (PatchC kappa fam x) where
@@ -562,4 +562,3 @@ confPretty (Conflict lbl c d)
          , pretty "==========="
          , alignedPretty d
          , pretty ">>>>>>>" <+> pretty lbl <+> pretty "<<<<<<< !!}"]
-

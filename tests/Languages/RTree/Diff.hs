@@ -14,20 +14,14 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 module Languages.RTree.Diff where
 
-import Data.Functor.Const
-import Data.Void
-
 import Languages.RTree
 import Data.HDiff.Base
 import Data.HDiff.Apply
 import Data.HDiff.Diff
-import Data.HDiff.Diff.Preprocess
 
-import Generics.Simplistic
-import Generics.Simplistic.Digest
+import Generics.Simplistic.Deep
 
 type PatchRTree = Patch RTreePrims RTreeFam RTree
-
 
 hdiffRTreeH :: Int -> RTree -> RTree -> PatchRTree
 hdiffRTreeH h a b = diff h (dfromRTree a) (dfromRTree b)
@@ -38,14 +32,6 @@ hdiffRTreeHM m h a b = diffOpts (diffOptionsDefault { doMode = m
                                                     })
                                 (dfromRTree a)
                                 (dfromRTree b)
-
-{-
-rtreeMerkle :: RTree -> Digest
-rtreeMerkle a = getDig $ preprocess (na2holes $ NA_I $ dfrom $ into @FamRTree a)
-  where
-    getDig :: PrepFix a ki codes (Const Void) ix -> Digest
-    getDig = treeDigest . getConst . holesAnn
--}
 
 hdiffRTree :: RTree -> RTree -> PatchRTree
 hdiffRTree a b = hdiffRTreeH 1 a b

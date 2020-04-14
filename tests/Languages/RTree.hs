@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -13,19 +13,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# OPTIONS_GHC -Wno-missing-signatures                 #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns                #-}
-{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 module Languages.RTree where
 
-import Data.Type.Equality
-
 import GHC.Generics
-import Generics.Simplistic
-import Generics.Simplistic.TH
-import Generics.Simplistic.Digest
-
-import Data.Text.Prettyprint.Doc (pretty)
+import Generics.Simplistic.Deep
 
 import Control.Monad
 import Test.QuickCheck
@@ -37,17 +28,11 @@ height :: RTree -> Int
 height (_ :>: []) = 0
 height (_ :>: ns) = 1 + maximum (map height ns)
 
--- Workflow: use
---   getTypesInvolved [ ''String ] [t| RTree |]
--- Then inspect the result,
---   :i TypesInvolved
--- get the list of types; then use emacs macros!
-
 type RTreePrims = '[ String ]
 type RTreeFam   = '[ RTree , [RTree] ]
 
 deriving instance Generic RTree
-instance Deep RTreePrims RTreeFam RTree 
+instance Deep RTreePrims RTreeFam RTree
 instance Deep RTreePrims RTreeFam [ RTree ]
 
 dfromRTree :: RTree -> SFix RTreePrims RTreeFam RTree
@@ -102,7 +87,7 @@ genSimilarTreesN n0 h = do
       frequency $ [ (ch , genInsHere (n' :>: ns'))
                   , (ht , return (n' :>: ns'))
                   ] ++ (if length ns > 0
-                      then [ (ch , elements ns') ] -- genDelHere 
+                      then [ (ch , elements ns') ] -- genDelHere
                       else [] )
 
 instance Arbitrary RTree where
@@ -110,7 +95,7 @@ instance Arbitrary RTree where
 
 genSimilarTrees' :: Gen (RTree , RTree)
 genSimilarTrees' = choose (0 , 4) >>= genSimilarTrees
- 
+
 genSimilarTrees'' :: Gen (RTree , RTree , RTree)
 genSimilarTrees'' = choose (0 , 4) >>= genSimilarTreesN 3
                                    >>= \[t1 , t2 , t3] -> return (t1 , t2 , t3)

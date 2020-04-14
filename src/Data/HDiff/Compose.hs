@@ -7,6 +7,8 @@
 -- manually.
 module Data.HDiff.Compose where
 
+import Data.HDiff.Diff.Closure
+-------------------------------
 import Generics.Simplistic.Unify
 import Generics.Simplistic.Util
 -------------------------------
@@ -28,13 +30,14 @@ chgAfter q p = do
   let rI = substApply sigma (chgIns q)
   return (Chg rD rI)
 
--- |Composes two patches into a change. This function
+-- |Composes two patches into a patch. This function
 -- will rename variables as necessary to ensure
--- it passes two changes with disjoint names to 'chgAfter'
+-- it passes two changes with disjoint names to 'chgAfter'.
+-- It then translates the result of 'chgAfter' with 'close'.
 (.!) :: (All Eq kappa)
      => Patch kappa fam at -> Patch kappa fam at
-     -> Maybe (Chg kappa fam at)
-q .! p = (chgDistr q) `chgAfter` (chgDistr p')
+     -> Maybe (Patch kappa fam at)
+q .! p = close <$> (chgDistr q) `chgAfter` (chgDistr p')
   where
     p' = p `withFreshNamesFrom` q
 
@@ -44,6 +47,3 @@ patchComposes :: (All Eq kappa)
               => Patch kappa fam at -> Patch kappa fam at
               -> Bool
 patchComposes q p = maybe False (const True) (q .! p)
- 
-
-        

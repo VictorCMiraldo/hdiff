@@ -25,7 +25,7 @@ import Generics.Simplistic.Util
 
 -- * Digest Capabilities
 
--- |Our digests come from Blake2b_256 
+-- |Our digests come from Blake2b_256
 newtype Digest
   = Digest { getDigest :: Hash.Digest Hash.Blake2b_256 }
   deriving (Eq , Show)
@@ -62,7 +62,7 @@ class Digestible v where
 
 instance Show a => Digestible a where
   digest = hashStr . show
-  
+
 ----------------------------------
 -- Digest a SFix into a SFixAnn --
 

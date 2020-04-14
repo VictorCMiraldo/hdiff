@@ -32,7 +32,7 @@ repPretty f x =
 holesAnnPretty :: forall kappa fam phi h ann a
    . (All Show kappa)
   => (forall x . h   x -> Doc ann)
-  -> (forall x . phi x -> Doc ann -> Doc ann) 
+  -> (forall x . phi x -> Doc ann -> Doc ann)
   -> HolesAnn kappa fam phi h a
   -> Doc ann
 holesAnnPretty f g (Hole' ann x) = g ann (f x)
@@ -43,14 +43,14 @@ holesAnnPretty f g (Roll' ann x)
 
 holesPretty
   :: (All Show kappa)
-  => (forall x . h x -> Doc ann) 
+  => (forall x . h x -> Doc ann)
   -> Holes kappa fam h a
   -> Doc ann
 holesPretty f = holesAnnPretty f (const id)
 
 sfixAnnPretty
   :: (All Show kappa)
-  => (forall x . phi x -> Doc ann -> Doc ann) 
+  => (forall x . phi x -> Doc ann -> Doc ann)
   -> SFixAnn kappa fam phi a
   -> Doc ann
 sfixAnnPretty f = holesAnnPretty (error "imp") f
@@ -59,7 +59,7 @@ sfixPretty :: (All Show kappa) => SFix kappa fam a -> Doc ann
 sfixPretty = sfixAnnPretty  (const id)
 
 instance (All Show kappa) => Show (SFix kappa fam a) where
-  show = show . sfixPretty 
+  show = show . sfixPretty
 
 -----------------------------
 -- Zipper stuff
@@ -86,4 +86,3 @@ zipperPretty :: (forall x . f x -> Doc ann)
 zipperPretty pf pg pz (Zipper z x)
   = PP.group $ PP.sep [pz (szipPretty pf z)
                      , PP.group (PP.sep [PP.pretty "# =" , pg x])]
-

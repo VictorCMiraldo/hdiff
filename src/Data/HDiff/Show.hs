@@ -72,7 +72,7 @@ chgPretty (D.Chg d i)
  where
    chgD = chg (annotate myred)   (pretty "{-") (pretty "-}")
    chgI = chg (annotate mygreen) (pretty "{+") (pretty "+}")
-   
+
    chg f o c h
      = (f o) <+> holesPretty (metavarPretty f) h <+> (f c)
 

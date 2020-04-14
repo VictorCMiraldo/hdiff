@@ -8,59 +8,13 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 module Data.HDiff.MergeSpec (spec) where
 
-import Data.HDiff.Base
 import Data.HDiff.Merge
-import Data.HDiff.Diff.Align
 import Data.HDiff.Diff
-import Data.HDiff.MetaVar
-import Data.HDiff.Show
 import Languages.RTree
 import Languages.RTree.Diff
 
-import GHC.Generics
-import Generics.Simplistic
-import Generics.Simplistic.Unify
-import Generics.Simplistic.Util
-
-import qualified Data.Set as S
-
 import Test.QuickCheck
 import Test.Hspec
-
-import Control.Monad.Except
-
---------------------------------------------
--- ** Merge Properties
-
-{-
-merge_id :: Property
-merge_id = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = hdiffRTree t1 t2
-         iden  = hdiffRTree t1 t1
-         mpid  = patch // iden
-         midp  = iden  // patch
-      in case (,) <$> noConflicts mpid <*> noConflicts midp of
-           Nothing -> expectationFailure
-                    $ unwords [ "has conflicts:"
-                              , unwords $ getConflicts mpid
-                              , ";;"
-                              , unwords $ getConflicts midp
-                              ]
-           Just (pid , idp) ->
-             case (,) <$> applyRTree pid t1 <*> applyRTree idp t2 of
-               Left err -> expectationFailure ("apply failed: " ++ err)
-               Right (r1 , r2) -> (r1 , r2) `shouldBe` (t2 , t2)
-         
-
-merge_diag :: Property
-merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
-  -> let patch = hdiffRTree t1 t2
-      in case noConflicts (patch // patch) of
-           Nothing -> expectationFailure "has conflicts"
-           Just p  -> case applyRTree' p t2 of
-             Nothing -> expectationFailure "apply failed"
-             Just r  -> r `shouldBe` t2
--}
 
 --------------------------------------------
 -- ** Manual Merge Examples
@@ -68,8 +22,8 @@ merge_diag = forAll genSimilarTrees' $ \(t1 , t2)
 data MergeOutcome
   = MergeOk RTree
   | MergeDiffers -- VCM: not applicable currently!
+  | PrecondFail
   | ApplyFailed
-  | NotSpan
   | HasConflicts
   deriving (Eq , Show)
 
@@ -91,18 +45,18 @@ doMerge mode a o b
         oa = hdiffRTreeHM mode 1 o a
         ob = hdiffRTreeHM mode 1 o b
      in case diff3 oa ob of
-         Nothing -> NotSpan
-         Just d3 -> case noConflicts d3 of
-           Just oc -> case applyRTree oc o of
-                       Right res -> MergeOk res
-                       Left _    -> ApplyFailed
-           Nothing -> HasConflicts
+          Nothing -> PrecondFail -- patches are not a span
+          Just p  -> case noConflicts p of
+                       Just oc -> case applyRTree oc o of
+                                   Right res -> MergeOk res
+                                   Left _    -> ApplyFailed
+                       Nothing -> HasConflicts
 
 xexpectMerge :: MergeOutcome -> String -> String -> RTree -> RTree -> RTree
              -> SpecWith (Arg Property)
-xexpectMerge expt reason lbl a o b = do
+xexpectMerge expt rson lbl a o b = do
   it (lbl ++ ": " ++ show expt) $
-    pendingWith reason
+    pendingWith rson
 
 
 ----------------------
@@ -179,7 +133,7 @@ t4 = ((a4 , o4 , b4) , const $ Just r4)
 a5 , o5 , b5 , r5 :: RTree
 a5 = "x" :>: [ "k" :>: [] , "u" :>: []]
 o5 = "x" :>: [ "u" :>: [] , "k" :>: []]
-b5 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
+b5 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ]
              , "u" :>: [] , "k" :>: [] ]
 
 r5 = "x" :>: [ "y" :>: [ "k" :>: [] , "u" :>: [] ]
@@ -201,7 +155,7 @@ patience5 = "x" :>: ["u" :>: [],"y" :>: ["u" :>: [],"k" :>: []],"k" :>: []]
 a6 , o6 , b6 , r6 :: RTree
 a6 = "x" :>: [ "u" :>: []]
 o6 = "x" :>: [ "u" :>: [] , "k" :>: []]
-b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ] 
+b6 = "x" :>: [ "y" :>: ["u" :>: [] , "k" :>: [] ]
              , "u" :>: [] , "k" :>: [] ]
 
 r6 = "x" :>: [ "y" :>: [ "u" :>: [] ] , "u" :>: [] ]
@@ -367,7 +321,7 @@ a19 , o19 , b19 :: RTree
 a19 = "c" :>: ["c" :>: []]
 o19 = "c" :>: ["m" :>: ["a" :>: []]]
 b19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []]
-r19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []] 
+r19 = "f" :>: ["c" :>: [],"c" :>: [],"c" :>: [],"k" :>: []]
 
 t19 :: TestCase
 t19 = ((a19 , o19 , b19) , const $ Just r19)
@@ -421,7 +375,7 @@ a23 = "x" :>: [ "N1" :>: [] , "A" :>: [] , "D" :>: ["DN" :>: []] , "C" :>: [ "CN
               , "N2" :>: [] , "B" :>: [] , "E" :>: [] ]
 o23 = "x" :>: [ "A" :>: [] , "B" :>: [] , "C" :>: [ "CN" :>: [] ] , "D" :>: [ "DN" :>: [] ] , "E" :>: []]
 b23 = "x" :>: [ "A" :>: [] , "CD" :>: [ "DN" :>: [] , "CN" :>: []] , "B" :>: [] , "E" :>: []]
-                
+
 t23 :: TestCase
 t23 = ((a23 , o23 , b23) , const Nothing)
 
@@ -449,10 +403,10 @@ o25 = "x" :>: ["A" :>: leaves ["a" , "b" , "c"] , "B" :>: [] , "C" :>: []]
 b25 = "x" :>: ["A" :>: leaves ["a" , "c"]       , "B" :>: [] , "b" :>: [] , "C" :>: []]
 
 r25 = "x" :>: ["A" :>: leaves ["a" , "c"] , "b" :>: [] , "B" :>: [] , "b" :>: [] , "C" :>: []]
-              
+
 -- VCM: This is a very interesting test case; do we want to make
 -- it into a conflict? How do we even detect "b" :>: [] got moved to two different
--- places? 
+-- places?
 -- VCM: I'm making it into a conflict; We effectively have the
 --      same piece of information moved to two different places;
 --      duplicating the information is not desired; I can craft scenarios where
@@ -504,7 +458,6 @@ dset = [ [ a1, o1, b1 ]
        , [ a7, o7, b7 ]
        , [ a8, o8, b8 ]
        , [ a9, o9, b9 ]
-       -- , [ a13, o13, b13 ]
        , [ a17, o17, b17 ]
        , [ a18, o18, b18 ]
        , [ a19, o19, b19 ]
@@ -524,109 +477,6 @@ failset = [ [ a10, o10, b10 ]
           , [ a23, o23, b23 ]
           ]
 
-
-
--- mytest' [a, o , b] = mytestB a o b
-
-{-
-mytestB a o b =
-  let oa0 = hdiffRTree o a
-      ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
-      oa  = distrCChange oa0
-      ob  = distrCChange ob0
-   in case mergeWithErr oa ob of
-        Left i -> error (show i)
-        Right r -> r
-
-
-mytest a o b r =
-  let oa0 = hdiffRTree o a
-      ob0 = hdiffRTree o b `withFreshNamesFrom` oa0
-      oa  = distrCChange oa0
-      ob  = distrCChange ob0
-   in case mergeWithErr oa ob of
-        Left i -> Left "merge fail"
-        Right m -> let c = CMatch S.empty (fst' m) (snd' m)
-                    in case applyRTreeC c o of
-                         Left _ -> Left "apply fail"
-                         Right r' -> if r == r'
-                                     then Right ()
-                                     else Left "Different Result"
-
--}
-
-myHdiffRTree = hdiffRTreeHM DM_ProperShare 1
-
-oa1 = myHdiffRTree o1 a1
-ob1 = myHdiffRTree o1 b1
-
-oa2 = myHdiffRTree o2 a2
-ob2 = myHdiffRTree o2 b2
-
-oa3 = myHdiffRTree o3 a3
-ob3 = myHdiffRTree o3 b3
-
-oa7 = myHdiffRTree o7 a7
-ob7 = myHdiffRTree o7 b7
-
-oa8 = myHdiffRTree o8 a8
-ob8 = myHdiffRTree o8 b8
-
-
-oa5 = myHdiffRTree o5 a5
-ob5 = myHdiffRTree o5 b5
-
-oa6 = myHdiffRTree o6 a6
-ob6 = myHdiffRTree o6 b6
-
-oa12 = myHdiffRTree o12 a12
-ob12 = myHdiffRTree o12 b12
-
-oa13 = myHdiffRTree o13 a13
-ob13 = myHdiffRTree o13 b13
-
-oa14 = myHdiffRTree o14 a14
-ob14 = myHdiffRTree o14 b14
-
-oa15 = myHdiffRTree o15 a15
-ob15 = myHdiffRTree o15 b15
-
-oa16 = myHdiffRTree o16 a16
-ob16 = myHdiffRTree o16 b16
-
-oa17 = myHdiffRTree o17 a17
-ob17 = myHdiffRTree o17 b17
-
-oa18 = myHdiffRTree o18 a18
-ob18 = myHdiffRTree o18 b18
-
-oa19 = myHdiffRTree o19 a19
-ob19 = myHdiffRTree o19 b19
-
-oa20 = myHdiffRTree o20 a20
-ob20 = myHdiffRTree o20 b20
-
-oa21 = myHdiffRTree o21 a21
-ob21 = myHdiffRTree o21 b21
-
-oa22 = myHdiffRTree o22 a22
-ob22 = myHdiffRTree o22 b22
-
-oa23 = myHdiffRTree o23 a23
-ob23 = myHdiffRTree o23 b23
-
-oa24 = myHdiffRTree o24 a24
-ob24 = myHdiffRTree o24 b24
-
-oa25 = myHdiffRTree o25 a25
-ob25 = myHdiffRTree o25 b25
-
-oa26 = myHdiffRTree o26 a26
-ob26 = myHdiffRTree o26 b26
-
-oa27 = myHdiffRTree o27 a27
-ob27 = myHdiffRTree o27 b27
-
 ---- looped subst:
 
 gen3Trees :: Gen (RTree , RTree , RTree)
@@ -634,17 +484,16 @@ gen3Trees = choose (0 , 4)
         >>= genSimilarTreesN 3
         >>= \[a , o , b] -> return (a , o , b)
 
-
 unitTests :: [(String , TestCase)]
-unitTests = [  ("1"   , t1 )  
-            ,  ("2"   , t2 ) 
-            ,  ("3"   , t3 ) 
-            ,  ("4"   , t4 ) 
-            ,  ("5"   , t5 ) 
-            ,  ("6"   , t6 ) 
-            ,  ("7"   , t7 ) 
-            ,  ("8"   , t8 ) 
-            ,  ("9"   , t9 ) 
+unitTests = [  ("1"   , t1 )
+            ,  ("2"   , t2 )
+            ,  ("3"   , t3 )
+            ,  ("4"   , t4 )
+            ,  ("5"   , t5 )
+            ,  ("6"   , t6 )
+            ,  ("7"   , t7 )
+            ,  ("8"   , t8 )
+            ,  ("9"   , t9 )
             ,  ("10"  , t10)
             ,  ("11"  , t11)
             ,  ("12"  , t12)
@@ -658,7 +507,7 @@ unitTests = [  ("1"   , t1 )
             ,  ("21"  , t21)
             ,  ("22"  , t22)
             ,  ("23"  , t23)
-            ,  ("24"  , t24) 
+            ,  ("24"  , t24)
             ,  ("25"  , t25)
             ,  ("26"  , t26)
             ,  ("27"  , t27)
@@ -673,4 +522,3 @@ spec = do
   flip mapM_ (enumFrom (toEnum 0)) $ \m -> do
     describe ("merge: manual examples (" ++ show m ++ ")") $ do
       mapM_ (uncurry $ testMerge m) unitTests
-

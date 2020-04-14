@@ -30,9 +30,9 @@ library:
   ghc-options: -O2 -Wall
 
 tests:
-  spec: 
+  spec:
     main: Spec.hs
-    source-dirs: 
+    source-dirs:
       - tests
     dependencies:
       - hdiff

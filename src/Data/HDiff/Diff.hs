@@ -44,7 +44,7 @@ buildArityTrie opts df = go df T.empty
     ins = T.insertWith 1 (+1) . toW64s
 
     minHeight = doMinHeight opts
-    
+
     go :: PrepFix a kappa fam ix -> T.Trie Int -> T.Trie Int
     go (PrimAnn _            _) t = t
     go (SFixAnn (Const prep) p) t
@@ -59,7 +59,7 @@ buildArityTrie opts df = go df T.empty
     goR (S_M1 _ x) t = goR x t
     goR (x :**: y) t = goR y (goR x t)
     goR (S_K1 x) t = go x t
-   
+
 -- |Given two merkelized trees, returns the trie that indexes
 --  the subtrees that belong in both, ie,
 --
@@ -110,7 +110,7 @@ extractSpine dopq meta maxI dx dy
           => b
           -> State Int (Holes kappa fam (Holes2 kappa fam (MetaVar kappa fam)) b)
    noCopy kik = return (Prim kik)
-                        
+
    doCopy :: (PrimCnstr kappa fam b)
           => b -> State Int (Holes kappa fam (Holes2 kappa fam (MetaVar kappa fam)) b)
    doCopy _ = do
@@ -178,7 +178,7 @@ diffOpts opts x y
      -- the extractSpine step is totally superfluous; but we won't care
      -- too much for this level of detail here.
      in let sp = extractSpine (doOpaqueHandling opts) id i del ins
-         in if doGlobalChgs opts 
+         in if doGlobalChgs opts
             then Hole (chgDistr sp)
             else case close sp of
                     Nothing -> error "invariant broke: has open variables"
