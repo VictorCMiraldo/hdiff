@@ -188,6 +188,9 @@ diff3 oa ob =
   -- by it; note how we align a /shifted/ version of ob
   -- to ensure no variable clashes.
   let (oa' , maxa) = align' oa
+      -- When ob has no variables; chgShiftVarsBy won't do much
+      -- and the align will be broken; need to pass maxa to align and
+      -- ensure that cpyPrims start drawing from there!
       ob'          = align (holesMap (chgShiftVarsBy maxa) ob)
    in holesMapM (uncurry' mergeAl . deltaMap alignDistr) $ lgg oa' ob'
 
