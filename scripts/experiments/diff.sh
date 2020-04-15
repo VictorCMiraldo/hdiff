@@ -35,13 +35,13 @@ timeout="30s"
 function doDiff() {
   local hdr=""
   hdr="$prefix $height $mode"
-  if [[ ! -z "$skipclosures" ]]; then 
+  if [[ ! -z "$globscope" ]]; then 
     hdr="$hdr global"
   else
     hdr="$hdr local"
   fi
   str=$(timeout "${timeout}" hdiff -p $parser \
-    diff -d $mode -m $height $skipclosures --with-stats \
+    diff -d $mode -m $height $globscope --with-stats \
     "$1" "$2")
   res=$?
   case $res in

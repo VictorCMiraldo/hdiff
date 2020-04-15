@@ -36,8 +36,8 @@ runMergeLoc() {
   local name=${exp%%.*}
   local log="$res/individual/$name-$parser"
 
-  for hh in 1; do
-    for mm in patience; do
+  for hh in 1 3 9; do
+    for mm in patience nonest proper; do
         meta "Launching hdiff $parser $name $hh $mm local"
         echo "Launching hdiff $parser $name $hh $mm local"
          ./scripts/run-experiment.sh -s 0 $dry \
@@ -54,8 +54,8 @@ runMergeGlob() {
   local name=${exp%%.*}
   local log="$res/individual/$name-$parser"
 
-  for hh in 1; do
-    for mm in nonest patience; do
+  for hh in 1 3 9; do
+    for mm in nonest patience proper; do
         meta "Launching hdiff $parser $name $hh $mm global"
         echo "Launching hdiff $parser $name $hh $mm global"
          ./scripts/run-experiment.sh -s 0 $dry \
@@ -73,11 +73,11 @@ runDiff () {
   local log="$res/individual/$name-$parser"
 
   for mm in nonest proper patience; do
-      meta "Launching hdiff $parser $name $hh $mm local"
-      echo "Launching hdiff $parser $name $hh $mm local"
+      meta "Launching hdiff diff $parser $name $mm local"
+      echo "Launching hdiff diff $parser $name $mm local"
        ./scripts/run-experiment.sh $dry \
           -l "$log.1.$mm.loc.log" -m 16 "$path" $exp \
-          -d $mm -o never -p $parser 2> /dev/null &
+          -d $mm -p $parser 2> /dev/null &
   done
 } 
 
@@ -87,14 +87,14 @@ meta "Let the experiments begin"
 for lang in lua clj java js py; do
   runMergeLoc  "conflicts-$lang" "$lang"
   runMergeGlob "conflicts-$lang" "$lang"
+  wait
 done
-wait
 
 # Get timings for stdiff and hdiff
-# for lang in java lua clj; do
-#   runDiff "conflicts-$lang" "$lang"
-# done
-# wait
+for lang in java lua clj; do
+  runDiff "conflicts-$lang" "$lang"
+done
+wait
 
 meta "We are done!"
 

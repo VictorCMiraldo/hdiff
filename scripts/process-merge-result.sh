@@ -26,7 +26,7 @@ awkScript='\
   /timeout/     { TOUT=$1  }\
   /unknown/     { OTHER=$1 }\
   /apply-fail/  { OTHER=$1 }\
-  END           { print " success+mdiff: " (SUCC + MDIF) " mdiff: " MDIF " conf: " CONF " parse-error: " PERR " timeout: " TOUT " other: " OTHER }'
+  END           { print " success: " SUCC " mdiff: " MDIF " conf: " CONF " parse-error: " PERR " timeout: " TOUT " other: " OTHER }'
 
 while IFS= read -r header; do 
   cat "$@" | grep "$header" | cut -d' ' -f5 | sort | uniq -c | awk "$awkScript" | xargs -I{} echo "$header {}"
