@@ -213,21 +213,21 @@ alignDistr (Roll a) = Spn (repMap alignDistr a)
 -- to ensure we can stick to the Barendregt's convention
 -- the code.
 align :: (All Eq kappa) => Patch kappa fam at -> PatchAl kappa fam at
-align = fst . align'
+align = fst . align' 0
 
 -- |Backbone of alignment; check 'align' for explanation.
 -- The returned @Int@ is the first unbound name that can
 -- be used.
 align' :: forall kappa fam at
         . (All Eq kappa)
-       => Patch kappa fam at -> (PatchAl kappa fam at , Int)
-align' p = flip runState maxv
-        $ holesMapM (alRefineM cpyPrims . chgAlign) p
-  where
+       => Int -> Patch kappa fam at -> (PatchAl kappa fam at , Int)
+align' prevMaxv p =
+  flip runState maxv $ holesMapM (alRefineM cpyPrims . chgAlign) p
+ where
     -- Compute the variables globally since we need the overall
     -- max value anyway.
     vars = patchVars p
-    maxv = (+1) . maybe 0 fst $ M.lookupMax vars
+    maxv = (+1) . maybe prevMaxv fst $ M.lookupMax vars
 
     -- second pass copies prims
     cpyPrims :: Chg kappa fam x -> State Int (Al kappa fam x)
