@@ -150,8 +150,8 @@ diffOpts' :: forall kappa fam at
           -> SFix kappa fam at
           -> (Int , Delta (Holes kappa fam (MetaVar kappa fam)) at)
 diffOpts' opts x y
-  = let dx      = preprocess x
-        dy      = preprocess y
+  = let dx      = decorate x
+        dy      = decorate y
         (i, sh) = buildSharingTrie opts dx dy
         delins  = extractHoles (doMode opts) mkCanShare sh (dx :*: dy)
      in (i , delins)

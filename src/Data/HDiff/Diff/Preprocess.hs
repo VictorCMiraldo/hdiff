@@ -36,11 +36,11 @@ type PrepFix a kappa fam
 
 -- |Here we receive an expression with holes an annotate
 -- it with hashes and height information at every node.
-preprocess :: forall kappa fam at
-            . (All Digestible kappa)
-           => SFix kappa fam at
-           -> PrepFix () kappa fam at
-preprocess = synthesize (const onRec) (const onPrim) (const botElim)
+decorate :: forall kappa fam at
+          . (All Digestible kappa)
+         => SFix kappa fam at
+         -> PrepFix () kappa fam at
+decorate = synthesize (const onRec) (const onPrim) (const botElim)
   where
     botElim :: V1 x -> a
     botElim = error "botElim"

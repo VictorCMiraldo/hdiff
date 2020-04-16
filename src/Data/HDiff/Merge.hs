@@ -171,18 +171,18 @@ getConflicts = foldr act [] . holesHolesList
     act (Exists (InR _)) = id
     act (Exists (InL c)) = (Exists c :)
 
--- * Diff3
+-- * Merge
 --
--- $diff3
+-- $merge
 
--- |@diff3 p q@ omputes a patch that attempts to reconcile
+-- |@merge p q@ omputes a patch that attempts to reconcile
 -- the differences from @p@ and @q@ into a single patch.
 -- In the locations where this is not possible, we
 -- place a conflict.
-diff3 :: (All Show kappa , All Eq kappa)
+merge :: (All Show kappa , All Eq kappa)
       => Patch kappa fam ix -> Patch kappa fam ix
       -> Maybe (PatchC kappa fam ix)
-diff3 oa ob =
+merge oa ob =
   -- The first step is computing an alignment of
   -- oa; yet, we must care for the variables introduced
   -- by it; note how we align a /shifted/ version of ob

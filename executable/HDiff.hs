@@ -132,7 +132,7 @@ mainMerge v sel opts = withParsed3 sel mainParsers (optFileA opts) (optFileO opt
   $ \pp fa fo fb -> do
     patchOA <- diffWithOpts opts fo fa
     patchOB <- diffWithOpts opts fo fb
-    let momc = D.diff3 patchOA patchOB
+    let momc = D.merge patchOA patchOB
     case momc of
       Nothing  -> return (ExitFailure 13)
       Just omc -> case D.noConflicts omc of

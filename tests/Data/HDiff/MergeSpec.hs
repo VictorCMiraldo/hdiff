@@ -44,7 +44,7 @@ doMerge mode a o b
         -- we get a different result altogether.
         oa = hdiffRTreeHM mode 1 o a
         ob = hdiffRTreeHM mode 1 o b
-     in case diff3 oa ob of
+     in case merge oa ob of
           Nothing -> PrecondFail -- patches are not a span
           Just p  -> case noConflicts p of
                        Just oc -> case applyRTree oc o of
